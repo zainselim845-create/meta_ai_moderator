@@ -1177,6 +1177,48 @@ def api_conversations():
                 "messages": [
                     {"id": "m_5", "text": "بكم تكلفة ربط البوت على الصفحة؟", "is_page": False, "sender_name": "Mohamed Samir", "created_time": "01:20 م"}
                 ]
+            },
+            {
+                "id": "ig_comment_1001",
+                "type": "instagram",
+                "channel": CHANNEL_IG_COMMENT,
+                "platform": "instagram",
+                "is_comment": True,
+                "customer_type": "lead",
+                "lead_score": 95,
+                "lead_badge": "Hot 🔥 95%",
+                "sender": " @rana_bedier1",
+                "sender_name": " @rana_bedier1",
+                "avatar_url": "https://ui-avatars.com/api/?name=Rana+Bedier&background=ec4899&color=fff",
+                "last_msg": "Kol 3am w ento b5eir ❤️",
+                "snippet": "Kol 3am w ento b5eir ❤️",
+                "post_caption": "عيد أضحى مبارك 🌙 اعاده الله عليكم بالخير والسعادة",
+                "timestamp": time.time() - 18000,
+                "unread": 1,
+                "messages": [
+                    {"id": "m_ig_1", "text": "Kol 3am w ento b5eir ❤️", "is_page": False, "sender_name": "rana_bedier1", "created_time": "05:30 م"}
+                ]
+            },
+            {
+                "id": "ig_comment_1002",
+                "type": "instagram",
+                "channel": CHANNEL_IG_COMMENT,
+                "platform": "instagram",
+                "is_comment": True,
+                "customer_type": "lead",
+                "lead_score": 92,
+                "lead_badge": "Hot 🔥 92%",
+                "sender": " @farisyassen_",
+                "sender_name": " @farisyassen_",
+                "avatar_url": "https://ui-avatars.com/api/?name=Faris+Yassen&background=8b5cf6&color=fff",
+                "last_msg": "Best marketing agency ever ❤️",
+                "snippet": "Best marketing agency ever ❤️",
+                "post_caption": "عيد أضحى مبارك 🌙",
+                "timestamp": time.time() - 25000,
+                "unread": 1,
+                "messages": [
+                    {"id": "m_ig_2", "text": "Best marketing agency ever ❤️", "is_page": False, "sender_name": "farisyassen_", "created_time": "03:10 م"}
+                ]
             }
         ]
         
