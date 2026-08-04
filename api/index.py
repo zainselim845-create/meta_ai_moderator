@@ -1385,6 +1385,25 @@ def fetch_rich_thread_messages(thread_id, before=None, limit=50):
         elif a.get("access_token"):
             token = a.get("access_token")
 
+    # Resolve the real PAGE token (PAGE_ACCESS_TOKEN may be a System User token that
+    # can't read /{thread}/messages directly). Without this the fetch fails and the UI
+    # falls back to a single fabricated message with wrong sender attribution.
+    try:
+        _acc = requests.get(
+            f"{GRAPH_URL}/me/accounts?fields=id,access_token,instagram_business_account{{id}}&limit=10&access_token={token}",
+            timeout=10)
+        if _acc.status_code == 200:
+            for _pg in _acc.json().get("data", []):
+                if _pg.get("access_token"):
+                    token = _pg["access_token"]
+                    page_ids.add(str(_pg.get("id")))
+                    _ig = _pg.get("instagram_business_account") or {}
+                    if _ig.get("id"):
+                        page_ids.add(str(_ig["id"]))
+                    break
+    except Exception as _ex:
+        print(f"[Messages Token Exchange Error] {_ex}")
+
     msg_fields = "id,created_time,message,from,to,attachments{id,name,mime_type,size,image_data,video_data,file_url},shares,sticker,tags"
     url = f"{GRAPH_URL}/{thread_id}/messages?fields={msg_fields}&limit={limit}&access_token={token}"
     if before:
