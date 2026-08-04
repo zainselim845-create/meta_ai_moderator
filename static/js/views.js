@@ -273,45 +273,8 @@ function setQuickTime(slot) {
 
 let scheduledPosts = [];
 
-function updatePostPreview() {
-    const type = document.getElementById('sch-type').value;
-    const caption = document.getElementById('sch-caption').value.trim();
-    const mediaInput = document.getElementById('sch-media-url');
-    const chFb = document.getElementById('ch-fb') ? document.getElementById('ch-fb').checked : true;
-    const chIg = document.getElementById('ch-ig') ? document.getElementById('ch-ig').checked : true;
-    const chReel = document.getElementById('ch-reel') ? document.getElementById('ch-reel').checked : false;
-    let mediaUrl = mediaInput.getAttribute('data-direct-url') || mediaInput.value.trim();
-    
-    const tag = document.getElementById('preview-platform-tag');
-    const cap = document.getElementById('preview-caption-text');
-    const box = document.getElementById('preview-media-box');
-    
-    if (tag) {
-        if (type === 'dual_reel' || (chReel && (chFb || chIg))) {
-            tag.innerHTML = '<span class="text-slate-600"> فيسبوك</span> & <span class="text-slate-600"><i data-lucide="instagram" class="w-4 h-4 inline"></i> إنستجرام</span> —  <strong>ريلز مزدوج موحد (FB & IG Reel)</strong>';
-            setAspect('9:16');
-        } else if (type === 'dual_post' || (chFb && chIg)) {
-            tag.innerHTML = '<span class="text-slate-600"> فيسبوك</span> & <span class="text-slate-600"><i data-lucide="instagram" class="w-4 h-4 inline"></i> إنستجرام</span> —  <strong>منشور موحد (Cross-Posting)</strong>';
-        } else if (type === 'fb_post' || type === 'fb_reel') {
-            tag.innerHTML = ' <strong>فيسبوك</strong> — ' + (type === 'fb_reel' ? ' ريلز مجدول' : '<i data-lucide="file-text" class="w-4 h-4 inline"></i> منشور مجدول');
-            if (type === 'fb_reel') setAspect('9:16');
-        } else {
-            tag.innerHTML = '<i data-lucide="instagram" class="w-4 h-4 inline"></i> <strong>إنستجرام</strong> — ' + (type === 'ig_reel' ? ' ريلز مجدول' : '<i data-lucide="instagram" class="w-4 h-4 inline"></i> منشور مجدول');
-            if (type === 'ig_reel') setAspect('9:16');
-        }
-    }
-    if (cap) {
-        cap.textContent = caption || 'معاينة الكابشن والوصف ستظهر هنا أثناء الكتابة...';
-    }
-    if (box) {
-        if (mediaUrl) {
-            box.innerHTML = `<img src="${esc(mediaUrl)}" onerror="this.onerror=null;this.parentNode.innerHTML=' فيديو ميديا للمعاينة: ${esc(mediaUrl)}'">`;
-        } else {
-            box.innerHTML = '<span> لم يتم وضع رابط ميديا بعد</span>';
-        }
-    }
-    triggerMLAnalysis(caption);
-}
+/* Legacy updatePostPreview removed — it targeted an old scheduler DOM (sch-type/sch-caption)
+   that no longer exists. The working version in app.js (uses post-caption-input) is used instead. */
 
 let mlDebounceTimer = null;
 
@@ -373,27 +336,8 @@ function addHashtag(tag) {
     updatePostPreview();
 }
 
-async function generateAICaption() {
-    const textarea = document.getElementById('sch-caption');
-    const topic = textarea.value.trim() || 'خدمات التسويق الرقمي وإدارة السوشيال ميديا';
-    showToast('جاري توليد الكابشن الاحترافي بالذكاء الاصطناعي... <i data-lucide="bot" class="w-4 h-4 inline"></i>');
-    
-    try {
-        const res = await fetch('/api/simulate', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: `اكتب بوست تسويقي احترافي جداً وجذاب لجذب العملاء عن: ${topic}. مع هاشتاجات قوية ومناسبة.`})
-        });
-        const d = await res.json();
-        if (d.reply) {
-            textarea.value = d.reply;
-            updatePostPreview();
-            showToast('تم تحسين وتوليد الكابشن بنجاح! ');
-        }
-    } catch(e) {
-        showToast('حدث خطأ أثناء توليد الكابشن', 'error');
-    }
-}
+/* Legacy generateAICaption removed — targeted old DOM (sch-caption). The app.js version
+   (uses post-caption-input) is used instead. */
 
 function parseDriveLink(input) {
     let val = input.value.trim();

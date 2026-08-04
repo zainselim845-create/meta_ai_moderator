@@ -119,3 +119,34 @@ SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 3. شغّل `python -m pytest` قبل أي commit.
 4. متعملش commit لأي سر — تأكد إن `.env*` في `.gitignore` (موجود).
 5. لو لقيت سر مكشوف تاني مش مذكور هنا — بلّغ، متـتجاهلوش.
+
+---
+
+## P4 — إعادة تحديد النطاق (المالك طلب: بلا سيلز؛ ٤ فيتشرز؛ ظبّط الموجود متبنيش من الأول)
+
+### ✅ اتعمل بالفعل (Claude) — محتاج push + اختبار
+- **شيل السيلز الوهمي** من لوحة النشاط (`templates/index.html`).
+- **إصلاح باگ الإنبوكس الحرج** (`sName`/`sTime` ReferenceError) — المحادثة كانت متفتحش. + خانة الرد + CRM.
+- **أبواب `/api/settings`, `/api/settings/mode`** الناقصة اتضافت.
+- **تحكم AI منفصل لكل أكونت:** كل أكونت عنده `dm_mode` و `comment_mode` (auto/manual). الـ webhook بيقراهم لكل صفحة. Endpoint: `POST /api/accounts/<id>/mode` بـ `{dm_mode, comment_mode}`.
+- **النشر المجدول (كامل backend):** `POST /api/scheduler` بياخد `{caption, target(fb/ig/both), drive_link, date, time}`؛ `drive_to_direct()` بيحوّل لينك درايف لتحميل مباشر؛ `publish_scheduled_post()` بينشر على FB (`/photos` أو `/feed`) و IG (media→media_publish)؛ الكرون `/api/cron/process_scheduled` بينشر البوستات المستحقة. `DELETE /api/scheduler/<id>`. الفرونت: أُضيفت خانة `post-drive-link` + `saveScheduledPost` بيبعت الـ target والدرايف. النسخ المكسورة في `views.js` (كانت بتدوّر على `sch-*`) اتشالت.
+
+### المتبقّي لـ Antigravity (frontend فقط)
+14. **UI تحكم لكل أكونت:** في صفحة الحسابات (`v-accounts`)، لكل أكونت زرّين toggle (كومنتات auto/manual + رسائل auto/manual) بينادوا `POST /api/accounts/<id>/mode`. اقرأ الحالة من `/api/accounts` (رجّع `dm_mode`/`comment_mode` في الـ payload).
+15. **مبدّل الأكونتات:** `#active-client-dropdown` (`index.html`) options ثابتة → املأها من `/api/clients` أو `/api/accounts`، والإنبوكس يفلتر حسب الأكونت النشط (`/api/settings/active-client` موجود). وحّد المبدّلات التلاتة في واحد.
+16. **قايمة الحسابات + عدّاد pending:** `#accounts-list` و badge `#pending-count` مش بيتحدّثوا من أي JS.
+
+**القبول:** كل أكونت يقدر يتحكم في auto/manual لوحده، والتبديل بين الأكونتات بيفلتر الإنبوكس.
+
+---
+
+## P5 — Vercel (المالك طلب صراحةً إن Antigravity يتصرف مع Vercel)
+
+1. **انشر** آخر كود على Vercel production.
+2. **ظبّط Environment Variables** (بعد ما Claude شال كل الـ defaults، لازم تتحط وإلا التطبيق مش هيشتغل صح):
+   `PAGE_ACCESS_TOKEN`, `META_APP_SECRET`, `SUPABASE_URL`, `SUPABASE_KEY`, `GROQ_API_KEY`, `APP_SECRET`, `SECRET_KEY`, `ADMIN_USER`, `ADMIN_PASS`, `ADMIN_API_KEY`, `CRON_SECRET`, `VERIFY_TOKEN`, `CHATWOOT_URL`, `CHATWOOT_API_KEY`, `CHATWOOT_ACCOUNT_ID`, `CHATWOOT_WEBHOOK_SECRET`.
+   > الأسرار الحقيقية يحطها **المالك بنفسه** في Vercel — متكتبهاش في أي ملف.
+3. **الكرون:** `vercel.json` فيه `/api/cron/process_scheduled` يومي (`0 0 * * *`). ⚠️ خطة Vercel Hobby بتسمح بكرون **يومي** كحد أقصى — يعني البوست المجدول هيتنشر عند أقرب تشغيل يومي مش بالدقيقة. لو المالك عايز دقّة بالدقيقة، لازم Vercel **Pro** + غيّر الجدول لـ `*/15 * * * *`. بلّغ المالك بالنقطة دي.
+4. **git history:** لسه فيه أسرار قديمة (٢٨ موضع). نظّفها بـ `git filter-repo` قبل أي push عام، أو خلي الريبو private، والمالك يعمل rotate للأسرار.
+
+**القبول:** الموقع لايف، الـ env متظبط، الكرون شغّال، مفيش أسرار في آخر نسخة.

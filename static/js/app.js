@@ -416,13 +416,14 @@ async function saveScheduledPost() {
   const cap = document.getElementById('post-caption-input')?.value;
   const dt = document.getElementById('post-date')?.value;
   const tm = document.getElementById('post-time')?.value;
+  const drive = document.getElementById('post-drive-link')?.value || '';
   if (!cap) { showToast('يرجى كتابة المحتوى', 'error'); return; }
-  
+
   try {
       const res = await fetch('/api/scheduler', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ caption: cap, target: 'fb', date: dt, time: tm })
+          body: JSON.stringify({ caption: cap, target: (typeof postTarget !== 'undefined' ? postTarget : 'fb'), drive_link: drive, date: dt, time: tm })
       });
       const data = await res.json();
       if(data.success) {
