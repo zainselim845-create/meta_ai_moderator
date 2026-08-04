@@ -794,7 +794,7 @@ def api_conversations():
         if only:
             client_accounts = only
     fb_token = PAGE_ACCESS_TOKEN
-    fb_page_id = ""
+    fb_page_id = os.environ.get("FB_PAGE_ID", "")
     ig_token = INSTAGRAM_USER_ACCESS_TOKEN or PAGE_ACCESS_TOKEN
     ig_id = os.environ.get("IG_ACCOUNT_ID", "")
     
@@ -812,6 +812,57 @@ def api_conversations():
         elif a.get("platform") == "instagram":
             if t: ig_token = t
             ig_id = str(a.get("id", ig_id))
+
+    # Auto-exchange: if PAGE_ACCESS_TOKEN is a System User token, get real Page Token via /me/accounts
+    if fb_token and not fb_page_id:
+        try:
+            accts_res = requests.get(
+                f"{GRAPH_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{{id,username}}&limit=10&access_token={fb_token}",
+                timeout=10
+            )
+            if accts_res.status_code == 200:
+                accts_data = accts_res.json().get("data", [])
+                if accts_data:
+                    pg = accts_data[0]
+                    fb_page_id = pg.get("id", fb_page_id)
+                    fb_token = pg.get("access_token", fb_token)
+                    ig_token = pg.get("access_token", ig_token)
+                    ig_biz = pg.get("instagram_business_account", {})
+                    if ig_biz.get("id") and not ig_id:
+                        ig_id = ig_biz["id"]
+                    print(f"[Token Exchange] Page: {pg.get('name')} ID={fb_page_id}, IG={ig_id}")
+        except Exception as ex:
+            print(f"[Token Exchange Error] {ex}")
+    elif fb_token and fb_page_id:
+        # Even with fb_page_id set, we need the page-level token from /me/accounts
+        try:
+            accts_res = requests.get(
+                f"{GRAPH_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{{id,username}}&limit=10&access_token={fb_token}",
+                timeout=10
+            )
+            if accts_res.status_code == 200:
+                accts_data = accts_res.json().get("data", [])
+                for pg in accts_data:
+                    if pg.get("id") == fb_page_id:
+                        fb_token = pg.get("access_token", fb_token)
+                        ig_token = pg.get("access_token", ig_token)
+                        ig_biz = pg.get("instagram_business_account", {})
+                        if ig_biz.get("id") and not ig_id:
+                            ig_id = ig_biz["id"]
+                        print(f"[Token Exchange] Matched Page: {pg.get('name')} ID={fb_page_id}, IG={ig_id}")
+                        break
+                else:
+                    if accts_data:
+                        pg = accts_data[0]
+                        fb_page_id = pg.get("id", fb_page_id)
+                        fb_token = pg.get("access_token", fb_token)
+                        ig_token = pg.get("access_token", ig_token)
+                        ig_biz = pg.get("instagram_business_account", {})
+                        if ig_biz.get("id") and not ig_id:
+                            ig_id = ig_biz["id"]
+                        print(f"[Token Exchange] Fallback Page: {pg.get('name')} ID={fb_page_id}, IG={ig_id}")
+        except Exception as ex:
+            print(f"[Token Exchange Error] {ex}")
 
     all_threads = []
     
