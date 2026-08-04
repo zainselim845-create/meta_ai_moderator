@@ -421,6 +421,7 @@ async function selectThread(id){
             <!-- Real DM Direct Reply Input -->
             <div class="p-3 bg-white border-t border-slate-200 flex gap-2">
                 <input type="text" id="inbox-reply-input" placeholder="اكتب رسالة مباشرة للعميل هنا..." onkeydown="if(event.key==='Enter')sendInboxReply('${t.id}', 'public')" class="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-600">
+                <button onclick="suggestReply('${t.id}')" title="اقترح رد بالذكاء الاصطناعي (معاينة قبل الإرسال)" class="btn-ghost text-xs px-3 py-2 rounded-xl border border-slate-200 flex items-center gap-1"><i data-lucide="bot" class="w-3.5 h-3.5"></i> اقترح رد</button>
                 <button onclick="sendInboxReply('${t.id}', 'public')" class="btn-primary text-xs px-5 py-2 rounded-xl flex items-center gap-1"><i data-lucide="send" class="w-3.5 h-3.5"></i> إرسال</button>
             </div>
         `}`;
@@ -464,6 +465,21 @@ async function selectThread(id){
             stream.innerHTML += `<div class="empty-state p-2 text-xs"><i data-lucide="x-circle" class="w-4 h-4 text-slate-400 inline"></i> تعذّر تحميل سجل المحادثة — ${esc(e.message||e)}</div>`;
         }
     }
+}
+
+async function suggestReply(threadId){
+    const inp = document.getElementById('inbox-reply-input') || document.getElementById('reply-input');
+    if(!inp) return;
+    const t = allInboxThreads.find(x => String(x.id) === String(threadId)) || activeInboxItem || {};
+    const lastMsg = t.snippet || t.last_msg || inp.value || '';
+    showToast('جارِ اقتراح رد بالذكاء الاصطناعي...');
+    try{
+        const r = await fetch('/api/test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: lastMsg})});
+        const d = await r.json();
+        const reply = d.reply || d.response || '';
+        if(reply){ inp.value = reply; inp.focus(); showToast('تم اقتراح الرد — راجعه وعدّله قبل الإرسال ✍️'); }
+        else showToast('تعذّر اقتراح رد', 'error');
+    }catch(e){ showToast('خطأ في اقتراح الرد', 'error'); }
 }
 
 async function sendInboxReply(threadId, mode = 'public') {

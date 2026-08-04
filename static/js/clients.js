@@ -58,7 +58,7 @@ function renderActiveClientBar() {
     };
 
     statusEl.innerHTML = badge(c.fb_connected, '', 'فيسبوك')
-                       + badge(c.ig_connected, '<i data-lucide="instagram" class="w-4 h-4 inline"></i>', 'إنستجرام');
+                       + badge(c.ig_connected, '<i data-lucide="camera" class="w-4 h-4 inline"></i>', 'إنستجرام');
 }
 
 function renderClientsGrid() {
@@ -71,8 +71,7 @@ function renderClientsGrid() {
     grid.innerHTML = agencyClients.map(c => {
         const phone = c.phone || '01090121000';
         const cleanPhone = phone.replace(/\D/g, '');
-        const leadScore = typeof calculateLeadScore === 'function' ? calculateLeadScore(c) : { label: '85% Hot', category: 'Hot' };
-        
+
         return `
         <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3 relative flex flex-col justify-between">
             ${c.id === activeClientId ? '<span class="absolute top-3 left-3 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs px-2.5 py-0.5 rounded-full font-bold"><i data-lucide="check-circle" class="w-3.5 h-3.5 inline"></i> النشط حالياً</span>' : ''}
@@ -85,11 +84,6 @@ function renderClientsGrid() {
                         <h3 class="font-bold text-sm text-slate-900">${esc(c.name)}</h3>
                         <span class="text-xs text-slate-500">${esc(c.company || 'شركة مسجلة')}</span>
                     </div>
-                </div>
-
-                <div class="p-2 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between mb-3 text-xs">
-                    <span class="font-bold text-blue-900">تقييم العميل (Lead Score):</span>
-                    <span class="bg-blue-600 text-white px-2 py-0.5 rounded-lg font-bold">${esc(leadScore.label || '85% Hot')}</span>
                 </div>
 
                 <div class="text-xs text-slate-600 space-y-1.5 border-t border-slate-100 pt-2">
@@ -149,13 +143,27 @@ async function switchClient(clientId) {
 function openEditClient(id) {
     const c = agencyClients.find(x => x.id === id);
     if (!c) return;
+    const modal = document.getElementById('client-modal');
+    if (!modal || !document.getElementById('c-name')) {
+        // No modal in this build — edit the name inline via prompt
+        const name = prompt('اسم العميل:', c.name || '');
+        if (name === null) return;
+        const company = prompt('الشركة / النشاط:', c.company || '') || '';
+        fetch('/api/clients/' + id, {
+            method: 'PUT', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: (name.trim() || c.name), company})
+        }).then(r => r.json()).then(d => {
+            if (d && d.ok) { showToast('تم تحديث العميل'); loadClients(); }
+            else showToast((d && d.error) || 'فشل التحديث', 'error');
+        }).catch(() => showToast('خطأ في التحديث', 'error'));
+        return;
+    }
     document.getElementById('c-name').value    = c.name || '';
     document.getElementById('c-company').value = c.company || '';
     document.getElementById('c-package').value = c.package || 'Business Pro';
     if (document.getElementById('c-page-id')) document.getElementById('c-page-id').value = c.page_id || '';
     if (document.getElementById('c-ig-id')) document.getElementById('c-ig-id').value = c.ig_id || '';
-    
-    const modal = document.getElementById('client-modal');
     modal.dataset.editId = id;
     modal.classList.remove('hidden'); modal.classList.add('flex');
 }
@@ -198,8 +206,29 @@ ${name}`
     await Promise.allSettled([loadInbox(), loadStats(), loadKb(), loadRules()]);
 }
 
+// Quick add — works without a modal (the modal markup isn't in this build)
+async function addNewClientQuick() {
+    const name = prompt('اسم العميل الجديد:');
+    if (!name || !name.trim()) return;
+    const company = prompt('اسم الشركة / النشاط (اختياري):') || '';
+    const page_id = prompt('Page ID للصفحة على فيسبوك (اختياري):') || '';
+    try {
+        const r = await fetch('/api/clients', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name.trim(), company, page_id})
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) { showToast(d.error || 'فشل إضافة العميل', 'error'); return; }
+        showToast('تمت إضافة العميل: ' + name.trim());
+        if (typeof loadClients === 'function') loadClients();
+        if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
+    } catch(e) { showToast('حدث خطأ أثناء إضافة العميل', 'error'); }
+}
+
 async function saveNewClient() {
     const modal  = document.getElementById('client-modal');
+    if (!modal) { return addNewClientQuick(); }
     const editId = modal.dataset.editId;
     
     const name = document.getElementById('c-name').value.trim();
@@ -316,7 +345,7 @@ async function showPagePicker() {
                   <div class="text-slate-600"> ${esc(p.name)}</div>
                   <div class="text-xs">
                     ${p.followers ? Number(p.followers).toLocaleString('en-US') + ' متابع' : ''}
-                    ${p.instagram ? ' · <i data-lucide="instagram" class="w-4 h-4 inline"></i> @' + esc(p.instagram) : ''}
+                    ${p.instagram ? ' · <i data-lucide="camera" class="w-4 h-4 inline"></i> @' + esc(p.instagram) : ''}
                   </div>
                 </div>
               </div>`).join('');
