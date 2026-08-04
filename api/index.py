@@ -1218,15 +1218,7 @@ def api_conversations():
         "next_offset": offset + limit,
         "pending": pending,
         "approval_mode": cache.get("approval_mode", "auto"),
-        "active_client_id": cid,
-        "_debug": {
-            "fb_page_id": fb_page_id,
-            "ig_id": ig_id,
-            "raw_total": len(all_threads),
-            "channels": {ch: len([t for t in all_threads if (t.get("channel") or t.get("type")) == ch])
-                         for ch in set((t.get("channel") or t.get("type")) for t in all_threads)},
-            "ig_debug": globals().get("_ig_pull_debug", "n/a")
-        }
+        "active_client_id": cid
     }
     conv_cache["all_threads"] = all_threads
     conv_cache["data"] = {"conversations": all_threads}
