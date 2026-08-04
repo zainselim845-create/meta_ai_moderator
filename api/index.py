@@ -771,6 +771,7 @@ def deletion_status():
 
 
 conv_cache = {"timestamp": 0, "data": None, "ttl": 15}
+_ig_pull_debug = {}
 
 @app.route("/api/conversations", methods=["GET"])
 def api_conversations():
@@ -971,13 +972,20 @@ def api_conversations():
         print(f"[Instagram Direct Error] {e}")
 
     # 3. Fetch Instagram Comments from Posts/Reels (up to 50 posts)
+    global _ig_pull_debug
+    _ig_pull_debug = {"ig_id": ig_id, "ig_token_len": len(ig_token) if ig_token else 0}
     try:
         res = requests.get(
             f"{GRAPH_URL}/{ig_id}/media?fields=id,caption,comments_count,timestamp,permalink,comments.limit(25){{id,text,username,timestamp}}&limit=15&access_token={ig_token}",
             timeout=12
         )
+        _ig_pull_debug["status"] = res.status_code
+        if res.status_code != 200:
+            _ig_pull_debug["error"] = res.text[:200]
         if res.status_code == 200:
             media_data = res.json().get("data", [])
+            _ig_pull_debug["media_count"] = len(media_data)
+            _ig_pull_debug["comments_found"] = sum(len(p.get("comments", {}).get("data", [])) for p in media_data)
             for post in media_data:
                 comments_list = post.get("comments", {}).get("data", [])
                 if not comments_list:
@@ -1210,7 +1218,15 @@ def api_conversations():
         "next_offset": offset + limit,
         "pending": pending,
         "approval_mode": cache.get("approval_mode", "auto"),
-        "active_client_id": cid
+        "active_client_id": cid,
+        "_debug": {
+            "fb_page_id": fb_page_id,
+            "ig_id": ig_id,
+            "raw_total": len(all_threads),
+            "channels": {ch: len([t for t in all_threads if (t.get("channel") or t.get("type")) == ch])
+                         for ch in set((t.get("channel") or t.get("type")) for t in all_threads)},
+            "ig_debug": globals().get("_ig_pull_debug", "n/a")
+        }
     }
     conv_cache["all_threads"] = all_threads
     conv_cache["data"] = {"conversations": all_threads}
