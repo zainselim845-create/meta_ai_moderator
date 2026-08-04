@@ -2493,12 +2493,18 @@ def api_meta_diagnose():
             except Exception as e:
                 probe[label] = f"EXC {e}"
         _count("fb_messenger", f"{GRAPH_URL}/{pid}/conversations?platform=messenger&fields=id,snippet&limit=25&access_token={ptok}")
-        # IG DM with a longer timeout to learn ground truth
+        # IG DM — try both page-scoped and IG-user-scoped endpoints
         try:
-            r = requests.get(f"{GRAPH_URL}/{pid}/conversations?platform=instagram&fields=id,snippet&limit=25&access_token={ptok}", timeout=30)
-            probe["ig_dm"] = len(r.json().get("data", [])) if r.status_code == 200 else f"ERR {r.status_code}: {r.text[:150]}"
+            r = requests.get(f"{GRAPH_URL}/{pid}/conversations?platform=instagram&fields=id&limit=10&access_token={ptok}", timeout=10)
+            probe["ig_dm_via_page"] = len(r.json().get("data", [])) if r.status_code == 200 else f"ERR {r.status_code}: {r.text[:180]}"
         except Exception as e:
-            probe["ig_dm"] = f"TIMEOUT/{e}"
+            probe["ig_dm_via_page"] = f"TIMEOUT {e}"
+        if igid:
+            try:
+                r = requests.get(f"{GRAPH_URL}/{igid}/conversations?fields=id&limit=10&access_token={ptok}", timeout=10)
+                probe["ig_dm_via_iguser"] = len(r.json().get("data", [])) if r.status_code == 200 else f"ERR {r.status_code}: {r.text[:180]}"
+            except Exception as e:
+                probe["ig_dm_via_iguser"] = f"TIMEOUT {e}"
         # Count ACTUAL comments on FB posts
         try:
             r = requests.get(f"{GRAPH_URL}/{pid}/feed?fields=id,comments.limit(50){{id,message}}&limit=25&access_token={ptok}", timeout=20)
