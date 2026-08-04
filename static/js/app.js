@@ -181,13 +181,25 @@ async function loginFromChatwoot() {
 
 // Format Date & Time Utility
 function formatDateTime(dtStr) {
-  if (!dtStr) return '';
+  if (!dtStr && dtStr !== 0) return '';
   try {
-    const d = new Date(dtStr);
-    if (isNaN(d.getTime())) return dtStr;
+    let d;
+    const raw = String(dtStr).trim();
+    if (typeof dtStr === 'number' || /^\d+(\.\d+)?$/.test(raw)) {
+      // Unix timestamp: seconds (10 digits) vs milliseconds (13 digits)
+      let n = Number(dtStr);
+      if (n < 1e12) n = n * 1000; // seconds -> ms
+      d = new Date(n);
+    } else {
+      d = new Date(dtStr);
+    }
+    // Reject invalid or epoch-ish (1970) results — fall back to the raw text if it's a real string
+    if (isNaN(d.getTime()) || d.getFullYear() < 2000) {
+      return /^\d+(\.\d+)?$/.test(raw) ? '' : raw;
+    }
     return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString('ar-EG');
   } catch (e) {
-    return dtStr;
+    return typeof dtStr === 'string' ? dtStr : '';
   }
 }
 

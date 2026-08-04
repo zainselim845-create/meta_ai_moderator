@@ -9,3 +9,5 @@ archive/
 
 .agents/
 .user_uploaded/
+test_token.py
+*_token.py
