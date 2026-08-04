@@ -8,7 +8,8 @@ var FALLBACK_INBOX_THREADS = [];
 
 async function loadInbox(force=false){
     try {
-        const url = force ? '/api/conversations?force=true' : '/api/conversations';
+        const acctFilter = window.activeAccountFilter ? '&account_id=' + encodeURIComponent(window.activeAccountFilter) : '';
+        const url = (force ? '/api/conversations?force=true' : '/api/conversations?_=1') + acctFilter;
         const res = await fetch(url);
         const data = await res.json();
         allInboxThreads = data.conversations || data.threads || data.data || [];

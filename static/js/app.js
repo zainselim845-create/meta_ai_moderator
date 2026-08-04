@@ -302,17 +302,50 @@ function setApprovalMode(mode) {
   showToast(mode === 'auto' ? 'تم تفعيل الرد التلقائي الفوري ⚡' : 'تم تفعيل وضع المراجعة البشرية 👨‍💼');
 }
 
-// Account switching dropdown
-function switchActiveClient(clientId) {
+// Populate the header client switcher from the real agency clients
+async function populateAccountSwitcher() {
+  try {
+    const res = await fetch('/api/clients');
+    const clients = await res.json();
+    const dd = document.getElementById('active-client-dropdown');
+    if (!dd) return;
+    const list = Array.isArray(clients) ? clients : (clients.clients || []);
+    if (!list.length) { dd.innerHTML = '<option value="">لا يوجد عملاء</option>'; return; }
+    dd.innerHTML = list.map(c =>
+      `<option value="${c.id}">${c.name}</option>`
+    ).join('');
+  } catch(e) {}
+}
+
+// Switch the active account (page) and refilter the inbox
+async function switchActiveAccount(accId) {
+  if (!accId) return;
+  window.activeAccountFilter = accId;
+  try {
+    await fetch('/api/accounts/select', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: accId, account_id: accId})});
+    showToast('تم التبديل للحساب المحدد');
+  } catch(e) {}
+  if (typeof loadInbox === 'function') loadInbox(true);
+}
+
+// Switch the active client — this changes EVERYTHING (KB, rules, prompt, inbox, accounts)
+async function switchActiveClient(clientId) {
+  if (!clientId) return;
   window.activeClientId = clientId;
-  const bar = document.getElementById('active-client-bar');
+  window.activeAccountFilter = null; // client switch resets any per-account filter
   const dd = document.getElementById('active-client-dropdown');
   if (dd) {
     const txt = dd.options[dd.selectedIndex]?.text || clientId;
     showToast('تم التبديل إلى: ' + txt);
   }
-  fetch('/api/settings/active-client', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: clientId})}).catch(()=>{});
-  if (typeof loadInbox === 'function') loadInbox();
+  try {
+    await fetch('/api/settings/active-client', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: clientId})});
+  } catch(e) {}
+  // Reload every client-scoped view
+  if (typeof loadInbox === 'function') loadInbox(true);
+  if (typeof loadKb === 'function') loadKb();
+  if (typeof loadRules === 'function') loadRules();
+  if (typeof loadAccounts === 'function') loadAccounts();
 }
 
 // AI Sandbox (v-chat)
@@ -447,4 +480,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Set today's date as default for scheduler
   const dateInput = document.getElementById('post-date');
   if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+  // Populate the header account switcher from real connected accounts
+  if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
 });

@@ -79,6 +79,25 @@ async function toggleBot(){
     }
 }
 
+async function setAccountMode(accId, kind, mode){
+    try {
+        const res = await fetch('/api/accounts/' + encodeURIComponent(accId) + '/mode', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({[kind]: mode})
+        });
+        const d = await res.json();
+        if (d.ok) {
+            showToast(kind === 'comment_mode'
+                ? (mode === 'auto' ? 'الكومنتات: رد تلقائي ✅' : 'الكومنتات: مراجعة يدوية 👨‍💼')
+                : (mode === 'auto' ? 'الرسائل: رد تلقائي ✅' : 'الرسائل: مراجعة يدوية 👨‍💼'));
+            loadAccounts();
+        } else {
+            showToast('تعذّر تغيير الوضع', 'error');
+        }
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
 async function loadAccounts(){
     try {
         const res = await fetch('/api/accounts');
@@ -169,6 +188,23 @@ async function loadAccounts(){
                         <span class="text-[11px] font-bold text-slate-600 block">الصلاحيات الممنوحة (Verified Scopes):</span>
                         <div class="flex flex-wrap gap-1">
                             ${perms.map(p => `<span class="bg-white border border-slate-200 text-slate-700 text-[10px] px-2 py-0.5 rounded-md">✓ ${esc(p)}</span>`).join('')}
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-200 space-y-2">
+                        <span class="text-[11px] font-bold text-slate-600 block">وضع رد الـ AI لهذا الحساب (منفصل):</span>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-600">💬 الكومنتات</span>
+                            <div class="flex gap-1">
+                                <button onclick="setAccountMode('${esc(a.id)}','comment_mode','auto')" class="text-[10px] px-2.5 py-1 rounded-lg font-bold ${a.comment_mode !== 'manual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}">تلقائي</button>
+                                <button onclick="setAccountMode('${esc(a.id)}','comment_mode','manual')" class="text-[10px] px-2.5 py-1 rounded-lg font-bold ${a.comment_mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}">يدوي</button>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-600">📩 الرسائل (DM)</span>
+                            <div class="flex gap-1">
+                                <button onclick="setAccountMode('${esc(a.id)}','dm_mode','auto')" class="text-[10px] px-2.5 py-1 rounded-lg font-bold ${a.dm_mode !== 'manual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}">تلقائي</button>
+                                <button onclick="setAccountMode('${esc(a.id)}','dm_mode','manual')" class="text-[10px] px-2.5 py-1 rounded-lg font-bold ${a.dm_mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}">يدوي</button>
+                            </div>
                         </div>
                     </div>
                 </div>

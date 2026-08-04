@@ -201,7 +201,7 @@ def search_kb(query, client_id=None):
     items = get_kb_data()
     if not items or not query or not str(query).strip():
         return ""
-    client_items = [i for i in items if i.get("client_id") == cid or not i.get("client_id")]
+    client_items = [i for i in items if (i.get("client_id") or "client_default") == cid]
     words = [w for w in re.split(r'\s+', str(query).lower()) if len(w) >= 2]
     scored = []
     for item in client_items:
@@ -226,8 +226,8 @@ def check_custom_rules(message, client_id=None):
     for rule in rules:
         if not rule.get("is_active", True):
             continue
-        r_cid = rule.get("client_id")
-        if r_cid and r_cid != cid:
+        r_cid = rule.get("client_id") or "client_default"
+        if r_cid != cid:
             continue
         trigger = (rule.get("trigger") or "").lower().strip()
         if not trigger:
@@ -371,7 +371,15 @@ def log_event(event_type, sender, message, reply, private_reply=None, client_id=
         activity_log.pop(0)
     push_setting("meta_ai_activity", activity_log)
 
+from flask import has_request_context
+
 def current_client_id():
+    """Safely retrieve the active client ID.
+    Returns a default client ID when called outside an HTTP request context.
+    """
+    if not has_request_context():
+        # No request context; fallback to default client identifier
+        return "client_default"
     cid = session.get("active_client_id")
     if cid and any(c.get("id") == cid and c.get("is_active", True) for c in AGENCY_CLIENTS_STORE):
         return cid
@@ -778,6 +786,13 @@ def api_conversations():
     
     # Get active client tokens
     client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid or not a.get("client_id")]
+
+    # Optional: filter the inbox to a single connected account (header account switcher)
+    filter_account_id = request.args.get("account_id", "").strip()
+    if filter_account_id:
+        only = [a for a in client_accounts if str(a.get("id")) == filter_account_id or str(a.get("ig_id")) == filter_account_id]
+        if only:
+            client_accounts = only
     fb_token = PAGE_ACCESS_TOKEN
     fb_page_id = ""
     ig_token = INSTAGRAM_USER_ACCESS_TOKEN or PAGE_ACCESS_TOKEN
@@ -1516,13 +1531,14 @@ def api_upload_doc():
         paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 10]
     
     kb = get_kb_data()
+    cid = current_client_id()
     added_chunks = 0
     base_id = int(time.time())
-    
+
     for i, p in enumerate(paragraphs):
         first_line = p.split("\n")[0][:50]
         q_title = f"معلومات: {first_line}" if len(first_line) > 5 else f"معلومات الشركة #{i+1}"
-        new_item = {"id": base_id + i, "question": q_title, "answer": p}
+        new_item = {"id": base_id + i, "question": q_title, "answer": p, "client_id": cid}
         kb.append(new_item)
         added_chunks += 1
         
@@ -1534,7 +1550,7 @@ def api_upload_doc():
 def api_get_kb():
     cid = current_client_id()
     all_kb = get_kb_data()
-    client_kb = [k for k in all_kb if k.get("client_id") == cid or not k.get("client_id")]
+    client_kb = [k for k in all_kb if (k.get("client_id") or "client_default") == cid]
     return jsonify({"kb": client_kb, "total": len(client_kb), "active_client_id": cid})
 
 @app.route("/api/kb/<int:item_id>", methods=["DELETE"])
@@ -1548,7 +1564,7 @@ def api_kb_delete(item_id):
 def api_rules_get():
     cid = current_client_id()
     all_rules = get_rules_data()
-    client_rules = [r for r in all_rules if r.get("client_id") == cid or not r.get("client_id")]
+    client_rules = [r for r in all_rules if (r.get("client_id") or "client_default") == cid]
     return jsonify(client_rules)
 
 @app.route("/api/rules", methods=["POST"])
@@ -1659,11 +1675,13 @@ def webhook_verify():
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
     verify_token_env = os.environ.get("VERIFY_TOKEN", "")
-    # Accept any subscribe challenge if token matches OR if no strict token configured
     if mode == "subscribe" and challenge:
-        if not verify_token_env or token == verify_token_env or token in {"GET", "123", "meta_ai_webhook_verify_token_2026", VERIFY_TOKEN}:
-            return str(challenge), 200
-        return str(challenge), 200  # Flexible verification to ensure Meta connection always succeeds
+        # لو VERIFY_TOKEN متظبط: لازم يطابق (آمن). لو مش متظبط: نسمح مؤقتاً لأول إعداد فقط.
+        if verify_token_env:
+            if token == verify_token_env:
+                return str(challenge), 200
+            return "Forbidden", 403
+        return str(challenge), 200
     return "Forbidden", 403
 
 @app.route("/webhook", methods=["POST"])
@@ -1677,8 +1695,9 @@ def webhook_event():
     approval_mode = cache.get("approval_mode", "auto")
 
     sig_header = request.headers.get("X-Hub-Signature-256")
-    if APP_SECRET and sig_header:
-        if not verify_signature(request.get_data(), sig_header):
+    # لو APP_SECRET متظبط: التوقيع إجباري ولازم يكون صحيح (يرفض أي payload مزوّر).
+    if APP_SECRET:
+        if not sig_header or not verify_signature(request.get_data(), sig_header):
             return "Invalid signature", 403
 
     data = request.get_json(silent=True)
