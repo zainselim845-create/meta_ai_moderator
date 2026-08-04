@@ -92,8 +92,7 @@ function renderInboxList(){
         const isComment = t.channel === 'comment' || String(t.id).startsWith('fb_comment_') || String(t.id).startsWith('ig_comment_');
         const chanBadge = isComment ? '<span class="bg-amber-50 text-amber-700 font-bold px-1.5 py-0.5 rounded text-[10px]">💬 تعليق</span>' : '<span class="bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded text-[10px]">📩 DM</span>';
         const isClient = t.customer_type === 'client' || (t.lead_badge && t.lead_badge.includes('مشترك'));
-        const calculatedLead = typeof calculateLeadScore === 'function' ? calculateLeadScore(t).label : 'Cold 0%';
-        const typeBadge = isClient ? '<span class="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px]">✨ عميل حالي</span>' : '<span class="bg-red-50 text-red-600 font-bold px-1.5 py-0.5 rounded text-[10px]">🔥 ' + esc(t.lead_badge || calculatedLead) + '</span>';
+        const typeBadge = isClient ? '<span class="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px]">✨ عميل حالي</span>' : '';
         return `
         <div class="thread-item ${activeInboxItem && activeInboxItem.id === t.id ? 'active' : ''}" onclick="selectThread('${t.id}')">
             <div class="thread-avatar">
@@ -225,39 +224,6 @@ async function selectThread(id){
                     <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
                         <span class="text-slate-500 block text-[11px]">قناة التفاعل</span>
                         <strong class="text-slate-900 font-bold text-xs">${isComment ? '💬 تعليق بوست' : '📩 رسالة خاصة'}</strong>
-                    </div>
-                </div>
-
-                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                    <div class="flex justify-between items-center">
-                        <span class="text-slate-600 font-bold">التصنيف / النقاط (Score):</span>
-                        <span class="font-bold text-red-600">${esc(t.lead_badge || (typeof calculateLeadScore === 'function' ? calculateLeadScore(t).label : 'Cold 0%'))}</span>
-                    </div>
-                    <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                        <div class="bg-red-500 h-full" style="width: ${scoreVal}%"></div>
-                    </div>
-                    <div class="flex justify-between text-[11px] text-slate-500">
-                        <span>الميزانية المتوقعة:</span>
-                        <strong class="text-slate-800">${esc(t.budget || '3000 - 6000 ج.م')}</strong>
-                    </div>
-                </div>
-
-                <div class="p-3 bg-blue-50/60 rounded-xl border border-blue-200 space-y-1">
-                    <h5 class="font-bold text-blue-900 flex items-center gap-1.5">
-                        <i data-lucide="trending-up" class="w-4 h-4 text-blue-600"></i>
-                        <span>لوحة مبيعات اليوم (Sales Dashboard)</span>
-                    </h5>
-                    <div class="flex justify-between text-slate-700 pt-1">
-                        <span>إجمالي العملاء اليوم:</span>
-                        <strong class="font-bold">14 عميل</strong>
-                    </div>
-                    <div class="flex justify-between text-slate-700">
-                        <span>القيمة المتوقعة:</span>
-                        <strong class="font-bold text-emerald-700">30,000 ج.م</strong>
-                    </div>
-                    <div class="flex justify-between text-slate-700">
-                        <span>فرص ساخنة (Hot):</span>
-                        <strong class="font-bold text-red-600">5 فرص 🔥</strong>
                     </div>
                 </div>
 
