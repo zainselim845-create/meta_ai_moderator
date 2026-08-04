@@ -2493,10 +2493,34 @@ def api_meta_diagnose():
             except Exception as e:
                 probe[label] = f"EXC {e}"
         _count("fb_messenger", f"{GRAPH_URL}/{pid}/conversations?platform=messenger&fields=id,snippet&limit=25&access_token={ptok}")
-        _count("ig_dm", f"{GRAPH_URL}/{pid}/conversations?platform=instagram&fields=id,snippet&limit=25&access_token={ptok}")
-        _count("fb_posts", f"{GRAPH_URL}/{pid}/feed?fields=id,message,comments.limit(5){{id,message}}&limit=10&access_token={ptok}")
+        # IG DM with a longer timeout to learn ground truth
+        try:
+            r = requests.get(f"{GRAPH_URL}/{pid}/conversations?platform=instagram&fields=id,snippet&limit=25&access_token={ptok}", timeout=30)
+            probe["ig_dm"] = len(r.json().get("data", [])) if r.status_code == 200 else f"ERR {r.status_code}: {r.text[:150]}"
+        except Exception as e:
+            probe["ig_dm"] = f"TIMEOUT/{e}"
+        # Count ACTUAL comments on FB posts
+        try:
+            r = requests.get(f"{GRAPH_URL}/{pid}/feed?fields=id,comments.limit(50){{id,message}}&limit=25&access_token={ptok}", timeout=20)
+            if r.status_code == 200:
+                posts = r.json().get("data", [])
+                probe["fb_posts"] = len(posts)
+                probe["fb_comments_total"] = sum(len(p.get("comments", {}).get("data", [])) for p in posts)
+            else:
+                probe["fb_posts"] = f"ERR {r.status_code}: {r.text[:150]}"
+        except Exception as e:
+            probe["fb_posts"] = f"EXC {e}"
         if igid:
-            _count("ig_media", f"{GRAPH_URL}/{igid}/media?fields=id,caption,comments_count&limit=10&access_token={ptok}")
+            try:
+                r = requests.get(f"{GRAPH_URL}/{igid}/media?fields=id,comments_count,comments.limit(50){{id,text}}&limit=25&access_token={ptok}", timeout=20)
+                if r.status_code == 200:
+                    media = r.json().get("data", [])
+                    probe["ig_media"] = len(media)
+                    probe["ig_comments_total"] = sum(m.get("comments_count", 0) for m in media)
+                else:
+                    probe["ig_media"] = f"ERR {r.status_code}: {r.text[:150]}"
+            except Exception as e:
+                probe["ig_media"] = f"EXC {e}"
         out["probe"] = probe
 
     out["verdict"] = ("جاهز — الصفحات ظاهرة، السحب المفروض يشتغل" if out["pages"]
