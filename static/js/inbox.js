@@ -439,7 +439,10 @@ async function selectThread(id){
                 if (data.has_more && data.next_cursor) {
                     html += `<button id="load-older" class="btn-outline text-xs" onclick="loadOlderMessages('${esc(id)}','${esc(data.next_cursor)}')"> تحميل رسائل أقدم</button>`;
                 }
-                html += msgs.map(renderBubble).join('');
+                const msgsToRender = msgs && msgs.length > 0 ? msgs : (t.messages && t.messages.length > 0 ? t.messages : [
+                    {is_page: false, text: t.snippet || t.last_msg || 'محادثة جديدة', sender_name: t.sender_name || 'عميل', time: t.timestamp || t.time}
+                ]);
+                html += msgsToRender.map(renderBubble).join('');
                 stream.innerHTML = html;
 
                 if (t.pending_approval) {
