@@ -923,8 +923,8 @@ def api_conversations():
     # 2. Fetch Instagram Direct Threads (needs Advanced Access for full support)
     try:
         res = requests.get(
-            f"{GRAPH_URL}/me/conversations?platform=instagram&fields=id,updated_time,unread_count,senders{{id,name,username,profile_pic}}&limit=20&access_token={ig_token}",
-            timeout=3
+            f"{GRAPH_URL}/me/conversations?platform=instagram&fields=id,updated_time,unread_count,senders{{id,name,username,profile_pic}}&limit=25&access_token={ig_token}",
+            timeout=15
         )
         resp_json = res.json()
         if res.status_code == 200 and "data" in resp_json:
@@ -976,7 +976,7 @@ def api_conversations():
     _ig_pull_debug = {"ig_id": ig_id, "ig_token_len": len(ig_token) if ig_token else 0}
     try:
         res = requests.get(
-            f"{GRAPH_URL}/{ig_id}/media?fields=id,caption,comments_count,timestamp,permalink,comments.limit(25){{id,text,username,timestamp}}&limit=25&access_token={ig_token}",
+            f"{GRAPH_URL}/{ig_id}/media?fields=id,caption,comments_count,timestamp,permalink,comments.limit(30){{id,text,username,timestamp}}&limit=50&access_token={ig_token}",
             timeout=12
         )
         _ig_pull_debug["status"] = res.status_code
@@ -1028,7 +1028,7 @@ def api_conversations():
     # 4. Fetch Facebook Page Post Comments (up to 25 posts)
     try:
         res = requests.get(
-            f"{GRAPH_URL}/{fb_page_id}/published_posts?fields=id,message,created_time,permalink_url,comments.limit(25){{id,message,from,created_time}}&limit=15&access_token={fb_token}",
+            f"{GRAPH_URL}/{fb_page_id}/published_posts?fields=id,message,created_time,permalink_url,comments.limit(30){{id,message,from,created_time}}&limit=50&access_token={fb_token}",
             timeout=12
         )
         if res.status_code == 200:
