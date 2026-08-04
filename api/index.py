@@ -1017,7 +1017,34 @@ def api_conversations():
 
     cid = current_client_id()
     pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") == cid or not p.get("client_id"))]
-    all_threads = merge_and_sort(all_threads)
+    
+    draft_threads = []
+    for item in pending:
+        s = item.get("sender") or item.get("target_id") or "User"
+        draft_threads.append({
+            "id": f"draft_{item.get('id')}",
+            "draft_id": item.get("id"),
+            "type": item.get("type", "dm"),
+            "channel": item.get("type", "dm"),
+            "platform": item.get("platform", "facebook"),
+            "customer_type": "lead",
+            "lead_score": 85,
+            "lead_badge": "مراجعة ⏳",
+            "pending_approval": True,
+            "ai_draft": item.get("reply", ""),
+            "sender": str(s),
+            "sender_name": f"عميل ({str(s)[:6]}) ⏳",
+            "avatar_url": f"https://ui-avatars.com/api/?name={str(s)}&background=f59e0b&color=fff",
+            "last_msg": item.get("message", ""),
+            "snippet": item.get("message", ""),
+            "timestamp": item.get("id", time.time()) / 1000 if item.get("id") else time.time(),
+            "unread": 1,
+            "messages": [
+                {"id": f"msg_{item.get('id')}", "text": item.get("message", ""), "message": item.get("message", ""), "is_page": False, "sender_name": str(s), "created_time": item.get("time", "")}
+            ]
+        })
+
+    all_threads = draft_threads + merge_and_sort(all_threads)
     
     client_threads = [t for t in all_threads if t.get("client_id") == cid or not t.get("client_id")]
     
@@ -1727,9 +1754,16 @@ def webhook_event():
                     webhook_token = a["access_token"]
                     break
 
-        # Per-account auto/manual control (falls back to the global mode)
-        dm_mode = (matched_acct or {}).get("dm_mode") or approval_mode
-        comment_mode = (matched_acct or {}).get("comment_mode") or approval_mode
+        # Per-account auto/manual control (falls back to global mode)
+        global_mode = approval_mode or cache.get("approval_mode", "auto")
+        acct_dm = (matched_acct or {}).get("dm_mode")
+        acct_cm = (matched_acct or {}).get("comment_mode")
+        
+        dm_mode = acct_dm if acct_dm else global_mode
+        comment_mode = acct_cm if acct_cm else global_mode
+        if global_mode == "manual":
+            if acct_dm != "auto": dm_mode = "manual"
+            if acct_cm != "auto": comment_mode = "manual"
                     
         if "messaging" in entry and isinstance(entry["messaging"], list):
             for msg_event in entry["messaging"]:
@@ -1752,6 +1786,7 @@ def webhook_event():
                         draft_entry = {
                             "id": int(time.time()*1000),
                             "type": "dm",
+                            "platform": "facebook",
                             "sender": sender_id,
                             "target_id": sender_id,
                             "message": text,
@@ -1785,9 +1820,25 @@ def webhook_event():
                         stats["dms"] += 1
                         stats["ai_calls"] += 1
                         reply = generate_reply(text, platform="DM")
-                        log_event("dm", sender_id, text, reply)
-                        if dm_mode != "manual":
+                        if dm_mode == "manual":
+                            draft_entry = {
+                                "id": int(time.time()*1000),
+                                "type": "dm",
+                                "platform": "instagram",
+                                "sender": sender_id,
+                                "target_id": sender_id,
+                                "message": text,
+                                "reply": reply,
+                                "private_reply": None,
+                                "status": "pending",
+                                "time": datetime.now().strftime("%H:%M:%S")
+                            }
+                            pending_approvals.append(draft_entry)
+                            push_setting("meta_ai_pending", pending_approvals)
+                            stats["pending"] = len([p for p in pending_approvals if p["status"] == "pending"])
+                        else:
                             send_dm_reply(sender_id, reply, access_token=webhook_token)
+                            log_event("dm", sender_id, text, reply)
                         continue
 
                 is_comment = (val.get("item") == "comment" and val.get("verb") == "add") or field == "comments" or (field == "feed" and val.get("item", "comment") == "comment")

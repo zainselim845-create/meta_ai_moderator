@@ -393,13 +393,14 @@ async function selectThread(id){
                 stream.innerHTML = html;
 
                 if (t.pending_approval) {
+                    const dId = t.draft_id || String(t.id).replace('draft_', '');
                     stream.innerHTML += `
-                        <div class="approval-card">
-                            <h4><i data-lucide="hourglass" class="w-4 h-4 text-slate-500 inline"></i> مسودة رد الذكاء الاصطناعي المقترحة:</h4>
-                            <textarea id="draft-text" rows="3">${esc(t.ai_draft || t.snippet)}</textarea>
-                            <div class="approval-actions">
-                                <button class="btn-danger" onclick="rejectDraft('${t.id}')">تجاهل المسودة</button>
-                                <button class="btn-success" onclick="approveDraft('${t.id}')">موافقة وإرسال الآن </button>
+                        <div class="approval-card border border-amber-300 bg-amber-50 p-4 rounded-xl space-y-2 mt-3 shadow-sm">
+                            <h4 class="font-bold text-xs text-amber-900 flex items-center gap-1.5"><i data-lucide="hourglass" class="w-4 h-4 text-amber-600"></i> مسودة رد الذكاء الاصطناعي المقترحة (تنتظر الموافقة):</h4>
+                            <textarea id="draft-text" class="w-full text-xs p-2.5 border border-amber-200 rounded-lg bg-white focus:outline-none focus:border-amber-500 text-slate-800" rows="3">${esc(t.ai_draft || t.snippet)}</textarea>
+                            <div class="approval-actions flex gap-2 pt-1">
+                                <button class="btn-danger text-xs px-3.5 py-2 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition" onclick="rejectDraft('${dId}')">تجاهل المسودة</button>
+                                <button class="btn-success text-xs px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition flex items-center gap-1" onclick="approveDraft('${dId}')"><i data-lucide="check-circle" class="w-4 h-4"></i> موافقة وإرسال الآن</button>
                             </div>
                         </div>
                     `;
