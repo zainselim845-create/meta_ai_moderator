@@ -2469,6 +2469,36 @@ def api_meta_diagnose():
     except Exception as e:
         out["errors"].append(f"accounts: {e}")
     out["page_count"] = len(out["pages"])
+
+    # Probe each data source with the resolved page token
+    if out["pages"]:
+        pg = out["pages"][0]
+        pid = pg["id"]; igid = pg.get("ig_id")
+        # get the page token
+        ptok = tok
+        try:
+            pt = requests.get(f"{GRAPH_URL}/{pid}?fields=access_token", params={"access_token": tok}, timeout=10)
+            if pt.status_code == 200 and pt.json().get("access_token"):
+                ptok = pt.json()["access_token"]
+        except Exception:
+            pass
+        probe = {}
+        def _count(label, url):
+            try:
+                r = requests.get(url, timeout=12)
+                if r.status_code == 200:
+                    probe[label] = len(r.json().get("data", []))
+                else:
+                    probe[label] = f"ERR {r.status_code}: {r.text[:150]}"
+            except Exception as e:
+                probe[label] = f"EXC {e}"
+        _count("fb_messenger", f"{GRAPH_URL}/{pid}/conversations?platform=messenger&fields=id,snippet&limit=25&access_token={ptok}")
+        _count("ig_dm", f"{GRAPH_URL}/{pid}/conversations?platform=instagram&fields=id,snippet&limit=25&access_token={ptok}")
+        _count("fb_posts", f"{GRAPH_URL}/{pid}/feed?fields=id,message,comments.limit(5){{id,message}}&limit=10&access_token={ptok}")
+        if igid:
+            _count("ig_media", f"{GRAPH_URL}/{igid}/media?fields=id,caption,comments_count&limit=10&access_token={ptok}")
+        out["probe"] = probe
+
     out["verdict"] = ("جاهز — الصفحات ظاهرة، السحب المفروض يشتغل" if out["pages"]
                       else "التوكن شغّال بس مفيش صفحات ظاهرة — راجع صلاحيات/تعيين الصفحة للـ System User")
     return jsonify(out), 200
