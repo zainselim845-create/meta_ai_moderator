@@ -1880,6 +1880,23 @@ def webhook_event():
                     webhook_token = a["access_token"]
                     break
 
+        # Auto-exchange: convert System User Token to Page Token for replying
+        if webhook_token == PAGE_ACCESS_TOKEN and PAGE_ACCESS_TOKEN:
+            try:
+                _accts = requests.get(
+                    f"{GRAPH_URL}/me/accounts?fields=id,access_token&limit=5&access_token={PAGE_ACCESS_TOKEN}",
+                    timeout=8
+                ).json().get("data", [])
+                for _pg in _accts:
+                    if _pg.get("id") == target_page_id:
+                        webhook_token = _pg.get("access_token", webhook_token)
+                        break
+                else:
+                    if _accts:
+                        webhook_token = _accts[0].get("access_token", webhook_token)
+            except Exception as _ex:
+                print(f"[Webhook Token Exchange Error] {_ex}")
+
         # Per-account auto/manual control (falls back to global mode)
         global_mode = approval_mode or cache.get("approval_mode", "auto")
         acct_dm = (matched_acct or {}).get("dm_mode")
@@ -2414,6 +2431,47 @@ def api_health():
         "security": "AES-256-GCM + PKCE S256",
         "timestamp": datetime.now(timezone.utc).isoformat()
     }), 200
+
+@app.route("/api/meta/diagnose", methods=["GET"])
+def api_meta_diagnose():
+    """تشخيص التوكن: بيقول التوكن شايف إيه (صفحات/IG/صلاحيات) بدون كشف السر."""
+    tok = PAGE_ACCESS_TOKEN
+    out = {"has_token": bool(tok), "token_len": len(tok) if tok else 0, "pages": [], "errors": []}
+    if not tok:
+        out["errors"].append("PAGE_ACCESS_TOKEN غير متظبط في الـ env")
+        return jsonify(out), 200
+    try:
+        me = requests.get(f"{GRAPH_URL}/me?fields=id,name", params={"access_token": tok}, timeout=10)
+        out["me"] = me.json() if me.status_code == 200 else {"status": me.status_code, "error": me.text[:200]}
+    except Exception as e:
+        out["errors"].append(f"me: {e}")
+    try:
+        perms = requests.get(f"{GRAPH_URL}/me/permissions", params={"access_token": tok}, timeout=10)
+        if perms.status_code == 200:
+            out["granted_permissions"] = [p["permission"] for p in perms.json().get("data", []) if p.get("status") == "granted"]
+    except Exception as e:
+        out["errors"].append(f"permissions: {e}")
+    try:
+        acc = requests.get(
+            f"{GRAPH_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{{id,username}}&limit=25",
+            params={"access_token": tok}, timeout=12)
+        if acc.status_code == 200:
+            for pg in acc.json().get("data", []):
+                out["pages"].append({
+                    "id": pg.get("id"),
+                    "name": pg.get("name"),
+                    "has_page_token": bool(pg.get("access_token")),
+                    "instagram": pg.get("instagram_business_account", {}).get("username") or None,
+                    "ig_id": pg.get("instagram_business_account", {}).get("id") or None
+                })
+        else:
+            out["errors"].append(f"/me/accounts → {acc.status_code}: {acc.text[:200]}")
+    except Exception as e:
+        out["errors"].append(f"accounts: {e}")
+    out["page_count"] = len(out["pages"])
+    out["verdict"] = ("جاهز — الصفحات ظاهرة، السحب المفروض يشتغل" if out["pages"]
+                      else "التوكن شغّال بس مفيش صفحات ظاهرة — راجع صلاحيات/تعيين الصفحة للـ System User")
+    return jsonify(out), 200
 
 @app.route("/api/secure/settings", methods=["GET", "POST", "PUT"])
 def api_secure_settings():
