@@ -923,7 +923,7 @@ def api_conversations():
     try:
         res = requests.get(
             f"{GRAPH_URL}/me/conversations?platform=instagram&fields=id,updated_time,unread_count,senders{{id,name,username,profile_pic}}&limit=20&access_token={ig_token}",
-            timeout=15.0
+            timeout=6
         )
         resp_json = res.json()
         if res.status_code == 200 and "data" in resp_json:
@@ -974,7 +974,7 @@ def api_conversations():
     try:
         res = requests.get(
             f"{GRAPH_URL}/{ig_id}/media?fields=id,caption,comments_count,timestamp,permalink,comments.limit(50){{id,text,username,timestamp}}&limit=50&access_token={ig_token}",
-            timeout=5
+            timeout=12
         )
         if res.status_code == 200:
             media_data = res.json().get("data", [])
@@ -1021,7 +1021,7 @@ def api_conversations():
     try:
         res = requests.get(
             f"{GRAPH_URL}/{fb_page_id}/published_posts?fields=id,message,created_time,permalink_url,comments.limit(50){{id,message,from,created_time}}&limit=25&access_token={fb_token}",
-            timeout=5
+            timeout=12
         )
         if res.status_code == 200:
             posts_data = res.json().get("data", [])
@@ -1570,7 +1570,7 @@ def api_stats():
     try:
         res = requests.get(
             f"{GRAPH_URL}/{fb_page_id}/published_posts?fields=id,message,created_time,permalink_url,comments.limit(50){{id,message,from,created_time}}&limit=25&access_token={PAGE_ACCESS_TOKEN}",
-            timeout=5
+            timeout=12
         )
         if res.status_code == 200:
             posts_data = res.json().get("data", [])

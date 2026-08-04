@@ -1,15 +1,11 @@
 {
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60
     }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
-    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index.py" }
   ],
   "headers": [
     {
@@ -23,13 +19,7 @@
     }
   ],
   "crons": [
-    {
-      "path": "/api/cron/refresh_tokens",
-      "schedule": "0 3 * * 0"
-    },
-    {
-      "path": "/api/cron/process_scheduled",
-      "schedule": "0 0 * * *"
-    }
+    { "path": "/api/cron/refresh_tokens", "schedule": "0 3 * * 0" },
+    { "path": "/api/cron/process_scheduled", "schedule": "0 0 * * *" }
   ]
 }
