@@ -1,8 +1,9 @@
+import os
 import requests
 import json
 
-SUPABASE_URL = "https://snikicduaobbgsdxippp.supabase.co"
-SUPABASE_KEY = "[REDACTED]"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
 headers = {
     "apikey": SUPABASE_KEY,

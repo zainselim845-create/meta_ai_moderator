@@ -190,7 +190,7 @@ The codebase contains two primary test files:
 | Interactive Simulator | `test_server.py` & `test_adversarial.py` | `test_19`–`test_20`, `test_adv_simulate_*` | `POST /api/simulate` source attribution metadata (`rule`, `llm_groq`, `llm_openrouter`, `rag`, `fallback`) |
 
 ### 5.3 Test Execution Isolation Issue
-During test suite execution via `python -m unittest`, `server.py` initiates a background daemon thread (`sync_supabase_in_background`) upon import. When internet connectivity is present, this thread connects to live Supabase (`https://snikicduaobbgsdxippp.supabase.co`) and overwrites `cache["kb"]` and `cache["rules"]` asynchronously with live Supabase settings. Consequently, unmocked tests that expect default local in-memory fixtures experience state collisions. Proper isolation requires mocking `requests.get` prior to importing `server` or disabling the automatic thread invocation during testing environments.
+During test suite execution via `python -m unittest`, `server.py` initiates a background daemon thread (`sync_supabase_in_background`) upon import. When internet connectivity is present, this thread connects to live Supabase (`https://[REDACTED].supabase.co`) and overwrites `cache["kb"]` and `cache["rules"]` asynchronously with live Supabase settings. Consequently, unmocked tests that expect default local in-memory fixtures experience state collisions. Proper isolation requires mocking `requests.get` prior to importing `server` or disabling the automatic thread invocation during testing environments.
 
 ---
 

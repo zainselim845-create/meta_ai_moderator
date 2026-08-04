@@ -110,7 +110,7 @@ Direct observations from the codebase investigation at `C:\Users\mhmd\meta_ai_mo
 
 1. **Live LLM Evaluation**: Investigation was conducted via code inspection and offline test execution. Real-world LLM latency and generation quality depend on active Groq / OpenRouter API keys and network latency.
 2. **Vector RAG Absence**: The current RAG implementation uses simple word overlap (`sum(1 for w in words if w in text)`). Semantic vector search (e.g. embeddings + cosine similarity) is not currently implemented.
-3. **Background Thread Sync in Tests**: Importing `server.py` automatically launches `sync_supabase_in_background()`, which accesses `https://snikicduaobbgsdxippp.supabase.co`. In test environments with internet access, this can override in-memory mock databases unless `requests.get` is patched before `server` is imported.
+3. **Background Thread Sync in Tests**: Importing `server.py` automatically launches `sync_supabase_in_background()`, which accesses `https://[REDACTED].supabase.co`. In test environments with internet access, this can override in-memory mock databases unless `requests.get` is patched before `server` is imported.
 
 ---
 

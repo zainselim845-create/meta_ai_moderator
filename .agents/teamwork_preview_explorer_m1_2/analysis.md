@@ -14,8 +14,8 @@ The current codebase contains a working prototype of keyword-based retrieval and
 - **Hardcoded Configuration**:
   - `server.py` (lines 23-24):
     ```python
-    SUPABASE_URL = "https://snikicduaobbgsdxippp.supabase.co"
-    SUPABASE_KEY = "eyJhbGciOiJIUzI1..."
+    SUPABASE_URL = "https://[REDACTED].supabase.co"
+    SUPABASE_KEY = "[REDACTED]"
     ```
   - `setup_supabase.py` (lines 3-4) and `seed_data.py` (lines 4-5) repeat the exact same hardcoded credentials.
   - Neither environment variables (`os.environ.get("SUPABASE_URL")`, `os.environ.get("SUPABASE_KEY")`) nor `.env` files are checked for Supabase credentials.

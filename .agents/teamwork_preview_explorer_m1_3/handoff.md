@@ -50,7 +50,7 @@ Direct observations from examining the codebase at `C:\Users\mhmd\meta_ai_modera
 ## 3. Caveats
 
 - **No Source Code Modifications:** As Explorer 3 operating under read-only constraints, no source code changes were made to `server.py`, `templates/index.html`, or `test_server.py`.
-- **Live Supabase Credentials:** Supabase URL and Service Role Key are hardcoded in `server.py` and `setup_supabase.py`. Testing assumes network accessibility to Supabase endpoint `snikicduaobbgsdxippp.supabase.co`.
+- **Live Supabase Credentials:** Supabase URL and Service Role Key are hardcoded in `server.py` and `setup_supabase.py`. Testing assumes network accessibility to Supabase endpoint `[REDACTED].supabase.co`.
 
 ---
 

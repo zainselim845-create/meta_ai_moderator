@@ -1,7 +1,8 @@
+import os
 import requests
 
-SUPA_URL = "https://snikicduaobbgsdxippp.supabase.co"
-SUPA_KEY = "[REDACTED]"
+SUPA_URL = os.environ.get("SUPABASE_URL", "")
+SUPA_KEY = os.environ.get("SUPABASE_KEY", "")
 
 headers = {
     "apikey": SUPA_KEY,

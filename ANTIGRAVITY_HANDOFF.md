@@ -13,7 +13,7 @@
 - Facebook Page Access Token (`REMOVED_SECRET...`) — `api/index.py:42`
 - Instagram Token (`REMOVED_SECRET...`) — `api/index.py:43`
 - Supabase `service_role` key — `api/index.py:48-49`
-- Meta App Secret (`d8efb7a2...`) — `api/index.py:1881`
+- Meta App Secret (`[REDACTED]...`) — `api/index.py:1881`
 
 **الكود:** شيل كل قيمة default حقيقية. اجعلها تقرأ من الـ env فقط، وتفشل بوضوح لو ناقصة:
 ```python
@@ -22,7 +22,7 @@ IG_USER_TOKEN     = os.environ.get("IG_USER_TOKEN", "")    # فاضي، مش ت�
 META_APP_SECRET   = os.environ["META_APP_SECRET"]
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 ```
-**القبول:** `grep -rE "EAAS|IGAAX|service_role|d8efb7a2" api/index.py` يرجّع صفر نتائج. التطبيق بيشتغل بالـ env فقط. الأسرار القديمة مبطّلة من لوحة Meta/Supabase.
+**القبول:** `grep -rE "EAAS|IGAAX|service_role|[REDACTED]" api/index.py` يرجّع صفر نتائج. التطبيق بيشتغل بالـ env فقط. الأسرار القديمة مبطّلة من لوحة Meta/Supabase.
 
 ### 2. شيل الباب الخلفي في الـ Auth
 - `api/index.py:2062` و `:2064` — امسح `or token == "[REDACTED]"` (المكانين).
