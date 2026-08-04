@@ -973,7 +973,7 @@ def api_conversations():
     # 3. Fetch Instagram Comments from Posts/Reels (up to 50 posts)
     try:
         res = requests.get(
-            f"{GRAPH_URL}/{ig_id}/media?fields=id,caption,comments_count,timestamp,permalink,comments.limit(50){{id,text,username,timestamp}}&limit=50&access_token={ig_token}",
+            f"{GRAPH_URL}/{ig_id}/media?fields=id,caption,comments_count,timestamp,permalink,comments.limit(25){{id,text,username,timestamp}}&limit=15&access_token={ig_token}",
             timeout=12
         )
         if res.status_code == 200:
@@ -1020,7 +1020,7 @@ def api_conversations():
     # 4. Fetch Facebook Page Post Comments (up to 25 posts)
     try:
         res = requests.get(
-            f"{GRAPH_URL}/{fb_page_id}/published_posts?fields=id,message,created_time,permalink_url,comments.limit(50){{id,message,from,created_time}}&limit=25&access_token={fb_token}",
+            f"{GRAPH_URL}/{fb_page_id}/published_posts?fields=id,message,created_time,permalink_url,comments.limit(25){{id,message,from,created_time}}&limit=15&access_token={fb_token}",
             timeout=12
         )
         if res.status_code == 200:
