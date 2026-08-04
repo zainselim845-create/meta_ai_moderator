@@ -1,0 +1,162 @@
+/* Domya AI Moderator - Design System Stylesheet */
+:root {
+  --primary-blue: #2563eb;
+  --primary-blue-hover: #1d4ed8;
+  --emerald-green: #10b981;
+  --gray-50: #f8fafc;
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;
+  --gray-500: #64748b;
+  --gray-700: #334155;
+  --gray-900: #0f172a;
+}
+
+body {
+  font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  font-size: 14px;
+}
+
+/* 5 Allowed Font Sizes Only: 12px, 13px, 14px, 16px, 20px */
+.text-xs { font-size: 12px !important; }
+.text-13px { font-size: 13px !important; }
+.text-sm { font-size: 14px !important; }
+.text-base { font-size: 16px !important; }
+.text-xl { font-size: 20px !important; }
+
+/* 3 Allowed Border Radius Values Only: 8px, 12px, 16px */
+.rounded-lg { border-radius: 8px !important; }
+.rounded-xl { border-radius: 12px !important; }
+.rounded-2xl { border-radius: 16px !important; }
+
+/* 1 Allowed Shadow Style Only */
+.shadow-sm, .shadow {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+/* White Cards Only */
+.card-panel, .panel, .bg-white-card {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+/* 2 Allowed Button Styles Only */
+.btn-primary, .btn-blue {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  padding: 8px 16px !important;
+  border-radius: 12px !important;
+  border: none !important;
+  transition: all 0.15s ease-in-out !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+}
+.btn-primary:hover, .btn-blue:hover {
+  background-color: #1d4ed8 !important;
+}
+
+.btn-ghost, .btn-slate {
+  background-color: transparent !important;
+  color: #475569 !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  padding: 8px 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid #e2e8f0 !important;
+  transition: all 0.15s ease-in-out !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+}
+.btn-ghost:hover, .btn-slate:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* View Pane Visibility Rules */
+.view {
+  display: none;
+}
+.view.show {
+  display: block;
+}
+#v-inbox.view.show {
+  display: grid !important;
+}
+
+/* Sidebar Styling */
+.sidebar {
+  width: 240px;
+  background-color: #ffffff;
+  border-left: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 40;
+}
+.nb {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  margin: 2px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nb:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+.nb.on {
+  background-color: #eff6ff;
+  color: #2563eb;
+  font-weight: 700;
+}
+
+/* Toast Notifications */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 100;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transform: translateY(150%);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#toast.show {
+  transform: translateY(0);
+}
+
+.filter-tab.active { font-weight: 700 !important; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important; }

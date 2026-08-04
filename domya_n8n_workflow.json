@@ -1,0 +1,135 @@
+{
+  "name": "Domya Meta AI Moderator Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook",
+        "options": {}
+      },
+      "name": "Meta Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"body\"][\"object\"]}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Filter Valid Webhooks",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const body = items[0].json.body;\nif (!body || !body.entry || !body.entry[0]) return [];\n\nconst entry = body.entry[0];\nlet sender_id = '';\nlet message_text = '';\nlet is_instagram = (body.object === 'instagram');\n\nif (entry.messaging && entry.messaging[0]) {\n  const msg = entry.messaging[0];\n  sender_id = msg.sender ? msg.sender.id : '';\n  message_text = msg.message ? msg.message.text : '';\n} else if (entry.changes && entry.changes[0]) {\n  const change = entry.changes[0].value;\n  sender_id = change.from ? change.from.id : '';\n  message_text = change.message || change.text || '';\n}\n\nif (!sender_id || !message_text) return [];\n\nreturn [{\n  json: {\n    sender_id,\n    message_text,\n    is_instagram\n  }\n}];"
+      },
+      "name": "Parse Webhook Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "jsonParameters": true,
+        "options": {},
+        "headerParametersJson": "{\n  \"Authorization\": \"Bearer REMOVED_SECRET\",\n  \"Content-Type\": \"application/json\"\n}",
+        "bodyParametersJson": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"أنت مساعد خدمة العملاء الذكي والرسمي لوكالة دوميا للتسويق الرقمي. جاوب بدقة وبأسلوب مصري ودود ومختصر.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{$json[\"message_text\"]}}\"\n    }\n  ]\n}"
+      },
+      "name": "Groq AI Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const ai_reply = items[0].json.choices[0].message.content;\nconst sender_id = $node['Parse Webhook Payload'].json['sender_id'];\nconst is_instagram = $node['Parse Webhook Payload'].json['is_instagram'];\n\nreturn [{\n  json: {\n    sender_id,\n    ai_reply,\n    is_instagram\n  }\n}];"
+      },
+      "name": "Prepare Meta DM Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://graph.facebook.com/v21.0/me/messages",
+        "jsonParameters": true,
+        "options": {},
+        "queryParametersJson": "{\n  \"access_token\": \"REMOVED_SECRET\"\n}",
+        "bodyParametersJson": "={\n  \"recipient\": { \"id\": \"{{$json[\"sender_id\"]}}\" },\n  \"messaging_type\": \"RESPONSE\",\n  \"message\": { \"text\": \"{{$json[\"ai_reply\"]}}\" }\n}"
+      },
+      "name": "Send Meta DM Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1360, 300]
+    }
+  ],
+  "connections": {
+    "Meta Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Webhooks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Webhooks": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Webhook Payload": {
+      "main": [
+        [
+          {
+            "node": "Groq AI Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq AI Generation": {
+      "main": [
+        [
+          {
+            "node": "Prepare Meta DM Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Meta DM Payload": {
+      "main": [
+        [
+          {
+            "node": "Send Meta DM Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

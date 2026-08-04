@@ -1,0 +1,11 @@
+.vercel
+.env*
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Dead code archive — never commit instagrapi bridges again
+archive/
+
+.agents/
+.user_uploaded/

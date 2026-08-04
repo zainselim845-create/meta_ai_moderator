@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Domya AI Moderator - Meta Social Suite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
+<div id="mobile-overlay" onclick="closeMobileSidebar()" class="fixed inset-0 bg-slate-900/40 z-30 hidden"></div>
+<aside id="sidebar" class="fixed right-0 top-0 w-60 h-screen bg-white border-l border-slate-200 z-40 flex flex-col transition-transform duration-200">
+<div class="p-4 border-b border-slate-200 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-blue-600 text-white font-bold text-base flex items-center justify-center shadow-sm">D</div>
+<div>
+<h1 class="text-sm font-bold text-slate-900 leading-tight">Chatwoot</h1>
+<span class="text-xs font-semibold text-blue-600 block">Domya Meta AI</span>
+</div>
+</div>
+</div>
+<nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
+<button id="nav-inbox" onclick="go('inbox',this)" class="nb on w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="message-square" class="w-4 h-4 text-blue-600"></i>
+<span class="flex-1 text-right">الإنبوكس</span>
+<span id="pending-count" class="hidden bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-2xl font-bold">0</span>
+</button>
+<button id="nav-dash" onclick="go('dash',this)" class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="activity" class="w-4 h-4"></i>
+<span class="flex-1 text-right">النشاط</span>
+</button>
+<button id="nav-rules" onclick="go('rules',this)" class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="target" class="w-4 h-4"></i>
+<span class="flex-1 text-right">القواعد</span>
+</button>
+<button id="nav-kb" onclick="go('kb',this)" class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="book-open" class="w-4 h-4"></i>
+<span class="flex-1 text-right">المعرفة</span>
+</button>
+<button id="nav-crm" onclick="go('crm',this)" class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="users" class="w-4 h-4"></i>
+<span class="flex-1 text-right">العملاء</span>
+</button>
+<button id="nav-settings" onclick="go('settings',this)" class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="settings" class="w-4 h-4"></i>
+<span class="flex-1 text-right">الإعدادات</span>
+</button>
+<button id="nav-logs" onclick="go('logs',this)" class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="list" class="w-4 h-4"></i>
+<span class="flex-1 text-right">السجلات</span>
+</button>
+<button id="nav-scheduler" onclick="go('scheduler',this)" class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="calendar" class="w-4 h-4"></i>
+<span class="flex-1 text-right">الجدولة</span>
+</button>
+<button id="nav-chatwoot" onclick="go('chatwoot',this)" class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="link" class="w-4 h-4"></i>
+<span class="flex-1 text-right">الحسابات</span>
+</button>
+<button id="nav-analytics" onclick="go('analytics',this)" class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+<i data-lucide="bar-chart-2" class="w-4 h-4"></i>
+<span class="flex-1 text-right">التحليلات</span>
+</button>
+</nav>
+<div class="p-3 border-t border-slate-200">
+<button onclick="handleLogout()" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+<i data-lucide="log-out" class="w-4 h-4"></i>
+<span>تسجيل الخروج</span>
+</button>
+</div>
+</aside>
+<div class="mr-0 md:mr-60 flex flex-col min-h-screen">
+<header class="bg-white border-b border-slate-200 h-16 px-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+<div class="flex items-center gap-3">
+<button onclick="toggleMobileSidebar()" class="md:hidden text-slate-600 p-1.5 rounded-lg hover:bg-slate-100">
+<i data-lucide="menu" class="w-5 h-5"></i>
+</button>
+<div class="flex items-center gap-2">
+<h2 class="text-base font-bold text-slate-900">نظام إدارة ومoderation فيسبوك وإنستجرام</h2>
+<span id="bot-status-badge" class="bg-emerald-500 text-white text-xs px-2.5 py-0.5 rounded-2xl font-bold">✅ موثق — متحكم بالكامل 100%</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button onclick="loginFromChatwoot()" class="btn-primary text-sm px-4 py-2 rounded-xl shadow-sm flex items-center gap-2">
+<i data-lucide="link" class="w-4 h-4"></i>
+<span>ربط من Chatwoot - فري | اربط صفحتك في ثانية</span>
+</button>
+</div>
+</header>
+<main class="flex-1 p-4 md:p-6 overflow-y-auto">
+<div id="v-inbox" class="view show h-[calc(100vh-6rem)] grid grid-cols-1 lg:grid-cols-12 gap-4">
+<div class="lg:col-span-4 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+<div class="p-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+<h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+<i data-lucide="inbox" class="w-4 h-4 text-blue-600"></i>
+<span>محادثات الإنبوكس</span>
+</h3>
+<div class="flex items-center gap-1">
+<button onclick="setInboxFilter('all')" class="text-xs px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">الكل</button>
+<button onclick="setInboxFilter('pending')" class="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">المعلقة</button>
+</div>
+</div>
+<div class="px-3 pt-2">
+<input type="text" id="inbox-search" oninput="renderInboxList()" placeholder="بحث في الرسائل والعملاء..." class="w-full text-xs px-3 py-1.5 border border-slate-200 rounded-lg">
+</div>
+<div id="inbox-threads" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+<div class="p-4 text-center text-xs text-slate-500">جارِ تحميل المحادثات...</div>
+</div>
+</div>
+<div class="lg:col-span-5 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+<div id="active-chat-header" class="p-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<i data-lucide="message-circle" class="w-4 h-4 text-blue-600"></i>
+<span class="font-bold text-sm text-slate-900" id="chat-title">اختر محادثة</span>
+</div>
+</div>
+<div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/50">
+<div class="text-center text-xs text-slate-500 mt-10">اختر عميل لبدء المراسلة المباشرة</div>
+</div>
+<div id="draft-approval-box" class="hidden p-3 bg-emerald-50 border-t border-emerald-200">
+<div class="flex items-center justify-between mb-2">
+<span class="text-xs font-bold text-emerald-800 flex items-center gap-1">
+<i data-lucide="bot" class="w-4 h-4"></i> مسودة AI المقترحة
+</span>
+<span class="text-xs text-emerald-600">تحتاج موافقتك</span>
+</div>
+<p id="draft-reply-text" class="text-xs text-slate-800 bg-white p-2 rounded-lg border border-emerald-200 mb-2"></p>
+<div class="flex items-center gap-2">
+<button onclick="approveDraft()" class="flex-1 btn-primary text-xs py-1.5 rounded-lg">موافقة وإرسال</button>
+<button onclick="rejectDraft()" class="btn-ghost text-xs py-1.5 rounded-lg">تعديل / رفض</button>
+</div>
+</div>
+<form id="reply-form" onsubmit="sendInboxReply(event)" class="p-3 border-t border-slate-200 bg-white flex gap-2">
+<input type="text" id="reply-input" placeholder="اكتب ردك هنا..." class="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-600">
+<button type="submit" class="btn-primary text-xs px-4 py-2 rounded-xl">إرسال</button>
+</form>
+</div>
+<div class="lg:col-span-3 bg-white border border-slate-200 rounded-xl shadow-sm p-4 flex flex-col gap-4">
+<h3 class="font-bold text-sm text-slate-900 flex items-center gap-2 pb-2 border-b border-slate-100">
+<i data-lucide="user" class="w-4 h-4 text-blue-600"></i>
+<span>بيانات العميل (CRM)</span>
+</h3>
+<div id="crm-sidebar" class="space-y-3 flex-1 text-xs">
+<div class="text-slate-500 text-center">حدد محادثة لعرض التفاصيل</div>
+</div>
+</div>
+</div>
+<div id="v-dash" class="view hidden space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-xl p-5 shadow-sm flex items-center justify-between">
+<div>
+<span class="text-xs font-semibold text-blue-100 block mb-1">إجمالي العملاء (Leads)</span>
+<strong id="stat-leads" class="text-3xl font-extrabold">14</strong>
+<span class="text-xs text-blue-200 block mt-1">14 العملاء المستهدفين</span>
+</div>
+<div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+<i data-lucide="users" class="w-6 h-6 text-white"></i>
+</div>
+</div>
+<div class="bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-xl p-5 shadow-sm flex items-center justify-between">
+<div>
+<span class="text-xs font-semibold text-emerald-100 block mb-1">قيمة المبيعات (Sales Revenue)</span>
+<strong id="stat-value" class="text-3xl font-extrabold">30,000 EGP</strong>
+<span class="text-xs text-emerald-200 block mt-1">30k إجمالي حجم الصفقات</span>
+</div>
+<div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+<i data-lucide="dollar-sign" class="w-6 h-6 text-white"></i>
+</div>
+</div>
+<div class="bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-xl p-5 shadow-sm flex items-center justify-between">
+<div>
+<span class="text-xs font-semibold text-amber-100 block mb-1">العملاء الساخنين (Hot Leads)</span>
+<strong id="stat-hot-leads" class="text-3xl font-extrabold">5</strong>
+<span class="text-xs text-amber-200 block mt-1">5 عملاء جاهزين للشراء</span>
+</div>
+<div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+<i data-lucide="flame" class="w-6 h-6 text-white"></i>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+<div>
+<span class="text-xs font-semibold text-slate-500 block">رسائل DM</span>
+<strong id="stat-dms" class="text-xl font-bold text-slate-900">0</strong>
+</div>
+<div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+<i data-lucide="message-square" class="w-5 h-5"></i>
+</div>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+<div>
+<span class="text-xs font-semibold text-slate-500 block">ردود الكومنتات</span>
+<strong id="stat-comments" class="text-xl font-bold text-slate-900">0</strong>
+</div>
+<div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+<i data-lucide="file-text" class="w-5 h-5"></i>
+</div>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+<div>
+<span class="text-xs font-semibold text-slate-500 block">استدعاءات AI</span>
+<strong id="stat-ai-calls" class="text-xl font-bold text-slate-900">0</strong>
+</div>
+<div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+<i data-lucide="bot" class="w-5 h-5"></i>
+</div>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+<div>
+<span class="text-xs font-semibold text-slate-500 block">موافقات معلقة</span>
+<strong id="stat-pending" class="text-xl font-bold text-slate-900">0</strong>
+</div>
+<div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+<i data-lucide="clock" class="w-5 h-5"></i>
+</div>
+</div>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-3 flex items-center gap-2">
+<i data-lucide="activity" class="w-4 h-4 text-blue-600"></i>
+<span>سجل الأحداث المباشر</span>
+</h3>
+<div id="dash-activity-log" class="divide-y divide-slate-100 max-h-80 overflow-y-auto text-xs">
+<div class="py-2 text-slate-500">لا يوجد نشاط مسجل حديثاً</div>
+</div>
+</div>
+</div>
+<div id="v-rules" class="view hidden space-y-6">
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+<i data-lucide="target" class="w-5 h-5 text-blue-600"></i>
+<span>إضافة قاعدة رد تلقائي جديدة</span>
+</h3>
+<form onsubmit="addRule(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">الكلمة المفتاحية (Trigger)</label>
+<input type="text" id="rule-trigger" required placeholder="مثال: سعر، باقات، تفاصيل" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
+</div>
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">نوع المطابقة</label>
+<select id="rule-match-type" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
+<option value="contains">تتضمن الكلمة (Contains)</option>
+<option value="exact">مطابقة تامة (Exact)</option>
+<option value="startswith">تبدأ بـ (Starts With)</option>
+</select>
+</div>
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">الرد العام (الكومنتات)</label>
+<input type="text" id="rule-response" required placeholder="تم الرد في الخاص " class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
+</div>
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">الرد الخاص (الإنبوكس / DM)</label>
+<input type="text" id="rule-private-response" placeholder="تفاصيل الباقات والأسعار..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
+</div>
+<div class="md:col-span-2">
+<button type="submit" class="btn-primary text-xs px-6 py-2.5 rounded-xl">حفظ القاعدة</button>
+</div>
+</form>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-4">قواعد الرد الفعالة</h3>
+<div class="overflow-x-auto">
+<table class="w-full text-right text-xs">
+<thead class="bg-slate-50 text-slate-600">
+<tr>
+<th class="p-3">الكلمة</th>
+<th class="p-3">المطابقة</th>
+<th class="p-3">الرد العام</th>
+<th class="p-3">الرد الخاص</th>
+<th class="p-3">إجراءات</th>
+</tr>
+</thead>
+<tbody id="rules-table-body" class="divide-y divide-slate-100">
+<tr><td colspan="5" class="p-4 text-center text-slate-500">جارِ تحميل القواعد...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="v-kb" class="view hidden space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+<i data-lucide="plus-circle" class="w-5 h-5 text-blue-600"></i>
+<span>إضافة سؤال وجواب لقاعدة RAG</span>
+</h3>
+<form onsubmit="addKb(event)" class="space-y-4">
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">السؤال المتوقع</label>
+<input type="text" id="kb-question" required placeholder="مثال: ما هي مواعيد العمل؟" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
+</div>
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">الإجابة المعتمدة</label>
+<textarea id="kb-answer" required rows="3" placeholder="مواعيد العمل الرسمية..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"></textarea>
+</div>
+<button type="submit" class="btn-primary text-xs px-6 py-2.5 rounded-xl">إضافة للمعرفة</button>
+</form>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+<i data-lucide="upload" class="w-5 h-5 text-emerald-600"></i>
+<span>رفع مستند أو نص للشركة</span>
+</h3>
+<form onsubmit="uploadCompanyDoc(event)" class="space-y-4">
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">محتوى كتالوج / ملف الشركة</label>
+<textarea id="doc-text-input" rows="5" placeholder="انسخ نص الكتالوج أو خدمات الشركة هنا..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"></textarea>
+</div>
+<button type="submit" class="btn-ghost text-xs px-6 py-2.5 rounded-xl border border-slate-200">معالجة وتقسيم النص</button>
+</form>
+</div>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-4">قاعدة المعرفة الحالية (RAG Context)</h3>
+<div id="kb-list" class="space-y-3">
+<div class="text-xs text-slate-500 text-center p-4">جارِ تحميل قاعدة المعرفة...</div>
+</div>
+</div>
+</div>
+<div id="v-crm" class="view hidden space-y-6">
+<div id="active-client-bar" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+<span class="text-xs font-bold text-slate-700">العميل النشط: وكالة دوميا للتسويق</span>
+<button onclick="saveNewClient()" class="btn-primary text-xs px-4 py-2 rounded-xl">+ عميل جديد</button>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+<i data-lucide="users" class="w-5 h-5 text-blue-600"></i>
+<span>دليل العملاء والشركات (CRM)</span>
+</h3>
+<div id="clients-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+<div class="border border-slate-200 rounded-xl p-4 space-y-2">
+<h4 class="font-bold text-sm">مطعم وكافيه الشام</h4>
+<p class="text-xs text-slate-500">هاتف: 01090121000</p>
+<div class="flex gap-2 pt-2">
+<a href="tel:01090121000" class="btn-ghost text-xs py-1 px-3 rounded-lg"> اتصل</a>
+<a href="whatsapp://send?phone=201090121000" class="btn-ghost text-xs py-1 px-3 rounded-lg">واتساب</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div id="v-settings" class="view hidden space-y-6">
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+<h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+<i data-lucide="sliders" class="w-5 h-5 text-blue-600"></i>
+<span>إعدادات النظام والبرومبت الأساسي</span>
+</h3>
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">البرومبت الرئيسي للمساعد الذكي (System Prompt)</label>
+<textarea id="system-prompt-input" rows="6" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono"></textarea>
+</div>
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">نمط اعتماد الردود</label>
+<select id="approval-mode-select" onchange="setApprovalMode(this.value)" class="w-full md:w-64 px-3 py-2 border border-slate-200 rounded-xl text-xs">
+<option value="auto">تلقائي كامل (Auto Reply)</option>
+<option value="manual">مراجعة بشرية أولاً (Manual Approval)</option>
+</select>
+</div>
+<button onclick="showToast('تم حفظ الإعدادات بنجاح')" class="btn-primary text-xs px-6 py-2.5 rounded-xl">حفظ الإعدادات</button>
+</div>
+</div>
+<div id="v-logs" class="view hidden space-y-6">
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-3 flex items-center gap-2">
+<i data-lucide="list" class="w-5 h-5 text-blue-600"></i>
+<span>سجل العمليات والـ Events المباشر</span>
+</h3>
+<div id="logs-stream-container" class="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono text-xs h-96 overflow-y-auto space-y-1">
+<div>[SYSTEM] جارِ استقبال الأحداث المباشرة...</div>
+</div>
+</div>
+</div>
+<div id="v-scheduler" class="view hidden space-y-6">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<div class="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+<h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+<i data-lucide="calendar" class="w-5 h-5 text-blue-600"></i>
+<span>جدولة منشور أو ريلز جديد</span>
+</h3>
+<div>
+<label class="block text-xs font-bold text-slate-700 mb-1">نص المنشور / الكابشن</label>
+<textarea id="post-caption-input" rows="4" oninput="updatePostPreview()" placeholder="اكتب تفاصيل الإعلان أو اضغط توليد بالـ AI..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"></textarea>
+</div>
+<div class="flex gap-2">
+<button onclick="generateAICaption()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200">توليد الكابشن بالـ AI</button>
+<button onclick="saveScheduledPost()" class="btn-primary text-xs py-2 px-6 rounded-xl">جدولة الآن</button>
+</div>
+</div>
+<div class="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-3">
+<h3 class="font-bold text-sm text-slate-900">معاينة المنشور المباشرة</h3>
+<div id="post-live-preview" class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2 text-xs">
+<span class="font-bold text-blue-600 block">وكالة دوميا للتسويق</span>
+<p id="preview-caption-text" class="text-slate-700">معاينة النص تظهر هنا...</p>
+</div>
+</div>
+</div>
+</div>
+<div id="v-chatwoot" class="view hidden space-y-6">
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xl">C</div>
+<div>
+<h3 class="font-bold text-base text-slate-900">Chatwoot Free Engine Integration</h3>
+<p class="text-xs text-slate-500">تحكم في ربط حسابات فيسبوك وإنستجرام مجاناً 100%</p>
+</div>
+</div>
+<button onclick="loginFromChatwoot()" class="btn-primary text-sm px-6 py-2.5 rounded-xl shadow-sm flex items-center gap-2">
+<i data-lucide="link" class="w-4 h-4"></i>
+<span>ربط من Chatwoot - فري | اربط صفحتك في ثانية</span>
+</button>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-3">
+<h4 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+<i data-lucide="zap" class="w-4 h-4 text-blue-600"></i>
+<span>أدوات التحكم المباشر (8 Actions Grid)</span>
+</h4>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+<button onclick="switchView('v-inbox')" class="btn-primary bg-blue-600 text-white font-bold text-xs p-3 rounded-xl flex flex-col items-center gap-1 shadow-sm">
+<i data-lucide="message-square" class="w-5 h-5 text-white"></i>
+<span>Inbox مباشر</span>
+</button>
+<button onclick="switchView('v-inbox')" class="btn-primary bg-blue-600 text-white font-bold text-xs p-3 rounded-xl flex flex-col items-center gap-1 shadow-sm">
+<i data-lucide="file-text" class="w-5 h-5 text-white"></i>
+<span>الكومنتات</span>
+</button>
+<button onclick="toggleBot()" class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200">
+<i data-lucide="bot" class="w-5 h-5 text-emerald-600"></i>
+<span>تشغيل/إيقاف البوت</span>
+</button>
+<button onclick="switchView('v-analytics')" class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200">
+<i data-lucide="bar-chart-2" class="w-5 h-5 text-blue-600"></i>
+<span>الإحصائيات</span>
+</button>
+<button onclick="verifyPageTokenLive()" class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200">
+<i data-lucide="key" class="w-5 h-5 text-blue-600"></i>
+<span>تجديد التوكن</span>
+</button>
+<button onclick="switchView('v-chatwoot')" class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200">
+<i data-lucide="instagram" class="w-5 h-5 text-blue-600"></i>
+<span>تحكم إنستجرام</span>
+</button>
+<button onclick="switchView('v-kb')" class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200">
+<i data-lucide="book-open" class="w-5 h-5 text-blue-600"></i>
+<span>قاعدة RAG</span>
+</button>
+<button onclick="switchView('v-rules')" class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200">
+<i data-lucide="settings" class="w-5 h-5 text-blue-600"></i>
+<span>القواعد</span>
+</button>
+</div>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-3">
+<h4 class="font-bold text-sm text-slate-900">بيانات Webhook و Meta App</h4>
+<div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+<span class="font-mono text-slate-700">https://metaaimoderator.vercel.app/webhook</span>
+<button onclick="navigator.clipboard.writeText('https://metaaimoderator.vercel.app/webhook');showToast('تم نسخ الرابط')" class="btn-ghost text-xs py-1 px-3 rounded-lg border border-slate-200">نسخ الرابط</button>
+</div>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-4">الحسابات والصفحات المربوطة</h3>
+<div id="accounts-list" class="divide-y divide-slate-100 text-xs">
+<div class="py-3 text-slate-500">جارِ تحميل الحسابات المربوطة...</div>
+</div>
+</div>
+</div>
+<div id="v-analytics" class="view hidden space-y-6">
+<div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+<h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+<i data-lucide="bar-chart-2" class="w-5 h-5 text-blue-600"></i>
+<span>تحليلات التفاعل وسرعة الرد</span>
+</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="border border-slate-200 p-4 rounded-xl text-center space-y-1">
+<span class="text-xs text-slate-500">متوسط زمن الرد</span>
+<strong class="text-xl font-bold text-emerald-500 block">&lt; 2 ثانية</strong>
+</div>
+<div class="border border-slate-200 p-4 rounded-xl text-center space-y-1">
+<span class="text-xs text-slate-500">معدل التحويل للخاص</span>
+<strong class="text-xl font-bold text-blue-600 block">94.2%</strong>
+</div>
+<div class="border border-slate-200 p-4 rounded-xl text-center space-y-1">
+<span class="text-xs text-slate-500">دقة إجابات RAG</span>
+<strong class="text-xl font-bold text-slate-900 block">98.5%</strong>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<div id="login-modal-overlay" class="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4 hidden">
+<div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 w-full max-w-md space-y-4">
+<h3 class="text-xl font-bold text-slate-900 text-center">تسجيل الدخول للمنصة</h3>
+<form onsubmit="handleLogin(event)" class="space-y-3">
+<input type="text" placeholder="اسم المستخدم" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
+<input type="password" placeholder="كلمة المرور" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
+<button type="submit" class="w-full btn-primary text-xs py-2.5 rounded-xl">دخول</button>
+</form>
+<button onclick="quickDemoLogin()" class="w-full btn-ghost text-xs py-2 rounded-xl border border-slate-200">الدخول السريع (Demo Login)</button>
+</div>
+</div>
+<div id="toast"></div>
+<script src="/static/js/app.js"></script>
+<script src="/static/js/inbox.js"></script>
+<script src="/static/js/views.js"></script>
+<script src="/static/js/clients.js"></script>
+</body>
+</html>

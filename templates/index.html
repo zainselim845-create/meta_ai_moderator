@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+ <head>
+  <script>
+   window.META_APP_ID = "1331918902446123";
+  </script>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>
+   Domya AI Moderator - Meta Social Suite
+  </title>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com">
+  </script>
+  <script src="https://unpkg.com/lucide@latest">
+  </script>
+  <link href="/static/css/styles.css?v=2.2" rel="stylesheet"/>
+ </head>
+ <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
+  <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
+  </div>
+  <aside class="fixed right-0 top-0 w-60 h-screen bg-white border-l border-slate-200 z-40 flex flex-col transition-transform duration-200" id="sidebar">
+   <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+     <div class="w-8 h-8 rounded-xl bg-blue-600 text-white font-bold text-base flex items-center justify-center shadow-sm">
+      D
+     </div>
+     <div>
+      <h1 class="text-sm font-bold text-slate-900 leading-tight">
+       Chatwoot
+      </h1>
+      <span class="text-xs font-semibold text-blue-600 block">
+       Domya Meta AI
+      </span>
+     </div>
+    </div>
+   </div>
+   <nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
+    <button class="nb on w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-inbox" onclick="go('inbox',this)">
+     <i class="w-4 h-4 text-blue-600" data-lucide="message-square">
+     </i>
+     <span class="flex-1 text-right">
+      الإنبوكس
+     </span>
+     <span class="hidden bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-2xl font-bold" id="pending-count">
+      0
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-dash" onclick="go('dash',this)">
+     <i class="w-4 h-4" data-lucide="activity">
+     </i>
+     <span class="flex-1 text-right">
+      النشاط
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-rules" onclick="go('rules',this)">
+     <i class="w-4 h-4" data-lucide="target">
+     </i>
+     <span class="flex-1 text-right">
+      القواعد
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-kb" onclick="go('kb',this)">
+     <i class="w-4 h-4" data-lucide="book-open">
+     </i>
+     <span class="flex-1 text-right">
+      المعرفة
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-crm" onclick="go('crm',this)">
+     <i class="w-4 h-4" data-lucide="users">
+     </i>
+     <span class="flex-1 text-right">
+      العملاء
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-mode" onclick="go('mode',this)">
+     <i class="w-4 h-4" data-lucide="toggle-right">
+     </i>
+     <span class="flex-1 text-right">
+      وضع الرد
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-chat" onclick="go('chat',this)">
+     <i class="w-4 h-4" data-lucide="bot">
+     </i>
+     <span class="flex-1 text-right">
+      اختبار AI
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-settings" onclick="go('settings',this)">
+     <i class="w-4 h-4" data-lucide="settings">
+     </i>
+     <span class="flex-1 text-right">
+      الإعدادات
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-logs" onclick="go('logs',this)">
+     <i class="w-4 h-4" data-lucide="list">
+     </i>
+     <span class="flex-1 text-right">
+      السجلات
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-scheduler" onclick="go('scheduler',this)">
+     <i class="w-4 h-4" data-lucide="calendar">
+     </i>
+     <span class="flex-1 text-right">
+      الجدولة
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-chatwoot" onclick="go('chatwoot',this)">
+     <i class="w-4 h-4" data-lucide="link">
+     </i>
+     <span class="flex-1 text-right">
+      الحسابات
+     </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-analytics" onclick="go('analytics',this)">
+     <i class="w-4 h-4" data-lucide="bar-chart-2">
+     </i>
+     <span class="flex-1 text-right">
+      التحليلات
+     </span>
+    </button>
+   </nav>
+   <div class="p-3 border-t border-slate-200">
+    <button class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors" onclick="handleLogout()">
+     <i class="w-4 h-4" data-lucide="log-out">
+     </i>
+     <span>
+      تسجيل الخروج
+     </span>
+    </button>
+   </div>
+  </aside>
+  <div class="mr-0 md:mr-60 flex flex-col min-h-screen">
+   <header class="bg-white border-b border-slate-200 h-16 px-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+    <div class="flex items-center gap-3">
+     <button class="md:hidden text-slate-600 p-1.5 rounded-lg hover:bg-slate-100" onclick="toggleMobileSidebar()">
+      <i class="w-5 h-5" data-lucide="menu">
+      </i>
+     </button>
+     <div class="flex items-center gap-2">
+      <h2 class="text-base font-bold text-slate-900">
+       نظام إدارة ومoderation فيسبوك وإنستجرام
+      </h2>
+      <span class="bg-emerald-500 text-white text-xs px-2.5 py-0.5 rounded-2xl font-bold" id="bot-status-badge">
+       ✅ موثق — متحكم بالكامل 100%
+      </span>
+     </div>
+    </div>
+    <div class="flex items-center gap-3">
+     <button class="btn-primary text-sm px-4 py-2 rounded-xl shadow-sm flex items-center gap-2" onclick="loginFromChatwoot()">
+      <i class="w-4 h-4" data-lucide="link">
+      </i>
+      <span>
+       🔗 اربط صفحتك في ثانية | ربط من Chatwoot - فري
+      </span>
+     </button>
+    </div>
+   </header>
+   <main class="flex-1 p-4 md:p-6 overflow-y-auto">
+    <div class="view show flex-1 grid grid-cols-1 lg:grid-cols-[280px_1fr_320px] gap-4 overflow-hidden min-h-[calc(100vh-84px)]" id="v-inbox">
+     <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+      <div class="p-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+       <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+        <i class="w-4 h-4 text-blue-600" data-lucide="inbox">
+        </i>
+        <span>
+         محادثات الإنبوكس
+        </span>
+       </h3>
+       <div class="flex items-center gap-1 flex-wrap">
+        <button class="text-xs px-2 py-1 rounded-lg bg-blue-600 text-white font-bold" id="filter-all" onclick="setInboxFilter('all')">
+         الكل
+        </button>
+        <button class="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" id="filter-pending" onclick="setInboxFilter('pending')">
+         المعلقة
+        </button>
+        <button class="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" id="filter-fb_dm" onclick="setInboxFilter('fb_dm')">
+         FB DM
+        </button>
+        <button class="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" id="filter-ig_dm" onclick="setInboxFilter('ig_dm')">
+         IG DM
+        </button>
+        <button class="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" id="filter-fb_comment" onclick="setInboxFilter('fb_comment')">
+         تعليق FB
+        </button>
+        <button class="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" id="filter-ig_comment" onclick="setInboxFilter('ig_comment')">
+         تعليق IG
+        </button>
+       </div>
+      </div>
+      <div class="px-3 pt-2">
+       <input class="w-full text-xs px-3 py-1.5 border border-slate-200 rounded-lg" id="inbox-search" oninput="renderInboxList()" placeholder="بحث في الرسائل والعملاء..." type="text"/>
+      </div>
+      <div class="flex-1 overflow-y-auto divide-y divide-slate-100" id="inbox-threads">
+       <div class="p-4 text-center text-xs text-slate-500">
+        جارِ تحميل المحادثات...
+       </div>
+      </div>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
+      <div class="p-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between" id="active-chat-header">
+       <div class="flex items-center gap-2">
+        <i class="w-4 h-4 text-blue-600" data-lucide="message-circle">
+        </i>
+        <span class="font-bold text-sm text-slate-900" id="chat-title">
+         اختر محادثة
+        </span>
+       </div>
+      </div>
+      <div class="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/50" id="chat-messages">
+       <div class="text-center text-xs text-slate-500 mt-10">
+        اختر عميل لبدء المراسلة المباشرة
+       </div>
+      </div>
+      <div class="hidden p-3 bg-emerald-50 border-t border-emerald-200" id="draft-approval-box">
+       <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-emerald-800 flex items-center gap-1">
+         <i class="w-4 h-4" data-lucide="bot">
+         </i>
+         مسودة AI المقترحة
+        </span>
+        <span class="text-xs text-emerald-600">
+         تحتاج موافقتك
+        </span>
+       </div>
+       <p class="text-xs text-slate-800 bg-white p-2 rounded-lg border border-emerald-200 mb-2" id="draft-reply-text">
+       </p>
+       <div class="flex items-center gap-2">
+        <button class="flex-1 btn-primary text-xs py-1.5 rounded-lg" onclick="approveDraft()">
+         موافقة وإرسال
+        </button>
+        <button class="btn-ghost text-xs py-1.5 rounded-lg" onclick="rejectDraft()">
+         تعديل / رفض
+        </button>
+       </div>
+      </div>
+      <form class="p-3 border-t border-slate-200 bg-white flex gap-2" id="reply-form" onsubmit="sendInboxReply(event)">
+       <input class="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-600" id="reply-input" placeholder="اكتب ردك هنا..." type="text"/>
+       <button class="btn-primary text-xs px-4 py-2 rounded-xl" type="submit">
+        إرسال
+       </button>
+      </form>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 flex flex-col gap-4">
+      <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2 pb-2 border-b border-slate-100">
+       <i class="w-4 h-4 text-blue-600" data-lucide="user">
+       </i>
+       <span>
+        بيانات العميل (CRM)
+       </span>
+      </h3>
+      <div class="space-y-3 flex-1 text-xs" id="crm-sidebar">
+       <div class="text-slate-500 text-center">
+        حدد محادثة لعرض التفاصيل
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-dash">
+     <div id="v-help">
+     </div>
+     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-xl p-5 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-blue-100 block mb-1">
+         إجمالي العملاء (Leads)
+        </span>
+        <strong class="text-3xl font-extrabold" id="stat-leads">
+         14
+        </strong>
+        <span class="text-xs text-blue-200 block mt-1">
+         14 العملاء المستهدفين
+        </span>
+       </div>
+       <div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+        <i class="w-6 h-6 text-white" data-lucide="users">
+        </i>
+       </div>
+      </div>
+      <div class="bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-xl p-5 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-emerald-100 block mb-1">
+         قيمة المبيعات (Sales Revenue)
+        </span>
+        <strong class="text-3xl font-extrabold" id="stat-value">
+         30,000 EGP
+        </strong>
+        <span class="text-xs text-emerald-200 block mt-1">
+         30k إجمالي حجم الصفقات
+        </span>
+       </div>
+       <div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+        <i class="w-6 h-6 text-white" data-lucide="dollar-sign">
+        </i>
+       </div>
+      </div>
+      <div class="bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-xl p-5 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-amber-100 block mb-1">
+         العملاء الساخنين (Hot Leads)
+        </span>
+        <strong class="text-3xl font-extrabold" id="stat-hot-leads">
+         5
+        </strong>
+        <span class="text-xs text-amber-200 block mt-1">
+         5 عملاء جاهزين للشراء
+        </span>
+       </div>
+       <div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+        <i class="w-6 h-6 text-white" data-lucide="flame">
+        </i>
+       </div>
+      </div>
+     </div>
+     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-slate-500 block">
+         رسائل DM اليوم
+        </span>
+        <strong class="text-xl font-bold text-slate-900" id="stat-dms">
+         142
+        </strong>
+       </div>
+       <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+        <i class="w-5 h-5" data-lucide="message-square">
+        </i>
+       </div>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-slate-500 block">
+         ردود الكومنتات
+        </span>
+        <strong class="text-xl font-bold text-slate-900" id="stat-comments">
+         89
+        </strong>
+       </div>
+       <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+        <i class="w-5 h-5" data-lucide="file-text">
+        </i>
+       </div>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-slate-500 block">
+         ردود AI
+        </span>
+        <strong class="text-xl font-bold text-slate-900" id="stat-ai-calls">
+         210
+        </strong>
+       </div>
+       <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+        <i class="w-5 h-5" data-lucide="bot">
+        </i>
+       </div>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-slate-500 block">
+         بانتظار الموافقة
+        </span>
+        <strong class="text-xl font-bold text-slate-900" id="stat-pending">
+         3
+        </strong>
+       </div>
+       <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+        <i class="w-5 h-5" data-lucide="clock">
+        </i>
+       </div>
+      </div>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+        <i class="w-4 h-4 text-blue-600" data-lucide="activity">
+        </i>
+        <span>
+         سجل الأحداث المباشر
+        </span>
+       </h3>
+       <button class="btn-ghost text-xs py-1.5 px-3 rounded-lg border border-slate-200 flex items-center gap-1" onclick="loadDashStats()">
+        <i class="w-3.5 h-3.5" data-lucide="refresh-cw">
+        </i>
+        تحديث
+       </button>
+      </div>
+      <div class="divide-y divide-slate-100 max-h-80 overflow-y-auto text-xs" id="dash-activity-log">
+       <div class="py-2 text-slate-500">
+        لا يوجد نشاط مسجل حديثاً
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-rules">
+     <div id="v-automation">
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+       <i class="w-5 h-5 text-blue-600" data-lucide="target">
+       </i>
+       <span>
+        إضافة قاعدة رد تلقائي جديدة
+       </span>
+      </h3>
+      <form class="grid grid-cols-1 md:grid-cols-2 gap-4" onsubmit="addRule(event)">
+       <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">
+         الكلمة المفتاحية (Trigger)
+        </label>
+        <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="rule-trigger" placeholder="مثال: سعر، باقات، تفاصيل" required="" type="text"/>
+       </div>
+       <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">
+         نوع المطابقة
+        </label>
+        <select class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="rule-match-type">
+         <option value="contains">
+          تتضمن الكلمة (Contains)
+         </option>
+         <option value="exact">
+          مطابقة تامة (Exact)
+         </option>
+         <option value="startswith">
+          تبدأ بـ (Starts With)
+         </option>
+        </select>
+       </div>
+       <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">
+         الرد العام (الكومنتات)
+        </label>
+        <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="rule-response" placeholder="تم الرد في الخاص " required="" type="text"/>
+       </div>
+       <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">
+         الرد الخاص (الإنبوكس / DM)
+        </label>
+        <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="rule-private-response" placeholder="تفاصيل الباقات والأسعار..." type="text"/>
+       </div>
+       <div class="md:col-span-2">
+        <button class="btn-primary text-xs px-6 py-2.5 rounded-xl" type="submit">
+         حفظ القاعدة
+        </button>
+       </div>
+      </form>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <h3 class="font-bold text-base text-slate-900 mb-4">
+       قواعد الرد الفعالة
+      </h3>
+      <div class="overflow-x-auto">
+       <table class="w-full text-right text-xs">
+        <thead class="bg-slate-50 text-slate-600">
+         <tr>
+          <th class="p-3">
+           الكلمة
+          </th>
+          <th class="p-3">
+           المطابقة
+          </th>
+          <th class="p-3">
+           الرد العام
+          </th>
+          <th class="p-3">
+           الرد الخاص
+          </th>
+          <th class="p-3">
+           إجراءات
+          </th>
+         </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100" id="rules-table-body">
+         <tr>
+          <td class="p-4 text-center text-slate-500" colspan="5">
+           جارِ تحميل القواعد...
+          </td>
+         </tr>
+        </tbody>
+       </table>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-kb">
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+       <h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+        <i class="w-5 h-5 text-blue-600" data-lucide="plus-circle">
+        </i>
+        <span>
+         إضافة سؤال وجواب لقاعدة RAG
+        </span>
+       </h3>
+       <form class="space-y-4" onsubmit="addKb(event)">
+        <div>
+         <label class="block text-xs font-bold text-slate-700 mb-1">
+          السؤال المتوقع
+         </label>
+         <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="kb-question" placeholder="مثال: ما هي مواعيد العمل؟" required="" type="text"/>
+        </div>
+        <div>
+         <label class="block text-xs font-bold text-slate-700 mb-1">
+          الإجابة المعتمدة
+         </label>
+         <textarea class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="kb-answer" placeholder="مواعيد العمل الرسمية..." required="" rows="3"></textarea>
+        </div>
+        <button class="btn-primary text-xs px-6 py-2.5 rounded-xl" type="submit">
+         إضافة للمعرفة
+        </button>
+       </form>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+       <h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+        <i class="w-5 h-5 text-emerald-600" data-lucide="upload">
+        </i>
+        <span>
+         رفع مستند أو نص للشركة
+        </span>
+       </h3>
+       <form class="space-y-4" onsubmit="uploadCompanyDoc(event)">
+        <div>
+         <label class="block text-xs font-bold text-slate-700 mb-1">
+          محتوى كتالوج / ملف الشركة
+         </label>
+         <textarea class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="doc-text-input" placeholder="انسخ نص الكتالوج أو خدمات الشركة هنا..." rows="5"></textarea>
+        </div>
+        <button class="btn-ghost text-xs px-6 py-2.5 rounded-xl border border-slate-200" type="submit">
+         معالجة وتقسيم النص
+        </button>
+       </form>
+      </div>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <h3 class="font-bold text-base text-slate-900 mb-4">
+       قاعدة المعرفة الحالية (RAG Context)
+      </h3>
+      <div class="space-y-3" id="kb-list">
+       <div class="text-xs text-slate-500 text-center p-4">
+        جارِ تحميل قاعدة المعرفة...
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-crm">
+     <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between gap-3 flex-wrap" id="active-client-bar">
+      <div class="flex items-center gap-3">
+       <span class="text-xs font-bold text-slate-600">
+        العميل النشط:
+       </span>
+       <select class="text-xs font-bold text-blue-600 border border-blue-200 bg-blue-50 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-600" id="active-client-dropdown" onchange="switchActiveClient(this.value)">
+        <option value="client_default">
+         وكالة دوميا للتسويق الرقمي
+        </option>
+        <option value="client_alshamm">
+         مطعم وكافيه الشام
+        </option>
+        <option value="client_capital">
+         شركة العاصمة العقارية
+        </option>
+       </select>
+      </div>
+      <button class="btn-primary text-xs px-4 py-2 rounded-xl" onclick="saveNewClient()">
+       + عميل جديد
+      </button>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+       <i class="w-5 h-5 text-blue-600" data-lucide="users">
+       </i>
+       <span>
+        دليل العملاء والشركات (CRM)
+       </span>
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="clients-grid">
+       <div class="border border-slate-200 rounded-xl p-4 space-y-3">
+        <div class="flex items-center gap-3">
+         <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+          م
+         </div>
+         <div>
+          <h4 class="font-bold text-sm">
+           مطعم وكافيه الشام
+          </h4>
+          <span class="text-xs text-emerald-600 font-bold">
+           عميل نشط
+          </span>
+         </div>
+        </div>
+        <p class="text-xs text-slate-500">
+         هاتف: 01090121000
+        </p>
+        <p class="text-xs text-slate-500">
+         باقة: 3000 ج.م / شهر
+        </p>
+        <div class="flex gap-2 pt-1">
+         <a class="btn-primary text-xs py-1 px-3 rounded-lg flex items-center gap-1" href="tel:01090121000">
+          <i class="w-3.5 h-3.5 inline" data-lucide="phone">
+          </i>
+          اتصل الآن
+         </a>
+         <a class="btn-ghost text-xs py-1 px-3 rounded-lg flex items-center gap-1" href="whatsapp://send?phone=201090121000" target="_blank">
+          <i class="w-3.5 h-3.5 inline" data-lucide="message-square">
+          </i>
+          واتساب
+         </a>
+        </div>
+       </div>
+       <div class="border border-slate-200 rounded-xl p-4 space-y-3">
+        <div class="flex items-center gap-3">
+         <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+          ع
+         </div>
+         <div>
+          <h4 class="font-bold text-sm">
+           شركة العاصمة العقارية
+          </h4>
+          <span class="text-xs text-blue-600 font-bold">
+           عميل VIP
+          </span>
+         </div>
+        </div>
+        <p class="text-xs text-slate-500">
+         هاتف: 01011223344
+        </p>
+        <p class="text-xs text-slate-500">
+         باقة: 6000 ج.م / شهر
+        </p>
+        <div class="flex gap-2 pt-1">
+         <a class="btn-primary text-xs py-1 px-3 rounded-lg flex items-center gap-1" href="tel:01011223344">
+          <i class="w-3.5 h-3.5 inline" data-lucide="phone">
+          </i>
+          اتصل الآن
+         </a>
+         <a class="btn-ghost text-xs py-1 px-3 rounded-lg flex items-center gap-1" href="whatsapp://send?phone=201011223344" target="_blank">
+          <i class="w-3.5 h-3.5 inline" data-lucide="message-square">
+          </i>
+          واتساب
+         </a>
+        </div>
+       </div>
+       <div class="border border-slate-200 rounded-xl p-4 space-y-3">
+        <div class="flex items-center gap-3">
+         <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+          د
+         </div>
+         <div>
+          <h4 class="font-bold text-sm">
+           وكالة دوميا للتسويق
+          </h4>
+          <span class="text-xs text-amber-600 font-bold">
+           الحساب الرئيسي
+          </span>
+         </div>
+        </div>
+        <p class="text-xs text-slate-500">
+         هاتف: 01090121000
+        </p>
+        <p class="text-xs text-slate-500">
+         باقة: Enterprise VIP
+        </p>
+        <div class="flex gap-2 pt-1">
+         <a class="btn-primary text-xs py-1 px-3 rounded-lg flex items-center gap-1" href="tel:01090121000">
+          <i class="w-3.5 h-3.5 inline" data-lucide="phone">
+          </i>
+          اتصل الآن
+         </a>
+         <a class="btn-ghost text-xs py-1 px-3 rounded-lg flex items-center gap-1" href="whatsapp://send?phone=201090121000" target="_blank">
+          <i class="w-3.5 h-3.5 inline" data-lucide="message-square">
+          </i>
+          واتساب
+         </a>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-mode">
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <h3 class="font-bold text-base text-slate-900 mb-2 flex items-center gap-2">
+       <i class="w-5 h-5 text-blue-600" data-lucide="toggle-right">
+       </i>
+       <span>
+        وضع الرد ومراجعة الرسائل
+       </span>
+      </h3>
+      <p class="text-xs text-slate-500 mb-5">
+       اختر طريقة عمل البوت - التلقائي يرد فورًا، المراجعة البشرية تحتاج موافقة الأدمين أولًا
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+       <div class="border-2 border-blue-600 bg-blue-50 rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md" id="card-auto" onclick="setApprovalMode('auto')">
+        <div class="flex items-center gap-3 mb-3">
+         <div class="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+          <i class="w-6 h-6" data-lucide="zap">
+          </i>
+         </div>
+         <div>
+          <h4 class="font-bold text-base text-slate-900">
+           ⚡ الرد التلقائي الفوري
+          </h4>
+          <span class="text-xs text-blue-600 font-bold">
+           Auto Responder
+          </span>
+         </div>
+        </div>
+        <p class="text-xs text-slate-600">
+         البوت يرد تلقائيًا على كل رسالة وتعليق فورًا بدون انتظار. مناسب للردود السريعة والمبيعات الحارة.
+        </p>
+        <div class="mt-4 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1" id="mode-auto-badge">
+         <i class="w-3.5 h-3.5" data-lucide="check-circle">
+         </i>
+         الوضع النشط
+        </div>
+       </div>
+       <div class="border-2 border-slate-200 bg-white rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md hover:border-slate-300" id="card-manual" onclick="setApprovalMode('manual')">
+        <div class="flex items-center gap-3 mb-3">
+         <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+          <i class="w-6 h-6" data-lucide="user-check">
+          </i>
+         </div>
+         <div>
+          <h4 class="font-bold text-base text-slate-900">
+           👨‍💼 مراجعة بشرية أولًا
+          </h4>
+          <span class="text-xs text-slate-500 font-bold">
+           Human Approval Mode
+          </span>
+         </div>
+        </div>
+        <p class="text-xs text-slate-600">
+         البوت يقترح الرد لكن لا يرسله حتى تضغط "موافقة وإرسال". مناسب للعملاء الحساسين والباقات الكبيرة.
+        </p>
+        <div class="mt-4 hidden bg-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1" id="mode-manual-badge">
+         <i class="w-3.5 h-3.5" data-lucide="check-circle">
+         </i>
+         الوضع النشط
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-chat">
+     <div class="max-w-3xl mx-auto">
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+       <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
+        <i class="w-5 h-5 text-blue-600" data-lucide="bot">
+        </i>
+        <h3 class="font-bold text-base text-slate-900">
+         مختبر الـ AI — اختبار الردود والبرومبت
+        </h3>
+        <span class="mr-auto text-xs bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-lg">
+         MASTER V4 + RAG + Rules
+        </span>
+       </div>
+       <div class="bg-slate-50 p-4 h-80 overflow-y-auto space-y-3 flex flex-col" id="ai-sandbox-area">
+        <div class="text-center text-xs text-slate-400 mt-10">
+         اكتب رسالة لاختبار رد الـ AI بناءً على قاعدة المعرفة والبرومبت الحالي
+        </div>
+       </div>
+       <form class="p-3 border-t border-slate-200 bg-white flex gap-2" onsubmit="sendAISandboxMessage(event)">
+        <input class="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-600" id="ai-sandbox-input" placeholder="اكتب سؤال أو رسالة لاختبار الرد..." type="text"/>
+        <button class="btn-primary text-xs px-4 py-2 rounded-xl flex items-center gap-1" type="submit">
+         <i class="w-3.5 h-3.5" data-lucide="send">
+         </i>
+         إرسال
+        </button>
+       </form>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-settings">
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+      <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+       <i class="w-5 h-5 text-blue-600" data-lucide="sliders">
+       </i>
+       <span>
+        إعدادات النظام والبرومبت الأساسي
+       </span>
+      </h3>
+      <div>
+       <div class="flex justify-between mb-1">
+        <label class="block text-xs font-bold text-slate-700">
+         البرومبت الرئيسي للمساعد الذكي (System Prompt)
+        </label>
+        <span class="text-xs text-slate-400" id="prompt-char-count">
+         0 / 4000
+        </span>
+       </div>
+       <textarea class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="system-prompt-input" oninput="updatePromptCharCount()" rows="6"></textarea>
+      </div>
+      <div>
+       <label class="block text-xs font-bold text-slate-700 mb-1">
+        نمط اعتماد الردود
+       </label>
+       <select class="w-full md:w-64 px-3 py-2 border border-slate-200 rounded-xl text-xs" id="approval-mode-select" onchange="setApprovalMode(this.value)">
+        <option value="auto">
+         تلقائي كامل (Auto Reply)
+        </option>
+        <option value="manual">
+         مراجعة بشرية أولاً (Manual Approval)
+        </option>
+       </select>
+      </div>
+      <div class="flex gap-3">
+       <button class="btn-primary text-xs px-6 py-2.5 rounded-xl" onclick="saveSettings()">
+        حفظ الإعدادات
+       </button>
+       <button class="btn-ghost text-xs px-6 py-2.5 rounded-xl border border-slate-200 flex items-center gap-1" onclick="sendAISandboxMessage(null,'اختبار')">
+        <i class="w-3.5 h-3.5" data-lucide="play">
+        </i>
+        اختبار البرومبت
+       </button>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-logs">
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+        <i class="w-5 h-5 text-blue-600" data-lucide="list">
+        </i>
+        <span>
+         سجل العمليات والـ Events المباشر
+        </span>
+       </h3>
+       <button class="btn-ghost text-xs py-1.5 px-3 rounded-lg border border-slate-200 flex items-center gap-1" onclick="clearLogs()">
+        <i class="w-3.5 h-3.5" data-lucide="trash-2">
+        </i>
+        مسح
+       </button>
+      </div>
+      <div class="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono text-xs h-96 overflow-y-auto space-y-1" id="logs-stream-container">
+       <div class="text-emerald-400">
+        [2026-08-04 10:00:00] [SYSTEM] Domya AI Moderator v2.2 — متصل ونشط
+       </div>
+       <div class="text-blue-400">
+        [2026-08-04 10:01:00] [WEBHOOK] وصلت رسالة جديدة من مستخدم فيسبوك — Facebook Messenger
+       </div>
+       <div class="text-emerald-400">
+        [2026-08-04 10:01:01] [AI] تم توليد رد بـ RAG Context — قاعدة المعرفة 85% دقيقة
+       </div>
+       <div class="text-yellow-400">
+        [2026-08-04 10:02:00] [PENDING] الرد في انتظار الموافقة الإدارية
+       </div>
+       <div class="text-blue-400">
+        [2026-08-04 10:15:00] [WEBHOOK] تعليق جديد من مستخدم إنستجرام على Instagram Post
+       </div>
+       <div class="text-emerald-400">
+        [2026-08-04 10:15:01] [RULE] قاعدة "باقات" — تم الرد العام في الكومنت + الخاص في DM
+       </div>
+       <div class="text-slate-400 animate-pulse">
+        [SYSTEM] جارِ استقبال الأحداث المباشرة...
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-scheduler">
+     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+        <i class="w-5 h-5 text-blue-600" data-lucide="calendar">
+        </i>
+        <span>
+         جدولة منشور أو ريلز جديد
+        </span>
+       </h3>
+       <div>
+        <label class="block text-xs font-bold text-slate-700 mb-2">
+         القناة المستهدفة
+        </label>
+        <div class="grid grid-cols-3 gap-2">
+         <button class="border-2 border-blue-600 bg-blue-50 text-blue-700 text-xs font-bold p-2 rounded-xl flex flex-col items-center gap-1 transition-all" id="target-fb" onclick="setPostTarget('fb')">
+          <i class="w-5 h-5" data-lucide="facebook">
+          </i>
+          Facebook
+         </button>
+         <button class="border border-slate-200 text-slate-600 text-xs font-bold p-2 rounded-xl flex flex-col items-center gap-1 transition-all hover:border-blue-400" id="target-ig" onclick="setPostTarget('ig')">
+          <i class="w-5 h-5" data-lucide="instagram">
+          </i>
+          Instagram
+         </button>
+         <button class="border border-slate-200 text-slate-600 text-xs font-bold p-2 rounded-xl flex flex-col items-center gap-1 transition-all hover:border-blue-400" id="target-both" onclick="setPostTarget('both')">
+          <i class="w-5 h-5" data-lucide="share-2">
+          </i>
+          كلاهما
+         </button>
+        </div>
+       </div>
+       <div>
+        <div class="flex justify-between mb-1">
+         <label class="block text-xs font-bold text-slate-700">
+          نص المنشور / الكابشن
+         </label>
+         <span class="text-xs text-slate-400" id="caption-counter">
+          0 / 2200
+         </span>
+        </div>
+        <textarea class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="post-caption-input" oninput="updatePostPreview();updateCaptionCounter()" placeholder="اكتب تفاصيل الإعلان أو اضغط توليد بالـ AI..." rows="4"></textarea>
+       </div>
+       <div class="grid grid-cols-2 gap-3">
+        <div>
+         <label class="block text-xs font-bold text-slate-700 mb-1">
+          تاريخ النشر
+         </label>
+         <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="post-date" type="date"/>
+        </div>
+        <div>
+         <label class="block text-xs font-bold text-slate-700 mb-1">
+          وقت النشر
+         </label>
+         <select class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="post-time">
+          <option value="10:00">
+           10 صباحًا (Cairo)
+          </option>
+          <option value="20:00">
+           8 مساءً (Cairo)
+          </option>
+          <option value="12:00">
+           12 ظهرًا
+          </option>
+          <option value="18:00">
+           6 مساءً
+          </option>
+         </select>
+        </div>
+       </div>
+       <div class="flex gap-2">
+        <button class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200 flex items-center gap-1" onclick="generateAICaption()">
+         <i class="w-3.5 h-3.5" data-lucide="bot">
+         </i>
+         توليد الكابشن بالـ AI
+        </button>
+        <button class="btn-primary text-xs py-2 px-6 rounded-xl flex items-center gap-1" onclick="saveScheduledPost()">
+         <i class="w-3.5 h-3.5" data-lucide="calendar">
+         </i>
+         جدولة الآن
+        </button>
+       </div>
+      </div>
+      <div class="lg:col-span-5 space-y-4">
+       <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <h3 class="font-bold text-sm text-slate-900 mb-3">
+         معاينة المنشور المباشرة
+        </h3>
+        <div class="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
+         <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
+           D
+          </div>
+          <div>
+           <span class="font-bold text-xs text-blue-600 block">
+            وكالة دوميا للتسويق
+           </span>
+           <span class="text-xs text-slate-400">
+            منذ لحظات
+           </span>
+          </div>
+         </div>
+         <p class="text-xs text-slate-700" id="preview-caption-text">
+          معاينة النص تظهر هنا...
+         </p>
+        </div>
+       </div>
+       <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <h3 class="font-bold text-sm text-slate-900 mb-3">
+         المنشورات المجدولة
+        </h3>
+        <div class="space-y-2 text-xs" id="scheduled-posts-list">
+         <div class="border border-slate-100 rounded-xl p-3 flex items-center justify-between">
+          <div>
+           <span class="font-bold text-slate-900 block">
+            بوست ترويجي — عرض أغسطس
+           </span>
+           <span class="text-slate-400">
+            10 أغسطس 2026 — 10:00 صباحًا
+           </span>
+          </div>
+          <span class="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-lg">
+           Pending
+          </span>
+         </div>
+         <div class="border border-slate-100 rounded-xl p-3 flex items-center justify-between">
+          <div>
+           <span class="font-bold text-slate-900 block">
+            ريلز — كيف نزود مبيعاتك
+           </span>
+           <span class="text-slate-400">
+            12 أغسطس 2026 — 8:00 مساءً
+           </span>
+          </div>
+          <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-lg">
+           Published
+          </span>
+         </div>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-accounts">
+     <div id="v-chatwoot">
+     </div>
+     <div class="space-y-6" id="accounts-full-list">
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+       <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xl">
+        C
+       </div>
+       <div>
+        <h3 class="font-bold text-base text-slate-900">
+         Chatwoot Free Engine Integration
+        </h3>
+        <p class="text-xs text-slate-500">
+         تحكم في ربط حسابات فيسبوك وإنستجرام مجاناً 100%
+        </p>
+       </div>
+      </div>
+      <button class="btn-primary text-sm px-6 py-2.5 rounded-xl shadow-sm flex items-center gap-2" onclick="loginFromChatwoot()">
+       <i class="w-4 h-4" data-lucide="link">
+       </i>
+       <span>
+        ربط من Chatwoot - فري | اربط صفحتك في ثانية
+       </span>
+      </button>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-3">
+      <h4 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+       <i class="w-4 h-4 text-blue-600" data-lucide="zap">
+       </i>
+       <span>
+        أدوات التحكم المباشر (8 Actions Grid)
+       </span>
+      </h4>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+       <button class="btn-primary bg-blue-600 text-white font-bold text-xs p-3 rounded-xl flex flex-col items-center gap-1 shadow-sm" onclick="switchView('v-inbox')">
+        <i class="w-5 h-5 text-white" data-lucide="message-square">
+        </i>
+        <span>
+         Inbox مباشر
+        </span>
+       </button>
+       <button class="btn-primary bg-blue-600 text-white font-bold text-xs p-3 rounded-xl flex flex-col items-center gap-1 shadow-sm" onclick="switchView('v-scheduler')">
+        <i class="w-5 h-5 text-white" data-lucide="file-text">
+        </i>
+        <span>
+         الكومنتات
+        </span>
+       </button>
+       <button class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200" id="toggle-btn" onclick="toggleBot()">
+        <i class="w-5 h-5 text-emerald-600" data-lucide="bot">
+        </i>
+        <span>
+         تشغيل/إيقاف البوت
+        </span>
+       </button>
+       <button class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200" onclick="switchView('v-analytics')">
+        <i class="w-5 h-5 text-blue-600" data-lucide="bar-chart-2">
+        </i>
+        <span>
+         الإحصائيات
+        </span>
+       </button>
+       <button class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200" onclick="verifyPageTokenLive()">
+        <i class="w-5 h-5 text-blue-600" data-lucide="key">
+        </i>
+        <span>
+         تجديد التوكن
+        </span>
+       </button>
+       <button class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200" onclick="switchView('v-chatwoot')">
+        <i class="w-5 h-5 text-blue-600" data-lucide="instagram">
+        </i>
+        <span>
+         تحكم إنستجرام
+        </span>
+       </button>
+       <button class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200" onclick="switchView('v-kb')">
+        <i class="w-5 h-5 text-blue-600" data-lucide="book-open">
+        </i>
+        <span>
+         قاعدة RAG
+        </span>
+       </button>
+       <button class="btn-ghost text-xs p-3 rounded-xl flex flex-col items-center gap-1 border border-slate-200" onclick="switchView('v-rules')">
+        <i class="w-5 h-5 text-blue-600" data-lucide="settings">
+        </i>
+        <span>
+         القواعد
+        </span>
+       </button>
+      </div>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-3">
+      <h4 class="font-bold text-sm text-slate-900">
+       بيانات Webhook و Meta App
+      </h4>
+      <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+       <span class="font-mono text-slate-700">
+        https://metaaimoderator.vercel.app/webhook
+       </span>
+       <button class="btn-ghost text-xs py-1 px-3 rounded-lg border border-slate-200" onclick="navigator.clipboard.writeText('https://metaaimoderator.vercel.app/webhook');showToast('تم نسخ الرابط')">
+        نسخ الرابط
+       </button>
+      </div>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <h3 class="font-bold text-base text-slate-900 mb-4">
+       الحسابات والصفحات المربوطة
+      </h3>
+      <div class="divide-y divide-slate-100 text-xs" id="accounts-list">
+       <div class="py-3 text-slate-500">
+        جارِ تحميل الحسابات المربوطة...
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="view hidden space-y-6" id="v-analytics">
+     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-xl p-5 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-blue-100 block mb-1">
+         إجمالي العملاء (Leads)
+        </span>
+        <strong class="text-3xl font-extrabold">
+         14
+        </strong>
+        <span class="text-xs text-blue-200 block mt-1">
+         14 العملاء المستهدفين
+        </span>
+       </div>
+       <div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center">
+        <i class="w-6 h-6 text-white" data-lucide="users">
+        </i>
+       </div>
+      </div>
+      <div class="bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-xl p-5 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-emerald-100 block mb-1">
+         قيمة الصفقات
+        </span>
+        <strong class="text-3xl font-extrabold">
+         30,000 EGP
+        </strong>
+        <span class="text-xs text-emerald-200 block mt-1">
+         إجمالي حجم الصفقات
+        </span>
+       </div>
+       <div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center">
+        <i class="w-6 h-6 text-white" data-lucide="dollar-sign">
+        </i>
+       </div>
+      </div>
+      <div class="bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-xl p-5 shadow-sm flex items-center justify-between">
+       <div>
+        <span class="text-xs font-semibold text-amber-100 block mb-1">
+         فرص حارة
+        </span>
+        <strong class="text-3xl font-extrabold">
+         5
+        </strong>
+        <span class="text-xs text-amber-200 block mt-1">
+         5 فرص جاهزة للإغلاق
+        </span>
+       </div>
+       <div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center">
+        <i class="w-6 h-6 text-white" data-lucide="flame">
+        </i>
+       </div>
+      </div>
+     </div>
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <h3 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2">
+       <i class="w-5 h-5 text-blue-600" data-lucide="bar-chart-2">
+       </i>
+       <span>
+        تحليلات التفاعل وسرعة الرد
+       </span>
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+       <div class="border border-slate-200 p-4 rounded-xl text-center space-y-1">
+        <span class="text-xs text-slate-500">
+         متوسط زمن الرد
+        </span>
+        <strong class="text-xl font-bold text-emerald-500 block">
+         &lt; 2 ثانية
+        </strong>
+       </div>
+       <div class="border border-slate-200 p-4 rounded-xl text-center space-y-1">
+        <span class="text-xs text-slate-500">
+         معدل التحويل للخاص
+        </span>
+        <strong class="text-xl font-bold text-blue-600 block">
+         94.2%
+        </strong>
+       </div>
+       <div class="border border-slate-200 p-4 rounded-xl text-center space-y-1">
+        <span class="text-xs text-slate-500">
+         دقة إجابات RAG
+        </span>
+        <strong class="text-xl font-bold text-slate-900 block">
+         98.5%
+        </strong>
+       </div>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-4">
+       <h4 class="font-bold text-sm text-slate-900 mb-3">
+        سجل التفاعلات الأخيرة
+       </h4>
+       <div class="space-y-2 text-xs" id="analytics-log">
+        <div class="flex items-center justify-between py-2 border-b border-slate-100">
+         <span class="text-slate-600">
+          مستخدم فيسبوك — DM Facebook
+         </span>
+         <span class="text-emerald-600 font-bold">
+          رد AI — 1.2 ثانية
+         </span>
+        </div>
+        <div class="flex items-center justify-between py-2 border-b border-slate-100">
+         <span class="text-slate-600">
+          مستخدم إنستجرام — تعليق Instagram
+         </span>
+         <span class="text-blue-600 font-bold">
+          قاعدة — فوري
+         </span>
+        </div>
+        <div class="flex items-center justify-between py-2 border-b border-slate-100">
+         <span class="text-slate-600">
+          عميل محتمل — تعليق Facebook
+         </span>
+         <span class="text-amber-600 font-bold">
+          انتظار موافقة
+         </span>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+   </main>
+  </div>
+  <div class="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4 hidden" id="login-modal-overlay">
+   <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 w-full max-w-md space-y-4">
+    <h3 class="text-xl font-bold text-slate-900 text-center">
+     تسجيل الدخول للمنصة
+    </h3>
+    <form class="space-y-3" onsubmit="handleLogin(event)">
+     <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="auth-username" placeholder="اسم المستخدم" type="text"/>
+     <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="auth-password" placeholder="كلمة المرور" type="password"/>
+     <button class="w-full btn-primary text-xs py-2.5 rounded-xl" type="submit">
+      دخول
+     </button>
+     <button class="w-full btn-primary bg-[#1f93ff] text-white text-xs py-2.5 rounded-xl flex items-center justify-center gap-2" onclick="loginFromChatwoot()" type="button">
+      <i class="w-4 h-4" data-lucide="message-square">
+      </i>
+      <span>
+       الدخول بحساب Chatwoot مجاناً
+      </span>
+     </button>
+     <div class="text-xs text-red-600 font-bold hidden text-center" id="auth-error">
+     </div>
+    </form>
+    <button class="w-full btn-ghost text-xs py-2 rounded-xl border border-slate-200" onclick="quickDemoLogin()">
+     الدخول السريع (Demo Login)
+    </button>
+   </div>
+  </div>
+    <div class="fixed inset-0 bg-slate-900/40 z-50 items-center justify-center p-4 hidden" id="page-picker-modal">
+   <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 w-full max-w-md space-y-4">
+    <h3 class="text-xl font-bold text-slate-900 text-center">
+     ???? ?????? ???? ???? ?????
+    </h3>
+    <div class="pp-body space-y-2 max-h-96 overflow-y-auto cursor-pointer divide-y divide-slate-100">
+    </div>
+    <div class="flex justify-center pt-2">
+      <button onclick="document.getElementById('page-picker-modal').classList.add('hidden'); document.getElementById('page-picker-modal').classList.remove('flex'); window.history.replaceState({}, document.title, '/');" class="text-slate-500 hover:text-slate-700 text-sm">
+        ?????
+      </button>
+    </div>
+   </div>
+  </div>
+
+  <div id="toast">
+  </div>
+  <script src="/static/js/app.js?v=2.2">
+  </script>
+  <script src="/static/js/inbox.js?v=2.2">
+  </script>
+  <script src="/static/js/chatwoot_free.js">
+  </script>
+  <script src="/static/js/views.js?v=2.2">
+  </script>
+  <script src="/static/js/clients.js?v=2.2">
+  </script>
+ </body>
+</html>

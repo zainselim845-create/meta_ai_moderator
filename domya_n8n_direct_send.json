@@ -1,0 +1,59 @@
+{
+  "name": "Domya Instagram Direct Send (No Webhook)",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "When clicking 'Execute Workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// أدخل هنا معرف المستخدم المستهدف IGSID أو Comment ID\nreturn [{\n  json: {\n    recipient_id: \"ENTER_IGSID_OR_COMMENT_ID_HERE\",\n    message_text: \"أهلاً بك! هذه رسالة إرسال مباشر بدون Webhook من وكالة دوميا للتسويق الرقمي 🚀\"\n  }\n}];"
+      },
+      "name": "Set Recipient & Message",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://graph.facebook.com/v21.0/17841413562796856/messages",
+        "jsonParameters": true,
+        "options": {},
+        "queryParametersJson": "{\n  \"access_token\": \"REMOVED_SECRET\"\n}",
+        "bodyParametersJson": "={\n  \"recipient\": { \"id\": \"{{$json[\"recipient_id\"]}}\" },\n  \"message\": { \"text\": \"{{$json[\"message_text\"]}}\" }\n}"
+      },
+      "name": "Send Instagram Direct DM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute Workflow'": {
+      "main": [
+        [
+          {
+            "node": "Set Recipient & Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Recipient & Message": {
+      "main": [
+        [
+          {
+            "node": "Send Instagram Direct DM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
