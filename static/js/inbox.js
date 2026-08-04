@@ -55,6 +55,17 @@ function renderInboxList(){
         return true;
     });
 
+    const pendingCount = allInboxThreads.filter(t => t.pending_approval).length;
+    const pendingBadge = document.getElementById('pending-count');
+    if (pendingBadge) {
+        pendingBadge.textContent = pendingCount;
+        if (pendingCount > 0) {
+            pendingBadge.classList.remove('hidden');
+        } else {
+            pendingBadge.classList.add('hidden');
+        }
+    }
+
     if(searchVal){
         filtered = filtered.filter(t => (t.sender_name||'').toLowerCase().includes(searchVal) || (t.snippet||'').toLowerCase().includes(searchVal));
     }

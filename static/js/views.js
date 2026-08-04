@@ -216,6 +216,22 @@ async function loadAccounts(){
             </div>
         `;
         grid.innerHTML = html;
+        const sideAccountsList = document.getElementById('accounts-list');
+        if (sideAccountsList) {
+            if (accs.length === 0) {
+                sideAccountsList.innerHTML = `<div class="py-3 text-slate-500">لا يوجد أي حسابات مربوطة حالياً.</div>`;
+            } else {
+                sideAccountsList.innerHTML = accs.map(a => `
+                    <div class="py-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="${a.platform === 'facebook' ? 'text-blue-600' : 'text-purple-600'} font-bold">●</span>
+                            <strong class="font-bold text-slate-800">${esc(a.name)}</strong>
+                        </div>
+                        <span class="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded text-[10px]">متصل 100%</span>
+                    </div>
+                `).join('');
+            }
+        }
         if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
     } catch(e){}
 }
