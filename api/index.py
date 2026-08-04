@@ -923,7 +923,7 @@ def api_conversations():
     try:
         res = requests.get(
             f"{GRAPH_URL}/me/conversations?platform=instagram&fields=id,updated_time,unread_count,senders{{id,name,username,profile_pic}}&limit=20&access_token={ig_token}",
-            timeout=6
+            timeout=3
         )
         resp_json = res.json()
         if res.status_code == 200 and "data" in resp_json:
