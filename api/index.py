@@ -26,7 +26,7 @@ import requests
 from flask import Flask, request, jsonify, render_template_string, Response, session, redirect, send_from_directory
 from facebook_free_connector import FacebookFreeConnector
 
-VERIFY_TOKEN = "GET"
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "8xTixM78GBd_XcWbLt34mJu4")
 
 CHANNEL_FB_DM = 'messenger'
 CHANNEL_IG_DM = 'instagram_dm'
