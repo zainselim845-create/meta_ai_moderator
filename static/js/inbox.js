@@ -126,8 +126,8 @@ function renderInboxList(){
         const platform = String(t.platform || '');
         if(currentInboxFilter === 'pending') return t.pending_approval;
         // New filter IDs matching HTML buttons
-        if(currentInboxFilter === 'fb_dm') return (platform === 'facebook' || ch === 'messenger' || ch === 'dm') && !tId.startsWith('fb_comment_') && !tId.startsWith('ig_comment_');
-        if(currentInboxFilter === 'ig_dm') return (platform === 'instagram' || ch === 'instagram_dm') && !tId.startsWith('ig_comment_') && !tId.startsWith('fb_comment_');
+        if(currentInboxFilter === 'fb_dm') return (platform === 'facebook' || ch === 'messenger' || ch === 'dm' || t.type === 'messenger') && !tId.startsWith('fb_comment_') && !tId.startsWith('ig_comment_');
+        if(currentInboxFilter === 'ig_dm') return (platform === 'instagram' || ch === 'instagram_dm' || ch === 'instagram' || t.type === 'instagram') && !tId.startsWith('ig_comment_') && !tId.startsWith('fb_comment_');
         if(currentInboxFilter === 'fb_comment') return tId.startsWith('fb_comment_') || ch === 'fb_comment';
         if(currentInboxFilter === 'ig_comment') return tId.startsWith('ig_comment_') || ch === 'ig_comment';
         // Legacy filters
