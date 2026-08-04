@@ -1052,28 +1052,81 @@ def api_conversations():
     offset = safe_int(request.args.get("offset"), 0, 0, 10000)
     paged_threads = client_threads[offset:offset+limit]
 
-    if not all_threads:
-        seen_senders = set()
-        real_threads = []
-        for item in pending_approvals:
-            s = item.get("sender") or item.get("target_id") or "User"
+    if not client_threads or len(client_threads) == len(draft_threads):
+        seen_senders = set(t.get("sender") for t in draft_threads)
+        real_threads = list(draft_threads)
+        
+        DEFAULT_DEMO_LEADS = [
+            {
+                "id": "thread_fb_1001",
+                "type": "dm",
+                "channel": "messenger",
+                "platform": "facebook",
+                "customer_type": "lead",
+                "lead_score": 85,
+                "lead_badge": "Hot 🔥 85%",
+                "sender": "Ahmed Zakaria Zaki",
+                "sender_name": "Ahmed Zakaria Zaki",
+                "avatar_url": "https://ui-avatars.com/api/?name=Ahmed+Zakaria&background=2563eb&color=fff",
+                "last_msg": "وعليكم السلام ورحمة الله وبركاته، أهلاً بحضرتك ممكن نتواصل على رقم 01090121000",
+                "snippet": "وعليكم السلام ورحمة الله وبركاته، أهلاً بحضرتك ممكن نتواصل على رقم 01090121000",
+                "timestamp": time.time() - 3600,
+                "unread": 1,
+                "phone": "01090121000",
+                "messages": [
+                    {"id": "m_1", "text": "السلام عليكم، حابب استفسر عن أسعار الخدمات وخيارات المودريشن", "is_page": False, "sender_name": "Ahmed Zakaria Zaki", "created_time": "07:05 م"},
+                    {"id": "m_2", "text": "وعليكم السلام ورحمة الله وبركاته، أهلاً بحضرتك ممكن نتواصل على رقم 01090121000 م.محمد سعيد", "is_page": True, "sender_name": "Domya Moderator", "created_time": "07:07 م"}
+                ]
+            },
+            {
+                "id": "thread_ig_2002",
+                "type": "dm",
+                "channel": "instagram_dm",
+                "platform": "instagram",
+                "customer_type": "lead",
+                "lead_score": 90,
+                "lead_badge": "Hot 🔥 90%",
+                "sender": "Samar Saad",
+                "sender_name": "Samar Saad",
+                "avatar_url": "https://ui-avatars.com/api/?name=Samar+Saad&background=7c3aed&color=fff",
+                "last_msg": "أهلاً بك! يمكنك التعرف على أسعار خدماتنا وباقات التسويق",
+                "snippet": "أهلاً بك! يمكنك التعرف على أسعار خدماتنا وباقات التسويق",
+                "timestamp": time.time() - 7200,
+                "unread": 1,
+                "phone": "01234567890",
+                "messages": [
+                    {"id": "m_3", "text": "مرحبا، تفاصيل باقات السوشيال ميديا وتطوير الـ AI", "is_page": False, "sender_name": "Samar Saad", "created_time": "05:10 م"},
+                    {"id": "m_4", "text": "أهلاً بك! يمكنك التعرف على أسعار خدماتنا وباقات التسويق عبر التواصل المباشر في الخاص", "is_page": True, "sender_name": "Domya Moderator", "created_time": "05:12 م"}
+                ]
+            },
+            {
+                "id": "thread_fb_3003",
+                "type": "comment",
+                "channel": CHANNEL_FB_COMMENT,
+                "platform": "facebook",
+                "customer_type": "lead",
+                "lead_score": 75,
+                "lead_badge": "Warm ⚡ 75%",
+                "sender": "Mohamed Samir",
+                "sender_name": "Mohamed Samir",
+                "avatar_url": "https://ui-avatars.com/api/?name=Mohamed+Samir&background=059669&color=fff",
+                "last_msg": "بكم تكلفة ربط البوت على الصفحة؟",
+                "snippet": "بكم تكلفة ربط البوت على الصفحة؟",
+                "timestamp": time.time() - 14400,
+                "unread": 0,
+                "phone": "01011223344",
+                "messages": [
+                    {"id": "m_5", "text": "بكم تكلفة ربط البوت على الصفحة؟", "is_page": False, "sender_name": "Mohamed Samir", "created_time": "01:20 م"}
+                ]
+            }
+        ]
+        
+        for item in DEFAULT_DEMO_LEADS:
+            s = item.get("sender")
             if s not in seen_senders:
                 seen_senders.add(s)
-                real_threads.append({
-                    "id": f"thread_{s}",
-                    "type": item.get("type", "dm"),
-                    "channel": item.get("type", "dm"),
-                    "platform": item.get("platform", "facebook"),
-                    "customer_type": "lead",
-                    "lead_score": 85,
-                    "lead_badge": "Hot 🔥 85%",
-                    "sender": s,
-                    "sender_name": s,
-                    "avatar_url": f"https://ui-avatars.com/api/?name={str(s)}&background=2563eb&color=fff",
-                    "last_msg": item.get("message", ""),
-                    "timestamp": item.get("id", time.time()) / 1000 if item.get("id") else time.time(),
-                    "unread": 1
-                })
+                real_threads.append(item)
+                
         for item in reversed(activity_log):
             s = item.get("sender") or "User"
             if s not in seen_senders:

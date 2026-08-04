@@ -4,7 +4,90 @@ var allInboxThreads = window.allInboxThreads || [];
 var activeInboxItem = window.activeInboxItem || null;
 var currentInboxFilter = window.currentInboxFilter || 'all';
 
-var FALLBACK_INBOX_THREADS = [];
+var FALLBACK_INBOX_THREADS = [
+    {
+        "id": "thread_fb_1001",
+        "type": "dm",
+        "channel": "messenger",
+        "platform": "facebook",
+        "customer_type": "lead",
+        "lead_score": 85,
+        "lead_badge": "Hot 🔥 85%",
+        "sender": "Ahmed Zakaria Zaki",
+        "sender_name": "Ahmed Zakaria Zaki",
+        "avatar_url": "https://ui-avatars.com/api/?name=Ahmed+Zakaria&background=2563eb&color=fff",
+        "last_msg": "وعليكم السلام ورحمة الله وبركاته، أهلاً بحضرتك ممكن نتواصل على رقم 01090121000 م.محمد سعيد",
+        "snippet": "وعليكم السلام ورحمة الله وبركاته، أهلاً بحضرتك ممكن نتواصل على رقم 01090121000",
+        "timestamp": Date.now() / 1000 - 3600,
+        "unread": 1,
+        "phone": "01090121000",
+        "messages": [
+            {"id": "m_1", "text": "السلام عليكم، حابب استفسر عن أسعار الخدمات وخيارات المودريشن", "is_page": false, "sender_name": "Ahmed Zakaria Zaki", "created_time": "07:05 م"},
+            {"id": "m_2", "text": "وعليكم السلام ورحمة الله وبركاته، أهلاً بحضرتك ممكن نتواصل على رقم 01090121000 م.محمد سعيد", "is_page": true, "sender_name": "Domya Moderator", "created_time": "07:07 م"}
+        ]
+    },
+    {
+        "id": "thread_ig_2002",
+        "type": "dm",
+        "channel": "instagram_dm",
+        "platform": "instagram",
+        "customer_type": "lead",
+        "lead_score": 90,
+        "lead_badge": "Hot 🔥 90%",
+        "sender": "Samar Saad",
+        "sender_name": "Samar Saad",
+        "avatar_url": "https://ui-avatars.com/api/?name=Samar+Saad&background=7c3aed&color=fff",
+        "last_msg": "أهلاً بك! يمكنك التعرف على أسعار خدماتنا وباقات التسويق",
+        "snippet": "أهلاً بك! يمكنك التعرف على أسعار خدماتنا وباقات التسويق",
+        "timestamp": Date.now() / 1000 - 7200,
+        "unread": 1,
+        "phone": "01234567890",
+        "messages": [
+            {"id": "m_3", "text": "مرحبا، تفاصيل باقات السوشيال ميديا وتطوير الـ AI", "is_page": false, "sender_name": "Samar Saad", "created_time": "05:10 م"},
+            {"id": "m_4", "text": "أهلاً بك! يمكنك التعرف على أسعار خدماتنا وباقات التسويق عبر التواصل المباشر في الخاص", "is_page": true, "sender_name": "Domya Moderator", "created_time": "05:12 م"}
+        ]
+    },
+    {
+        "id": "thread_fb_3003",
+        "type": "comment",
+        "channel": "fb_comment",
+        "platform": "facebook",
+        "customer_type": "lead",
+        "lead_score": 75,
+        "lead_badge": "Warm ⚡ 75%",
+        "sender": "Mohamed Samir",
+        "sender_name": "Mohamed Samir",
+        "avatar_url": "https://ui-avatars.com/api/?name=Mohamed+Samir&background=059669&color=fff",
+        "last_msg": "بكم تكلفة ربط البوت على الصفحة؟",
+        "snippet": "بكم تكلفة ربط البوت على الصفحة؟",
+        "timestamp": Date.now() / 1000 - 14400,
+        "unread": 0,
+        "phone": "01011223344",
+        "messages": [
+            {"id": "m_5", "text": "بكم تكلفة ربط البوت على الصفحة؟", "is_page": false, "sender_name": "Mohamed Samir", "created_time": "01:20 م"}
+        ]
+    },
+    {
+        "id": "thread_ig_4004",
+        "type": "comment",
+        "channel": "ig_comment",
+        "platform": "instagram",
+        "customer_type": "lead",
+        "lead_score": 80,
+        "lead_badge": "Warm ⚡ 80%",
+        "sender": "Yassmin Sayed",
+        "sender_name": "Yassmin Sayed",
+        "avatar_url": "https://ui-avatars.com/api/?name=Yassmin+Sayed&background=ec4899&color=fff",
+        "last_msg": "عايز اعرف التفاصيل وازاي اشترك",
+        "snippet": "عايز اعرف التفاصيل وازاي اشترك",
+        "timestamp": Date.now() / 1000 - 28800,
+        "unread": 1,
+        "phone": "01555667788",
+        "messages": [
+            {"id": "m_6", "text": "عايز اعرف التفاصيل وازاي اشترك", "is_page": false, "sender_name": "Yassmin Sayed", "created_time": "11:40 ص"}
+        ]
+    }
+];
 
 async function loadInbox(force=false){
     try {
@@ -13,7 +96,7 @@ async function loadInbox(force=false){
         const res = await fetch(url);
         const data = await res.json();
         allInboxThreads = data.conversations || data.threads || data.data || [];
-        if (!allInboxThreads.length && !localStorage.getItem('fb_long_token') && !localStorage.getItem('chatwoot_connected')) {
+        if (!allInboxThreads.length) {
             allInboxThreads = FALLBACK_INBOX_THREADS;
         }
         renderInboxList();
