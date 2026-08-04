@@ -976,7 +976,7 @@ def api_conversations():
     _ig_pull_debug = {"ig_id": ig_id, "ig_token_len": len(ig_token) if ig_token else 0}
     try:
         res = requests.get(
-            f"{GRAPH_URL}/{ig_id}/media?fields=id,caption,comments_count,timestamp,permalink,comments.limit(25){{id,text,username,timestamp}}&limit=15&access_token={ig_token}",
+            f"{GRAPH_URL}/{ig_id}/media?fields=id,caption,comments_count,timestamp,permalink,comments.limit(25){{id,text,username,timestamp}}&limit=25&access_token={ig_token}",
             timeout=12
         )
         _ig_pull_debug["status"] = res.status_code
@@ -1107,7 +1107,7 @@ def api_conversations():
     
     client_threads = [t for t in all_threads if t.get("client_id") == cid or not t.get("client_id")]
     
-    limit = safe_int(request.args.get("limit"), 50, 1, 200)
+    limit = safe_int(request.args.get("limit"), 200, 1, 500)
     offset = safe_int(request.args.get("offset"), 0, 0, 10000)
     paged_threads = client_threads[offset:offset+limit]
 
