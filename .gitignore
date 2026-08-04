@@ -14,3 +14,4 @@ test_token.py
 scripts/*_token.py
 scripts/send_dm_to_user.py
 scripts/setup_webhook.py
+scripts/
