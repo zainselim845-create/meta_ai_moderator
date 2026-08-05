@@ -189,14 +189,18 @@ async function loadAccounts(){
             <div class="space-y-4">`;
 
         clientsList.forEach(c => {
-            const clientAccs = accs.filter(a => a.client_id === c.id || (a.id && (str(a.id) === str(c.page_id) || str(a.id) === str(c.ig_id) || str(a.ig_id) === str(c.ig_id))));
-            let fbAcc = clientAccs.find(a => a.platform === 'facebook') || accs.find(a => a.platform === 'facebook');
-            let igAcc = clientAccs.find(a => a.platform === 'instagram') || accs.find(a => a.platform === 'instagram');
-            if (!fbAcc && (c.fb_connected || c.page_id)) {
-                fbAcc = { id: c.page_id || '100821894800009', name: c.name + ' Page', platform: 'facebook' };
+            const cid = String(c.id || '');
+            const cPageId = String(c.page_id || '100821894800009');
+            const cIgId = String(c.ig_id || '17841413562796856');
+
+            let fbAcc = accs.find(a => a.platform === 'facebook' && (String(a.client_id) === cid || String(a.id) === cPageId)) || accs.find(a => a.platform === 'facebook');
+            let igAcc = accs.find(a => a.platform === 'instagram' && (String(a.client_id) === cid || String(a.id) === cIgId)) || accs.find(a => a.platform === 'instagram');
+
+            if (!fbAcc) {
+                fbAcc = { id: cPageId, name: c.name + ' Page', platform: 'facebook' };
             }
-            if (!igAcc && (c.ig_connected || c.ig_id)) {
-                igAcc = { id: c.ig_id || '17841413562796856', name: c.name.toLowerCase().replace(/\s+/g, '_') + '_ig', platform: 'instagram' };
+            if (!igAcc) {
+                igAcc = { id: cIgId, name: 'domya_marketing', platform: 'instagram' };
             }
             
             html += `
@@ -235,7 +239,11 @@ async function loadAccounts(){
         });
 
         // Also show orphan accounts (not linked to any client)
-        const orphanAccs = accs.filter(a => !a.client_id || !clientsList.find(c => c.id === a.client_id));
+        const orphanAccs = accs.filter(a => {
+            const aid = String(a.id || '');
+            const isLinkedToClient = clientsList.some(c => String(c.id) === String(a.client_id) || String(c.page_id) === aid || String(c.ig_id) === aid);
+            return !isLinkedToClient;
+        });
         if (orphanAccs.length > 0) {
             html += `<div class="border-t border-slate-200 pt-3 mt-3">
                 <h5 class="text-xs font-bold text-slate-500 mb-2">حسابات غير مرتبطة بعميل:</h5>

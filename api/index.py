@@ -89,42 +89,70 @@ stats = {"dms": 0, "comments": 0, "ai_calls": 0, "pending": 0}
 
 def ensure_default_clients_grouped():
     global AGENCY_CLIENTS_STORE, ACCOUNTS_STORE
-    if ACCOUNTS_STORE:
-        fb_acc = next((a for a in ACCOUNTS_STORE if a.get("platform") == "facebook"), None)
-        ig_acc = next((a for a in ACCOUNTS_STORE if a.get("platform") == "instagram"), None)
-        
-        default_cid = "client_domya_marketing"
-        client = next((c for c in AGENCY_CLIENTS_STORE if c.get("id") == default_cid), None)
-        
-        if not client:
-            client_name = "Domya Marketing Agency"
-            if fb_acc and fb_acc.get("name"):
-                client_name = fb_acc["name"].replace(" (Facebook Page)", "").replace(" (Facebook)", "")
-            client = {
-                "id": default_cid,
-                "name": client_name,
-                "company": "Domya Marketing Suite",
-                "package": "Business VIP",
-                "page_id": str(fb_acc.get("id")) if fb_acc else "100821894800009",
-                "ig_id": str(ig_acc.get("id")) if ig_acc else "17841413562796856",
-                "status": "active",
-                "is_active": True,
-                "fb_connected": True,
-                "ig_connected": True
-            }
-            if not any(c.get("id") == default_cid for c in AGENCY_CLIENTS_STORE):
-                AGENCY_CLIENTS_STORE.append(client)
-            push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
-        else:
-            client["fb_connected"] = True
-            client["ig_connected"] = True
-            if fb_acc: client["page_id"] = str(fb_acc.get("id"))
-            if ig_acc: client["ig_id"] = str(ig_acc.get("id"))
+    
+    # 1. Default Client Workspace
+    default_cid = "client_domya_marketing"
+    client = next((c for c in AGENCY_CLIENTS_STORE if c.get("id") == default_cid or c.get("page_id") == "100821894800009"), None)
+    
+    if not client:
+        client = {
+            "id": default_cid,
+            "name": "Domya Marketing Agency",
+            "company": "Domya Marketing Suite",
+            "package": "Business VIP",
+            "page_id": "100821894800009",
+            "ig_id": "17841413562796856",
+            "status": "active",
+            "is_active": True,
+            "fb_connected": True,
+            "ig_connected": True
+        }
+        AGENCY_CLIENTS_STORE.insert(0, client)
+        push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
+    else:
+        client["fb_connected"] = True
+        client["ig_connected"] = True
+        client["page_id"] = "100821894800009"
+        client["ig_id"] = "17841413562796856"
 
-        target_cid = client.get("id", default_cid)
-        for a in ACCOUNTS_STORE:
+    target_cid = client.get("id", default_cid)
+
+    # 2. Ensure FB Account in ACCOUNTS_STORE
+    fb_acc = next((a for a in ACCOUNTS_STORE if str(a.get("id")) == "100821894800009" or a.get("platform") == "facebook"), None)
+    if not fb_acc:
+        fb_acc = {
+            "id": "100821894800009",
+            "name": "Domya Marketing Agency",
+            "platform": "facebook",
+            "client_id": target_cid,
+            "access_token": PAGE_ACCESS_TOKEN,
+            "status": "connected"
+        }
+        ACCOUNTS_STORE.append(fb_acc)
+    else:
+        fb_acc["client_id"] = target_cid
+
+    # 3. Ensure IG Account in ACCOUNTS_STORE
+    ig_acc = next((a for a in ACCOUNTS_STORE if str(a.get("id")) == "17841413562796856" or a.get("platform") == "instagram"), None)
+    if not ig_acc:
+        ig_acc = {
+            "id": "17841413562796856",
+            "name": "domya_marketing",
+            "platform": "instagram",
+            "client_id": target_cid,
+            "access_token": INSTAGRAM_USER_ACCESS_TOKEN or PAGE_ACCESS_TOKEN,
+            "status": "connected"
+        }
+        ACCOUNTS_STORE.append(ig_acc)
+    else:
+        ig_acc["client_id"] = target_cid
+
+    for a in ACCOUNTS_STORE:
+        if not a.get("client_id"):
             a["client_id"] = target_cid
-        push_setting("meta_ai_accounts", ACCOUNTS_STORE)
+
+    push_setting("meta_ai_accounts", ACCOUNTS_STORE)
+    push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
 
 def supa_headers():
     return {
