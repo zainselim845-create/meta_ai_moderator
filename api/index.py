@@ -176,48 +176,13 @@ def verify_signature(payload_bytes, signature_header):
     given_sig = signature_header.split("sha256=")[1]
     return hmac.compare_digest(expected_sig, given_sig)
 
-LOCAL_STORE_PATH = os.path.join(tempfile.gettempdir(), "meta_ai_settings.json")
-
-def load_local_disk_store():
-    try:
-        if os.path.exists(LOCAL_STORE_PATH):
-            with open(LOCAL_STORE_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    if "meta_ai_clients" in data and isinstance(data["meta_ai_clients"], list) and data["meta_ai_clients"]:
-                        AGENCY_CLIENTS_STORE[:] = data["meta_ai_clients"]
-                    if "meta_ai_accounts" in data and isinstance(data["meta_ai_accounts"], list) and data["meta_ai_accounts"]:
-                        ACCOUNTS_STORE[:] = data["meta_ai_accounts"]
-                    if "meta_ai_kb" in data:
-                        cache["kb"] = data["meta_ai_kb"]
-                    if "meta_ai_rules" in data:
-                        cache["rules"] = data["meta_ai_rules"]
-    except Exception as e:
-        print(f"[Local Disk Store Load Error] {e}")
-
-def save_local_disk_store(key, value):
-    try:
-        data = {}
-        if os.path.exists(LOCAL_STORE_PATH):
-            with open(LOCAL_STORE_PATH, "r", encoding="utf-8") as f:
-                try: data = json.load(f)
-                except: data = {}
-        data[key] = value
-        with open(LOCAL_STORE_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"[Local Disk Store Save Error] {e}")
-
 def sync_from_supabase():
-    if time.time() - cache.get("last_sync", 0) < 15:
+    if time.time() - cache.get("last_sync", 0) < 10:
         return
-    # Always attempt restoring from local disk store first
-    load_local_disk_store()
-    
     if SUPABASE_URL and SUPABASE_KEY:
         try:
             url = f"{SUPABASE_URL}/rest/v1/app_settings?select=key,value"
-            r = requests.get(url, headers=supa_headers(), timeout=4)
+            r = requests.get(url, headers=supa_headers(), timeout=5)
             if r.status_code == 200:
                 for row in r.json():
                     k, v = row.get("key"), row.get("value")
@@ -249,20 +214,24 @@ def sync_from_supabase():
                         cache["scheduled_posts"] = parsed if isinstance(parsed, list) else []
                 cache["last_sync"] = time.time()
                 ensure_default_clients_grouped()
+            else:
+                print(f"[Supabase Sync Error] HTTP {r.status_code}: {r.text[:200]}")
+                ensure_default_clients_grouped()
         except Exception as e:
-            print(f"[Supabase Sync] Using local disk store fallback: {e}")
+            print(f"[Supabase Sync Exception] {e}")
+            ensure_default_clients_grouped()
     else:
         ensure_default_clients_grouped()
 
 def push_setting(key, value):
-    save_local_disk_store(key, value)
     if SUPABASE_URL and SUPABASE_KEY:
         try:
             url = f"{SUPABASE_URL}/rest/v1/app_settings"
             val_str = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
-            requests.post(url, headers=supa_headers(), json={"key": key, "value": val_str}, timeout=4)
+            res = requests.post(url, headers=supa_headers(), json={"key": key, "value": val_str}, timeout=5)
+            print(f"[Supabase Push] {key} -> HTTP {res.status_code}")
         except Exception as e:
-            print(f"[Supabase Push] {key}: {e}")
+            print(f"[Supabase Push Exception] {key}: {e}")
 
 sync_from_supabase()
 
