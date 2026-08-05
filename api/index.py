@@ -861,11 +861,39 @@ def api_conversations():
             print(f"[Token Exchange Error] {ex}")
 
     all_threads = []
-    
-    # 1. Fetch Messenger Threads (up to 100 threads)
+
+    # Build the full list of pages to pull from (all pages the token can see + attached accounts),
+    # so the inbox shows conversations from EVERY connected page — not just the first one.
+    pages_to_pull = []
+    _seen_pids = set()
+    def _add_page(pid, ptok, igid, igtok):
+        pid = str(pid or "")
+        if not pid or not ptok or pid in _seen_pids:
+            return
+        _seen_pids.add(pid)
+        pages_to_pull.append({"fb_page_id": pid, "fb_token": ptok, "ig_id": str(igid or ""), "ig_token": igtok or ptok})
+    _add_page(fb_page_id, fb_token, ig_id, ig_token)
     try:
+        _acc = requests.get(f"{GRAPH_URL}/me/accounts?fields=id,access_token,instagram_business_account{{id}}&limit=100&access_token={PAGE_ACCESS_TOKEN}", timeout=15)
+        if _acc.status_code == 200:
+            for _pg in _acc.json().get("data", []):
+                _add_page(_pg.get("id"), _pg.get("access_token"), (_pg.get("instagram_business_account") or {}).get("id"), _pg.get("access_token"))
+    except Exception as _e:
+        print(f"[MultiPage accounts] {_e}")
+    for _a in client_accounts:
+        if _a.get("platform") == "facebook":
+            _t = decrypt(_a["access_token_enc"]) if _a.get("access_token_enc") else _a.get("access_token")
+            if _t and len(_t) > 20:
+                _add_page(_a.get("id"), _t, _a.get("ig_id"), _t)
+    if not pages_to_pull:
+        pages_to_pull.append({"fb_page_id": fb_page_id, "fb_token": fb_token, "ig_id": ig_id, "ig_token": ig_token})
+
+    # 1. Fetch Messenger Threads from EVERY page (up to 100 each)
+    for _pg in pages_to_pull:
+      fb_token = _pg["fb_token"]; fb_page_id = _pg["fb_page_id"]
+      try:
         res = requests.get(
-            f"{GRAPH_URL}/me/conversations?platform=messenger&fields=id,updated_time,unread_count,senders{{id,name,profile_pic,link}},snippet&limit=100&access_token={fb_token}",
+            f"{GRAPH_URL}/{fb_page_id}/conversations?platform=messenger&fields=id,updated_time,unread_count,senders{{id,name,profile_pic,link}},snippet&limit=100&access_token={fb_token}",
             timeout=15
         )
         if res.status_code == 200:
@@ -913,7 +941,7 @@ def api_conversations():
                         {"id": t_id, "text": snippet, "is_page": False, "sender_name": cust_sender, "time": updated_time}
                     ]
                 })
-    except Exception as e:
+      except Exception as e:
         print(f"[FB Messenger Error] {e}")
 
     # 2. Fetch Instagram Direct Threads (needs Advanced Access for full support)
@@ -1588,7 +1616,24 @@ def api_send_reply():
                 }), 400
             
             log_event("comment_public", f"Comment_{comment_id[:6]}", "رد علني تحت المنشور", text)
-            return jsonify({"ok": True, "status": "sent", "mode": "public", "graph_status": res.status_code, "id": res_data.get("id")})
+            new_msg = {
+                "id": f"msg_sent_{int(time.time()*1000)}",
+                "text": text,
+                "message": text,
+                "is_page": True,
+                "sender_name": "Domya Moderator",
+                "created_time": datetime.now().strftime("%I:%M %p"),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "source": "human"
+            }
+            if isinstance(convo, dict):
+                if "messages" not in convo or not isinstance(convo["messages"], list):
+                    convo["messages"] = []
+                convo["messages"].append(new_msg)
+                convo["last_msg"] = text
+                convo["snippet"] = text
+
+            return jsonify({"ok": True, "status": "sent", "mode": "public", "graph_status": res.status_code, "id": res_data.get("id"), "message": new_msg})
 
         elif is_comment and reply_mode == "private":
             # Private DM reply to comment sender
@@ -1623,7 +1668,26 @@ def api_send_reply():
                 recipient_id = str(convo.get("cust_id"))
             send_dm_reply(recipient_id, text)
             log_event("dm", f"User_{recipient_id[:6]}", "رد مباشر", text)
-            return jsonify({"ok": True, "status": "sent", "mode": "dm"})
+
+            # Persist sent message in conversation memory so it appears in thread history
+            new_msg = {
+                "id": f"msg_sent_{int(time.time()*1000)}",
+                "text": text,
+                "message": text,
+                "is_page": True,
+                "sender_name": "Domya Moderator",
+                "created_time": datetime.now().strftime("%I:%M %p"),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "source": "human"
+            }
+            if isinstance(convo, dict):
+                if "messages" not in convo or not isinstance(convo["messages"], list):
+                    convo["messages"] = []
+                convo["messages"].append(new_msg)
+                convo["last_msg"] = text
+                convo["snippet"] = text
+
+            return jsonify({"ok": True, "status": "sent", "mode": "dm", "message": new_msg})
 
     except Exception as e:
         print(f"[Send Reply Error] {e}")

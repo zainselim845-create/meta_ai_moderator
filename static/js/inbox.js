@@ -513,17 +513,32 @@ async function sendInboxReply(threadId, mode = 'public') {
         }
 
         inp.value = '';
-        if (stream) {
-            stream.innerHTML += renderBubble({
+        const targetStream = stream || document.getElementById('chat-stream') || document.getElementById('chat-messages');
+        const sentBubbleHtml = renderBubble({
+            is_page: true,
+            text: text,
+            message: text,
+            created_at: new Date().toISOString(),
+            created_time: new Date().toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'}),
+            source: 'human'
+        });
+        if (targetStream) {
+            targetStream.innerHTML += sentBubbleHtml;
+            targetStream.scrollTop = targetStream.scrollHeight;
+        }
+        if (activeInboxItem) {
+            if (!activeInboxItem.messages) activeInboxItem.messages = [];
+            activeInboxItem.messages.push({
                 is_page: true,
                 text: text,
                 message: text,
                 created_at: new Date().toISOString(),
-                source: 'human'
+                sender_name: 'Domya Moderator'
             });
-            stream.scrollTop = stream.scrollHeight;
+            activeInboxItem.last_msg = text;
+            activeInboxItem.snippet = text;
         }
-        showToast(d.status === 'simulated' ? ' محاكاة إرسال — لم تُرسل فعلياً' : (mode === 'public' ? 'تم نشر الرد العلني بنجاح <i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 inline"></i>' : 'تم إرسال الرد الخاص بنجاح <i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 inline"></i>'));
+        showToast(mode === 'public' ? 'تم نشر الرد العلني بنجاح <i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 inline"></i>' : 'تم إرسال الرد بنجاح <i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 inline"></i>');
 
     } catch(e) {
         console.error('[sendInboxReply]', e);
