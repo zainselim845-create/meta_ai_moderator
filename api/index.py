@@ -2750,7 +2750,15 @@ def api_clients_add():
     # starts EMPTY and pages are attached later via Facebook OAuth (the correct flow).
     page_id = str(data.get("page_id") or "").strip()
     ig_id = str(data.get("ig_id") or "").strip()
-    token = data.get("access_token") or ""
+    token = (data.get("access_token") or "").strip()
+
+    # Smart auto-fallback: if token or page_id not provided, default to Vercel env configuration
+    if not token and PAGE_ACCESS_TOKEN:
+        token = PAGE_ACCESS_TOKEN
+    if not page_id and os.environ.get("FB_PAGE_ID"):
+        page_id = os.environ.get("FB_PAGE_ID")
+    if not ig_id and os.environ.get("IG_ACCOUNT_ID"):
+        ig_id = os.environ.get("IG_ACCOUNT_ID")
 
     new_client = {
         "id": cid,
