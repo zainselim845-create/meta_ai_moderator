@@ -2506,9 +2506,22 @@ def api_attach_page():
         ACCOUNTS_STORE.append(fb_account)
 
     client_obj = next((c for c in AGENCY_CLIENTS_STORE if c.get('id') == client_id), None)
-    if client_obj:
-        client_obj['page_id'] = str(page['id'])
-        client_obj['fb_connected'] = True
+    if not client_obj:
+        # The target client no longer exists (lost during the multi-step OAuth flow) —
+        # create a workspace for this page so the accounts are never left orphaned.
+        client_id = client_id or ("client_" + str(page['id']))
+        client_obj = {
+            "id": client_id,
+            "name": page.get('name') or "عميل جديد",
+            "company": page.get('name') or "",
+            "package": "Business VIP",
+            "status": "active",
+            "is_active": True,
+        }
+        AGENCY_CLIENTS_STORE.append(client_obj)
+    fb_account['client_id'] = client_id
+    client_obj['page_id'] = str(page['id'])
+    client_obj['fb_connected'] = True
 
     ig = page.get('instagram_business_account')
     if ig:
