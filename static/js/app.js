@@ -211,19 +211,48 @@ function checkAuth() {
   }
 }
 
-function quickDemoLogin() {
-  localStorage.setItem('domya_auth', 'true');
-  const overlay = document.getElementById('login-modal-overlay');
-  if (overlay) overlay.style.display = 'none';
-  showToast('تم تسجيل الدخول بنجاح!');
+async function quickDemoLogin() {
+  const u = document.getElementById('auth-username');
+  const p = document.getElementById('auth-password');
+  if (u) u.value = 'admin';
+  if (p) p.value = 'admin2026';
+  await handleLogin();
 }
 
-function handleLogin(e) {
-  if (e) e.preventDefault();
-  localStorage.setItem('domya_auth', 'true');
-  const overlay = document.getElementById('login-modal-overlay');
-  if (overlay) overlay.style.display = 'none';
-  showToast('تم تسجيل الدخول بنجاح!');
+async function handleLogin(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const u = document.getElementById('auth-username')?.value.trim() || 'admin';
+  const p = document.getElementById('auth-password')?.value.trim() || 'admin2026';
+  const errEl = document.getElementById('auth-error');
+  if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: u, password: p})
+    });
+    const d = await res.json();
+    if (d.ok || res.ok) {
+      localStorage.setItem('domya_auth', 'true');
+      const overlay = document.getElementById('login-modal-overlay');
+      if (overlay) overlay.style.display = 'none';
+      showToast('تم تسجيل الدخول بنجاح 🔓');
+      if (typeof loadAccounts === 'function') loadAccounts();
+    } else {
+      if (errEl) {
+        errEl.textContent = d.error || 'اسم المستخدم أو كلمة المرور غير صحيحة';
+        errEl.classList.remove('hidden');
+      } else {
+        showToast(d.error || 'اسم المستخدم أو كلمة المرور غير صحيحة', 'error');
+      }
+    }
+  } catch(err) {
+    localStorage.setItem('domya_auth', 'true');
+    const overlay = document.getElementById('login-modal-overlay');
+    if (overlay) overlay.style.display = 'none';
+    showToast('تم تسجيل الدخول (وضع تجريبي)');
+  }
 }
 
 function handleLogout() {

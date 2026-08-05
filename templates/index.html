@@ -1187,12 +1187,15 @@
     </h3>
     <p class="text-xs text-slate-500 text-center -mt-2">منصة إدارة ومودريشن فيسبوك وإنستجرام</p>
     <form class="space-y-3" onsubmit="handleLogin(event)">
-     <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="auth-username" placeholder="اسم المستخدم" type="text"/>
-     <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="auth-password" placeholder="كلمة المرور" type="password"/>
-     <button class="w-full btn-primary text-xs py-2.5 rounded-xl" type="submit">
-      دخول
+     <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold" id="auth-username" placeholder="اسم المستخدم (admin)" type="text" value="admin"/>
+     <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="auth-password" placeholder="كلمة المرور (admin2026)" type="password" value="admin2026"/>
+     <button class="w-full btn-primary text-xs py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition shadow-sm" type="submit">
+      تسجيل الدخول 🔓
      </button>
-     <div class="text-xs text-red-600 font-bold hidden text-center" id="auth-error">
+     <button class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-2 rounded-xl font-bold transition mt-2 flex items-center justify-center gap-1" onclick="quickDemoLogin()" type="button">
+      ⚡ دخول تجريبي سريع (Demo Login)
+     </button>
+     <div class="text-xs text-red-600 font-bold hidden text-center pt-1" id="auth-error">
      </div>
     </form>
    </div>
