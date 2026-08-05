@@ -189,6 +189,9 @@ def sync_from_supabase():
                         continue
                     try:
                         parsed = json.loads(v)
+                        if isinstance(parsed, str):
+                            try: parsed = json.loads(parsed)
+                            except: pass
                     except:
                         parsed = v
                     if k == "meta_ai_kb":
