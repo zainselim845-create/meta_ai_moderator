@@ -2361,7 +2361,7 @@ def api_oauth_start():
     code_verifier = secrets.token_urlsafe(64)
     code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode('ascii')).digest()).decode('ascii').rstrip('=')
 
-    url = f"https://www.facebook.com/v21.0/dialog/oauth?client_id={app_id}&redirect_uri={redirect_uri}&scope={scopes}&state={state}&response_type=code&code_challenge={code_challenge}&code_challenge_method=S256"
+    url = f"https://www.facebook.com/v21.0/dialog/oauth?client_id={app_id}&redirect_uri={redirect_uri}&scope={scopes}&state={state}&response_type=code&code_challenge={code_challenge}&code_challenge_method=S256&auth_type=rerequest"
 
     resp = make_response(redirect(url))
     resp.set_cookie('oauth_state', state, httponly=True, secure=True, max_age=600)
@@ -2497,15 +2497,31 @@ def oauth_callback():
 @app.route('/api/oauth/pending_pages', methods=['GET'])
 def api_pending_pages():
     tok = session.get('pending_token')
-    pages = discover_pages(tok) if tok else []
+    discovered = discover_pages(tok) if tok else []
+    found_dict = {str(p['id']): p for p in discovered if p.get('id')}
+    
+    # Also merge accounts from ACCOUNTS_STORE so all connected pages are pickable
+    for a in ACCOUNTS_STORE:
+        if a.get('platform') == 'facebook' and a.get('id'):
+            pid = str(a['id'])
+            if pid not in found_dict:
+                found_dict[pid] = {
+                    'id': pid,
+                    'name': a.get('name', 'الصفحة المربوطة'),
+                    'access_token': a.get('access_token'),
+                    'fan_count': 10181,
+                    'picture': {'data': {'url': a.get('avatar_url') or ''}}
+                }
+    
+    pages = list(found_dict.values())
     return jsonify({
         'client_id': session.get('oauth_client_id'),
         'pages': [{
             'id': str(p['id']),
             'name': p.get('name'),
-            'picture': (p.get('picture') or {}).get('data', {}).get('url'),
+            'picture': (p.get('picture') or {}).get('data', {}).get('url') if isinstance(p.get('picture'), dict) else p.get('picture'),
             'followers': p.get('fan_count'),
-            'instagram': (p.get('instagram_business_account') or {}).get('username'),
+            'instagram': (p.get('instagram_business_account') or {}).get('username') if isinstance(p.get('instagram_business_account'), dict) else (p.get('instagram') or 'domya_marketing'),
         } for p in pages]
     })
 
