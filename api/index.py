@@ -2505,11 +2505,57 @@ def oauth_callback():
         try:
             pages = discover_pages(long_token)
             if pages:
-                session['pending_token'] = long_token
+                # Auto-link EVERY page the user approved on Facebook's own consent screen —
+                # no website page-picker. Each page becomes its own client workspace.
+                global ACCOUNTS_STORE
+                linked = 0
+                for i, page in enumerate(pages):
+                    ptok = page.get('access_token') or long_token
+                    pid = str(page.get('id'))
+                    if not pid:
+                        continue
+                    # first page attaches to the target client (if any), rest get their own
+                    pcid = target_client if i == 0 and target_client else ("client_" + pid)
+                    cobj = next((c for c in AGENCY_CLIENTS_STORE if c.get('id') == pcid), None)
+                    if not cobj:
+                        cobj = {"id": pcid, "name": page.get('name') or "عميل", "company": page.get('name') or "",
+                                "package": "Business VIP", "status": "active", "is_active": True}
+                        AGENCY_CLIENTS_STORE.append(cobj)
+                    cobj['name'] = cobj.get('name') or page.get('name')
+                    cobj['page_id'] = pid
+                    cobj['fb_connected'] = True
+                    exp = (datetime.now(timezone.utc) + timedelta(days=60)).isoformat()
+                    fb_acc = {"id": pid, "name": page.get('name'), "platform": "facebook", "client_id": pcid,
+                              "avatar_url": (page.get('picture') or {}).get('data', {}).get('url'),
+                              "access_token": ptok, "access_token_enc": encrypt(ptok),
+                              "token_expires_at": exp, "status": "connected", "dm_mode": "auto", "comment_mode": "auto"}
+                    ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get('id')) != pid]
+                    ACCOUNTS_STORE.append(fb_acc)
+                    ig = page.get('instagram_business_account')
+                    if ig and ig.get('id'):
+                        igid = str(ig['id'])
+                        cobj['ig_id'] = igid
+                        cobj['ig_connected'] = True
+                        ig_acc = {"id": igid, "name": ig.get('username') or page.get('name'), "platform": "instagram",
+                                  "ig_id": igid, "client_id": pcid, "parent_page_id": pid,
+                                  "access_token": ptok, "access_token_enc": encrypt(ptok),
+                                  "token_expires_at": exp, "status": "connected", "dm_mode": "auto", "comment_mode": "auto"}
+                        ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get('id')) != igid]
+                        ACCOUNTS_STORE.append(ig_acc)
+                    try:
+                        requests.post(f"{GRAPH_URL}/{pid}/subscribed_apps",
+                                      params={'subscribed_fields': 'messages,messaging_postbacks,feed', 'access_token': ptok}, timeout=8)
+                    except Exception:
+                        pass
+                    linked += 1
+                push_setting("meta_ai_accounts", ACCOUNTS_STORE)
+                push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
+                cache["accounts"] = ACCOUNTS_STORE
+                cache["clients"] = AGENCY_CLIENTS_STORE
                 session.modified = True
-                return redirect('/?oauth=select_page')
+                return redirect(f'/?oauth=success&linked={linked}')
         except Exception as ex:
-            print(f"[Discover Warning] {ex}")
+            print(f"[OAuth Auto-Link Error] {ex}")
 
         return redirect('/?oauth=error&reason=nopages')
     except Exception as e:

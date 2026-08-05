@@ -318,7 +318,16 @@ window.addEventListener('DOMContentLoaded', () => {
     const o = p.get('oauth');
     if (o === 'select_page')  showPagePicker();
     else if (o === 'error')   showToast(oauthErrorMsg(p.get('reason')), 'error');
-    else if (o === 'success') showToast('تم الربط بنجاح <i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 inline"></i>');
+    else if (o === 'success') {
+        const n = p.get('linked') || '';
+        showToast('تم ربط ' + (n ? n + ' ' : '') + 'صفحة بنجاح ✅');
+        setTimeout(() => {
+            if (typeof loadClients === 'function') loadClients();
+            if (typeof loadAccounts === 'function') loadAccounts();
+            if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
+            if (typeof loadInbox === 'function') loadInbox(true);
+        }, 400);
+    }
     if (o) history.replaceState({}, '', '/');
 });
 
