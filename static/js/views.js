@@ -103,6 +103,21 @@ async function loadAccounts(){
         const res = await fetch('/api/accounts');
         const d = await res.json();
         const grid = document.getElementById('accounts-full-list') || document.getElementById('v-accounts');
+        const accs = d.accounts && d.accounts.length > 0 ? d.accounts : [];
+        
+        // Populate Header Account Switcher
+        const headerSelect = document.getElementById('header-account-select');
+        if (headerSelect) {
+            let selectHtml = `<option value="">🌐 جميع الحسابات والصفحات (الكل)</option>`;
+            accs.forEach(a => {
+                const icon = a.platform === 'facebook' ? '🔵' : '🟣';
+                selectHtml += `<option value="${esc(a.id)}">${icon} ${esc(a.name)} (${esc(a.platform)})</option>`;
+            });
+            headerSelect.innerHTML = selectHtml;
+            const savedAct = localStorage.getItem('active_account_id');
+            if (savedAct) headerSelect.value = savedAct;
+        }
+
         if(!grid) return;
         
         const appId = d.app_id || '1331918902446123';
@@ -150,19 +165,17 @@ async function loadAccounts(){
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h4 class="font-bold text-slate-900 text-sm flex items-center gap-2">
                         <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600"></i>
-                        <span>الحسابات والصفحات المربوطة (Portfolio Active Connections)</span>
+                        <span>الحسابات والصفحات المربوطة (${accs.length} حسابات متصلة)</span>
                     </h4>
-                    <span class="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full">2 حساب متصل بنجاح</span>
+                    <button onclick="openAddAccountModal()" class="btn-primary text-xs px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition flex items-center gap-1">+ إضافة حساب جديد</button>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         `;
-
-        const accs = d.accounts && d.accounts.length > 0 ? d.accounts : [];
         
         if (accs.length === 0) {
             html += `<div class="col-span-full p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">
                 <p>لا يوجد أي حسابات مرتبطة حالياً.</p>
-                <button onclick="loginFromChatwoot()" class="btn-primary mt-3 px-4 py-2 rounded-xl text-xs font-bold">ربط حساب جديد</button>
+                <button onclick="openAddAccountModal()" class="btn-primary mt-3 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white">إضافة حساب جديد</button>
             </div>`;
         }
 
@@ -171,10 +184,16 @@ async function loadAccounts(){
             const badge = isFB ? '<span class="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-md text-xs">🔵 فيسبوك Page</span>' : '<span class="bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-md text-xs">🟣 إنستجرام Business</span>';
             const perms = a.permissions || ["pages_show_list", "pages_messaging", "instagram_basic", "instagram_manage_messages"];
             html += `
-                <div class="border rounded-xl p-4 border-slate-200 bg-slate-50/50 space-y-3">
+                <div class="border rounded-xl p-4 border-slate-200 bg-slate-50/50 space-y-3 shadow-sm">
                     <div class="flex items-center justify-between">
                         ${badge}
-                        <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">✅ متصل ومربوط 100%</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">✅ متصل 100%</span>
+                            <button onclick="deleteAccount('${esc(a.id)}')" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 shadow-sm">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                حذف
+                            </button>
+                        </div>
                     </div>
                     <div>
                         <h5 class="font-bold text-slate-900 text-sm">${esc(a.name)}</h5>
@@ -191,7 +210,7 @@ async function loadAccounts(){
                         </div>
                     </div>
                     <div class="pt-2 border-t border-slate-200 space-y-2">
-                        <span class="text-[11px] font-bold text-slate-600 block">وضع رد الـ AI لهذا الحساب (منفصل):</span>
+                        <span class="text-[11px] font-bold text-slate-600 block">وضع رد الـ AI لهذا الحساب:</span>
                         <div class="flex items-center justify-between">
                             <span class="text-xs text-slate-600">💬 الكومنتات</span>
                             <div class="flex gap-1">
@@ -216,22 +235,6 @@ async function loadAccounts(){
             </div>
         `;
         grid.innerHTML = html;
-        const sideAccountsList = document.getElementById('accounts-list');
-        if (sideAccountsList) {
-            if (accs.length === 0) {
-                sideAccountsList.innerHTML = `<div class="py-3 text-slate-500">لا يوجد أي حسابات مربوطة حالياً.</div>`;
-            } else {
-                sideAccountsList.innerHTML = accs.map(a => `
-                    <div class="py-3 flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <span class="${a.platform === 'facebook' ? 'text-blue-600' : 'text-purple-600'} font-bold">●</span>
-                            <strong class="font-bold text-slate-800">${esc(a.name)}</strong>
-                        </div>
-                        <span class="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded text-[10px]">متصل 100%</span>
-                    </div>
-                `).join('');
-            }
-        }
         if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
     } catch(e){}
 }
@@ -595,33 +598,7 @@ async function loadRules() {
     } catch(e) { console.error(e); }
 }
 
-async function addRule(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    const triggerEl = document.getElementById('rule-trigger');
-    const matchTypeEl = document.getElementById('rule-match-type') || document.getElementById('rule-match');
-    const responseEl = document.getElementById('rule-response');
-    const privateResponseEl = document.getElementById('rule-private-response');
 
-    const trigger = triggerEl ? triggerEl.value.trim() : '';
-    const match_type = matchTypeEl ? matchTypeEl.value : 'contains';
-    const response = responseEl ? responseEl.value.trim() : '';
-    const private_response = privateResponseEl ? privateResponseEl.value.trim() : '';
-    if (!trigger || !response) { showToast('يرجى إدخال الكلمة المفتاحية والرد العام', 'error'); return; }
-    try {
-        await fetch('/api/rules', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({trigger, match_type, response, private_response})
-        });
-        showToast('تم حفظ القاعدة بنجاح');
-        const modal = document.getElementById('rule-modal');
-        if (modal) modal.classList.remove('open');
-        if (triggerEl) triggerEl.value = '';
-        if (responseEl) responseEl.value = '';
-        if (privateResponseEl) privateResponseEl.value = '';
-        loadRules();
-    } catch(err) { showToast('حدث خطأ أثناء الحفظ', 'error'); }
-}
 
 async function deleteRule(id) {
     if (!confirm('هل أنت تأكد من حذف هذه القاعدة؟')) return;
@@ -716,3 +693,161 @@ async function handleLogout() {
 
 let agencyClients = [];
 let activeClientId = 'client_1';
+
+function openAddAccountModal() {
+    const modal = document.getElementById('acc-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+function closeAddAccountModal() {
+    const modal = document.getElementById('acc-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function switchActiveAccount(accId) {
+    try {
+        localStorage.setItem('active_account_id', accId || '');
+        const res = await fetch('/api/accounts/select', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: accId})
+        });
+        showToast(accId ? `تم تصفية العرض للحساب المختار` : 'عرض جميع الحسابات والصفحات');
+        if (typeof loadInbox === 'function') {
+            loadInbox(true);
+        }
+    } catch(e) {
+        showToast('تعذر تغيير الحساب', 'error');
+    }
+}
+
+async function deleteAccount(accId) {
+    if (!confirm('هل أنت مقتنع بحذف هذا الحساب المرتبط؟ سيتم إلغاء التوكن وإزالته.')) return;
+    try {
+        const res = await fetch('/api/accounts/' + encodeURIComponent(accId), {method: 'DELETE'});
+        const d = await res.json();
+        if (d.ok || d.success) {
+            showToast('تم حذف وإلغاء الحساب بنجاح 🗑️');
+            loadAccounts();
+        } else {
+            showToast('حدث خطأ أثناء الحذف', 'error');
+        }
+    } catch(e) {
+        showToast('تعذر الاتصال بالسيرفر', 'error');
+    }
+}
+
+async function loadRules() {
+    try {
+        const res = await fetch('/api/rules');
+        const data = await res.json();
+        const tableBody = document.getElementById('rules-table-body');
+        const listContainer = document.getElementById('rule-list');
+        const ruleList = Array.isArray(data) ? data : (data && Array.isArray(data.rules) ? data.rules : []);
+        
+        if (tableBody) {
+            if (!ruleList || ruleList.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">لا توجد قواعد رد مخصصة بعد</td></tr>';
+            } else {
+                tableBody.innerHTML = ruleList.map(r => `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-3 font-bold text-slate-900">${esc(r.trigger || '* (كل الكومنتات)')}</td>
+                        <td class="p-3 text-slate-600">${r.post_url ? `<span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono text-[11px] block truncate max-w-[150px]" title="${esc(r.post_url)}">🔗 ${esc(r.post_url)}</span>` : '<span class="text-slate-400">🌐 جميع المنشورات</span>'}</td>
+                        <td class="p-3 text-slate-600">${esc(r.match_type || 'contains')}</td>
+                        <td class="p-3 text-slate-800">${esc(r.response || '-')}</td>
+                        <td class="p-3 text-slate-800">${esc(r.private_response || '-')}</td>
+                        <td class="p-3">
+                            <button onclick="deleteRule(${r.id})" class="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition inline-flex items-center gap-1">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                حذف
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+        
+        if (listContainer) {
+            if (!ruleList || ruleList.length === 0) {
+                listContainer.innerHTML = '<div class="empty-state p-4 text-center text-xs text-slate-500">لا توجد قواعد رد مخصصة بعد</div>';
+            } else {
+                listContainer.innerHTML = ruleList.map(r => `
+                    <div class="p-3 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between gap-3 text-xs mb-2">
+                        <div class="space-y-1 flex-1">
+                            <h4 class="font-bold text-slate-900"><i data-lucide="target" class="w-4 h-4 text-blue-600 inline"></i> الكلمة: "${esc(r.trigger)}" (${esc(r.match_type)})</h4>
+                            ${r.post_url ? `<p class="text-blue-600 font-mono text-[11px]">🔗 البوست المستهدف: ${esc(r.post_url)}</p>` : ''}
+                            <p class="text-slate-700">الرد العام: ${esc(r.response)} ${r.private_response ? ' | الرد الخاص: ' + esc(r.private_response) : ''}</p>
+                        </div>
+                        <button onclick="deleteRule(${r.id})" class="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition inline-flex items-center gap-1">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            حذف
+                        </button>
+                    </div>
+                `).join('');
+            }
+        }
+        if (window.lucide) lucide.createIcons();
+    } catch(e) { console.error(e); }
+}
+
+async function addRule(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const triggerEl = document.getElementById('rule-trigger');
+    const postUrlEl = document.getElementById('rule-post-url');
+    const matchTypeEl = document.getElementById('rule-match-type') || document.getElementById('rule-match');
+    const responseEl = document.getElementById('rule-response');
+    const privateResponseEl = document.getElementById('rule-private-response');
+
+    const trigger = triggerEl ? triggerEl.value.trim() : '';
+    const post_url = postUrlEl ? postUrlEl.value.trim() : '';
+    const match_type = matchTypeEl ? matchTypeEl.value : 'contains';
+    const response = responseEl ? responseEl.value.trim() : '';
+    const private_response = privateResponseEl ? privateResponseEl.value.trim() : '';
+    if (!response) { showToast('يرجى إدخال نص الرد العام على الكومنتات أولاً', 'error'); return; }
+    try {
+        await fetch('/api/rules', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({trigger: trigger || '*', post_url, post_id: post_url, match_type, response, private_response})
+        });
+        showToast('تم حفظ وتفعيل القاعدة بنجاح 🎯');
+        if (triggerEl) triggerEl.value = '';
+        if (postUrlEl) postUrlEl.value = '';
+        if (responseEl) responseEl.value = '';
+        if (privateResponseEl) privateResponseEl.value = '';
+        loadRules();
+    } catch(err) { showToast('حدث خطأ أثناء حفظ القاعدة', 'error'); }
+}
+
+async function loadKb() {
+    try {
+        const res = await fetch('/api/kb');
+        const data = await res.json();
+        const grid = document.getElementById('kb-grid') || document.getElementById('kb-list');
+        if (!grid) return;
+        const kbList = Array.isArray(data) ? data : (data && Array.isArray(data.kb) ? data.kb : []);
+        if (!kbList || kbList.length === 0) {
+            grid.innerHTML = '<div class="p-4 text-center text-xs text-slate-500">لا توجد أسئلة في قاعدة المعرفة بعد</div>';
+            return;
+        }
+        grid.innerHTML = kbList.map(item => `
+            <div class="p-3 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between gap-3 text-xs mb-2">
+                <div class="space-y-1 flex-1">
+                    <h4 class="font-bold text-slate-900">❓ ${esc(item.question)}</h4>
+                    <p class="text-slate-700">${esc(item.answer)}</p>
+                </div>
+                <button onclick="deleteKb(${item.id})" class="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition inline-flex items-center gap-1">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    حذف
+                </button>
+            </div>
+        `).join('');
+        if (window.lucide) lucide.createIcons();
+    } catch(e) { console.error(e); }
+}

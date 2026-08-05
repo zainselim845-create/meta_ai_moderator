@@ -217,21 +217,35 @@ def search_kb(query, client_id=None):
         res_lines.append("- " + str(i.get('question')) + ": " + str(i.get('answer')))
     return "\n".join(res_lines)
 
-def check_custom_rules(message, client_id=None):
+def check_custom_rules(message, client_id=None, post_url_or_id=None):
     cid = client_id or current_client_id()
     rules = get_rules_data()
     if not rules or not message or not isinstance(message, str):
         return None
     msg_lower = message.lower().strip()
+    target_post = str(post_url_or_id or "").strip().lower()
+    
     for rule in rules:
         if not rule.get("is_active", True):
             continue
         r_cid = rule.get("client_id") or "client_default"
         if r_cid != cid:
             continue
+        
+        # Check Post-Specific Rule Filter (if rule is tied to a specific post URL or ID)
+        rule_post = str(rule.get("post_url") or rule.get("post_id") or "").strip().lower()
+        if rule_post:
+            if not target_post:
+                continue
+            if rule_post not in target_post and target_post not in rule_post:
+                continue
+
         trigger = (rule.get("trigger") or "").lower().strip()
-        if not trigger:
+        if not trigger or trigger == "*":
+            if rule_post and (rule_post in target_post or target_post in rule_post):
+                return rule
             continue
+
         match_type = rule.get("match_type", "contains")
         if match_type == "exact" and msg_lower == trigger:
             return rule
@@ -1794,8 +1808,17 @@ def api_rules_add():
     data = request.get_json() or {}
     rules = get_rules_data()
     cid = current_client_id()
-    new_rule = {"id": int(time.time()), "client_id": cid, "trigger": data.get("trigger", ""), "response": data.get("response", ""),
-                "private_response": data.get("private_response", ""), "match_type": data.get("match_type", "contains"), "is_active": True}
+    new_rule = {
+        "id": int(time.time()),
+        "client_id": cid,
+        "trigger": data.get("trigger", ""),
+        "post_url": data.get("post_url", "") or data.get("post_id", ""),
+        "post_id": data.get("post_id", "") or data.get("post_url", ""),
+        "response": data.get("response", ""),
+        "private_response": data.get("private_response", ""),
+        "match_type": data.get("match_type", "contains"),
+        "is_active": True
+    }
     rules.append(new_rule)
     cache["rules"] = rules
     push_setting("meta_ai_rules", rules)
