@@ -2490,15 +2490,13 @@ def api_attach_page():
 
 #  Auth Guard — blocks ALL /api/* without session 
 admin_user = os.environ.get("ADMIN_USER") or "admin"
-admin_pass = os.environ.get("ADMIN_PASS") or "admin2026"
+admin_pass = os.environ.get("ADMIN_PASS") or secrets.token_urlsafe(24)
 USERS_DB = {
     admin_user: {"password": admin_pass, "role": "admin"},
-    "admin": {"password": "admin2026", "role": "admin"},
-    "demo": {"password": "demo", "role": "admin"}
 }
 
 PUBLIC_PATHS = {
-    '/api/login', '/api/register', '/api/logout', '/api/me',
+    '/api/login', '/api/logout', '/api/me',
     '/webhook', '/api/oauth_url',
     '/api/oauth/callback', '/oauth_callback',
     '/api/auth/facebook',
@@ -2724,10 +2722,9 @@ def api_login():
         session.modified = True
         return jsonify({"ok": True, "username": username, "role": session["role"], "auth_provider": "supabase"})
 
-    # 2. Fallback to USERS_DB / local admin
-    user = USERS_DB.get(username) or USERS_DB.get("admin")
-    allowed = {admin_pass, "admin2026", "admin", "demo", ""}
-    if user and (user.get("password") == password or password in allowed or not password):
+    # 2. Fallback to USERS_DB / local admin — strict exact-match, no bypass
+    user = USERS_DB.get(username)
+    if user and password and hmac.compare_digest(str(user.get("password", "")), str(password)):
         session.permanent = True
         session["uid"] = username
         session["role"] = user.get("role", "admin")
