@@ -176,53 +176,93 @@ def verify_signature(payload_bytes, signature_header):
     given_sig = signature_header.split("sha256=")[1]
     return hmac.compare_digest(expected_sig, given_sig)
 
-def sync_from_supabase():
-    if time.time() - cache.get("last_sync", 0) < 20:
-        return
+LOCAL_STORE_PATH = os.path.join(tempfile.gettempdir(), "meta_ai_settings.json")
+
+def load_local_disk_store():
     try:
-        url = f"{SUPABASE_URL}/rest/v1/app_settings?select=key,value"
-        r = requests.get(url, headers=supa_headers(), timeout=3)
-        if r.status_code == 200:
-            for row in r.json():
-                k, v = row.get("key"), row.get("value")
-                if not k or not v:
-                    continue
-                try:
-                    parsed = json.loads(v)
-                except:
-                    parsed = v
-                if k == "meta_ai_kb":
-                    cache["kb"] = parsed
-                elif k == "meta_ai_rules":
-                    cache["rules"] = parsed
-                elif k == "meta_ai_system_prompt":
-                    cache["prompt"] = DEFAULT_SYSTEM_PROMPT
-                elif k == "meta_ai_accounts":
-                    cache["accounts"] = parsed
-                    if isinstance(parsed, list):
-                        ACCOUNTS_STORE[:] = parsed
-                elif k == "meta_ai_clients":
-                    cache["clients"] = parsed
-                    if isinstance(parsed, list):
-                        AGENCY_CLIENTS_STORE[:] = parsed
-                elif k == "meta_ai_bot_enabled":
-                    cache["bot_enabled"] = bool(parsed)
-                elif k == "meta_ai_approval_mode":
-                    cache["approval_mode"] = str(parsed) if parsed else "auto"
-                elif k == "meta_ai_scheduled_posts":
-                    cache["scheduled_posts"] = parsed if isinstance(parsed, list) else []
-            cache["last_sync"] = time.time()
-            ensure_default_clients_grouped()
+        if os.path.exists(LOCAL_STORE_PATH):
+            with open(LOCAL_STORE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    if "meta_ai_clients" in data and isinstance(data["meta_ai_clients"], list) and data["meta_ai_clients"]:
+                        AGENCY_CLIENTS_STORE[:] = data["meta_ai_clients"]
+                    if "meta_ai_accounts" in data and isinstance(data["meta_ai_accounts"], list) and data["meta_ai_accounts"]:
+                        ACCOUNTS_STORE[:] = data["meta_ai_accounts"]
+                    if "meta_ai_kb" in data:
+                        cache["kb"] = data["meta_ai_kb"]
+                    if "meta_ai_rules" in data:
+                        cache["rules"] = data["meta_ai_rules"]
     except Exception as e:
-        print(f"[Supabase Sync] Using defaults: {e}")
+        print(f"[Local Disk Store Load Error] {e}")
+
+def save_local_disk_store(key, value):
+    try:
+        data = {}
+        if os.path.exists(LOCAL_STORE_PATH):
+            with open(LOCAL_STORE_PATH, "r", encoding="utf-8") as f:
+                try: data = json.load(f)
+                except: data = {}
+        data[key] = value
+        with open(LOCAL_STORE_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[Local Disk Store Save Error] {e}")
+
+def sync_from_supabase():
+    if time.time() - cache.get("last_sync", 0) < 15:
+        return
+    # Always attempt restoring from local disk store first
+    load_local_disk_store()
+    
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            url = f"{SUPABASE_URL}/rest/v1/app_settings?select=key,value"
+            r = requests.get(url, headers=supa_headers(), timeout=4)
+            if r.status_code == 200:
+                for row in r.json():
+                    k, v = row.get("key"), row.get("value")
+                    if not k or not v:
+                        continue
+                    try:
+                        parsed = json.loads(v)
+                    except:
+                        parsed = v
+                    if k == "meta_ai_kb":
+                        cache["kb"] = parsed
+                    elif k == "meta_ai_rules":
+                        cache["rules"] = parsed
+                    elif k == "meta_ai_system_prompt":
+                        cache["prompt"] = DEFAULT_SYSTEM_PROMPT
+                    elif k == "meta_ai_accounts":
+                        cache["accounts"] = parsed
+                        if isinstance(parsed, list) and parsed:
+                            ACCOUNTS_STORE[:] = parsed
+                    elif k == "meta_ai_clients":
+                        cache["clients"] = parsed
+                        if isinstance(parsed, list) and parsed:
+                            AGENCY_CLIENTS_STORE[:] = parsed
+                    elif k == "meta_ai_bot_enabled":
+                        cache["bot_enabled"] = bool(parsed)
+                    elif k == "meta_ai_approval_mode":
+                        cache["approval_mode"] = str(parsed) if parsed else "auto"
+                    elif k == "meta_ai_scheduled_posts":
+                        cache["scheduled_posts"] = parsed if isinstance(parsed, list) else []
+                cache["last_sync"] = time.time()
+                ensure_default_clients_grouped()
+        except Exception as e:
+            print(f"[Supabase Sync] Using local disk store fallback: {e}")
+    else:
+        ensure_default_clients_grouped()
 
 def push_setting(key, value):
-    try:
-        url = f"{SUPABASE_URL}/rest/v1/app_settings"
-        val_str = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
-        requests.post(url, headers=supa_headers(), json={"key": key, "value": val_str}, timeout=3)
-    except Exception as e:
-        print(f"[Supabase Push] {key}: {e}")
+    save_local_disk_store(key, value)
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            url = f"{SUPABASE_URL}/rest/v1/app_settings"
+            val_str = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+            requests.post(url, headers=supa_headers(), json={"key": key, "value": val_str}, timeout=4)
+        except Exception as e:
+            print(f"[Supabase Push] {key}: {e}")
 
 sync_from_supabase()
 
