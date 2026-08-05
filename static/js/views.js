@@ -100,29 +100,40 @@ async function setAccountMode(accId, kind, mode){
 
 async function loadAccounts(){
     try {
-        const res = await fetch('/api/accounts');
-        const d = await res.json();
-        const grid = document.getElementById('accounts-full-list') || document.getElementById('v-accounts');
-        const accs = d.accounts && d.accounts.length > 0 ? d.accounts : [];
+        const [resAcc, resCli] = await Promise.all([
+            fetch('/api/accounts').then(r => r.json()),
+            fetch('/api/clients').then(r => r.json())
+        ]);
         
-        // Populate Header Account Switcher
+        const accs = resAcc.accounts && resAcc.accounts.length > 0 ? resAcc.accounts : [];
+        const clientsList = Array.isArray(resCli) ? resCli : (resCli && Array.isArray(resCli.clients) ? resCli.clients : []);
+        
+        // Populate Header Account Switcher (Grouped Client Workspaces bundling FB + IG)
         const headerSelect = document.getElementById('header-account-select');
         if (headerSelect) {
-            let selectHtml = `<option value="">🌐 جميع الحسابات والصفحات (الكل)</option>`;
-            accs.forEach(a => {
-                const icon = a.platform === 'facebook' ? '🔵' : '🟣';
-                selectHtml += `<option value="${esc(a.id)}">${icon} ${esc(a.name)} (${esc(a.platform)})</option>`;
-            });
+            let selectHtml = `<option value="">🌐 جميع العملاء والحسابات (الكل)</option>`;
+            
+            if (clientsList.length > 0) {
+                clientsList.forEach(c => {
+                    selectHtml += `<option value="${esc(c.id)}">🏢 ${esc(c.name)} (فيسبوك + إنستجرام)</option>`;
+                });
+            } else {
+                accs.forEach(a => {
+                    const icon = a.platform === 'facebook' ? '🔵' : '🟣';
+                    selectHtml += `<option value="${esc(a.id)}">${icon} ${esc(a.name)}</option>`;
+                });
+            }
             headerSelect.innerHTML = selectHtml;
-            const savedAct = localStorage.getItem('active_account_id');
+            const savedAct = localStorage.getItem('active_client_id') || localStorage.getItem('active_account_id');
             if (savedAct) headerSelect.value = savedAct;
         }
 
+        const grid = document.getElementById('accounts-full-list') || document.getElementById('v-accounts');
         if(!grid) return;
         
-        const appId = d.app_id || '1331918902446123';
-        const verifyToken = d.verify_token || '••••2026';
-        const cbUrl = d.callback_url || 'https://metaaimoderator.vercel.app/webhook';
+        const appId = resAcc.app_id || '1331918902446123';
+        const verifyToken = resAcc.verify_token || '••••2026';
+        const cbUrl = resAcc.callback_url || 'https://metaaimoderator.vercel.app/webhook';
         
         let html = `
             <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
@@ -167,7 +178,7 @@ async function loadAccounts(){
                         <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600"></i>
                         <span>الحسابات والصفحات المربوطة (${accs.length} حسابات متصلة)</span>
                     </h4>
-                    <button onclick="openAddAccountModal()" class="btn-primary text-xs px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition flex items-center gap-1">+ إضافة حساب جديد</button>
+                    <button onclick="openAddAccountModal()" class="btn-primary text-xs px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition flex items-center gap-1">+ إضافة حساب/عميل جديد</button>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         `;
@@ -239,30 +250,11 @@ async function loadAccounts(){
     } catch(e){}
 }
 
-async function saveDirectAccount() {
-    const name = document.getElementById('acc-name').value.trim();
-    const platform = document.getElementById('acc-platform').value;
-    const pageId = document.getElementById('acc-page-id').value.trim() || ('acc_' + Date.now());
-    const token = document.getElementById('acc-token').value.trim();
-    
-    if (!name) { showToast('يرجى إدخال اسم الشركة أو الصفحة أولاً', 'error'); return; }
-    
-    try {
-        const res = await fetch('/api/accounts', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id: pageId, name: name, platform: platform, access_token: token})
-        });
-        const d = await res.json();
-        if (d.ok) {
-            showToast(`تم حفظ وربط حساب: ${name} بنجاح! <i data-lucide="key" class="w-4 h-4 inline"></i>`);
-            document.getElementById('acc-modal').classList.remove('open');
-            document.getElementById('acc-name').value = '';
-            document.getElementById('acc-page-id').value = '';
-            loadAccounts();
-        }
-    } catch(e) { showToast('حدث خطأ أثناء حفظ الحساب', 'error'); }
-}
+
+
+
+
+
 
 async function switchAccount(id) {
     const sel = document.getElementById('acc-select');
@@ -710,22 +702,7 @@ function closeAddAccountModal() {
     }
 }
 
-async function switchActiveAccount(accId) {
-    try {
-        localStorage.setItem('active_account_id', accId || '');
-        const res = await fetch('/api/accounts/select', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id: accId})
-        });
-        showToast(accId ? `تم تصفية العرض للحساب المختار` : 'عرض جميع الحسابات والصفحات');
-        if (typeof loadInbox === 'function') {
-            loadInbox(true);
-        }
-    } catch(e) {
-        showToast('تعذر تغيير الحساب', 'error');
-    }
-}
+
 
 async function deleteAccount(accId) {
     if (!confirm('هل أنت مقتنع بحذف هذا الحساب المرتبط؟ سيتم إلغاء التوكن وإزالته.')) return;

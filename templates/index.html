@@ -1233,29 +1233,32 @@
      </h3>
      <button class="text-slate-400 hover:text-slate-600 font-bold text-lg" onclick="closeAddAccountModal()">&times;</button>
     </div>
-    <form class="space-y-4" onsubmit="saveDirectAccount(event)">
+        <form class="space-y-4" onsubmit="saveDirectAccount(event)">
      <div>
-      <label class="block text-xs font-bold text-slate-700 mb-1">منصة الحساب:</label>
-      <select class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold" id="acc-platform">
-       <option value="facebook">🔵 فيسبوك (Facebook Page)</option>
-       <option value="instagram">🟣 إنستجرام (Instagram Business)</option>
-      </select>
+      <label class="block text-xs font-bold text-slate-700 mb-1">اسم العميل / الصفحة / البراند:</label>
+      <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold" id="acc-name" placeholder="مثال: مطعم وكافيه الشام / وكالة دوميا" required type="text"/>
      </div>
      <div>
-      <label class="block text-xs font-bold text-slate-700 mb-1">اسم الصفحة أو الشهرة:</label>
-      <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="acc-name" placeholder="مثال: مطعم الشام / @domya_marketing" required type="text"/>
+      <label class="block text-xs font-bold text-slate-700 mb-1">اسم الشركة / النشاط التجارية (اختياري):</label>
+      <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="acc-company" placeholder="مثال: Al-Shaam Gourmet Ltd" type="text"/>
+     </div>
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+       <label class="block text-xs font-bold text-slate-700 mb-1">🔵 معرف صفحة الفيسبوك (Page ID):</label>
+       <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="acc-page-id" placeholder="100821894800009" type="text"/>
+      </div>
+      <div>
+       <label class="block text-xs font-bold text-slate-700 mb-1">🟣 معرف حساب الإنستجرام (IG Account ID):</label>
+       <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="acc-ig-id" placeholder="17841413562796856" type="text"/>
+      </div>
      </div>
      <div>
-      <label class="block text-xs font-bold text-slate-700 mb-1">ID الصفحة أو معرف الحساب (Page/Account ID):</label>
-      <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="acc-page-id" placeholder="مثال: 100821894800009 أو 17841413562796856" type="text"/>
-     </div>
-     <div>
-      <label class="block text-xs font-bold text-slate-700 mb-1">Access Token الخاص بالحساب:</label>
-      <textarea class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="acc-token" placeholder="الصق Page Access Token الخاص بهذه الصفحة هنا..." rows="3"></textarea>
+      <label class="block text-xs font-bold text-slate-700 mb-1">Page / User Access Token الخاصة بالحساب:</label>
+      <textarea class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="acc-token" placeholder="الصق Access Token الخاص بالصفحة والحساب هنا..." rows="3"></textarea>
      </div>
      <div class="flex gap-2 pt-2">
       <button class="btn-primary text-xs px-6 py-2.5 rounded-xl flex-1 bg-blue-600 text-white font-bold hover:bg-blue-700 transition" type="submit">
-       + حفظ وربط الحساب
+       + حفظ وتفعيل عميل جديد (FB + IG)
       </button>
       <button class="btn-ghost text-xs px-4 py-2.5 rounded-xl border border-slate-200" onclick="closeAddAccountModal()" type="button">
        إلغاء

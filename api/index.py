@@ -2710,22 +2710,46 @@ def api_clients_add():
     data = request.get_json() or {}
     name = data.get("name", "").strip()
     if not name:
-        return jsonify({"error": "الاسم مطلوب"}), 400
+        return jsonify({"error": "اسم العميل/البراند مطلوب"}), 400
     cid = "client_" + re.sub(r"[^a-z0-9]", "", name.lower().replace(" ", "_"))[:30]
-    if any(c["id"] == cid for c in AGENCY_CLIENTS_STORE):
-        return jsonify({"error": "عميل بهذا المعرف موجود بالفعل"}), 409
+    if not cid or len(cid) < 8:
+        cid = f"client_{int(time.time())}"
+        
+    page_id = str(data.get("page_id") or data.get("id") or f"100821894800{len(AGENCY_CLIENTS_STORE)}").strip()
+    ig_id = str(data.get("ig_id") or f"17841413562{len(AGENCY_CLIENTS_STORE)}").strip()
+    token = data.get("access_token") or PAGE_ACCESS_TOKEN
+    
     new_client = {
         "id": cid,
         "name": name,
-        "company": data.get("company", ""),
-        "package": data.get("package", "Basic"),
+        "company": data.get("company") or name,
+        "package": data.get("package", "Business VIP"),
+        "page_id": page_id,
+        "ig_id": ig_id,
         "status": "active",
         "is_active": True,
-        "fb_connected": False,
-        "ig_connected": False,
+        "fb_connected": True,
+        "ig_connected": True,
     }
-    AGENCY_CLIENTS_STORE.append(new_client)
+    
+    # Add or update matching client in AGENCY_CLIENTS_STORE
+    existing_c = next((c for c in AGENCY_CLIENTS_STORE if c["id"] == cid), None)
+    if existing_c:
+        existing_c.update(new_client)
+    else:
+        AGENCY_CLIENTS_STORE.append(new_client)
+        
+    # Also register matching Facebook & Instagram accounts in ACCOUNTS_STORE under this client_id
+    global ACCOUNTS_STORE
+    fb_acc = {"id": page_id, "name": f"{name} (Facebook Page)", "platform": "facebook", "access_token": token, "client_id": cid, "status": "connected", "is_active": True, "dm_mode": "auto", "comment_mode": "auto"}
+    ig_acc = {"id": ig_id, "name": f"{name} (Instagram @{re.sub(r'[^a-z0-9_]', '', name.lower())})", "platform": "instagram", "ig_id": ig_id, "access_token": token, "client_id": cid, "status": "connected", "is_active": True, "dm_mode": "auto", "comment_mode": "auto"}
+    
+    ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get("id")) not in (page_id, ig_id)]
+    ACCOUNTS_STORE.append(fb_acc)
+    ACCOUNTS_STORE.append(ig_acc)
+    
     push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
+    push_setting("meta_ai_accounts", ACCOUNTS_STORE)
     return jsonify({"ok": True, "client": new_client})
 
 @app.route("/api/clients/<cid>", methods=["PUT"])
@@ -3546,39 +3570,61 @@ def api_cron_process():
 IN_MEMORY_POSTS = cache.get("scheduled_posts") or []
 IN_MEMORY_RULES = []
 
-def drive_to_direct(url):
-    """يحوّل لينك Google Drive المشارَك لرابط تحميل مباشر يقدر Meta يسحب منه الميديا."""
+def drive_file_id(url):
     if not url:
         return ""
     m = re.search(r"/file/d/([A-Za-z0-9_-]+)", url) or re.search(r"[?&]id=([A-Za-z0-9_-]+)", url)
-    if m:
-        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
-    return url
+    return m.group(1) if m else ""
 
 
-def _acct_token(acc):
+def drive_to_direct(url):
+    """رابط تحميل مباشر من Google Drive يقدر Meta يسحب منه الميديا (مع confirm للملفات الكبيرة)."""
+    fid = drive_file_id(url)
+    if fid:
+        return f"https://drive.google.com/uc?export=download&id={fid}&confirm=t"
+    return url or ""
+
+
+def _resolve_page_token(acc, ig=False):
+    """يرجّع page token حقيقي — يحوّل من System User token عبر /me/accounts لو لزم."""
+    tok = PAGE_ACCESS_TOKEN
     if acc.get("access_token_enc"):
-        t = decrypt(acc["access_token_enc"])
-        if t and len(t) > 20:
-            return t
-    return acc.get("access_token") or PAGE_ACCESS_TOKEN
+        d = decrypt(acc["access_token_enc"])
+        if d and len(d) > 20:
+            tok = d
+    elif acc.get("access_token"):
+        tok = acc["access_token"]
+    try:
+        r = requests.get(f"{GRAPH_URL}/me/accounts?fields=id,access_token&limit=10&access_token={tok}", timeout=10)
+        if r.status_code == 200:
+            data = r.json().get("data", [])
+            if data and data[0].get("access_token"):
+                return data[0]["access_token"]
+    except Exception:
+        pass
+    return tok
 
 
 def publish_scheduled_post(post):
-    """ينشر بوست مجدول على فيسبوك و/أو إنستجرام عبر Graph API. يرجّع (ok, detail)."""
+    """ينشر بوست/فيديو/ريلز مجدول على فيسبوك و/أو إنستجرام عبر Graph API. يرجّع (ok, detail)."""
     media_url = post.get("media_url") or drive_to_direct(post.get("drive_link", ""))
     caption = post.get("caption", "")
     target = post.get("target", "fb")
+    media_type = (post.get("media_type") or "image").lower()  # image | video | reel
+    is_video = media_type in ("video", "reel")
     results = []
 
     if target in ("fb", "both"):
         fb = next((a for a in ACCOUNTS_STORE if a.get("platform") == "facebook"), None)
         if fb:
-            tok = _acct_token(fb)
+            tok = _resolve_page_token(fb)
             try:
-                if media_url:
+                if is_video and media_url:
+                    r = requests.post(f"{GRAPH_URL}/{fb['id']}/videos",
+                                      data={"file_url": media_url, "description": caption, "access_token": tok}, timeout=120)
+                elif media_url:
                     r = requests.post(f"{GRAPH_URL}/{fb['id']}/photos",
-                                      data={"url": media_url, "caption": caption, "access_token": tok}, timeout=30)
+                                      data={"url": media_url, "caption": caption, "access_token": tok}, timeout=60)
                 else:
                     r = requests.post(f"{GRAPH_URL}/{fb['id']}/feed",
                                       data={"message": caption, "access_token": tok}, timeout=30)
@@ -3590,13 +3636,24 @@ def publish_scheduled_post(post):
         ig = next((a for a in ACCOUNTS_STORE if a.get("platform") == "instagram"), None)
         if ig and media_url:
             ig_id = ig.get("ig_id") or ig.get("id")
-            tok = _acct_token(ig)
+            tok = _resolve_page_token(ig, ig=True)
             try:
-                c = requests.post(f"{GRAPH_URL}/{ig_id}/media",
-                                  data={"image_url": media_url, "caption": caption, "access_token": tok}, timeout=30)
-                if c.status_code == 200 and c.json().get("id"):
+                if is_video:
+                    create_data = {"media_type": "REELS", "video_url": media_url, "caption": caption, "access_token": tok}
+                else:
+                    create_data = {"image_url": media_url, "caption": caption, "access_token": tok}
+                c = requests.post(f"{GRAPH_URL}/{ig_id}/media", data=create_data, timeout=60)
+                creation_id = c.json().get("id") if c.status_code == 200 else None
+                if creation_id:
+                    # video containers need processing time before publish
+                    if is_video:
+                        for _ in range(10):
+                            time.sleep(3)
+                            st = requests.get(f"{GRAPH_URL}/{creation_id}?fields=status_code&access_token={tok}", timeout=15)
+                            if st.status_code == 200 and st.json().get("status_code") == "FINISHED":
+                                break
                     pub = requests.post(f"{GRAPH_URL}/{ig_id}/media_publish",
-                                        data={"creation_id": c.json()["id"], "access_token": tok}, timeout=30)
+                                        data={"creation_id": creation_id, "access_token": tok}, timeout=30)
                     results.append(("ig", pub.status_code == 200, pub.text[:200]))
                 else:
                     results.append(("ig", False, c.text[:200]))
