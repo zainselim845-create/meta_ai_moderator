@@ -149,26 +149,7 @@ def push_setting(key, value):
 
 sync_from_supabase()
 
-AGENCY_CLIENTS_STORE = cache.get("clients") or [
-    {
-        "id": "client_default",
-        "name": "وكالة دوميا للتسويق الرقمي",
-        "company": "Agency Ltd",
-        "package": "Enterprise VIP",
-        "page_id": "100821894800009",
-        "ig_id": "178414000000000",
-        "status": "active"
-    },
-    {
-        "id": "client_alshamm",
-        "name": "مطعم وكافيه الشام",
-        "company": "Al-Shaam Gourmet",
-        "package": "Business Pro",
-        "page_id": "200921894800010",
-        "ig_id": "178414000000001",
-        "status": "active"
-    }
-]
+AGENCY_CLIENTS_STORE = cache.get("clients") or []
 
 def get_kb_data():
     raw = cache.get("kb", DEFAULT_KB)
@@ -2118,50 +2099,8 @@ def webhook_event():
 
 
 # --- Multi-Account Management Routes ---
-ACCOUNTS_STORE_FALLBACK = [
-    {
-        "id": "100821894800009",
-        "name": "Domya Marketing Agency",
-        "platform": "facebook",
-        "access_token": "",
-        "status": "connected",
-        "is_active": True,
-        "dm_mode": "auto",
-        "comment_mode": "auto",
-        "permissions": [
-            "pages_show_list",
-            "pages_read_engagement",
-            "pages_manage_metadata",
-            "pages_messaging",
-            "instagram_basic",
-            "instagram_manage_messages",
-            "instagram_manage_comments",
-            "business_management"
-        ]
-    },
-    {
-        "id": "17841413562796856",
-        "name": "Domya Instagram Business (@domya_marketing)",
-        "platform": "instagram",
-        "ig_id": "17841413562796856",
-        "access_token": "",
-        "status": "connected",
-        "is_active": True,
-        "dm_mode": "auto",
-        "comment_mode": "auto",
-        "permissions": [
-            "pages_show_list",
-            "pages_read_engagement",
-            "pages_manage_metadata",
-            "pages_messaging",
-            "instagram_basic",
-            "instagram_manage_messages",
-            "instagram_manage_comments",
-            "business_management"
-        ]
-    }
-]
-ACCOUNTS_STORE = cache.get("accounts") or ACCOUNTS_STORE_FALLBACK
+ACCOUNTS_STORE_FALLBACK = []
+ACCOUNTS_STORE = cache.get("accounts") or []
 
 @app.route("/api/accounts", methods=["GET"])
 @auth_guard
@@ -2233,16 +2172,22 @@ def api_oauth_start():
     app_id = os.environ.get("META_APP_ID", "1331918902446123")
     redirect_uri = "https://metaaimoderator.vercel.app/api/oauth/callback"
     scopes = "pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging,instagram_basic,instagram_manage_messages,instagram_manage_comments,business_management"
-    
+
+    # Which client workspace are we connecting these pages to?
+    target_client = request.args.get("client_id") or current_client_id()
+    session['oauth_client_id'] = target_client
+    session.modified = True
+
     state = secrets.token_urlsafe(32)
     code_verifier = secrets.token_urlsafe(64)
     code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode('ascii')).digest()).decode('ascii').rstrip('=')
-    
+
     url = f"https://www.facebook.com/v21.0/dialog/oauth?client_id={app_id}&redirect_uri={redirect_uri}&scope={scopes}&state={state}&response_type=code&code_challenge={code_challenge}&code_challenge_method=S256"
-    
+
     resp = make_response(redirect(url))
     resp.set_cookie('oauth_state', state, httponly=True, secure=True, max_age=600)
     resp.set_cookie('oauth_code_verifier', code_verifier, httponly=True, secure=True, max_age=600)
+    resp.set_cookie('oauth_client_id', target_client, httponly=True, secure=True, max_age=600)
     return resp
 
 @app.route("/api/oauth_url", methods=["GET"])
@@ -2387,7 +2332,7 @@ def api_pending_pages():
 def api_attach_page():
     data = request.get_json() or {}
     page_id = str(data.get('page_id', ''))
-    client_id = session.get('oauth_client_id') or current_client_id()
+    client_id = data.get('client_id') or session.get('oauth_client_id') or request.cookies.get('oauth_client_id') or current_client_id()
     tok = session.get('pending_token')
     pages = discover_pages(tok) if tok else []
     page = next((p for p in pages if str(p['id']) == page_id), None)
@@ -3406,10 +3351,7 @@ RULES_ITEMS_CACHE = [
     {"id": "rule-2", "trigger": "سعر", "match_type": "contains", "public_reply": "تم إرسال كافة التفاصيل والباقات في الرسائل الخاصة ", "private_reply": "أهلاً بك! تفاصيل أسعار إدارة الصفحات تظهر في الباقات المعتمدة (3000ج / 6000ج)."}
 ]
 
-CLIENTS_ITEMS_CACHE = [
-    {"id": "client-1", "name": "وكالة دوميا للتسويق الرقمي", "page_name": "Marketing Agency", "page_id": "100821894800009", "plan": "الذهبية (6000ج)", "status": "نشط 🟢"},
-    {"id": "client-2", "name": "مطعم وكافيه السرايا", "page_name": "El-Saraya Restaurant", "page_id": "100899221144551", "plan": "البرونزية (3000ج)", "status": "نشط 🟢"}
-]
+# CLIENTS_ITEMS_CACHE removed — unified into AGENCY_CLIENTS_STORE via /api/clients above
 
 LOGS_STREAM_CACHE = [
     {"time": "03:07 م", "event": "استلام رسالة جديدة من User عبر Messenger", "status": "نجاح 🟢"},
@@ -3425,51 +3367,6 @@ def api_mode_handler():
         SYSTEM_MODE_STATE = data.get("mode", "human_approval")
         return jsonify({"success": True, "mode": SYSTEM_MODE_STATE})
     return jsonify({"mode": SYSTEM_MODE_STATE})
-
-@app.route('/api/kb', methods=['GET', 'POST'])
-def api_kb_handler():
-    if request.method == 'POST':
-        data = request.json or {}
-        item = {
-            "id": f"kb-{len(KB_ITEMS_CACHE)+1}",
-            "topic": data.get("topic", "موضوع جديد"),
-            "content": data.get("content", ""),
-            "category": data.get("category", "عام")
-        }
-        KB_ITEMS_CACHE.insert(0, item)
-        return jsonify({"success": True, "item": item})
-    return jsonify({"items": KB_ITEMS_CACHE})
-
-@app.route('/api/rules', methods=['GET', 'POST'])
-def api_rules_handler():
-    if request.method == 'POST':
-        data = request.json or {}
-        item = {
-            "id": f"rule-{len(RULES_ITEMS_CACHE)+1}",
-            "trigger": data.get("trigger", ""),
-            "match_type": data.get("match_type", "contains"),
-            "public_reply": data.get("public_reply", ""),
-            "private_reply": data.get("private_reply", "")
-        }
-        RULES_ITEMS_CACHE.insert(0, item)
-        return jsonify({"success": True, "rule": item})
-    return jsonify({"rules": RULES_ITEMS_CACHE})
-
-@app.route('/api/clients', methods=['GET', 'POST'])
-def api_clients_handler():
-    if request.method == 'POST':
-        data = request.json or {}
-        item = {
-            "id": f"client-{len(CLIENTS_ITEMS_CACHE)+1}",
-            "name": data.get("name", "عميل جديد"),
-            "page_name": data.get("page_name", "صفحة جديدة"),
-            "page_id": data.get("page_id", "100000000000000"),
-            "plan": data.get("plan", "3000 ج.م"),
-            "status": "نشط 🟢"
-        }
-        CLIENTS_ITEMS_CACHE.insert(0, item)
-        return jsonify({"success": True, "client": item})
-    return jsonify({"clients": CLIENTS_ITEMS_CACHE})
 
 @app.route('/api/simulate', methods=['POST'])
 def api_simulate_ai_chat():

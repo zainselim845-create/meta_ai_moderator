@@ -101,153 +101,152 @@ async function setAccountMode(accId, kind, mode){
 async function loadAccounts(){
     try {
         const [resAcc, resCli] = await Promise.all([
-            fetch('/api/accounts').then(r => r.json()),
-            fetch('/api/clients').then(r => r.json())
+            fetch('/api/accounts').then(r => r.json()).catch(() => ({accounts:[]})),
+            fetch('/api/clients').then(r => r.json()).catch(() => [])
         ]);
         
         const accs = resAcc.accounts && resAcc.accounts.length > 0 ? resAcc.accounts : [];
         const clientsList = Array.isArray(resCli) ? resCli : (resCli && Array.isArray(resCli.clients) ? resCli.clients : []);
         
-        // Populate Header Account Switcher (Grouped Client Workspaces bundling FB + IG)
+        // Populate Header Account Switcher — grouped by client
         const headerSelect = document.getElementById('header-account-select');
         if (headerSelect) {
-            let selectHtml = `<option value="">🌐 جميع العملاء والحسابات (الكل)</option>`;
-            
-            if (clientsList.length > 0) {
-                clientsList.forEach(c => {
-                    selectHtml += `<option value="${esc(c.id)}">🏢 ${esc(c.name)} (فيسبوك + إنستجرام)</option>`;
-                });
-            } else {
-                accs.forEach(a => {
-                    const icon = a.platform === 'facebook' ? '🔵' : '🟣';
-                    selectHtml += `<option value="${esc(a.id)}">${icon} ${esc(a.name)}</option>`;
-                });
-            }
+            let selectHtml = `<option value="">🌐 جميع العملاء (الكل)</option>`;
+            clientsList.forEach(c => {
+                const fbOk = c.fb_connected ? '🔵' : '⚪';
+                const igOk = c.ig_connected ? '🟣' : '⚪';
+                selectHtml += `<option value="${esc(c.id)}">${fbOk}${igOk} ${esc(c.name)}</option>`;
+            });
             headerSelect.innerHTML = selectHtml;
-            const savedAct = localStorage.getItem('active_client_id') || localStorage.getItem('active_account_id');
+            const savedAct = localStorage.getItem('active_client_id');
             if (savedAct) headerSelect.value = savedAct;
         }
 
         const grid = document.getElementById('accounts-full-list') || document.getElementById('v-accounts');
         if(!grid) return;
         
+        let html = '';
+        
+        // --- If no clients registered yet, show onboarding ---
+        if (clientsList.length === 0 && accs.length === 0) {
+            html = `
+            <div class="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm text-center space-y-5">
+                <div class="flex justify-center"><i data-lucide="user-plus" class="w-14 h-14 text-blue-500 opacity-80"></i></div>
+                <h3 class="font-bold text-slate-900 text-lg">مرحباً! لم يتم تسجيل أي عميل بعد</h3>
+                <p class="text-sm text-slate-600 max-w-md mx-auto">ابدأ بإضافة أول عميل لك عبر ربط صفحة الفيسبوك وحساب الإنستجرام الخاص به. يمكنك الربط يدوياً أو عبر تسجيل دخول OAuth.</p>
+                <div class="flex flex-wrap justify-center gap-3 pt-2">
+                    <button onclick="openAddAccountModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-6 py-3 rounded-xl shadow-md transition flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                        تسجيل عميل جديد يدوياً
+                    </button>
+                    <a href="/api/oauth/start" class="bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm px-6 py-3 rounded-xl shadow-md transition flex items-center gap-2">
+                        <i data-lucide="log-in" class="w-5 h-5"></i>
+                        ربط عبر فيسبوك OAuth
+                    </a>
+                </div>
+            </div>`;
+            grid.innerHTML = html;
+            if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+            return;
+        }
+        
+        // --- Security Info Card ---
         const appId = resAcc.app_id || '1331918902446123';
-        const verifyToken = resAcc.verify_token || '••••2026';
         const cbUrl = resAcc.callback_url || 'https://metaaimoderator.vercel.app/webhook';
         
-        let html = `
-            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i>
-                        <h4 class="font-bold text-slate-900 text-sm">بيانات المراجعة والحماية (App Review & Security)</h4>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="bg-emerald-50 text-emerald-700 text-[11px] font-bold px-2.5 py-1 rounded-lg">AES-256-GCM Encrypted</span>
-                        <span class="bg-blue-50 text-blue-700 text-[11px] font-bold px-2.5 py-1 rounded-lg">401 Protected API</span>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <span class="text-slate-500 block mb-1">Meta App ID (Client ID):</span>
-                        <div class="flex items-center justify-between">
-                            <code class="font-bold text-slate-800 text-sm">${appId}</code>
-                            <button onclick="navigator.clipboard.writeText('${appId}'); showToast('تم نسخ App ID')" class="text-blue-600 hover:text-blue-800 font-bold">نسخ</button>
-                        </div>
-                    </div>
-                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <span class="text-slate-500 block mb-1">Verify Token (محمي ومموه):</span>
-                        <div class="flex items-center justify-between">
-                            <code class="font-bold text-slate-800 text-sm">${verifyToken}</code>
-                            <span class="text-emerald-600 font-bold">نشط ••••2026</span>
-                        </div>
-                    </div>
-                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <span class="text-slate-500 block mb-1">Callback URL (Webhook):</span>
-                        <div class="flex items-center justify-between">
-                            <code class="text-slate-800 text-xs truncate max-w-[170px]">${cbUrl}</code>
-                            <button onclick="navigator.clipboard.writeText('${cbUrl}'); showToast('تم نسخ Callback URL')" class="text-blue-600 hover:text-blue-800 font-bold">نسخ</button>
-                        </div>
-                    </div>
+        html += `
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3 mb-4">
+            <div class="flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                <h4 class="font-bold text-slate-900 text-xs">App Review & Security</h4>
+                <span class="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md ml-auto">AES-256-GCM</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div class="p-2 bg-slate-50 rounded-lg"><span class="text-slate-500">App ID:</span> <code class="font-bold">${appId}</code></div>
+                <div class="p-2 bg-slate-50 rounded-lg"><span class="text-slate-500">Webhook:</span> <code class="truncate block max-w-[180px]">${cbUrl}</code></div>
+            </div>
+        </div>`;
+
+        // --- Client Workspaces ---
+        html += `
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h4 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <i data-lucide="users" class="w-5 h-5 text-blue-600"></i>
+                    <span>العملاء المسجلون (${clientsList.length} عميل)</span>
+                </h4>
+                <div class="flex items-center gap-2">
+                    <button onclick="openAddAccountModal()" class="text-xs px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition flex items-center gap-1">
+                        <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> تسجيل عميل
+                    </button>
+                    <a href="/api/oauth/start" class="text-xs px-3 py-1.5 rounded-xl bg-slate-700 text-white font-bold hover:bg-slate-800 transition flex items-center gap-1">
+                        <i data-lucide="log-in" class="w-3.5 h-3.5"></i> OAuth
+                    </a>
                 </div>
             </div>
+            <div class="space-y-4">`;
 
-            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h4 class="font-bold text-slate-900 text-sm flex items-center gap-2">
-                        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600"></i>
-                        <span>الحسابات والصفحات المربوطة (${accs.length} حسابات متصلة)</span>
-                    </h4>
-                    <button onclick="openAddAccountModal()" class="btn-primary text-xs px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition flex items-center gap-1">+ إضافة حساب/عميل جديد</button>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        `;
-        
-        if (accs.length === 0) {
-            html += `<div class="col-span-full p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                <p>لا يوجد أي حسابات مرتبطة حالياً.</p>
-                <button onclick="openAddAccountModal()" class="btn-primary mt-3 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white">إضافة حساب جديد</button>
-            </div>`;
-        }
-
-        accs.forEach(a => {
-            const isFB = a.platform === 'facebook';
-            const badge = isFB ? '<span class="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-md text-xs">🔵 فيسبوك Page</span>' : '<span class="bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-md text-xs">🟣 إنستجرام Business</span>';
-            const perms = a.permissions || ["pages_show_list", "pages_messaging", "instagram_basic", "instagram_manage_messages"];
+        clientsList.forEach(c => {
+            const clientAccs = accs.filter(a => a.client_id === c.id);
+            const fbAcc = clientAccs.find(a => a.platform === 'facebook');
+            const igAcc = clientAccs.find(a => a.platform === 'instagram');
+            
             html += `
-                <div class="border rounded-xl p-4 border-slate-200 bg-slate-50/50 space-y-3 shadow-sm">
-                    <div class="flex items-center justify-between">
-                        ${badge}
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">✅ متصل 100%</span>
-                            <button onclick="deleteAccount('${esc(a.id)}')" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 shadow-sm">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                                حذف
-                            </button>
+            <div class="border border-slate-200 rounded-xl p-4 bg-gradient-to-br from-white to-slate-50/80 space-y-3 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <div class="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center">
+                            <i data-lucide="building-2" class="w-5 h-5 text-blue-600"></i>
+                        </div>
+                        <div>
+                            <h5 class="font-bold text-slate-900 text-sm">${esc(c.name)}</h5>
+                            <p class="text-[11px] text-slate-500">${esc(c.company || '')} • ${esc(c.package || 'Business')}</p>
                         </div>
                     </div>
-                    <div>
-                        <h5 class="font-bold text-slate-900 text-sm">${esc(a.name)}</h5>
-                        <p class="text-xs text-slate-500">ID: <code>${esc(a.id)}</code></p>
-                    </div>
-                    <div class="p-2 bg-white rounded-lg border border-slate-200 text-xs">
-                        <span class="text-slate-500 block mb-1">Masked Access Token:</span>
-                        <code class="text-emerald-700 font-mono font-bold">${esc(a.access_token || 'EAAS••••••••4fA9')}</code>
-                    </div>
-                    <div class="space-y-1">
-                        <span class="text-[11px] font-bold text-slate-600 block">الصلاحيات الممنوحة (Verified Scopes):</span>
-                        <div class="flex flex-wrap gap-1">
-                            ${perms.map(p => `<span class="bg-white border border-slate-200 text-slate-700 text-[10px] px-2 py-0.5 rounded-md">✓ ${esc(p)}</span>`).join('')}
+                    <button onclick="if(confirm('هل تريد حذف هذا العميل وجميع حساباته؟')) deleteClient('${esc(c.id)}', '${esc(c.name)}')" class="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 shadow-sm">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> حذف العميل
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="p-3 rounded-xl border ${fbAcc ? 'border-blue-200 bg-blue-50/50' : 'border-dashed border-slate-300 bg-slate-50/30'}">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold ${fbAcc ? 'text-blue-700' : 'text-slate-400'}">🔵 فيسبوك Page</span>
+                            ${fbAcc ? '<span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">✅ متصل</span>' : '<span class="text-[10px] font-bold text-slate-400">غير مرتبط</span>'}
                         </div>
+                        ${fbAcc ? `<p class="text-[11px] text-slate-700 font-bold">${esc(fbAcc.name)}</p><p class="text-[10px] text-slate-500 font-mono">ID: ${esc(fbAcc.id)}</p>` : '<p class="text-[11px] text-slate-400">لم يتم ربط صفحة فيسبوك بعد</p>'}
                     </div>
-                    <div class="pt-2 border-t border-slate-200 space-y-2">
-                        <span class="text-[11px] font-bold text-slate-600 block">وضع رد الـ AI لهذا الحساب:</span>
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs text-slate-600">💬 الكومنتات</span>
-                            <div class="flex gap-1">
-                                <button onclick="setAccountMode('${esc(a.id)}','comment_mode','auto')" class="text-[10px] px-2.5 py-1 rounded-lg font-bold ${a.comment_mode !== 'manual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}">تلقائي</button>
-                                <button onclick="setAccountMode('${esc(a.id)}','comment_mode','manual')" class="text-[10px] px-2.5 py-1 rounded-lg font-bold ${a.comment_mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}">يدوي</button>
-                            </div>
+                    <div class="p-3 rounded-xl border ${igAcc ? 'border-purple-200 bg-purple-50/50' : 'border-dashed border-slate-300 bg-slate-50/30'}">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold ${igAcc ? 'text-purple-700' : 'text-slate-400'}">🟣 إنستجرام Business</span>
+                            ${igAcc ? '<span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">✅ متصل</span>' : '<span class="text-[10px] font-bold text-slate-400">غير مرتبط</span>'}
                         </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs text-slate-600">📩 الرسائل (DM)</span>
-                            <div class="flex gap-1">
-                                <button onclick="setAccountMode('${esc(a.id)}','dm_mode','auto')" class="text-[10px] px-2.5 py-1 rounded-lg font-bold ${a.dm_mode !== 'manual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}">تلقائي</button>
-                                <button onclick="setAccountMode('${esc(a.id)}','dm_mode','manual')" class="text-[10px] px-2.5 py-1 rounded-lg font-bold ${a.dm_mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}">يدوي</button>
-                            </div>
-                        </div>
+                        ${igAcc ? `<p class="text-[11px] text-slate-700 font-bold">${esc(igAcc.name)}</p><p class="text-[10px] text-slate-500 font-mono">ID: ${esc(igAcc.id)}</p>` : '<p class="text-[11px] text-slate-400">لم يتم ربط حساب إنستجرام بعد</p>'}
                     </div>
                 </div>
-            `;
+            </div>`;
         });
 
-        html += `
-                </div>
-            </div>
-        `;
+        // Also show orphan accounts (not linked to any client)
+        const orphanAccs = accs.filter(a => !a.client_id || !clientsList.find(c => c.id === a.client_id));
+        if (orphanAccs.length > 0) {
+            html += `<div class="border-t border-slate-200 pt-3 mt-3">
+                <h5 class="text-xs font-bold text-slate-500 mb-2">حسابات غير مرتبطة بعميل:</h5>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">`;
+            orphanAccs.forEach(a => {
+                const icon = a.platform === 'facebook' ? '🔵' : '🟣';
+                html += `
+                <div class="p-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-between text-xs">
+                    <span>${icon} ${esc(a.name)} (${esc(a.id)})</span>
+                    <button onclick="deleteAccount('${esc(a.id)}')" class="bg-red-600 hover:bg-red-700 text-white text-[10px] px-2 py-1 rounded font-bold">حذف</button>
+                </div>`;
+            });
+            html += `</div></div>`;
+        }
+
+        html += `</div></div>`;
         grid.innerHTML = html;
         if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
-    } catch(e){}
+    } catch(e){ console.error('[loadAccounts]', e); }
 }
 
 
@@ -705,18 +704,86 @@ function closeAddAccountModal() {
 
 
 async function deleteAccount(accId) {
-    if (!confirm('هل أنت مقتنع بحذف هذا الحساب المرتبط؟ سيتم إلغاء التوكن وإزالته.')) return;
+    if (!confirm('هل تريد حذف هذا الحساب؟')) return;
     try {
-        const res = await fetch('/api/accounts/' + encodeURIComponent(accId), {method: 'DELETE'});
+        await fetch('/api/accounts/' + encodeURIComponent(accId), {method: 'DELETE'});
+        showToast('تم حذف الحساب بنجاح');
+        loadAccounts();
+    } catch(e) {
+        showToast('تعذر الاتصال بالسيرفر', 'error');
+    }
+}
+
+async function deleteClient(clientId, clientName) {
+    try {
+        const res = await fetch('/api/clients/' + encodeURIComponent(clientId), {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({confirm_name: clientName})
+        });
         const d = await res.json();
-        if (d.ok || d.success) {
-            showToast('تم حذف وإلغاء الحساب بنجاح 🗑️');
+        if (d.ok) {
+            showToast('تم حذف العميل وجميع حساباته بنجاح 🗑️');
             loadAccounts();
         } else {
-            showToast('حدث خطأ أثناء الحذف', 'error');
+            showToast(d.error || 'حدث خطأ أثناء الحذف', 'error');
         }
     } catch(e) {
         showToast('تعذر الاتصال بالسيرفر', 'error');
+    }
+}
+
+async function saveDirectAccount(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const name = document.getElementById('acc-name').value.trim();
+    const company = (document.getElementById('acc-company') || {}).value || '';
+    const pageId = (document.getElementById('acc-page-id') || {}).value || '';
+    const igId = (document.getElementById('acc-ig-id') || {}).value || '';
+    const token = (document.getElementById('acc-token') || {}).value || '';
+    
+    if (!name) { showToast('يرجى إدخال اسم العميل أولاً', 'error'); return; }
+    
+    try {
+        const res = await fetch('/api/clients', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name,
+                company: company.trim() || name,
+                page_id: pageId.trim(),
+                ig_id: igId.trim(),
+                access_token: token.trim()
+            })
+        });
+        const d = await res.json();
+        if (d.ok || d.client) {
+            showToast(`تم تسجيل العميل: ${name} وربط حساباته بنجاح! 🚀`);
+            closeAddAccountModal();
+            ['acc-name', 'acc-company', 'acc-page-id', 'acc-ig-id', 'acc-token'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            loadAccounts();
+        } else {
+            showToast(d.error || 'حدث خطأ أثناء التسجيل', 'error');
+        }
+    } catch(err) { showToast('حدث خطأ أثناء الاتصال بالسيرفر', 'error'); }
+}
+
+async function switchActiveAccount(clientId) {
+    try {
+        localStorage.setItem('active_client_id', clientId || '');
+        if (clientId) {
+            await fetch('/api/clients/switch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({client_id: clientId})
+            });
+        }
+        showToast(clientId ? 'تم تصفية العرض للعميل المختار' : 'عرض جميع العملاء (الكل)');
+        if (typeof loadInbox === 'function') loadInbox(true);
+    } catch(e) {
+        showToast('تعذر تغيير العميل', 'error');
     }
 }
 
