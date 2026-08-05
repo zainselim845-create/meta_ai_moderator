@@ -382,18 +382,25 @@ def _call_openrouter(user_message, rag_context, platform, client_id=None):
 GRAPH_URL = "https://graph.facebook.com/v21.0"
 
 def send_dm_reply(recipient_id, text, access_token=None):
+    """يبعت رسالة خاصة عبر Graph. يرجّع (ok, detail)."""
     tok = access_token or PAGE_ACCESS_TOKEN
     try:
         res = requests.post(f"{GRAPH_URL}/me/messages", params={"access_token": tok},
-            json={"recipient": {"id": recipient_id}, "messaging_type": "RESPONSE", "message": {"text": text}}, timeout=5)
-        print(f"[DM Reply Page] {res.status_code}")
-        if res.status_code != 200:
-            ig_acc_id = os.environ.get("IG_ACCOUNT_ID", "17841413562796856")
+            json={"recipient": {"id": recipient_id}, "messaging_type": "RESPONSE", "message": {"text": text}}, timeout=15)
+        print(f"[DM Reply Page] {res.status_code} {res.text[:200]}")
+        if res.status_code == 200:
+            return True, res.text[:200]
+        # fallback: try Instagram-scoped send
+        ig_acc_id = os.environ.get("IG_ACCOUNT_ID", "")
+        if ig_acc_id:
             res_ig = requests.post(f"{GRAPH_URL}/{ig_acc_id}/messages", params={"access_token": tok},
-                json={"recipient": {"id": recipient_id}, "message": {"text": text}}, timeout=5)
-            print(f"[DM Reply IG] {res_ig.status_code}")
+                json={"recipient": {"id": recipient_id}, "message": {"text": text}}, timeout=15)
+            print(f"[DM Reply IG] {res_ig.status_code} {res_ig.text[:200]}")
+            return (res_ig.status_code == 200), res_ig.text[:200]
+        return False, res.text[:200]
     except Exception as e:
         print(f"[DM Reply Error] {e}")
+        return False, str(e)
 
 def send_comment_reply(comment_id, text, access_token=None):
     tok = access_token or PAGE_ACCESS_TOKEN
@@ -1668,6 +1675,18 @@ def api_send_reply():
             token = a.get("access_token")
             break
 
+    # Resolve a real PAGE token (PAGE_ACCESS_TOKEN may be a System User token that
+    # cannot send /me/messages). Without this, replies silently fail to reach the customer.
+    try:
+        _acc = requests.get(
+            f"{GRAPH_URL}/me/accounts?fields=id,access_token&limit=10&access_token={token}", timeout=10)
+        if _acc.status_code == 200:
+            _pages = _acc.json().get("data", [])
+            if _pages and _pages[0].get("access_token"):
+                token = _pages[0]["access_token"]
+    except Exception as _ex:
+        print(f"[Send Token Exchange] {_ex}")
+
     try:
         if is_comment and reply_mode == "public":
             # Public reply under post comment
@@ -1742,7 +1761,10 @@ def api_send_reply():
             recipient_id = thread_id
             if isinstance(convo, dict) and convo.get("cust_id"):
                 recipient_id = str(convo.get("cust_id"))
-            send_dm_reply(recipient_id, text)
+            ok_send, detail = send_dm_reply(recipient_id, text, access_token=token)
+            if not ok_send:
+                return jsonify({"ok": False, "status": "failed",
+                                "error": f"فشل إرسال الرسالة عبر Meta: {detail}"}), 400
             log_event("dm", f"User_{recipient_id[:6]}", "رد مباشر", text)
 
             # Persist sent message in conversation memory so it appears in thread history
