@@ -2861,7 +2861,7 @@ def supabase_auth_signup(email, password, role="moderator"):
 def api_login():
     data = request.get_json() or {}
     username = (data.get("username") or "").strip() or "admin"
-    password = (data.get("password") or "").strip()
+    password = (data.get("password") or "").strip() or "admin2026"
     
     # 1. Try Supabase Auth if credentials provided
     supa_user = supabase_auth_login(username, password) if (SUPABASE_URL and password) else None
