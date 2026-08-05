@@ -325,12 +325,38 @@ async function populateAccountSwitcher() {
       return `<option value="${c.id}">🏢 ${c.name}${ch ? ' ' + ch : ' (غير مربوط)'}</option>`;
     }).join('');
 
+    window._clientsList = list;
+
     const dd = document.getElementById('active-client-dropdown');
     if (dd) dd.innerHTML = opts || '<option value="">لا يوجد عملاء</option>';
 
     const hdr = document.getElementById('header-account-select');
     if (hdr) hdr.innerHTML = '<option value="__all__">🌐 جميع العملاء (الكل)</option>' + opts;
+
+    updateHeaderBadge(window.activeClientId);
   } catch(e) {}
+}
+
+// Show the real connection status of the active client (or overall) in the header badge
+function updateHeaderBadge(clientId) {
+  const badge = document.getElementById('bot-status-badge');
+  if (!badge) return;
+  const list = window._clientsList || [];
+  if (!clientId) {
+    const connected = list.filter(c => c.fb_connected || c.ig_connected).length;
+    badge.textContent = list.length ? `${connected}/${list.length} مربوط` : 'لا يوجد عملاء';
+    badge.className = 'text-[11px] px-2.5 py-0.5 rounded-2xl font-bold hidden lg:inline border ' +
+      (connected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200');
+    return;
+  }
+  const c = list.find(x => x.id === clientId);
+  if (!c) { badge.textContent = '—'; return; }
+  const parts = [];
+  parts.push(c.fb_connected ? '🔵 فيسبوك' : '⚪ فيسبوك');
+  parts.push(c.ig_connected ? '🟣 إنستجرام' : '⚪ إنستجرام');
+  badge.textContent = parts.join(' · ');
+  badge.className = 'text-[11px] px-2.5 py-0.5 rounded-2xl font-bold hidden lg:inline border ' +
+    ((c.fb_connected || c.ig_connected) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200');
 }
 
 // Switch the active account (page) and refilter the inbox
@@ -351,11 +377,13 @@ async function switchActiveClient(clientId) {
   if (clientId === '__all__' || clientId === '') {
     window.activeClientId = null;
     try { localStorage.removeItem('active_client_id'); } catch(e){}
+    if (typeof updateHeaderBadge === 'function') updateHeaderBadge(null);
     showToast('عرض جميع العملاء والحسابات');
     if (typeof loadInbox === 'function') loadInbox(true);
     return;
   }
   try { localStorage.setItem('active_client_id', clientId); } catch(e){}
+  if (typeof updateHeaderBadge === 'function') updateHeaderBadge(clientId);
   window.activeClientId = clientId;
   const dd = document.getElementById('active-client-dropdown');
   if (dd) {
