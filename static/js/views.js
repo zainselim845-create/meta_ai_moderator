@@ -753,6 +753,8 @@ async function saveDirectAccount(e) {
                 if (el) el.value = '';
             });
             loadAccounts();
+            if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
+            if (typeof loadClients === 'function') loadClients();
 
             if (d.needs_connect && cid) {
                 if (confirm(`تم إنشاء ملف العميل (${name}) بنجاح!\n\nهل تريد البدء في ربط صفحة الفيسبوك وحساب الإنستجرام الخاص به عبر تسجيل الدخول الآن؟`)) {

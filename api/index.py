@@ -129,6 +129,12 @@ def sync_from_supabase():
                     cache["prompt"] = DEFAULT_SYSTEM_PROMPT
                 elif k == "meta_ai_accounts":
                     cache["accounts"] = parsed
+                    if isinstance(parsed, list):
+                        ACCOUNTS_STORE[:] = parsed
+                elif k == "meta_ai_clients":
+                    cache["clients"] = parsed
+                    if isinstance(parsed, list):
+                        AGENCY_CLIENTS_STORE[:] = parsed
                 elif k == "meta_ai_bot_enabled":
                     cache["bot_enabled"] = bool(parsed)
                 elif k == "meta_ai_approval_mode":
@@ -2173,6 +2179,7 @@ ACCOUNTS_STORE = cache.get("accounts") or []
 @app.route("/api/accounts", methods=["GET"])
 @auth_guard
 def api_accounts_get():
+    sync_from_supabase()
     active_id = cache.get("active_account_id", "")
     cid = current_client_id()
     masked = []
@@ -2722,6 +2729,7 @@ def api_set_active_client():
 #  Clients CRUD 
 @app.route("/api/clients", methods=["GET"])
 def api_clients_get():
+    sync_from_supabase()
     show_archived = request.args.get("archived") == "true"
     if show_archived:
         return jsonify(AGENCY_CLIENTS_STORE)
