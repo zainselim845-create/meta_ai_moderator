@@ -156,14 +156,16 @@ async function loadAccounts(){
         
         html += `
         <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3 mb-4">
-            <div class="flex items-center gap-2">
-                <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
-                <h4 class="font-bold text-slate-900 text-xs">App Review & Security</h4>
-                <span class="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md ml-auto">AES-256-GCM</span>
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                    <h4 class="font-bold text-slate-900 text-xs">App Review & Security Status</h4>
+                </div>
+                <span class="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">AES-256-GCM</span>
             </div>
-            <div class="grid grid-cols-2 gap-2 text-[11px]">
-                <div class="p-2 bg-slate-50 rounded-lg"><span class="text-slate-500">App ID:</span> <code class="font-bold">${appId}</code></div>
-                <div class="p-2 bg-slate-50 rounded-lg"><span class="text-slate-500">Webhook:</span> <code class="truncate block max-w-[180px]">${cbUrl}</code></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                <div class="p-2.5 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100"><span class="text-slate-500 font-medium">App ID:</span> <code class="font-bold font-mono text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">${appId}</code></div>
+                <div class="p-2.5 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 overflow-hidden"><span class="text-slate-500 font-medium flex-shrink-0">Webhook URL:</span> <code class="font-mono text-slate-800 text-[10px] truncate max-w-[180px] bg-white px-2 py-0.5 rounded border border-slate-200" title="${cbUrl}">${cbUrl}</code></div>
             </div>
         </div>`;
 

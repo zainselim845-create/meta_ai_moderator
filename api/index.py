@@ -86,6 +86,40 @@ activity_log = []
 pending_approvals = []
 stats = {"dms": 0, "comments": 0, "ai_calls": 0, "pending": 0}
 
+
+def ensure_default_clients_grouped():
+    global AGENCY_CLIENTS_STORE, ACCOUNTS_STORE
+    if ACCOUNTS_STORE:
+        fb_acc = next((a for a in ACCOUNTS_STORE if a.get("platform") == "facebook"), None)
+        ig_acc = next((a for a in ACCOUNTS_STORE if a.get("platform") == "instagram"), None)
+        
+        default_cid = "client_domya_marketing"
+        client = next((c for c in AGENCY_CLIENTS_STORE if c.get("id") == default_cid), None)
+        
+        if not client and not AGENCY_CLIENTS_STORE:
+            client_name = "وكالة دوميا التسويقية"
+            if fb_acc and fb_acc.get("name"):
+                client_name = fb_acc["name"].replace(" (Facebook Page)", "").replace(" (Facebook)", "")
+            client = {
+                "id": default_cid,
+                "name": client_name,
+                "company": "Domya Marketing Suite",
+                "package": "Business VIP",
+                "page_id": fb_acc.get("id") if fb_acc else None,
+                "ig_id": ig_acc.get("id") if ig_acc else None,
+                "status": "active",
+                "is_active": True,
+                "fb_connected": bool(fb_acc),
+                "ig_connected": bool(ig_acc)
+            }
+            AGENCY_CLIENTS_STORE.append(client)
+            push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
+
+        for a in ACCOUNTS_STORE:
+            if not a.get("client_id"):
+                a["client_id"] = default_cid
+        push_setting("meta_ai_accounts", ACCOUNTS_STORE)
+
 def supa_headers():
     return {
         "apikey": SUPABASE_KEY,
@@ -139,6 +173,7 @@ def sync_from_supabase():
                 elif k == "meta_ai_scheduled_posts":
                     cache["scheduled_posts"] = parsed if isinstance(parsed, list) else []
             cache["last_sync"] = time.time()
+            ensure_default_clients_grouped()
     except Exception as e:
         print(f"[Supabase Sync] Using defaults: {e}")
 
@@ -2791,6 +2826,7 @@ def api_set_active_client():
 @app.route("/api/clients", methods=["GET"])
 def api_clients_get():
     sync_from_supabase()
+    ensure_default_clients_grouped()
     show_archived = request.args.get("archived") == "true"
     if show_archived:
         return jsonify(AGENCY_CLIENTS_STORE)
