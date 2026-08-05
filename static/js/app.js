@@ -346,14 +346,16 @@ async function switchActiveAccount(accId) {
 
 // Switch the active client — this changes EVERYTHING (KB, rules, prompt, inbox, accounts)
 async function switchActiveClient(clientId) {
-  if (!clientId) return;
+  if (clientId === undefined || clientId === null) return;
   window.activeAccountFilter = null; // client switch resets any per-account filter
-  if (clientId === '__all__') {
+  if (clientId === '__all__' || clientId === '') {
     window.activeClientId = null;
+    try { localStorage.removeItem('active_client_id'); } catch(e){}
     showToast('عرض جميع العملاء والحسابات');
     if (typeof loadInbox === 'function') loadInbox(true);
     return;
   }
+  try { localStorage.setItem('active_client_id', clientId); } catch(e){}
   window.activeClientId = clientId;
   const dd = document.getElementById('active-client-dropdown');
   if (dd) {

@@ -348,7 +348,7 @@ def send_private_comment_reply(comment_id, text, access_token=None):
         print(f"[Private Reply Error] {e}")
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static')
-app.secret_key = os.environ.get("SECRET_KEY", "meta_ai_secret_key_2026_super_secure")
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
@@ -2422,7 +2422,7 @@ def api_attach_page():
 
 #  Auth Guard — blocks ALL /api/* without session 
 admin_user = os.environ.get("ADMIN_USER") or "admin"
-admin_pass = os.environ.get("ADMIN_PASS") or "admin2026"
+admin_pass = os.environ.get("ADMIN_PASS") or secrets.token_urlsafe(24)
 USERS_DB = {
     admin_user: {"password": admin_pass, "role": "admin"}
 }
@@ -2434,6 +2434,8 @@ PUBLIC_PATHS = {
     '/api/auth/facebook',
     '/api/cron/refresh_tokens',
     '/api/oauth/pending_pages',
+    '/api/oauth/attach_page',
+    '/api/oauth/start',
     '/api/data-deletion',
     '/api/health',
 }

@@ -482,19 +482,8 @@ async function sendChat(){
 
 // [REMOVED] duplicate window.onload - using DOMContentLoaded below
 
-async function setApprovalMode(mode) {
-    try {
-        const res = await fetch('/api/toggle', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({approval_mode: mode})
-        });
-        const d = await res.json();
-        showToast(mode === 'auto' ? 'تم تفعيل الرد التلقائي الفوري' : 'تم تفعيل المراجعة البشرية قبل الإرسال');
-    } catch(e) {
-        showToast('حدث خطأ أثناء حفظ الإعدادات', 'error');
-    }
-}
+/* setApprovalMode removed here — the richer version in app.js (updates the mode cards
+   + badges and posts /api/settings/mode) is used instead. */
 
 async function loadKb() {
     try {
