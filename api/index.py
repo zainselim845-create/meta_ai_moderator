@@ -88,8 +88,13 @@ stats = {"dms": 0, "comments": 0, "ai_calls": 0, "pending": 0}
 
 
 def ensure_default_clients_grouped():
+    # DISABLED: this used to force-create a fake "Domya" client + hardcoded FB/IG accounts
+    # on every load, which broke real multi-page linking. Clients are created only via
+    # explicit add or Facebook OAuth now.
+    return
+
     global AGENCY_CLIENTS_STORE, ACCOUNTS_STORE
-    
+
     # 1. Default Client Workspace
     default_cid = "client_domya_marketing"
     client = next((c for c in AGENCY_CLIENTS_STORE if c.get("id") == default_cid or c.get("page_id") == "100821894800009"), None)
