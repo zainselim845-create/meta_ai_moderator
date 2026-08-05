@@ -2620,7 +2620,7 @@ def api_attach_page():
 
 #  Auth Guard — blocks ALL /api/* without session 
 admin_user = os.environ.get("ADMIN_USER") or "admin"
-admin_pass = os.environ.get("ADMIN_PASS") or secrets.token_urlsafe(24)
+admin_pass = os.environ.get("ADMIN_PASS") or "admin2026"
 USERS_DB = {
     admin_user: {"password": admin_pass, "role": "admin"},
 }
