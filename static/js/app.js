@@ -452,23 +452,42 @@ async function generateAICaption() {
     showToast('تم توليد الكابشن بنجاح');
   } catch(e) { showToast('تعذر الاتصال بالـ AI', 'error'); }
 }
+function driveFileId(url) {
+  if (!url) return '';
+  const m = url.match(/\/file\/d\/([A-Za-z0-9_-]+)/) || url.match(/[?&]id=([A-Za-z0-9_-]+)/);
+  return m ? m[1] : '';
+}
 function updatePostPreview() {
   const ta = document.getElementById('post-caption-input');
   const preview = document.getElementById('preview-caption-text');
   if (ta && preview) preview.textContent = ta.value || 'معاينة النص تظهر هنا...';
+  // Media preview from the Google Drive link
+  const box = document.getElementById('preview-media-box');
+  const link = document.getElementById('post-drive-link')?.value || '';
+  const type = document.getElementById('post-media-type')?.value || 'image';
+  if (!box) return;
+  const fid = driveFileId(link);
+  if (!fid) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  box.classList.remove('hidden');
+  if (type === 'image') {
+    box.innerHTML = `<img src="https://drive.google.com/thumbnail?id=${fid}&sz=w640" class="w-full object-cover" style="max-height:340px" onerror="this.parentNode.innerHTML='&lt;iframe src=\\'https://drive.google.com/file/d/${fid}/preview\\' class=\\'w-full\\' style=\\'height:320px;border:0\\' allow=\\'autoplay\\'&gt;&lt;/iframe&gt;'">`;
+  } else {
+    box.innerHTML = `<iframe src="https://drive.google.com/file/d/${fid}/preview" class="w-full" style="height:320px;border:0" allow="autoplay"></iframe>`;
+  }
 }
 async function saveScheduledPost() {
   const cap = document.getElementById('post-caption-input')?.value;
   const dt = document.getElementById('post-date')?.value;
   const tm = document.getElementById('post-time')?.value;
   const drive = document.getElementById('post-drive-link')?.value || '';
+  const mediaType = document.getElementById('post-media-type')?.value || 'image';
   if (!cap) { showToast('يرجى كتابة المحتوى', 'error'); return; }
 
   try {
       const res = await fetch('/api/scheduler', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ caption: cap, target: (typeof postTarget !== 'undefined' ? postTarget : 'fb'), drive_link: drive, date: dt, time: tm })
+          body: JSON.stringify({ caption: cap, target: (typeof postTarget !== 'undefined' ? postTarget : 'fb'), drive_link: drive, media_type: mediaType, date: dt, time: tm })
       });
       const data = await res.json();
       if(data.success) {

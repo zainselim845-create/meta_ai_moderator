@@ -3683,6 +3683,7 @@ def api_scheduler():
             "id": f"post-{int(time.time()*1000)}",
             "caption": data.get("caption", ""),
             "target": data.get("target", "fb"),
+            "media_type": (data.get("media_type") or "image").lower(),
             "drive_link": drive_link,
             "media_url": drive_to_direct(drive_link),
             "date": date_s,
