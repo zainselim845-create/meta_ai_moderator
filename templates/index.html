@@ -16,7 +16,7 @@
   </script>
   <script src="https://unpkg.com/lucide@latest">
   </script>
-  <link href="/static/css/styles.css?v=2.8" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=2.9" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -29,10 +29,10 @@
      </div>
      <div>
       <h1 class="text-sm font-bold text-slate-900 leading-tight">
-       Chatwoot
+       Domya
       </h1>
       <span class="text-xs font-semibold text-blue-600 block">
-       Domya Meta AI
+       Meta AI Suite
       </span>
      </div>
     </div>
@@ -153,20 +153,20 @@
          <option value="">🌐 جميع العملاء (الكل)</option>
         </select>
        </div>
-       <span class="bg-emerald-500 text-white text-[11px] px-2.5 py-0.5 rounded-2xl font-bold hidden lg:inline" id="bot-status-badge">
-        ✅ نشط 100%
+       <span class="bg-slate-100 text-slate-600 text-[11px] px-2.5 py-0.5 rounded-2xl font-bold hidden lg:inline border border-slate-200" id="bot-status-badge">
+        —
        </span>
       </div>
      </div>
      <div class="flex items-center gap-2">
-      <button class="btn-primary text-xs px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 bg-blue-600 text-white font-bold hover:bg-blue-700 transition" onclick="openAddAccountModal()">
+      <button class="btn-primary text-xs px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 bg-blue-600 text-white font-bold hover:bg-blue-700 transition" onclick="addNewClientQuick()">
        <i class="w-4 h-4" data-lucide="plus-circle"></i>
-       <span>+ تسجيل عميل جديد</span>
+       <span>+ إضافة عميل</span>
       </button>
-      <button class="btn-ghost text-xs px-3 py-2 rounded-xl border border-slate-200 flex items-center gap-1 hover:bg-slate-50 transition" onclick="loginFromChatwoot()">
-       <i class="w-3.5 h-3.5 text-slate-600" data-lucide="link"></i>
-       <span class="hidden sm:inline">ربط Chatwoot</span>
-      </button>
+      <a href="/api/oauth/start" class="btn-ghost text-xs px-3 py-2 rounded-xl border border-slate-200 flex items-center gap-1 hover:bg-slate-50 transition">
+       <i class="w-3.5 h-3.5 text-blue-600" data-lucide="log-in"></i>
+       <span class="hidden sm:inline">ربط فيسبوك</span>
+      </a>
      </div>
    </header>
    <main class="flex-1 p-4 md:p-6 overflow-y-auto">
@@ -944,24 +944,24 @@
      <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-3">
        <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xl">
-        C
+        D
        </div>
        <div>
         <h3 class="font-bold text-base text-slate-900">
-         Chatwoot Free Engine Integration
+         ربط حسابات العميل
         </h3>
         <p class="text-xs text-slate-500">
-         تحكم في ربط حسابات فيسبوك وإنستجرام مجاناً 100%
+         اربط صفحة فيسبوك وحساب إنستجرام العميل عبر تسجيل الدخول بفيسبوك
         </p>
        </div>
       </div>
-      <button class="btn-primary text-sm px-6 py-2.5 rounded-xl shadow-sm flex items-center gap-2" onclick="loginFromChatwoot()">
-       <i class="w-4 h-4" data-lucide="link">
+      <a href="/api/oauth/start" class="btn-primary text-sm px-6 py-2.5 rounded-xl shadow-sm flex items-center gap-2">
+       <i class="w-4 h-4" data-lucide="log-in">
        </i>
        <span>
-        ربط من Chatwoot - فري | اربط صفحتك في ثانية
+        ربط عبر تسجيل الدخول بفيسبوك
        </span>
-      </button>
+      </a>
      </div>
      <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-3">
       <h4 class="font-bold text-sm text-slate-900 flex items-center gap-2">
@@ -1179,28 +1179,22 @@
   </div>
   <div class="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4 hidden" id="login-modal-overlay">
    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 w-full max-w-md space-y-4">
+    <div class="flex justify-center">
+     <div class="w-12 h-12 rounded-2xl bg-blue-600 text-white font-bold text-xl flex items-center justify-center shadow-sm">D</div>
+    </div>
     <h3 class="text-xl font-bold text-slate-900 text-center">
-     تسجيل الدخول للمنصة
+     تسجيل الدخول — Domya
     </h3>
+    <p class="text-xs text-slate-500 text-center -mt-2">منصة إدارة ومودريشن فيسبوك وإنستجرام</p>
     <form class="space-y-3" onsubmit="handleLogin(event)">
      <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="auth-username" placeholder="اسم المستخدم" type="text"/>
      <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="auth-password" placeholder="كلمة المرور" type="password"/>
      <button class="w-full btn-primary text-xs py-2.5 rounded-xl" type="submit">
       دخول
      </button>
-     <button class="w-full btn-primary bg-[#1f93ff] text-white text-xs py-2.5 rounded-xl flex items-center justify-center gap-2" onclick="loginFromChatwoot()" type="button">
-      <i class="w-4 h-4" data-lucide="message-square">
-      </i>
-      <span>
-       الدخول بحساب Chatwoot مجاناً
-      </span>
-     </button>
      <div class="text-xs text-red-600 font-bold hidden text-center" id="auth-error">
      </div>
     </form>
-    <button class="w-full btn-ghost text-xs py-2 rounded-xl border border-slate-200" onclick="quickDemoLogin()">
-     الدخول السريع (Demo Login)
-    </button>
    </div>
   </div>
     <div class="fixed inset-0 bg-slate-900/40 z-50 items-center justify-center p-4 hidden" id="page-picker-modal">
@@ -1220,15 +1214,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=2.8">
+  <script src="/static/js/app.js?v=2.9">
   </script>
-  <script src="/static/js/inbox.js?v=2.8">
+  <script src="/static/js/inbox.js?v=2.9">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=2.8">
+  <script src="/static/js/chatwoot_free.js?v=2.9">
   </script>
-  <script src="/static/js/views.js?v=2.8">
+  <script src="/static/js/views.js?v=2.9">
   </script>
-  <script src="/static/js/clients.js?v=2.8">
+  <script src="/static/js/clients.js?v=2.9">
   </script>
  
   <!-- Modal: Add New Connected Account -->
