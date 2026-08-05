@@ -104,9 +104,6 @@ def verify_signature(payload_bytes, signature_header):
     return hmac.compare_digest(expected_sig, given_sig)
 
 def sync_from_supabase():
-    pass
-
-def sync_from_supabase():
     if time.time() - cache.get("last_sync", 0) < 20:
         return
     try:
@@ -2501,7 +2498,7 @@ USERS_DB = {
 }
 
 PUBLIC_PATHS = {
-    '/api/login', '/api/logout', '/api/me',
+    '/api/login', '/api/register', '/api/logout', '/api/me',
     '/webhook', '/api/oauth_url',
     '/api/oauth/callback', '/oauth_callback',
     '/api/auth/facebook',
@@ -2679,22 +2676,85 @@ def api_secure_stats():
 
 
 #  Login / Logout / Me 
+def supabase_auth_login(email_or_user, password):
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return None
+    try:
+        email = email_or_user if "@" in email_or_user else f"{email_or_user}@agency.com"
+        url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
+        res = requests.post(url, headers=supa_headers(), json={"email": email, "password": password}, timeout=5)
+        if res.status_code == 200:
+            d = res.json()
+            return {
+                "user_id": d.get("user", {}).get("id"),
+                "email": d.get("user", {}).get("email"),
+                "access_token": d.get("access_token"),
+                "role": d.get("user", {}).get("role", "admin")
+            }
+    except Exception as e:
+        print(f"[Supabase Auth Login Error] {e}")
+    return None
+
+def supabase_auth_signup(email, password, role="moderator"):
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return None
+    try:
+        url = f"{SUPABASE_URL}/auth/v1/signup"
+        res = requests.post(url, headers=supa_headers(), json={"email": email, "password": password, "data": {"role": role}}, timeout=5)
+        if res.status_code in (200, 201):
+            return res.json()
+    except Exception as e:
+        print(f"[Supabase Auth Signup Error] {e}")
+    return None
+
 @app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json() or {}
     username = (data.get("username") or "").strip() or "admin"
     password = (data.get("password") or "").strip()
     
+    # 1. Try Supabase Auth if credentials provided
+    supa_user = supabase_auth_login(username, password) if (SUPABASE_URL and password) else None
+    if supa_user:
+        session.permanent = True
+        session["uid"] = username
+        session["user_id"] = supa_user.get("user_id")
+        session["role"] = supa_user.get("role", "admin")
+        session["supa_token"] = supa_user.get("access_token")
+        session.modified = True
+        return jsonify({"ok": True, "username": username, "role": session["role"], "auth_provider": "supabase"})
+
+    # 2. Fallback to USERS_DB / local admin
     user = USERS_DB.get(username) or USERS_DB.get("admin")
     allowed = {admin_pass, "admin2026", "admin", "demo", ""}
     if user and (user.get("password") == password or password in allowed or not password):
         session.permanent = True
         session["uid"] = username
-        session["role"] = "admin"
+        session["role"] = user.get("role", "admin")
         session.modified = True
-        return jsonify({"ok": True, "username": username, "role": "admin"})
+        return jsonify({"ok": True, "username": username, "role": session["role"], "auth_provider": "local"})
     
     return jsonify({"error": "اسم المستخدم أو كلمة المرور غير صحيحة"}), 401
+
+@app.route("/api/register", methods=["POST"])
+def api_register():
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip() or (f"{username}@agency.com" if username else "")
+    password = (data.get("password") or "").strip()
+    role = data.get("role", "moderator")
+    
+    if not username or not password:
+        return jsonify({"error": "اسم المستخدم وكلمة المرور مطلوبان"}), 400
+
+    # Add to USERS_DB locally
+    USERS_DB[username] = {"password": password, "role": role, "email": email}
+    push_setting("meta_ai_users", list(USERS_DB.keys()))
+
+    # Try Supabase Auth if active
+    supa = supabase_auth_signup(email, password, role)
+    
+    return jsonify({"ok": True, "username": username, "role": role, "supabase": bool(supa)})
 
 @app.route("/api/logout", methods=["POST"])
 def api_logout():
@@ -2708,8 +2768,12 @@ def api_me():
     return jsonify({
         "logged_in": True,
         "username": session.get("uid"),
-        "role": session.get("role"),
-        "active_client_id": current_client_id()
+        "user_id": session.get("user_id"),
+        "role": session.get("role", "admin"),
+        "active_client_id": current_client_id(),
+        "supabase_connected": bool(SUPABASE_URL and SUPABASE_KEY),
+        "clients_count": len(AGENCY_CLIENTS_STORE),
+        "accounts_count": len(ACCOUNTS_STORE)
     })
 
 
