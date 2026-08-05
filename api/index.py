@@ -177,12 +177,11 @@ def verify_signature(payload_bytes, signature_header):
     return hmac.compare_digest(expected_sig, given_sig)
 
 def sync_from_supabase():
-    if time.time() - cache.get("last_sync", 0) < 3:
-        return
+    global AGENCY_CLIENTS_STORE, ACCOUNTS_STORE
     if SUPABASE_URL and SUPABASE_KEY:
         try:
             url = f"{SUPABASE_URL}/rest/v1/app_settings?select=key,value"
-            r = requests.get(url, headers=supa_headers(), timeout=5)
+            r = requests.get(url, headers=supa_headers(), timeout=4)
             if r.status_code == 200:
                 for row in r.json():
                     k, v = row.get("key"), row.get("value")
@@ -196,34 +195,20 @@ def sync_from_supabase():
                         cache["kb"] = parsed
                     elif k == "meta_ai_rules":
                         cache["rules"] = parsed
-                    elif k == "meta_ai_system_prompt":
-                        cache["prompt"] = DEFAULT_SYSTEM_PROMPT
-                    elif k == "meta_ai_accounts":
+                    elif k == "meta_ai_accounts" and isinstance(parsed, list) and parsed:
+                        ACCOUNTS_STORE[:] = parsed
                         cache["accounts"] = parsed
-                        if isinstance(parsed, list):
-                            ACCOUNTS_STORE.clear()
-                            ACCOUNTS_STORE.extend(parsed)
-                    elif k == "meta_ai_clients":
+                    elif k == "meta_ai_clients" and isinstance(parsed, list) and parsed:
+                        AGENCY_CLIENTS_STORE[:] = parsed
                         cache["clients"] = parsed
-                        if isinstance(parsed, list):
-                            AGENCY_CLIENTS_STORE.clear()
-                            AGENCY_CLIENTS_STORE.extend(parsed)
                     elif k == "meta_ai_bot_enabled":
                         cache["bot_enabled"] = bool(parsed)
                     elif k == "meta_ai_approval_mode":
                         cache["approval_mode"] = str(parsed) if parsed else "auto"
                     elif k == "meta_ai_scheduled_posts":
                         cache["scheduled_posts"] = parsed if isinstance(parsed, list) else []
-                cache["last_sync"] = time.time()
-                ensure_default_clients_grouped()
-            else:
-                print(f"[Supabase Sync Error] HTTP {r.status_code}: {r.text[:200]}")
-                ensure_default_clients_grouped()
         except Exception as e:
             print(f"[Supabase Sync Exception] {e}")
-            ensure_default_clients_grouped()
-    else:
-        ensure_default_clients_grouped()
 
 def push_setting(key, value):
     if SUPABASE_URL and SUPABASE_KEY:
