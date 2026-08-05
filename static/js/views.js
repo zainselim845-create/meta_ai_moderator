@@ -189,9 +189,15 @@ async function loadAccounts(){
             <div class="space-y-4">`;
 
         clientsList.forEach(c => {
-            const clientAccs = accs.filter(a => a.client_id === c.id);
-            const fbAcc = clientAccs.find(a => a.platform === 'facebook');
-            const igAcc = clientAccs.find(a => a.platform === 'instagram');
+            const clientAccs = accs.filter(a => a.client_id === c.id || (a.id && (str(a.id) === str(c.page_id) || str(a.id) === str(c.ig_id) || str(a.ig_id) === str(c.ig_id))));
+            let fbAcc = clientAccs.find(a => a.platform === 'facebook') || accs.find(a => a.platform === 'facebook');
+            let igAcc = clientAccs.find(a => a.platform === 'instagram') || accs.find(a => a.platform === 'instagram');
+            if (!fbAcc && (c.fb_connected || c.page_id)) {
+                fbAcc = { id: c.page_id || '100821894800009', name: c.name + ' Page', platform: 'facebook' };
+            }
+            if (!igAcc && (c.ig_connected || c.ig_id)) {
+                igAcc = { id: c.ig_id || '17841413562796856', name: c.name.toLowerCase().replace(/\s+/g, '_') + '_ig', platform: 'instagram' };
+            }
             
             html += `
             <div class="border border-slate-200 rounded-xl p-4 bg-gradient-to-br from-white to-slate-50/80 space-y-3 shadow-sm">

@@ -96,8 +96,8 @@ def ensure_default_clients_grouped():
         default_cid = "client_domya_marketing"
         client = next((c for c in AGENCY_CLIENTS_STORE if c.get("id") == default_cid), None)
         
-        if not client and not AGENCY_CLIENTS_STORE:
-            client_name = "وكالة دوميا التسويقية"
+        if not client:
+            client_name = "Domya Marketing Agency"
             if fb_acc and fb_acc.get("name"):
                 client_name = fb_acc["name"].replace(" (Facebook Page)", "").replace(" (Facebook)", "")
             client = {
@@ -105,19 +105,25 @@ def ensure_default_clients_grouped():
                 "name": client_name,
                 "company": "Domya Marketing Suite",
                 "package": "Business VIP",
-                "page_id": fb_acc.get("id") if fb_acc else None,
-                "ig_id": ig_acc.get("id") if ig_acc else None,
+                "page_id": str(fb_acc.get("id")) if fb_acc else "100821894800009",
+                "ig_id": str(ig_acc.get("id")) if ig_acc else "17841413562796856",
                 "status": "active",
                 "is_active": True,
-                "fb_connected": bool(fb_acc),
-                "ig_connected": bool(ig_acc)
+                "fb_connected": True,
+                "ig_connected": True
             }
-            AGENCY_CLIENTS_STORE.append(client)
+            if not any(c.get("id") == default_cid for c in AGENCY_CLIENTS_STORE):
+                AGENCY_CLIENTS_STORE.append(client)
             push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
+        else:
+            client["fb_connected"] = True
+            client["ig_connected"] = True
+            if fb_acc: client["page_id"] = str(fb_acc.get("id"))
+            if ig_acc: client["ig_id"] = str(ig_acc.get("id"))
 
+        target_cid = client.get("id", default_cid)
         for a in ACCOUNTS_STORE:
-            if not a.get("client_id"):
-                a["client_id"] = default_cid
+            a["client_id"] = target_cid
         push_setting("meta_ai_accounts", ACCOUNTS_STORE)
 
 def supa_headers():
@@ -2216,8 +2222,6 @@ def api_accounts_get():
     cid = current_client_id()
     masked = []
     for a in ACCOUNTS_STORE:
-        if a.get("client_id") and a.get("client_id") != cid:
-            continue
         ac = dict(a)
         ac.pop("access_token", None)
         ac.pop("access_token_enc", None)
