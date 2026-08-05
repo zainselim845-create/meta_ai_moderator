@@ -206,23 +206,28 @@ ${name}`
     await Promise.allSettled([loadInbox(), loadStats(), loadKb(), loadRules()]);
 }
 
-// Quick add — works without a modal (the modal markup isn't in this build)
+// Add a client workspace, then connect its Facebook + Instagram via OAuth (no manual tokens)
 async function addNewClientQuick() {
-    const name = prompt('اسم العميل الجديد:');
+    const name = prompt('اسم العميل / البراند:');
     if (!name || !name.trim()) return;
     const company = prompt('اسم الشركة / النشاط (اختياري):') || '';
-    const page_id = prompt('Page ID للصفحة على فيسبوك (اختياري):') || '';
     try {
         const r = await fetch('/api/clients', {
             method: 'POST', credentials: 'same-origin',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name: name.trim(), company, page_id})
+            body: JSON.stringify({name: name.trim(), company})
         });
         const d = await r.json();
         if (!r.ok || !d.ok) { showToast(d.error || 'فشل إضافة العميل', 'error'); return; }
-        showToast('تمت إضافة العميل: ' + name.trim());
+        const cid = d.id || (d.client && d.client.id);
         if (typeof loadClients === 'function') loadClients();
         if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
+        // Immediately connect this client's Facebook + Instagram via OAuth
+        if (confirm(`تم إنشاء «${name.trim()}».\n\nهل تريد ربط صفحة فيسبوك وإنستجرام العميل الآن عبر تسجيل الدخول بفيسبوك؟`)) {
+            window.location.href = '/api/oauth/start?client_id=' + encodeURIComponent(cid || '');
+        } else {
+            showToast('تمت الإضافة. تقدر تربط الحسابات لاحقاً من زر «ربط فيسبوك».');
+        }
     } catch(e) { showToast('حدث خطأ أثناء إضافة العميل', 'error'); }
 }
 

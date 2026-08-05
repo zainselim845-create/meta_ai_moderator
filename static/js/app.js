@@ -314,18 +314,22 @@ function setApprovalMode(mode) {
   showToast(mode === 'auto' ? 'تم تفعيل الرد التلقائي الفوري ⚡' : 'تم تفعيل وضع المراجعة البشرية 👨‍💼');
 }
 
-// Populate the header client switcher from the real agency clients
+// Populate the client switchers (header + CRM). Each client = one workspace (FB + IG grouped).
 async function populateAccountSwitcher() {
   try {
     const res = await fetch('/api/clients');
     const clients = await res.json();
-    const dd = document.getElementById('active-client-dropdown');
-    if (!dd) return;
     const list = Array.isArray(clients) ? clients : (clients.clients || []);
-    if (!list.length) { dd.innerHTML = '<option value="">لا يوجد عملاء</option>'; return; }
-    dd.innerHTML = list.map(c =>
-      `<option value="${c.id}">${c.name}</option>`
-    ).join('');
+    const opts = list.map(c => {
+      const ch = (c.fb_connected ? '🔵' : '') + (c.ig_connected ? '🟣' : '');
+      return `<option value="${c.id}">🏢 ${c.name}${ch ? ' ' + ch : ' (غير مربوط)'}</option>`;
+    }).join('');
+
+    const dd = document.getElementById('active-client-dropdown');
+    if (dd) dd.innerHTML = opts || '<option value="">لا يوجد عملاء</option>';
+
+    const hdr = document.getElementById('header-account-select');
+    if (hdr) hdr.innerHTML = '<option value="__all__">🌐 جميع العملاء (الكل)</option>' + opts;
   } catch(e) {}
 }
 
@@ -343,8 +347,14 @@ async function switchActiveAccount(accId) {
 // Switch the active client — this changes EVERYTHING (KB, rules, prompt, inbox, accounts)
 async function switchActiveClient(clientId) {
   if (!clientId) return;
-  window.activeClientId = clientId;
   window.activeAccountFilter = null; // client switch resets any per-account filter
+  if (clientId === '__all__') {
+    window.activeClientId = null;
+    showToast('عرض جميع العملاء والحسابات');
+    if (typeof loadInbox === 'function') loadInbox(true);
+    return;
+  }
+  window.activeClientId = clientId;
   const dd = document.getElementById('active-client-dropdown');
   if (dd) {
     const txt = dd.options[dd.selectedIndex]?.text || clientId;

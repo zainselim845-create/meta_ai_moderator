@@ -2660,42 +2660,45 @@ def api_clients_add():
     if not cid or len(cid) < 8:
         cid = f"client_{int(time.time())}"
         
-    page_id = str(data.get("page_id") or data.get("id") or f"100821894800{len(AGENCY_CLIENTS_STORE)}").strip()
-    ig_id = str(data.get("ig_id") or f"17841413562{len(AGENCY_CLIENTS_STORE)}").strip()
-    token = data.get("access_token") or PAGE_ACCESS_TOKEN
-    
+    # Only use real page/token if EXPLICITLY provided (manual). Otherwise the client
+    # starts EMPTY and pages are attached later via Facebook OAuth (the correct flow).
+    page_id = str(data.get("page_id") or "").strip()
+    ig_id = str(data.get("ig_id") or "").strip()
+    token = data.get("access_token") or ""
+
     new_client = {
         "id": cid,
         "name": name,
         "company": data.get("company") or name,
         "package": data.get("package", "Business VIP"),
-        "page_id": page_id,
-        "ig_id": ig_id,
+        "page_id": page_id or None,
+        "ig_id": ig_id or None,
         "status": "active",
         "is_active": True,
-        "fb_connected": True,
-        "ig_connected": True,
+        "fb_connected": bool(page_id and token),
+        "ig_connected": bool(ig_id and token),
     }
-    
-    # Add or update matching client in AGENCY_CLIENTS_STORE
+
     existing_c = next((c for c in AGENCY_CLIENTS_STORE if c["id"] == cid), None)
     if existing_c:
         existing_c.update(new_client)
     else:
         AGENCY_CLIENTS_STORE.append(new_client)
-        
-    # Also register matching Facebook & Instagram accounts in ACCOUNTS_STORE under this client_id
+
     global ACCOUNTS_STORE
-    fb_acc = {"id": page_id, "name": f"{name} (Facebook Page)", "platform": "facebook", "access_token": token, "client_id": cid, "status": "connected", "is_active": True, "dm_mode": "auto", "comment_mode": "auto"}
-    ig_acc = {"id": ig_id, "name": f"{name} (Instagram @{re.sub(r'[^a-z0-9_]', '', name.lower())})", "platform": "instagram", "ig_id": ig_id, "access_token": token, "client_id": cid, "status": "connected", "is_active": True, "dm_mode": "auto", "comment_mode": "auto"}
-    
-    ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get("id")) not in (page_id, ig_id)]
-    ACCOUNTS_STORE.append(fb_acc)
-    ACCOUNTS_STORE.append(ig_acc)
-    
+    # Only register real accounts when a genuine page_id + token were provided manually.
+    if page_id and token:
+        fb_acc = {"id": page_id, "name": f"{name} (Facebook Page)", "platform": "facebook", "access_token": token, "client_id": cid, "status": "connected", "is_active": True, "dm_mode": "auto", "comment_mode": "auto"}
+        ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get("id")) != page_id]
+        ACCOUNTS_STORE.append(fb_acc)
+        if ig_id:
+            ig_acc = {"id": ig_id, "name": f"{name} (Instagram)", "platform": "instagram", "ig_id": ig_id, "access_token": token, "client_id": cid, "status": "connected", "is_active": True, "dm_mode": "auto", "comment_mode": "auto"}
+            ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get("id")) != ig_id]
+            ACCOUNTS_STORE.append(ig_acc)
+        push_setting("meta_ai_accounts", ACCOUNTS_STORE)
+
     push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
-    push_setting("meta_ai_accounts", ACCOUNTS_STORE)
-    return jsonify({"ok": True, "client": new_client})
+    return jsonify({"ok": True, "client": new_client, "id": cid, "needs_connect": not (page_id and token)})
 
 @app.route("/api/clients/<cid>", methods=["PUT"])
 def api_clients_update(cid):
