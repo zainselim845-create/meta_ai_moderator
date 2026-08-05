@@ -2670,6 +2670,28 @@ def api_meta_diagnose():
     """تشخيص التوكن: بيقول التوكن شايف إيه (صفحات/IG/صلاحيات) بدون كشف السر."""
     tok = PAGE_ACCESS_TOKEN
     out = {"has_token": bool(tok), "token_len": len(tok) if tok else 0, "pages": [], "errors": []}
+
+    # --- Supabase persistence self-test (write + read back) ---
+    supa = {"url_set": bool(SUPABASE_URL), "key_set": bool(SUPABASE_KEY), "key_len": len(SUPABASE_KEY) if SUPABASE_KEY else 0}
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            testval = f"ok-{int(time.time())}"
+            w = requests.post(f"{SUPABASE_URL}/rest/v1/app_settings",
+                              headers=supa_headers(), json={"key": "_diag_test", "value": testval}, timeout=8)
+            supa["write_status"] = w.status_code
+            if w.status_code >= 400:
+                supa["write_error"] = w.text[:200]
+            r = requests.get(f"{SUPABASE_URL}/rest/v1/app_settings?select=value&key=eq._diag_test",
+                             headers=supa_headers(), timeout=8)
+            supa["read_status"] = r.status_code
+            if r.status_code == 200:
+                rows = r.json()
+                supa["read_back"] = (rows[0].get("value") == testval) if rows else "no_rows"
+            else:
+                supa["read_error"] = r.text[:200]
+        except Exception as e:
+            supa["exception"] = str(e)[:200]
+    out["supabase"] = supa
     if not tok:
         out["errors"].append("PAGE_ACCESS_TOKEN غير متظبط في الـ env")
         return jsonify(out), 200
