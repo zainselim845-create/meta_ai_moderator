@@ -757,13 +757,21 @@ async function saveDirectAccount(e) {
         });
         const d = await res.json();
         if (d.ok || d.client) {
-            showToast(`تم تسجيل العميل: ${name} وربط حساباته بنجاح! 🚀`);
+            const cid = d.id || (d.client ? d.client.id : '');
             closeAddAccountModal();
             ['acc-name', 'acc-company', 'acc-page-id', 'acc-ig-id', 'acc-token'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
             loadAccounts();
+
+            if (d.needs_connect && cid) {
+                if (confirm(`تم إنشاء ملف العميل (${name}) بنجاح!\n\nهل تريد البدء في ربط صفحة الفيسبوك وحساب الإنستجرام الخاص به عبر تسجيل الدخول الآن؟`)) {
+                    window.location.href = '/api/oauth/start?client_id=' + encodeURIComponent(cid);
+                    return;
+                }
+            }
+            showToast(`تم تسجيل العميل: ${name} بنجاح! 🚀`);
         } else {
             showToast(d.error || 'حدث خطأ أثناء التسجيل', 'error');
         }

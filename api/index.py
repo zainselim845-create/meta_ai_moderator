@@ -891,6 +891,7 @@ def api_conversations():
                 
                 all_threads.append({
                     "id": t_id,
+                    "client_id": cid,
                     "type": "messenger",
                     "channel": "messenger",
                     "platform": "facebook",
@@ -945,6 +946,7 @@ def api_conversations():
                 
                 all_threads.append({
                     "id": t_id,
+                    "client_id": cid,
                     "type": "instagram",
                     "channel": "instagram",
                     "sender": f" {cust_sender}",
@@ -997,6 +999,7 @@ def api_conversations():
                     
                     all_threads.append({
                         "id": f"ig_comment_{c_id}",
+                        "client_id": cid,
                         "type": "instagram",
                         "channel": CHANNEL_IG_COMMENT,
                         "platform": "instagram",
@@ -1046,6 +1049,7 @@ def api_conversations():
                     
                     all_threads.append({
                         "id": f"fb_comment_{c_id}",
+                        "client_id": cid,
                         "type": "facebook",
                         "channel": CHANNEL_FB_COMMENT,
                         "platform": "facebook",
@@ -1100,7 +1104,7 @@ def api_conversations():
 
     all_threads = draft_threads + merge_and_sort(all_threads)
     
-    client_threads = [t for t in all_threads if t.get("client_id") == cid or not t.get("client_id")]
+    client_threads = [t for t in all_threads if t.get("client_id") == cid]
     
     limit = safe_int(request.args.get("limit"), 200, 1, 500)
     offset = safe_int(request.args.get("offset"), 0, 0, 10000)
@@ -1365,7 +1369,7 @@ def fetch_rich_thread_messages(thread_id, before=None, limit=50):
     cid = current_client_id()
     client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid or not a.get("client_id")]
     token = PAGE_ACCESS_TOKEN
-    page_ids = {"100821894800009", "17841413562796856"}
+    page_ids = {"", "17841413562796856"}
     for a in client_accounts:
         if a.get("id"):
             page_ids.add(str(a["id"]))
@@ -2105,7 +2109,7 @@ ACCOUNTS_STORE = cache.get("accounts") or []
 @app.route("/api/accounts", methods=["GET"])
 @auth_guard
 def api_accounts_get():
-    active_id = cache.get("active_account_id", "100821894800009")
+    active_id = cache.get("active_account_id", "")
     cid = current_client_id()
     masked = []
     for a in ACCOUNTS_STORE:
@@ -2149,7 +2153,7 @@ def api_accounts_add():
 @app.route("/api/accounts/select", methods=["POST"])
 def api_accounts_select():
     data = request.get_json() or {}
-    acc_id = str(data.get("id", "100821894800009"))
+    acc_id = str(data.get("id", ""))
     cache["active_account_id"] = acc_id
     push_setting("meta_ai_active_account_id", acc_id)
     return jsonify({"ok": True, "active_id": acc_id})
@@ -2296,8 +2300,10 @@ def oauth_callback():
         session.permanent = True
         session['uid'] = session.get('uid') or os.environ.get("ADMIN_USER", "admin")
         session['authenticated'] = True
-        if 'active_client_id' not in session:
-            session['active_client_id'] = 'client_default'
+
+        target_client = request.cookies.get('oauth_client_id') or session.get('oauth_client_id') or current_client_id()
+        session['oauth_client_id'] = target_client
+        session['active_client_id'] = target_client
 
         try:
             pages = discover_pages(long_token)
@@ -3286,7 +3292,7 @@ def api_v7_status():
     return jsonify({
         "status": "v7_active",
         "app_id": "1331918902446123",
-        "page_id": "100821894800009",
+        "page_id": "",
         "ig_id": "17841413562796856",
         "webhook_url": "https://metaaimoderator.vercel.app/webhook",
         "verification_badge": " موثق — متحكم بالكامل 100%",

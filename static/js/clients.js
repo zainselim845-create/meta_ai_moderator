@@ -340,19 +340,20 @@ async function showPagePicker() {
         const body = modal.querySelector('.pp-body');
 
         if (!pages.length) {
-            body.innerHTML = '<div class="empty-state">لم نعثر على صفحات جديدة قابلة للربط</div>';
+            body.innerHTML = '<div class="p-4 text-center text-slate-500 text-xs">لم نعثر على صفحات جديدة قابلة للربط</div>';
         } else {
             body.innerHTML = pages.map(p => `
               <div onclick="attachPage('${esc(p.id)}')"
-                   class="p-2 text-xs">
-                <img src="${esc(p.picture||'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%20fill=%22%232563eb%22%3E%3Cpath%20d=%22M12%202C6.48%202%202%206.48%202%2012s4.48%2010%2010%2010%2010-4.48%2010-10S17.52%202%2012%202zm0%203c1.66%200%203%201.34%203%203s-1.34%203-3%203-3-1.34-3-3%201.34-3%203-3zm0%2014.2c-2.5%200-4.71-1.28-6-3.22.03-1.99%204-3.08%206-3.08%201.99%200%205.97%201.09%206%203.08-1.29%201.94-3.5%203.22-6%203.22z%22/%3E%3C/svg%3E')}">
+                   class="p-3 hover:bg-blue-50/80 border border-slate-100 rounded-xl cursor-pointer transition flex items-center gap-3">
+                <img src="${esc(p.picture||'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%20fill=%22%232563eb%22%3E%3Cpath%20d=%22M12%202C6.48%202%202%206.48%202%2012s4.48%2010%2010%2010%2010-4.48%2010-10S17.52%202%2012%202zm0%203c1.66%200%203%201.34%203%203s-1.34%203-3%203-3-1.34-3-3%201.34-3%203-3zm0%2014.2c-2.5%200-4.71-1.28-6-3.22.03-1.99%204-3.08%206-3.08%201.99%200%205.97%201.09%206%203.08-1.29%201.94-3.5%203.22-6%203.22z%22/%3E%3C/svg%3E')}" class="w-10 h-10 rounded-full object-cover border border-slate-200">
                 <div class="flex-1">
-                  <div class="text-slate-600"> ${esc(p.name)}</div>
-                  <div class="text-xs">
-                    ${p.followers ? Number(p.followers).toLocaleString('en-US') + ' متابع' : ''}
-                    ${p.instagram ? ' · <i data-lucide="camera" class="w-4 h-4 inline"></i> @' + esc(p.instagram) : ''}
+                  <div class="font-bold text-slate-900 text-xs">${esc(p.name)}</div>
+                  <div class="text-[11px] text-slate-500 flex items-center gap-1">
+                    ${p.followers ? Number(p.followers).toLocaleString('en-US') + ' متابع' : 'صفحة فيسبوك'}
+                    ${p.instagram ? ' • <span class="text-purple-600 font-bold">@' + esc(p.instagram) + '</span>' : ''}
                   </div>
                 </div>
+                <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm">ربط</button>
               </div>`).join('');
         }
 
