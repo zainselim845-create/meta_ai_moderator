@@ -2242,10 +2242,46 @@ def webhook_event():
 ACCOUNTS_STORE_FALLBACK = []
 ACCOUNTS_STORE = cache.get("accounts") or []
 
+def heal_orphan_accounts():
+    """يربط أي حساب متصل (بعد OAuth) مش مربوط بعميل موجود → يعمله workspace تلقائياً."""
+    global AGENCY_CLIENTS_STORE, ACCOUNTS_STORE
+    valid_ids = {c.get("id") for c in AGENCY_CLIENTS_STORE}
+    groups = {}
+    for a in ACCOUNTS_STORE:
+        # only real, connected accounts (have a token)
+        if not (a.get("access_token") or a.get("access_token_enc")):
+            continue
+        if a.get("client_id") in valid_ids:
+            continue
+        key = a.get("client_id") or ("client_" + str(a.get("parent_page_id") or a.get("id")))
+        groups.setdefault(key, []).append(a)
+    if not groups:
+        return False
+    for gcid, accs in groups.items():
+        fb = next((a for a in accs if a.get("platform") == "facebook"), accs[0])
+        name = (fb.get("name") or "عميل جديد").replace(" (Facebook Page)", "").replace(" (Instagram)", "")
+        new_client = {"id": gcid, "name": name, "company": name, "package": "Business VIP",
+                      "status": "active", "is_active": True,
+                      "fb_connected": any(a.get("platform") == "facebook" for a in accs),
+                      "ig_connected": any(a.get("platform") == "instagram" for a in accs)}
+        for a in accs:
+            a["client_id"] = gcid
+            if a.get("platform") == "facebook":
+                new_client["page_id"] = str(a.get("id"))
+            elif a.get("platform") == "instagram":
+                new_client["ig_id"] = str(a.get("id"))
+        AGENCY_CLIENTS_STORE.append(new_client)
+    push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
+    push_setting("meta_ai_accounts", ACCOUNTS_STORE)
+    cache["clients"] = AGENCY_CLIENTS_STORE
+    cache["accounts"] = ACCOUNTS_STORE
+    return True
+
 @app.route("/api/accounts", methods=["GET"])
 @auth_guard
 def api_accounts_get():
     sync_from_supabase()
+    heal_orphan_accounts()
     active_id = cache.get("active_account_id", "")
     cid = current_client_id()
     masked = []
@@ -2871,7 +2907,7 @@ def api_set_active_client():
 @app.route("/api/clients", methods=["GET"])
 def api_clients_get():
     sync_from_supabase()
-    ensure_default_clients_grouped()
+    heal_orphan_accounts()
     show_archived = request.args.get("archived") == "true"
     if show_archived:
         return jsonify(AGENCY_CLIENTS_STORE)
