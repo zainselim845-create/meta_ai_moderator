@@ -177,7 +177,7 @@ def verify_signature(payload_bytes, signature_header):
     return hmac.compare_digest(expected_sig, given_sig)
 
 def sync_from_supabase():
-    if time.time() - cache.get("last_sync", 0) < 10:
+    if time.time() - cache.get("last_sync", 0) < 3:
         return
     if SUPABASE_URL and SUPABASE_KEY:
         try:
@@ -200,12 +200,14 @@ def sync_from_supabase():
                         cache["prompt"] = DEFAULT_SYSTEM_PROMPT
                     elif k == "meta_ai_accounts":
                         cache["accounts"] = parsed
-                        if isinstance(parsed, list) and parsed:
-                            ACCOUNTS_STORE[:] = parsed
+                        if isinstance(parsed, list):
+                            ACCOUNTS_STORE.clear()
+                            ACCOUNTS_STORE.extend(parsed)
                     elif k == "meta_ai_clients":
                         cache["clients"] = parsed
-                        if isinstance(parsed, list) and parsed:
-                            AGENCY_CLIENTS_STORE[:] = parsed
+                        if isinstance(parsed, list):
+                            AGENCY_CLIENTS_STORE.clear()
+                            AGENCY_CLIENTS_STORE.extend(parsed)
                     elif k == "meta_ai_bot_enabled":
                         cache["bot_enabled"] = bool(parsed)
                     elif k == "meta_ai_approval_mode":
