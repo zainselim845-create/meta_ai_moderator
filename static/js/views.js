@@ -682,6 +682,25 @@ function openAddAccountModal() {
     }
 }
 
+// Create the client (from the name field) then start Facebook OAuth to discover ALL pages
+async function connectViaOAuth() {
+    const nameEl = document.getElementById('acc-name');
+    const name = nameEl ? nameEl.value.trim() : '';
+    let cid = '';
+    if (name) {
+        try {
+            const r = await fetch('/api/clients', {
+                method: 'POST', credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, company: (document.getElementById('acc-company')||{}).value || ''})
+            });
+            const d = await r.json();
+            cid = d.id || (d.client && d.client.id) || '';
+        } catch(e) {}
+    }
+    window.location.href = '/api/oauth/start' + (cid ? ('?client_id=' + encodeURIComponent(cid)) : '');
+}
+
 function closeAddAccountModal() {
     const modal = document.getElementById('acc-modal');
     if (modal) {
