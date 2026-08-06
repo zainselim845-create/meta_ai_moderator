@@ -444,10 +444,12 @@ async function switchActiveClient(clientId) {
     await fetch('/api/settings/active-client', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: clientId})});
   } catch(e) {}
   // Reload every client-scoped view (now that the switch is committed server-side)
-  if (typeof loadInbox === 'function') await loadInbox(true);
-  if (typeof loadKb === 'function') loadKb();
-  if (typeof loadRules === 'function') loadRules();
-  if (typeof loadAccounts === 'function') loadAccounts();
+  // so ALL brand data changes to the selected client: prompt, KB, rules, inbox, accounts.
+  if (typeof loadSettings === 'function') loadSettings();   // brand AI prompt / business info
+  if (typeof loadKb === 'function') loadKb();                // knowledge base
+  if (typeof loadRules === 'function') loadRules();          // auto-reply rules
+  if (typeof loadAccounts === 'function') loadAccounts();    // connected pages
+  if (typeof loadInbox === 'function') await loadInbox(true);// messages
 }
 
 // AI Sandbox (v-chat)

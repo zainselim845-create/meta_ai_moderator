@@ -214,6 +214,11 @@ def sync_from_supabase():
                         cache["approval_mode"] = str(parsed) if parsed else "auto"
                     elif k == "meta_ai_scheduled_posts":
                         cache["scheduled_posts"] = parsed if isinstance(parsed, list) else []
+                    elif k == "meta_ai_system_prompt":
+                        cache["prompt"] = parsed  # global/default base prompt
+                    elif k.startswith("meta_ai_system_prompt::"):
+                        _pcid = k.split("::", 1)[1]
+                        cache.setdefault("prompts", {})[_pcid] = parsed  # per-client brand prompt
         except Exception as e:
             print(f"[Supabase Sync Exception] {e}")
 
@@ -249,9 +254,18 @@ def get_kb_data():
 def get_rules_data():
     return cache.get("rules", DEFAULT_RULES)
 
+def get_client_prompt(cid):
+    """Return the raw, editable brand prompt for a specific client (no name suffix).
+    Falls back to the global/default prompt if the client has none of its own yet."""
+    prompts = cache.get("prompts") or {}
+    val = prompts.get(cid)
+    if val and str(val).strip():
+        return val
+    return cache.get("prompt", DEFAULT_SYSTEM_PROMPT)
+
 def get_system_prompt(client_id=None):
     cid = client_id or current_client_id()
-    base_prompt = cache.get("prompt", DEFAULT_SYSTEM_PROMPT)
+    base_prompt = get_client_prompt(cid)
     client = next((c for c in AGENCY_CLIENTS_STORE if c.get("id") == cid), None)
     if client and client.get("name"):
         return f"{base_prompt}\n\nÙ…Ù„Ø§Ø­Ø¸Ø©: Ø£Ù†Øª ØªØ¹Ù…Ù„ ÙƒÙ…Ù†Ø³Ù‚ ÙˆØ±Ø§Ø¯ Ø¢Ù„ÙŠ Ù…Ø®ØµØµ Ù„Ù„Ø¹Ù…ÙŠÙ„: {client.get('name')}."
@@ -1991,35 +2005,42 @@ def api_rules_delete(rule_id):
 
 @app.route("/api/prompt", methods=["GET"])
 def api_prompt_get():
-    return jsonify({"prompt": get_system_prompt()})
+    return jsonify({"prompt": get_client_prompt(current_client_id())})
 
 @app.route("/api/prompt", methods=["POST", "PUT"])
 def api_prompt_save():
     data = request.get_json() or {}
     new_prompt = data.get("prompt", "")
-    cache["prompt"] = new_prompt
-    push_setting("meta_ai_system_prompt", new_prompt)
-    return jsonify({"ok": True})
+    cid = current_client_id()
+    cache.setdefault("prompts", {})[cid] = new_prompt
+    push_setting(f"meta_ai_system_prompt::{cid}", new_prompt)
+    return jsonify({"ok": True, "active_client_id": cid})
 
 # --- Settings aliases used by the frontend (app.js) ---
 @app.route("/api/settings", methods=["GET"])
 def api_settings_get():
+    cid = current_client_id()
+    # Return the raw editable brand prompt for THIS client (not name-suffixed),
+    # so switching clients shows each brand's own prompt.
     return jsonify({
-        "prompt": get_system_prompt(),
+        "prompt": get_client_prompt(cid),
         "mode": cache.get("approval_mode", "auto"),
-        "bot_enabled": cache.get("bot_enabled", True)
+        "bot_enabled": cache.get("bot_enabled", True),
+        "active_client_id": cid
     })
 
 @app.route("/api/settings", methods=["POST"])
 def api_settings_save():
     data = request.get_json() or {}
+    cid = current_client_id()
     if "prompt" in data and data.get("prompt") is not None:
-        cache["prompt"] = data["prompt"]
-        push_setting("meta_ai_system_prompt", data["prompt"])
+        # Store the prompt PER-CLIENT so each brand keeps its own voice.
+        cache.setdefault("prompts", {})[cid] = data["prompt"]
+        push_setting(f"meta_ai_system_prompt::{cid}", data["prompt"])
     if "mode" in data and data.get("mode"):
         cache["approval_mode"] = str(data["mode"])
         push_setting("meta_ai_approval_mode", str(data["mode"]))
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "active_client_id": cid})
 
 @app.route("/api/settings/mode", methods=["POST"])
 def api_settings_mode():
