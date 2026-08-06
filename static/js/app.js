@@ -414,11 +414,20 @@ async function switchActiveClient(clientId) {
   try { localStorage.setItem('active_client_id', clientId); } catch(e){}
   if (typeof updateHeaderBadge === 'function') updateHeaderBadge(clientId);
   window.activeClientId = clientId;
+  
+  const hdd = document.getElementById('header-account-select');
   const dd = document.getElementById('active-client-dropdown');
-  if (dd) {
-    const txt = dd.options[dd.selectedIndex]?.text || clientId;
-    showToast('تم التبديل إلى: ' + txt);
+  
+  if (hdd && hdd.value !== clientId) hdd.value = clientId;
+  if (dd && dd.value !== clientId) dd.value = clientId;
+
+  let txt = clientId;
+  if (hdd && hdd.options[hdd.selectedIndex]) {
+      txt = hdd.options[hdd.selectedIndex].text;
+  } else if (dd && dd.options[dd.selectedIndex]) {
+      txt = dd.options[dd.selectedIndex].text;
   }
+  showToast('تم التبديل إلى: ' + txt);
   try {
     await fetch('/api/settings/active-client', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: clientId})});
   } catch(e) {}
