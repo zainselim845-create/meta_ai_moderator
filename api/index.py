@@ -2473,7 +2473,9 @@ def api_accounts_rebuild():
     sync_from_supabase()
     if not PAGE_ACCESS_TOKEN:
         return jsonify({"ok": False, "error": "no system token in env"}), 400
-    discovered = discover_pages(PAGE_ACCESS_TOKEN)  # {pid: {...token, instagram_business_account}}
+    _disc = discover_pages(PAGE_ACCESS_TOKEN)
+    disc_list = _disc if isinstance(_disc, list) else list((_disc or {}).values())
+    discovered = {str(p.get("id")): p for p in disc_list if isinstance(p, dict) and p.get("id")}
     exp = (datetime.now(timezone.utc) + timedelta(days=60)).isoformat()
     rebuilt = []
     by_id = {str(a.get("id")): a for a in ACCOUNTS_STORE}
