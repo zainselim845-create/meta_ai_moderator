@@ -437,33 +437,43 @@ def send_dm_reply(recipient_id, text, access_token=None):
         print(f"[DM Reply Error] {e}")
         return False, str(e)
 
-def send_comment_reply(comment_id, text, access_token=None):
+def send_comment_reply(comment_id, text, access_token=None, is_ig=None):
+    """Public reply under a comment. FB → /{id}/comments, IG → /{id}/replies.
+    Tries the platform edge first, falls back to the other. Returns (ok, detail)."""
     tok = access_token or PAGE_ACCESS_TOKEN
+    edges = (["replies", "comments"] if is_ig else ["comments", "replies"])
+    last = ""
     try:
-        res = requests.post(f"{GRAPH_URL}/{comment_id}/replies", params={"access_token": tok},
-            json={"message": text}, timeout=5)
-        print(f"[Instagram Comment Reply] {res.status_code}")
-        if res.status_code != 200:
-            res2 = requests.post(f"{GRAPH_URL}/{comment_id}/comments", params={"access_token": tok},
-                json={"message": text}, timeout=5)
-            print(f"[FB Comment Reply] {res2.status_code}")
+        for edge in edges:
+            res = requests.post(f"{GRAPH_URL}/{comment_id}/{edge}", params={"access_token": tok},
+                json={"message": text}, timeout=12)
+            print(f"[Comment Reply /{edge}] {res.status_code} {res.text[:120]}")
+            if res.status_code == 200:
+                return True, res.text[:150]
+            last = res.text[:150]
+        return False, last
     except Exception as e:
         print(f"[Comment Reply Error] {e}")
+        return False, str(e)
 
 def send_private_comment_reply(comment_id, text, access_token=None):
+    """Private (DM) reply to the comment's author. Returns (ok, detail)."""
     tok = access_token or PAGE_ACCESS_TOKEN
     try:
-        # First try Instagram Private Reply format via /me/messages
+        # Instagram private reply via /me/messages with recipient.comment_id
         res = requests.post(f"{GRAPH_URL}/me/messages", params={"access_token": tok},
-            json={"recipient": {"comment_id": comment_id}, "message": {"text": text}}, timeout=5)
-        print(f"[Private Reply IG /me/messages] {res.status_code}")
-        if res.status_code != 200:
-            # Fallback to Facebook /private_replies
-            res2 = requests.post(f"{GRAPH_URL}/{comment_id}/private_replies", params={"access_token": tok},
-                json={"message": text}, timeout=5)
-            print(f"[Private Reply FB /private_replies] {res2.status_code}")
+            json={"recipient": {"comment_id": comment_id}, "message": {"text": text}}, timeout=12)
+        print(f"[Private Reply /me/messages] {res.status_code} {res.text[:120]}")
+        if res.status_code == 200:
+            return True, res.text[:150]
+        # Fallback to Facebook /private_replies
+        res2 = requests.post(f"{GRAPH_URL}/{comment_id}/private_replies", params={"access_token": tok},
+            json={"message": text}, timeout=12)
+        print(f"[Private Reply /private_replies] {res2.status_code} {res2.text[:120]}")
+        return (res2.status_code == 200), res2.text[:150]
     except Exception as e:
         print(f"[Private Reply Error] {e}")
+        return False, str(e)
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static')
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
@@ -1438,8 +1448,11 @@ def api_send_reply():
     is_comment = thread_id.startswith("ig_comment_") or thread_id.startswith("fb_comment_")
     comment_id = thread_id.replace("ig_comment_", "").replace("fb_comment_", "") if is_comment else None
 
-    # Get account access token for current client
-    client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid or not a.get("client_id")]
+    # Get account access token for THIS client only (strict — no cross-client fallback)
+    is_ig = thread_id.startswith("ig_comment_") or (isinstance(convo, dict) and convo.get("platform") == "instagram")
+    client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid]
+    # Prefer the account matching the thread's platform so the token can actually send here
+    client_accounts.sort(key=lambda a: 0 if (a.get("platform") == ("instagram" if is_ig else "facebook")) else 1)
     token = PAGE_ACCESS_TOKEN
     for a in client_accounts:
         if a.get("access_token_enc"):
@@ -1468,9 +1481,17 @@ def api_send_reply():
 
     try:
         if is_comment and reply_mode == "public":
-            # Public reply under post comment
-            url = f"{GRAPH_URL}/{comment_id}/replies"
+            # Public reply under the comment. Facebook uses /{comment}/comments,
+            # Instagram uses /{comment}/replies — route to the correct one.
+            _is_ig_comment = thread_id.startswith("ig_comment_")
+            url = f"{GRAPH_URL}/{comment_id}/{'replies' if _is_ig_comment else 'comments'}"
             res = requests.post(url, params={"access_token": token}, data={"message": text}, timeout=15)
+            # Fallback to the other edge if Meta rejects the first form
+            if res.status_code >= 400:
+                alt = f"{GRAPH_URL}/{comment_id}/{'comments' if _is_ig_comment else 'replies'}"
+                res_alt = requests.post(alt, params={"access_token": token}, data={"message": text}, timeout=15)
+                if res_alt.status_code < 400:
+                    res = res_alt
             res_data = {}
             try:
                 res_data = res.json()
@@ -1574,56 +1595,6 @@ def api_send_reply():
 @app.route("/api/stats")
 def api_stats():
     sync_from_supabase()
-    all_threads = []
-    # 4. Fetch Facebook Page Post Comments (up to 25 posts)
-    try:
-        res = requests.get(
-            f"{GRAPH_URL}/{fb_page_id}/published_posts?fields=id,message,created_time,permalink_url,comments.limit(50){{id,message,from,created_time}}&limit=25&access_token={PAGE_ACCESS_TOKEN}",
-            timeout=12
-        )
-        if res.status_code == 200:
-            posts_data = res.json().get("data", [])
-            for post in posts_data:
-                comments_list = post.get("comments", {}).get("data", [])
-                if not comments_list:
-                    continue
-                post_msg = (post.get("message") or "")[:50]
-                permalink = post.get("permalink_url", "")
-                post_time = post.get("created_time", "")
-                
-                for comment in comments_list:
-                    c_id = comment.get("id")
-                    c_text = comment.get("message", "")
-                    c_from = comment.get("from", {})
-                    c_user = c_from.get("name", "Ø¹Ù…ÙŠÙ„ ÙÙŠØ³Ø¨ÙˆÙƒ")
-                    c_user_id = c_from.get("id")
-                    c_time = comment.get("created_time", post_time)
-                    
-                    all_threads.append({
-                        "id": f"fb_comment_{c_id}",
-                        "type": "facebook",
-                        "channel": CHANNEL_FB_COMMENT,
-                        "platform": "facebook",
-                        "is_comment": True,
-                        "comment_id": c_id,
-                        "sender": f" {c_user}",
-                        "sender_name": f" {c_user}",
-                        "cust_id": c_user_id or c_id,
-                        "customer_id": c_user_id or c_id,
-                        "unread": 1,
-                        "updated_time": c_time,
-                        "timestamp": c_time,
-                        "last_msg": c_text,
-                        "snippet": c_text if c_text.strip() else (" Ù…Ø±ÙÙ‚" if comment.get("attachment") else "(ØªØ¹Ù„ÙŠÙ‚ Ø¨Ø¯ÙˆÙ† Ù†Øµ)"),
-                        "permalink": permalink,
-                        "post_caption": post_msg,
-                        "messages": [
-                            {"id": c_id, "text": c_text, "message": c_text, "is_page": False, "sender_name": c_user, "created_time": c_time, "time": c_time},
-                        ]
-                    })
-    except Exception as e:
-        print(f"[Facebook Comments Error] {e}")
-
     cid = current_client_id()
     pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") or cid) == cid]
     client_log = [e for e in activity_log if (e.get("client_id") or cid) == cid]
