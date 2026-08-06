@@ -2809,6 +2809,26 @@ def api_meta_diagnose():
             except Exception as e:
                 probe[label] = f"EXC {e}"
         _count("fb_messenger", f"{GRAPH_URL}/{pid}/conversations?platform=messenger&fields=id,snippet&limit=25&access_token={ptok}")
+        # SAFE send-capability probe: attempt a FB Messenger send to a bogus recipient.
+        # Nobody receives anything. We only read Meta's error to tell apart:
+        #   (#3) capability  -> sending blocked (needs App Review / Live)
+        #   #100 invalid recipient / user-not-found -> sending WORKS, just needs a real PSID
+        try:
+            sp = requests.post(f"{GRAPH_URL}/me/messages", params={"access_token": ptok},
+                               json={"recipient": {"id": "000000000000000"}, "messaging_type": "RESPONSE",
+                                     "message": {"text": "capability probe"}}, timeout=10)
+            _err = (sp.json().get("error") or {}) if sp.headers.get("content-type","").startswith("application/json") else {}
+            probe["fb_dm_send_probe"] = {
+                "status": sp.status_code,
+                "code": _err.get("code"),
+                "subcode": _err.get("error_subcode"),
+                "msg": (_err.get("message") or sp.text)[:160],
+                "verdict": ("BLOCKED_#3_needs_live" if _err.get("code") == 3
+                            else "SEND_OK_needs_real_recipient" if _err.get("code") in (100, 551, 10) or sp.status_code == 200
+                            else "unknown")
+            }
+        except Exception as e:
+            probe["fb_dm_send_probe"] = f"EXC {e}"
         # IG DM â€” try both page-scoped and IG-user-scoped endpoints
         try:
             r = requests.get(f"{GRAPH_URL}/{pid}/conversations?platform=instagram&fields=id&limit=10&access_token={ptok}", timeout=10)
