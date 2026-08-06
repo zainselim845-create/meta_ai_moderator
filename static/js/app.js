@@ -360,7 +360,16 @@ async function populateAccountSwitcher() {
     if (dd) dd.innerHTML = opts || '<option value="">لا يوجد عملاء</option>';
 
     const hdr = document.getElementById('header-account-select');
-    if (hdr) hdr.innerHTML = '<option value="__all__">🌐 جميع العملاء (الكل)</option>' + opts;
+    if (hdr) hdr.innerHTML = opts || '<option value="">لا يوجد عملاء</option>';
+
+    // No "all clients" view — always keep a single client active. If none is
+    // selected yet, default to the first client so the inbox is never mixed.
+    if (!window.activeClientId && list.length) {
+      const first = list[0].id;
+      if (hdr) hdr.value = first;
+      if (dd) dd.value = first;
+      switchActiveClient(first);
+    }
 
     updateHeaderBadge(window.activeClientId);
   } catch(e) {}

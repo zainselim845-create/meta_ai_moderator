@@ -111,15 +111,19 @@ async function loadAccounts(){
         // Populate Header Account Switcher — grouped by client
         const headerSelect = document.getElementById('header-account-select');
         if (headerSelect) {
-            let selectHtml = `<option value="">🌐 جميع العملاء (الكل)</option>`;
+            let selectHtml = '';
             clientsList.forEach(c => {
                 const fbOk = c.fb_connected ? '🔵' : '⚪';
                 const igOk = c.ig_connected ? '🟣' : '⚪';
                 selectHtml += `<option value="${esc(c.id)}">${fbOk}${igOk} ${esc(c.name)}</option>`;
             });
-            headerSelect.innerHTML = selectHtml;
+            headerSelect.innerHTML = selectHtml || '<option value="">لا يوجد عملاء</option>';
             const savedAct = localStorage.getItem('active_client_id');
-            if (savedAct) headerSelect.value = savedAct;
+            if (savedAct && clientsList.some(c => c.id === savedAct)) {
+                headerSelect.value = savedAct;
+            } else if (clientsList.length) {
+                headerSelect.value = clientsList[0].id;
+            }
         }
 
         const grid = document.getElementById('accounts-full-list') || document.getElementById('v-accounts');
