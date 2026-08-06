@@ -869,7 +869,7 @@ def api_conversations():
         sync_from_supabase()
     
     # Get active client tokens
-    client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid or not a.get("client_id")]
+    client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid]
 
     # Optional: filter the inbox to a single connected account (header account switcher)
     filter_account_id = request.args.get("account_id", "").strip()
@@ -944,6 +944,9 @@ def api_conversations():
 
     # Build the full list of pages to pull from (all pages the token can see + attached accounts),
     # so the inbox shows conversations from EVERY connected page â€” not just the first one.
+    # Build the pages to pull STRICTLY from the ACTIVE CLIENT's own connected pages,
+    # using each page's stored page token. Never fall back to the default Domya page —
+    # that was the bug that made every client show Domya's messages.
     pages_to_pull = []
     _seen_pids = set()
     def _add_page(pid, ptok, igid, igtok):
@@ -952,21 +955,26 @@ def api_conversations():
             return
         _seen_pids.add(pid)
         pages_to_pull.append({"fb_page_id": pid, "fb_token": ptok, "ig_id": str(igid or ""), "ig_token": igtok or ptok})
-    _add_page(fb_page_id, fb_token, ig_id, ig_token)
-    try:
-        _acc = requests.get(f"{GRAPH_URL}/me/accounts?fields=id,access_token,instagram_business_account{{id}}&limit=100&access_token={PAGE_ACCESS_TOKEN}", timeout=15)
-        if _acc.status_code == 200:
-            for _pg in _acc.json().get("data", []):
-                _add_page(_pg.get("id"), _pg.get("access_token"), (_pg.get("instagram_business_account") or {}).get("id"), _pg.get("access_token"))
-    except Exception as _e:
-        print(f"[MultiPage accounts] {_e}")
     for _a in client_accounts:
         if _a.get("platform") == "facebook":
             _t = decrypt(_a["access_token_enc"]) if _a.get("access_token_enc") else _a.get("access_token")
-            if _t and len(_t) > 20:
-                _add_page(_a.get("id"), _t, _a.get("ig_id"), _t)
-    if not pages_to_pull:
-        pages_to_pull.append({"fb_page_id": fb_page_id, "fb_token": fb_token, "ig_id": ig_id, "ig_token": ig_token})
+            if not (_t and len(_t) > 20):
+                continue
+            _pid = str(_a.get("id"))
+            _igid = _a.get("ig_id")
+            # If the stored token is a System User token, resolve THIS page's own page token
+            if _pid.isdigit():
+                try:
+                    _acc = requests.get(f"{GRAPH_URL}/me/accounts?fields=id,access_token,instagram_business_account{{id}}&limit=100&access_token={_t}", timeout=12)
+                    if _acc.status_code == 200:
+                        for _pg in _acc.json().get("data", []):
+                            if str(_pg.get("id")) == _pid and _pg.get("access_token"):
+                                _t = _pg["access_token"]
+                                _igid = _igid or (_pg.get("instagram_business_account") or {}).get("id")
+                                break
+                except Exception:
+                    pass
+            _add_page(_pid, _t, _igid, _t)
 
     # 1. Fetch Messenger Threads from EVERY page (up to 100 each)
     for _pg in pages_to_pull:

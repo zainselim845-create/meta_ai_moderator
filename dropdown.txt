@@ -1,0 +1,3 @@
+<select class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer" id="header-account-select" onchange="switchActiveClient(this.value)">
+         <option value="">🌐 جميع العملاء (الكل)</option>
+        </select>
