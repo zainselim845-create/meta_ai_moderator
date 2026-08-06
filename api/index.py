@@ -2038,9 +2038,10 @@ def webhook_event():
                         pending_approvals.append(draft_entry)
                         push_setting("meta_ai_pending", pending_approvals)
                         stats["pending"] = len([p for p in pending_approvals if p["status"] == "pending"])
-                    else:
-                        send_dm_reply(sender_id, reply, access_token=webhook_token)
-                        log_event("dm", sender_id, text, reply)
+                    elif reply:
+                        ok, detail = send_dm_reply(sender_id, reply, access_token=webhook_token)
+                        print(f"[Auto-Send DM] client={_acct_cid} ok={ok} {str(detail)[:120]}")
+                        log_event("dm", sender_id, text, reply, client_id=_acct_cid)
 
         if "changes" in entry and isinstance(entry["changes"], list):
             for change in entry["changes"]:
@@ -2077,9 +2078,10 @@ def webhook_event():
                             pending_approvals.append(draft_entry)
                             push_setting("meta_ai_pending", pending_approvals)
                             stats["pending"] = len([p for p in pending_approvals if p["status"] == "pending"])
-                        else:
-                            send_dm_reply(sender_id, reply, access_token=webhook_token)
-                            log_event("dm", sender_id, text, reply)
+                        elif reply:
+                            ok, detail = send_dm_reply(sender_id, reply, access_token=webhook_token)
+                            print(f"[Auto-Send IG-DM] client={_acct_cid} ok={ok} {str(detail)[:120]}")
+                            log_event("dm", sender_id, text, reply, client_id=_acct_cid)
                         continue
 
                 is_comment = (val.get("item") == "comment" and val.get("verb") == "add") or field == "comments" or (field == "feed" and val.get("item", "comment") == "comment")
@@ -2114,13 +2116,13 @@ def webhook_event():
                             pending_approvals.append(draft_entry)
                             push_setting("meta_ai_pending", pending_approvals)
                             stats["pending"] = len([p for p in pending_approvals if p["status"] == "pending"])
-                        else:
+                        elif pub_reply:
                             send_comment_reply(comment_id, pub_reply, access_token=webhook_token)
                             if priv_reply:
                                 send_private_comment_reply(comment_id, priv_reply, access_token=webhook_token)
-                                log_event("comment", sender, text, pub_reply, private_reply=priv_reply)
+                                log_event("comment", sender, text, pub_reply, private_reply=priv_reply, client_id=_acct_cid)
                             else:
-                                log_event("comment", sender, text, pub_reply)
+                                log_event("comment", sender, text, pub_reply, client_id=_acct_cid)
 
     return "EVENT_RECEIVED", 200
 
