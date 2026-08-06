@@ -219,6 +219,8 @@ def sync_from_supabase():
                     elif k.startswith("meta_ai_system_prompt::"):
                         _pcid = k.split("::", 1)[1]
                         cache.setdefault("prompts", {})[_pcid] = parsed  # per-client brand prompt
+                    elif k == "meta_ai_client_modes" and isinstance(parsed, dict):
+                        cache["client_modes"] = parsed  # per-client auto/manual reply mode
         except Exception as e:
             print(f"[Supabase Sync Exception] {e}")
 
@@ -262,6 +264,15 @@ def get_client_prompt(cid):
     if val and str(val).strip():
         return val
     return cache.get("prompt", DEFAULT_SYSTEM_PROMPT)
+
+def get_client_mode(cid):
+    """Return the auto/manual reply mode for a specific client.
+    Falls back to the global approval_mode when the client has no explicit setting."""
+    modes = cache.get("client_modes") or {}
+    m = modes.get(cid)
+    if m in ("auto", "manual"):
+        return m
+    return cache.get("approval_mode", "auto")
 
 def get_system_prompt(client_id=None):
     cid = client_id or current_client_id()
@@ -2050,6 +2061,43 @@ def api_settings_mode():
     push_setting("meta_ai_approval_mode", mode)
     return jsonify({"ok": True, "approval_mode": mode})
 
+# ---- Per-client auto/manual reply modes (control ALL clients from one panel) ----
+@app.route("/api/reply-modes", methods=["GET"])
+def api_reply_modes_get():
+    if not AGENCY_CLIENTS_STORE:
+        sync_from_supabase()
+    items = []
+    for c in AGENCY_CLIENTS_STORE:
+        cid = c.get("id")
+        items.append({
+            "client_id": cid,
+            "name": c.get("name") or c.get("company") or cid,
+            "fb_connected": bool(c.get("fb_connected")),
+            "ig_connected": bool(c.get("ig_connected")),
+            "mode": get_client_mode(cid),
+        })
+    return jsonify({"clients": items, "global_mode": cache.get("approval_mode", "auto")})
+
+@app.route("/api/reply-modes", methods=["POST"])
+def api_reply_modes_set():
+    data = request.get_json() or {}
+    mode = str(data.get("mode", "auto"))
+    if mode not in ("auto", "manual"):
+        return jsonify({"ok": False, "error": "bad mode"}), 400
+    modes = cache.get("client_modes") or {}
+    if data.get("all"):
+        # Apply to every known client at once (turn all on/off)
+        for c in AGENCY_CLIENTS_STORE:
+            modes[c.get("id")] = mode
+    else:
+        cid = data.get("client_id")
+        if not cid:
+            return jsonify({"ok": False, "error": "client_id required"}), 400
+        modes[cid] = mode
+    cache["client_modes"] = modes
+    push_setting("meta_ai_client_modes", modes)
+    return jsonify({"ok": True, "client_modes": modes})
+
 @app.route("/api/test", methods=["POST"])
 def api_test():
     data = request.get_json() or {}
@@ -2168,8 +2216,10 @@ def webhook_event():
             except Exception as _ex:
                 print(f"[Webhook Token Exchange Error] {_ex}")
 
-        # Per-account auto/manual control (falls back to global mode)
-        global_mode = approval_mode or cache.get("approval_mode", "auto")
+        # Per-client auto/manual control: use the mode of the client that owns this
+        # page/account, then per-account overrides, then the global mode as last resort.
+        _acct_cid = (matched_acct or {}).get("client_id")
+        global_mode = get_client_mode(_acct_cid) if _acct_cid else (approval_mode or cache.get("approval_mode", "auto"))
         acct_dm = (matched_acct or {}).get("dm_mode")
         acct_cm = (matched_acct or {}).get("comment_mode")
         

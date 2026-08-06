@@ -127,6 +127,7 @@ function go(id, el) {
     if (cleanId === 'analytics' && typeof loadAnalytics === 'function') loadAnalytics();
     if (cleanId === 'logs' && typeof loadLogs === 'function') loadLogs();
     if (cleanId === 'settings' && typeof loadSettings === 'function') loadSettings();
+    if (cleanId === 'mode' && typeof loadReplyModes === 'function') loadReplyModes();
 
     initLucideIcons();
   } catch (e) {
@@ -341,6 +342,60 @@ function setApprovalMode(mode) {
   if (sel) sel.value = mode;
   fetch('/api/settings/mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode})}).catch(()=>{});
   showToast(mode === 'auto' ? 'تم تفعيل الرد التلقائي الفوري ⚡' : 'تم تفعيل وضع المراجعة البشرية 👨‍💼');
+}
+
+// ---- Per-client auto/manual reply-mode panel (v-mode) ----
+async function loadReplyModes() {
+  const box = document.getElementById('reply-modes-list');
+  if (!box) return;
+  box.innerHTML = '<div class="p-4 text-center text-xs text-slate-400">جارِ التحميل...</div>';
+  try {
+    const res = await fetch('/api/reply-modes');
+    const d = await res.json();
+    const list = d.clients || [];
+    if (!list.length) {
+      box.innerHTML = '<div class="p-4 text-center text-xs text-slate-500">لا يوجد عملاء بعد. أضف عميلاً أولاً.</div>';
+      return;
+    }
+    box.innerHTML = list.map(c => {
+      const on = c.mode === 'auto';
+      const ch = (c.fb_connected ? '🔵' : '⚪') + (c.ig_connected ? '🟣' : '⚪');
+      return `
+        <div class="flex items-center justify-between gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-sm">${ch}</div>
+            <div class="min-w-0">
+              <div class="font-bold text-sm text-slate-900 truncate">${esc(c.name)}</div>
+              <div class="text-[11px] ${on ? 'text-blue-600' : 'text-slate-500'} font-bold">${on ? '⚡ رد آلي فوري' : '👨‍💼 مراجعة يدوية'}</div>
+            </div>
+          </div>
+          <button onclick="toggleReplyMode('${esc(c.client_id)}', '${on ? 'manual' : 'auto'}')"
+            class="relative w-14 h-7 rounded-full transition-colors flex-shrink-0 ${on ? 'bg-blue-600' : 'bg-slate-300'}"
+            title="${on ? 'إيقاف الرد الآلي' : 'تشغيل الرد الآلي'}">
+            <span class="absolute top-0.5 ${on ? 'right-0.5' : 'left-0.5'} w-6 h-6 bg-white rounded-full shadow transition-all"></span>
+          </button>
+        </div>`;
+    }).join('');
+    if (window.lucide) lucide.createIcons();
+  } catch(e) {
+    box.innerHTML = '<div class="p-4 text-center text-xs text-red-500">تعذر تحميل القائمة</div>';
+  }
+}
+
+async function toggleReplyMode(clientId, mode) {
+  try {
+    await fetch('/api/reply-modes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: clientId, mode})});
+    showToast(mode === 'auto' ? 'تم فتح الرد الآلي لهذا العميل ⚡' : 'تم قفل الرد الآلي لهذا العميل 👨‍💼');
+    loadReplyModes();
+  } catch(e) { showToast('تعذر تغيير الوضع', 'error'); }
+}
+
+async function setAllReplyModes(mode) {
+  try {
+    await fetch('/api/reply-modes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({all: true, mode})});
+    showToast(mode === 'auto' ? 'تم فتح الرد الآلي لكل العملاء ⚡' : 'تم قفل الرد الآلي لكل العملاء 👨‍💼');
+    loadReplyModes();
+  } catch(e) { showToast('تعذر تطبيق الوضع على الكل', 'error'); }
 }
 
 // Populate the client switchers (header + CRM). Each client = one workspace (FB + IG grouped).
