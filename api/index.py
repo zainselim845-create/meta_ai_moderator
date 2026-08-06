@@ -463,11 +463,15 @@ def current_client_id():
         # No request context; fallback to default client identifier
         return "client_default"
     cid = session.get("active_client_id")
-    if cid and any(c.get("id") == cid and c.get("is_active", True) for c in AGENCY_CLIENTS_STORE):
+    # Trust the user's selection even if this serverless instance hasn't synced the
+    # client list yet — otherwise valid clients get rejected and wrongly fall back to
+    # the first client (which showed every client the same page's messages).
+    if cid:
         return cid
     nxt = next((c.get("id") for c in AGENCY_CLIENTS_STORE if c.get("is_active", True)), "client_default")
-    session["active_client_id"] = nxt
-    session.modified = True
+    if nxt and nxt != "client_default":
+        session["active_client_id"] = nxt
+        session.modified = True
     return nxt
 
 # ============================================================
