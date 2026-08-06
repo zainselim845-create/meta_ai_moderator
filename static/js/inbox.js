@@ -90,6 +90,13 @@ var FALLBACK_INBOX_THREADS = [
 ];
 
 async function loadInbox(force=false){
+    // On a forced reload (client/account switch) drop the currently-open thread so the
+    // right-hand panel doesn't stay stuck on the previous client's conversation.
+    if (force) {
+        activeInboxItem = null;
+        const conv = document.getElementById('conversation-messages') || document.getElementById('inbox-messages');
+        if (conv) conv.innerHTML = '';
+    }
     try {
         const acctFilter = window.activeAccountFilter ? '&account_id=' + encodeURIComponent(window.activeAccountFilter) : '';
         const url = (force ? '/api/conversations?force=true' : '/api/conversations?_=1') + acctFilter;

@@ -396,7 +396,7 @@ async function switchActiveAccount(accId) {
     await fetch('/api/accounts/select', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: accId, account_id: accId})});
     showToast('تم التبديل للحساب المحدد');
   } catch(e) {}
-  if (typeof loadInbox === 'function') loadInbox(true);
+  if (typeof loadInbox === 'function') await loadInbox(true);
 }
 
 // Switch the active client — this changes EVERYTHING (KB, rules, prompt, inbox, accounts)
@@ -428,11 +428,14 @@ async function switchActiveClient(clientId) {
       txt = dd.options[dd.selectedIndex].text;
   }
   showToast('تم التبديل إلى: ' + txt);
+  // IMPORTANT: wait for the server to actually switch the active client BEFORE
+  // reloading any view — otherwise loadInbox() races the switch and fetches the
+  // previous client's data (stuck on old page until a manual reload).
   try {
     await fetch('/api/settings/active-client', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: clientId})});
   } catch(e) {}
-  // Reload every client-scoped view
-  if (typeof loadInbox === 'function') loadInbox(true);
+  // Reload every client-scoped view (now that the switch is committed server-side)
+  if (typeof loadInbox === 'function') await loadInbox(true);
   if (typeof loadKb === 'function') loadKb();
   if (typeof loadRules === 'function') loadRules();
   if (typeof loadAccounts === 'function') loadAccounts();
