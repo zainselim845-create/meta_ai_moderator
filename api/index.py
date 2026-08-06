@@ -1095,11 +1095,16 @@ def api_conversations():
             except Exception as e:
                 print(f"[Instagram Comments Error] {e}")
 
-        # 4. Facebook page post comments
+        # 4. Facebook page post comments — use /feed (published_posts misses many posts and
+        # can return empty; /feed reliably includes the page timeline + their comments).
         try:
             res = requests.get(
-                f"{GRAPH_URL}/{p_fb_page_id}/published_posts?fields=id,message,created_time,permalink_url,comments.limit(30){{id,message,from,created_time}}&limit=50&access_token={p_fb_token}",
+                f"{GRAPH_URL}/{p_fb_page_id}/feed?fields=id,message,created_time,permalink_url,comments.limit(30){{id,message,from,created_time}}&limit=50&access_token={p_fb_token}",
                 timeout=12)
+            if res.status_code != 200:
+                res = requests.get(
+                    f"{GRAPH_URL}/{p_fb_page_id}/published_posts?fields=id,message,created_time,permalink_url,comments.limit(30){{id,message,from,created_time}}&limit=50&access_token={p_fb_token}",
+                    timeout=12)
             if res.status_code == 200:
                 for post in res.json().get("data", []):
                     comments_list = post.get("comments", {}).get("data", [])

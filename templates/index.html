@@ -16,7 +16,7 @@
   </script>
   <script src="https://unpkg.com/lucide@latest">
   </script>
-  <link href="/static/css/styles.css?v=4.3" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=4.4" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -179,6 +179,11 @@
         <span>
          محادثات الإنبوكس
         </span>
+        <button id="inbox-sync-btn" onclick="syncInbox()" title="تحديث الآن (سحب أحدث الرسائل والتعليقات)"
+          class="ml-1 text-xs px-2 py-1 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 inline-flex items-center gap-1">
+         <i class="w-3.5 h-3.5" data-lucide="refresh-cw" id="inbox-sync-icon"></i>
+         <span>تحديث</span>
+        </button>
        </h3>
        <div class="flex items-center gap-1 flex-wrap">
         <button class="text-xs px-2 py-1 rounded-lg bg-blue-600 text-white font-bold" id="filter-all" onclick="setInboxFilter('all')">
@@ -1241,15 +1246,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=4.3">
+  <script src="/static/js/app.js?v=4.4">
   </script>
-  <script src="/static/js/inbox.js?v=4.3">
+  <script src="/static/js/inbox.js?v=4.4">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=4.3">
+  <script src="/static/js/chatwoot_free.js?v=4.4">
   </script>
-  <script src="/static/js/views.js?v=4.3">
+  <script src="/static/js/views.js?v=4.4">
   </script>
-  <script src="/static/js/clients.js?v=4.3">
+  <script src="/static/js/clients.js?v=4.4">
   </script>
  
   <!-- Modal: Add New Connected Account -->

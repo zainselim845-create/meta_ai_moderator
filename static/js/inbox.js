@@ -89,6 +89,23 @@ var FALLBACK_INBOX_THREADS = [
     }
 ];
 
+// Manual sync: force-pull the freshest messages + comments for the active client.
+async function syncInbox(){
+    const icon = document.getElementById('inbox-sync-icon');
+    const btn = document.getElementById('inbox-sync-btn');
+    if (icon) icon.classList.add('animate-spin');
+    if (btn) btn.disabled = true;
+    try {
+        await loadInbox(true);
+        showToast('تم تحديث الإنبوكس ✅');
+    } catch(e) {
+        showToast('تعذّر التحديث', 'error');
+    } finally {
+        if (icon) icon.classList.remove('animate-spin');
+        if (btn) btn.disabled = false;
+    }
+}
+
 async function loadInbox(force=false){
     // On a forced reload (client/account switch) drop the currently-open thread so the
     // right-hand panel doesn't stay stuck on the previous client's conversation.
