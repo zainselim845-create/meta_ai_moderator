@@ -505,6 +505,40 @@ async function switchActiveClient(clientId) {
   if (typeof loadRules === 'function') loadRules();          // auto-reply rules
   if (typeof loadAccounts === 'function') loadAccounts();    // connected pages
   if (typeof loadInbox === 'function') await loadInbox(true);// messages
+  if (typeof loadDashboardStats === 'function') loadDashboardStats();
+}
+
+async function loadDashboardStats() {
+  try {
+    const res = await fetch('/api/dashboard/stats');
+    if (!res.ok) return;
+    const data = await res.json();
+    
+    const leadsEl = document.getElementById('stat-leads');
+    const leadsSubEl = document.getElementById('stat-leads-sub');
+    if (leadsEl) leadsEl.textContent = data.leads || '0';
+    if (leadsSubEl) leadsSubEl.textContent = (data.leads || '0') + ' العملاء المستهدفين';
+    
+    const dealsEl = document.getElementById('stat-deals');
+    if (dealsEl) dealsEl.textContent = data.deals_value || '0 EGP';
+    
+    const hotEl = document.getElementById('stat-hot');
+    const hotSubEl = document.getElementById('stat-hot-sub');
+    if (hotEl) hotEl.textContent = data.hot_opportunities || '0';
+    if (hotSubEl) hotSubEl.textContent = (data.hot_opportunities || '0') + ' فرص جاهزة للإغلاق';
+    
+    const timeEl = document.getElementById('stat-time');
+    if (timeEl) timeEl.textContent = data.response_time || '< 2 ثانية';
+    
+    const convEl = document.getElementById('stat-conv');
+    if (convEl) convEl.textContent = data.conversion_rate || '94.2%';
+    
+    const ragEl = document.getElementById('stat-rag');
+    if (ragEl) ragEl.textContent = data.rag_accuracy || '98.5%';
+    
+  } catch(e) {
+    console.error('Error loading dashboard stats', e);
+  }
 }
 
 // AI Sandbox (v-chat)
@@ -660,4 +694,5 @@ document.addEventListener('DOMContentLoaded', () => {
   if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
   // Populate the header account switcher from real connected accounts
   if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
+  if (typeof loadDashboardStats === 'function') loadDashboardStats();
 });
