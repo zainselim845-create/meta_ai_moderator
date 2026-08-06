@@ -1032,7 +1032,9 @@ def api_conversations():
     # 2-4. Instagram DMs, Instagram comments, and Facebook comments — STRICTLY per the
     # active client's own pages (each with its own page token). Nothing is pulled when the
     # client has no connected pages, so an empty client shows an empty inbox (never Domya).
+    globals()['_fbc_dbg'] = {"pages_to_pull": len(pages_to_pull), "loop2_ran": False}
     for _pg in pages_to_pull:
+        globals()['_fbc_dbg']["loop2_ran"] = True
         p_fb_page_id = _pg["fb_page_id"]; p_fb_token = _pg["fb_token"]
         p_ig_id = str(_pg.get("ig_id") or ""); p_ig_token = _pg.get("ig_token") or p_fb_token
 
@@ -1105,8 +1107,9 @@ def api_conversations():
             res = requests.get(
                 f"{GRAPH_URL}/{p_fb_page_id}/feed?fields=id,message,created_time,permalink_url,comments.limit(50){{id,message,created_time}}&limit=50&access_token={p_fb_token}",
                 timeout=12)
-            globals()['_fbc_dbg'] = {"status": res.status_code,
-                "with_comments": sum(1 for p in res.json().get("data", []) if p.get("comments")) if res.status_code==200 else res.text[:150]}
+            globals()['_fbc_dbg']["sec4"] = {"status": res.status_code,
+                "posts": len(res.json().get("data", [])) if res.status_code==200 else res.text[:150],
+                "with_comments": sum(1 for p in res.json().get("data", []) if p.get("comments")) if res.status_code==200 else None}
             if res.status_code == 200:
                 for post in res.json().get("data", []):
                     comments_list = post.get("comments", {}).get("data", [])
