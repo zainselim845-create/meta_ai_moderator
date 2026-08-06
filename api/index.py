@@ -1100,7 +1100,7 @@ def api_conversations():
             print(f"[Facebook Comments Error] {e}")
 
     cid = current_client_id()
-    pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") == cid or not p.get("client_id"))]
+    pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") or cid) == cid]
     
     draft_threads = []
     for item in pending:
@@ -1625,12 +1625,15 @@ def api_stats():
         print(f"[Facebook Comments Error] {e}")
 
     cid = current_client_id()
-    pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") == cid or not p.get("client_id"))]
-    return jsonify({"stats": stats, "log": activity_log[-20:], "pending": pending,
-                    "kb_count": len(get_kb_data()), "rules_count": len(get_rules_data()),
+    pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") or cid) == cid]
+    client_log = [e for e in activity_log if (e.get("client_id") or cid) == cid]
+    client_kb = [k for k in get_kb_data() if (k.get("client_id") or "client_default") == cid]
+    client_rules = [r for r in get_rules_data() if (r.get("client_id") or "client_default") == cid]
+    return jsonify({"stats": stats, "log": client_log[-20:], "pending": pending,
+                    "kb_count": len(client_kb), "rules_count": len(client_rules),
                     "ai_active": bool(GROQ_API_KEY or OPENROUTER_API_KEY),
                     "bot_enabled": cache.get("bot_enabled", True),
-                    "approval_mode": cache.get("approval_mode", "auto"),
+                    "approval_mode": get_client_mode(cid),
                     "supabase_active": True})
 
 @app.route("/api/toggle", methods=["POST"])
@@ -2021,6 +2024,7 @@ def webhook_event():
                     if dm_mode == "manual":
                         draft_entry = {
                             "id": int(time.time()*1000),
+                            "client_id": _acct_cid,
                             "type": "dm",
                             "platform": "facebook",
                             "sender": sender_id,
@@ -2059,6 +2063,7 @@ def webhook_event():
                         if dm_mode == "manual":
                             draft_entry = {
                                 "id": int(time.time()*1000),
+                            "client_id": _acct_cid,
                                 "type": "dm",
                                 "platform": "instagram",
                                 "sender": sender_id,
@@ -2096,6 +2101,7 @@ def webhook_event():
                         if comment_mode == "manual":
                             draft_entry = {
                                 "id": int(time.time()*1000),
+                            "client_id": _acct_cid,
                                 "type": "comment",
                                 "sender": sender,
                                 "target_id": comment_id,
@@ -2859,7 +2865,7 @@ def api_secure_settings():
 @app.route("/api/secure/stats", methods=["GET"])
 def api_secure_stats():
     cid = current_client_id()
-    pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") == cid or not p.get("client_id"))]
+    pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") or cid) == cid]
     return jsonify({
         "stats": stats,
         "pending_count": len(pending),
@@ -3621,7 +3627,8 @@ def calculate_lead_score(text, history=None):
 
 @app.route('/api/v5/leads/summary', methods=['GET'])
 def api_v5_leads_summary():
-    scored = [calculate_lead_score(e.get("message", "")) for e in activity_log]
+    _cid = current_client_id()
+    scored = [calculate_lead_score(e.get("message", "")) for e in activity_log if (e.get("client_id") or _cid) == _cid]
     hot = sum(1 for s in scored if s.get("tier") == "Hot")
     warm = sum(1 for s in scored if s.get("tier") == "Warm")
     total = len(scored)
@@ -3746,12 +3753,15 @@ def api_simulate_ai_chat():
 
 @app.route('/api/stats/dashboard', methods=['GET'])
 def api_stats_dashboard():
+    _cid = current_client_id()
+    client_log = [e for e in activity_log if (e.get("client_id") or _cid) == _cid]
+    client_pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") or _cid) == _cid]
     return jsonify({
-        "total_dms": stats.get("dms", 0),
-        "total_comments": stats.get("comments", 0),
-        "ai_replies": stats.get("ai_calls", 0),
-        "pending_approvals": len(pending_approvals),
-        "logs": activity_log[-50:]
+        "total_dms": sum(1 for e in client_log if e.get("type") == "dm"),
+        "total_comments": sum(1 for e in client_log if e.get("type") in ("comment", "fb_comment", "ig_comment")),
+        "ai_replies": len(client_log),
+        "pending_approvals": len(client_pending),
+        "logs": client_log[-50:]
     })
 
 
@@ -3939,6 +3949,7 @@ def api_scheduler():
                 scheduled_at = None
         post = {
             "id": f"post-{int(time.time()*1000)}",
+            "client_id": current_client_id(),
             "caption": data.get("caption", ""),
             "target": data.get("target", "fb"),
             "media_type": (data.get("media_type") or "image").lower(),
@@ -3952,7 +3963,10 @@ def api_scheduler():
         IN_MEMORY_POSTS.insert(0, post)
         push_setting("meta_ai_scheduled_posts", IN_MEMORY_POSTS)
         return jsonify({"success": True, "post": post})
-    return jsonify({"success": True, "scheduled_posts": IN_MEMORY_POSTS})
+    # Only return the active client's scheduled posts (total isolation per client).
+    _cid = current_client_id()
+    mine = [p for p in IN_MEMORY_POSTS if (p.get("client_id") or _cid) == _cid]
+    return jsonify({"success": True, "scheduled_posts": mine})
 
 
 @app.route("/api/scheduler/<post_id>", methods=["DELETE"])
