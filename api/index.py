@@ -1103,8 +1103,10 @@ def api_conversations():
             # NOTE: requesting comments{from} makes Meta return posts with EMPTY comments
             # arrays (identity needs extra access), so we omit `from` and use a generic name.
             res = requests.get(
-                f"{GRAPH_URL}/{p_fb_page_id}/feed?fields=id,message,created_time,permalink_url,comments.limit(30){{id,message,created_time,username}}&limit=50&access_token={p_fb_token}",
+                f"{GRAPH_URL}/{p_fb_page_id}/feed?fields=id,message,created_time,permalink_url,comments.limit(50){{id,message,created_time}}&limit=50&access_token={p_fb_token}",
                 timeout=12)
+            globals()['_fbc_dbg'] = {"status": res.status_code,
+                "with_comments": sum(1 for p in res.json().get("data", []) if p.get("comments")) if res.status_code==200 else res.text[:150]}
             if res.status_code == 200:
                 for post in res.json().get("data", []):
                     comments_list = post.get("comments", {}).get("data", [])
@@ -1179,6 +1181,7 @@ def api_conversations():
         "pending": pending,
         "approval_mode": cache.get("approval_mode", "auto"),
         "active_client_id": cid,
+        "_fbc_dbg": globals().get("_fbc_dbg"),
     }
     conv_cache["all_threads"] = all_threads
     conv_cache["data"] = {"conversations": all_threads}
