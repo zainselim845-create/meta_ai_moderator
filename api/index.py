@@ -920,7 +920,7 @@ def api_conversations():
         # Even with fb_page_id set, we need the page-level token from /me/accounts
         try:
             accts_res = requests.get(
-                f"{GRAPH_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{{id,username}}&limit=10&access_token={fb_token}",
+                f"{GRAPH_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{{id,username}}&limit=100&access_token={fb_token}",
                 timeout=10
             )
             if accts_res.status_code == 200:
@@ -935,15 +935,7 @@ def api_conversations():
                         print(f"[Token Exchange] Matched Page: {pg.get('name')} ID={fb_page_id}, IG={ig_id}")
                         break
                 else:
-                    if accts_data:
-                        pg = accts_data[0]
-                        fb_page_id = pg.get("id", fb_page_id)
-                        fb_token = pg.get("access_token", fb_token)
-                        ig_token = pg.get("access_token", ig_token)
-                        ig_biz = pg.get("instagram_business_account", {})
-                        if ig_biz.get("id") and not ig_id:
-                            ig_id = ig_biz["id"]
-                        print(f"[Token Exchange] Fallback Page: {pg.get('name')} ID={fb_page_id}, IG={ig_id}")
+                    print(f"[Token Exchange] Warning: Page ID {fb_page_id} not found in user's accounts. Using stored token.")
         except Exception as ex:
             print(f"[Token Exchange Error] {ex}")
 
