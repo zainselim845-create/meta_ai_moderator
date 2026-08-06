@@ -852,7 +852,7 @@ def deletion_status():
 
 
 
-conv_cache = {"timestamp": 0, "data": None, "ttl": 15}
+conv_cache = {"ttl": 15}
 _ig_pull_debug = {}
 
 @app.route("/api/conversations", methods=["GET"])
@@ -860,12 +860,13 @@ def api_conversations():
     force = request.args.get("force") == "true"
     now = time.time()
     all_threads = []
-    if not force and conv_cache.get("all_threads") and (now - conv_cache["timestamp"] < conv_cache["ttl"]):
-        all_threads = conv_cache["all_threads"]
+    cid = current_client_id()
+    cc = conv_cache.setdefault(cid, {"timestamp": 0, "data": None, "all_threads": []})
+    
+    if not force and cc.get("all_threads") and (now - cc["timestamp"] < conv_cache["ttl"]):
+        all_threads = cc["all_threads"]
     else:
         sync_from_supabase()
-
-    cid = current_client_id()
     
     # Get active client tokens
     client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid or not a.get("client_id")]
@@ -1440,13 +1441,15 @@ def owned_thread_or_404(thread_id):
     return convo, cid
 
 def fetch_rich_thread_messages(thread_id, before=None, limit=50):
+    cid = current_client_id()
+    cc = conv_cache.setdefault(cid, {"timestamp": 0, "data": None, "all_threads": []})
     if thread_id.startswith("ig_comment_") or thread_id.startswith("fb_comment_"):
         target_comment_id = thread_id.replace("ig_comment_", "").replace("fb_comment_", "")
         real_time = "2026-05-26T17:33:35+0000"
         real_sender = "عميل"
         real_text = "تعليق العميل"
-        if conv_cache.get("data"):
-            threads = conv_cache["data"].get("conversations", [])
+        if cc.get("data"):
+            threads = cc["data"].get("conversations", [])
             matched = next((t for t in threads if t.get("id") == thread_id), None)
             if matched:
                 real_time = matched.get("timestamp") or matched.get("updated_time") or real_time
@@ -2074,7 +2077,7 @@ def webhook_verify():
 
 @app.route("/webhook", methods=["POST"])
 def webhook_event():
-    conv_cache["timestamp"] = 0  # Invalidate cache to force instant refresh
+    cid = current_client_id(); if cid in conv_cache: conv_cache[cid]["timestamp"] = 0  # Invalidate cache to force instant refresh
     sync_from_supabase()
     if not cache.get("bot_enabled", True):
         print("[Bot Disabled] Auto-responder is paused by user toggle")
@@ -3326,7 +3329,7 @@ def api_mark_conversation_read(thread_id):
         convo["read_at"] = datetime.now(timezone.utc).isoformat()
     return jsonify({
         "ok": True,
-        "unread_total": sum(1 for c in ((conv_cache.get("data") or {}).get("conversations") or []) if c.get("unread"))
+        "unread_total": sum(1 for c in ((conv_cache.get(current_client_id(), {}).get("data") or {}).get("conversations") or []) if c.get("unread"))
     })
 
 @app.after_request
