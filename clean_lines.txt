@@ -1,0 +1,21 @@
+2026: reply = rule.get("response", "")
+2029: reply = f"{reply} (رسالة إنبوكس: {priv})"
+2031: reply = generate_reply(msg, platform="test")
+2042: reply = rule.get("response", "")
+2045: reply = f"{reply} (رسالة إنبوكس: {priv})"
+2049: reply = _call_groq(msg, rag_context, "simulate")
+2053: reply = _call_openrouter(msg, rag_context, "simulate")
+2163: reply = generate_reply(text, platform="DM")
+2202: reply = generate_reply(text, platform="DM")
+2234: pub_reply = rule.get("response") or "تم الرد في الخاص! "
+2235: priv_reply = rule.get("private_response")
+2237: pub_reply = generate_reply(text, platform="comment")
+2238: priv_reply = pub_reply
+3567: reply = generate_reply(content, platform=platform)
+3765: {"time": "03:05 م", "event": "توليد مسودة رد بالذكاء الاصطناعي (MASTER V4 Prompt)", "status": "معلق للموافقة ⏳"},
+3766: {"time": "02:50 م", "event": "فحص التوكن التلقائي - Token Verified 60 Days", "status": "نجاح 🟢"}
+3782: if any(k in msg for k in ["بكام", "سعر", "أسعار", "تكلفة"]):
+3783: reply = "أهلاً بك! باقات إدارة الصفحات لدينا: الباقة البرونزية بـ 3000 جنيه شهرياً (12 منشور + 4 ريلز) والذهبية بـ 6000 جنيه شهرياً. للتواصل الفوري: 01090121000 م.محمد سعيد."
+3785: reply = "أهلاً بك في وكالة دوميا للتسويق الرقمي! نحن متخصصون في إدارة الصفحات والإعلانات المموّلة. كيف يمكننا مساعدتك اليوم؟"
+3885: """رابط تحميل مباشر من Google Drive يقدر Meta يسحب منه الميديا (مع confirm للملفات الكبيرة)."""
+3913: """ينشر بوست/فيديو/ريلز مجدول على فيسبوك و/أو إنستجرام عبر Graph API. يرجّع (ok, detail)."""

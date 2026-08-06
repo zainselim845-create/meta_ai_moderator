@@ -102,21 +102,16 @@ async function loadInbox(force=false){
         const url = (force ? '/api/conversations?force=true' : '/api/conversations?_=1') + acctFilter;
         const res = await fetch(url);
         const data = await res.json();
+        // No demo/fake fallback — a client with no real conversations shows an empty inbox.
         allInboxThreads = data.conversations || data.threads || data.data || [];
-        if (!allInboxThreads.length) {
-            allInboxThreads = FALLBACK_INBOX_THREADS;
-        }
         renderInboxList();
         if (allInboxThreads.length > 0 && (!activeInboxItem || !activeInboxItem.id)) {
             selectThread(allInboxThreads[0].id);
         }
     } catch(e){
         console.error('[loadInbox]', e);
-        allInboxThreads = FALLBACK_INBOX_THREADS;
+        allInboxThreads = [];
         renderInboxList();
-        if (allInboxThreads.length > 0) {
-            selectThread(allInboxThreads[0].id);
-        }
     }
 }
 
@@ -174,9 +169,9 @@ function renderInboxList(){
     }
 
     listEl.innerHTML = filtered.map(t => {
-        const sName = t.sender_name || t.sender || t.name || 'عميل جديد';
+        const sName = fixMojibake(t.sender_name || t.sender || t.name || 'عميل جديد');
         const sTime = t.timestamp || t.updated_time || t.time_ago || '';
-        let sSnip = t.snippet || t.last_msg || 'محادثة جديدة';
+        let sSnip = fixMojibake(t.snippet || t.last_msg || 'محادثة جديدة');
         // Clean Facebook comment-reply system text / raw URLs in the list preview
         if (/story\.php|comment_id=|https?:\/\//.test(sSnip)) {
             sSnip = /الرد على تعليق|عرض التعليق|comment_id=/.test(sSnip)
@@ -218,10 +213,23 @@ function setInboxFilter(filter, btn){
 }
 
 
+// Repair "double-encoded" Arabic: text whose UTF-8 bytes were decoded as Latin-1
+// (shows up as Ø/Ù/Ã symbols). Some historical messages were stored this way in Meta.
+function fixMojibake(s) {
+    if (!s || typeof s !== 'string') return s;
+    if (!/[Â-ÿ]/.test(s)) return s;          // no Latin-1 UTF-8 markers → leave as-is
+    try {
+        const fixed = decodeURIComponent(escape(s));
+        // Only accept the repair if it actually produced Arabic (avoids mangling café, emoji…)
+        if (/[؀-ۿ]/.test(fixed)) return fixed;
+    } catch (e) {}
+    return s;
+}
+
 // Turn Facebook's raw private-reply-to-comment system text (which dumps a long
 // story.php tracking URL into the bubble) into a compact, clean label + link.
 function cleanMessageText(raw) {
-    let t = String(raw || '');
+    let t = fixMojibake(String(raw || ''));
     const urls = t.match(/https?:\/\/[^\s]+/g) || [];
     // Strip all raw URLs out of the visible text
     t = t.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim();
@@ -307,7 +315,7 @@ async function selectThread(id){
     const t = allInboxThreads.find(x => String(x.id) === String(id));
     if(!t) return;
     activeInboxItem = t;
-    const sName = t.sender_name || t.sender || t.name || 'عميل جديد';
+    const sName = fixMojibake(t.sender_name || t.sender || t.name || 'عميل جديد');
     const sTime = t.timestamp || t.updated_time || t.time_ago || '';
     if (t.unread) {
         t.unread = 0;
@@ -370,7 +378,7 @@ async function selectThread(id){
     if (!mainChat) return;
     
     const titleEl = document.getElementById('chat-title');
-    if (titleEl) titleEl.textContent = t.sender_name || 'عميل جديد';
+    if (titleEl) titleEl.textContent = fixMojibake(t.sender_name || 'عميل جديد');
 
     const initText = t.snippet || t.last_msg || 'محادثة جديدة';
     
