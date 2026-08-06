@@ -347,24 +347,24 @@ def check_custom_rules(message, client_id=None, post_url_or_id=None):
             return rule
     return None
 
-def generate_reply(user_message, platform="facebook"):
+def generate_reply(user_message, platform="facebook", client_id=None):
     if not user_message or not str(user_message).strip():
         return "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø±Ø³Ø§Ù„ØªÙƒ ÙˆØ³ÙŠØªÙ… Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ùƒ ÙÙˆØ±Ø§Ù‹."
     
     # 1. Custom Rules exact/contains check
-    rule = check_custom_rules(user_message)
+    rule = check_custom_rules(user_message, client_id=client_id)
     if rule:
         return rule.get("response") or "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ØªÙ… Ø§Ù„Ø±Ø¯ Ø¹Ù„Ù‰ Ø§Ø³ØªÙØ³Ø§Ø±Ùƒ."
         
     # 2. Knowledge Base RAG Search
-    rag_context = search_kb(user_message)
+    rag_context = search_kb(user_message, client_id=client_id)
     
     # If no relevant RAG context found and no custom rule, use safe polite fallback instead of hallucinating
     if not rag_context or len(rag_context.strip()) < 5:
         return "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ØªÙ… ØªØ­ÙˆÙŠÙ„ Ø§Ø³ØªÙØ³Ø§Ø±Ùƒ Ù„Ù…Ø³Ø¤ÙˆÙ„ Ø§Ù„Ø­Ø³Ø§Ø¨Ø§Øª ÙˆØ³ÙŠØªÙ… Ø§Ù„Ø±Ø¯ Ø¹Ù„ÙŠÙƒ Ø¨Ø§Ù„ØªÙØ§ØµÙŠÙ„ ÙÙŠ Ø£Ù‚Ø±Ø¨ ÙˆÙ‚Øª. "
         
     # 3. Controlled LLM Response with RAG Context
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     if GROQ_API_KEY:
         reply = _call_groq(user_message, rag_context, platform, cid)
         if reply:
@@ -895,7 +895,7 @@ def api_conversations():
     force = request.args.get("force") == "true"
     now = time.time()
     all_threads = []
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     cc = conv_cache.setdefault(cid, {"timestamp": 0, "data": None, "all_threads": []})
     
     if not force and cc.get("all_threads") and (now - cc["timestamp"] < conv_cache["ttl"]):
@@ -1099,7 +1099,7 @@ def api_conversations():
         except Exception as e:
             print(f"[Facebook Comments Error] {e}")
 
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") == cid or not p.get("client_id"))]
     
     draft_threads = []
@@ -1175,7 +1175,7 @@ def merge_and_sort(*groups):
     return sorted(all_items, key=key_fn, reverse=True)
 
 def owned_thread_or_404(thread_id):
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     if not thread_id or not isinstance(thread_id, str):
         return None, cid
 
@@ -1221,7 +1221,7 @@ def owned_thread_or_404(thread_id):
     return convo, cid
 
 def fetch_rich_thread_messages(thread_id, before=None, limit=50):
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     cc = conv_cache.setdefault(cid, {"timestamp": 0, "data": None, "all_threads": []})
     if thread_id.startswith("ig_comment_") or thread_id.startswith("fb_comment_"):
         target_comment_id = thread_id.replace("ig_comment_", "").replace("fb_comment_", "")
@@ -1256,7 +1256,7 @@ def fetch_rich_thread_messages(thread_id, before=None, limit=50):
             "total": 1
         }
     
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid or not a.get("client_id")]
     token = PAGE_ACCESS_TOKEN
     page_ids = {"", "17841413562796856"}
@@ -1374,7 +1374,7 @@ def api_conversations_thread_messages(thread_id):
 
 @app.route("/api/conversations/search", methods=["GET"])
 def api_conversations_search():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     q = (request.args.get("q") or "").strip().lower()
     if len(q) < 2:
         return jsonify({"results": [], "count": 0})
@@ -1624,7 +1624,7 @@ def api_stats():
     except Exception as e:
         print(f"[Facebook Comments Error] {e}")
 
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") == cid or not p.get("client_id"))]
     return jsonify({"stats": stats, "log": activity_log[-20:], "pending": pending,
                     "kb_count": len(get_kb_data()), "rules_count": len(get_rules_data()),
@@ -1693,7 +1693,7 @@ def api_upload_doc():
         paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 10]
     
     kb = get_kb_data()
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     added_chunks = 0
     base_id = int(time.time())
 
@@ -1710,7 +1710,7 @@ def api_upload_doc():
 
 @app.route("/api/kb", methods=["GET"])
 def api_get_kb():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     all_kb = get_kb_data()
     client_kb = [k for k in all_kb if (k.get("client_id") or "client_default") == cid]
     return jsonify({"kb": client_kb, "total": len(client_kb), "active_client_id": cid})
@@ -1724,7 +1724,7 @@ def api_kb_delete(item_id):
 
 @app.route("/api/rules", methods=["GET"])
 def api_rules_get():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     all_rules = get_rules_data()
     client_rules = [r for r in all_rules if (r.get("client_id") or "client_default") == cid]
     return jsonify(client_rules)
@@ -1733,7 +1733,7 @@ def api_rules_get():
 def api_rules_add():
     data = request.get_json() or {}
     rules = get_rules_data()
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     new_rule = {
         "id": int(time.time()),
         "client_id": cid,
@@ -1765,7 +1765,7 @@ def api_prompt_get():
 def api_prompt_save():
     data = request.get_json() or {}
     new_prompt = data.get("prompt", "")
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     cache.setdefault("prompts", {})[cid] = new_prompt
     push_setting(f"meta_ai_system_prompt::{cid}", new_prompt)
     return jsonify({"ok": True, "active_client_id": cid})
@@ -1773,7 +1773,7 @@ def api_prompt_save():
 # --- Settings aliases used by the frontend (app.js) ---
 @app.route("/api/settings", methods=["GET"])
 def api_settings_get():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     # Return the raw editable brand prompt for THIS client (not name-suffixed),
     # so switching clients shows each brand's own prompt.
     return jsonify({
@@ -1786,7 +1786,7 @@ def api_settings_get():
 @app.route("/api/settings", methods=["POST"])
 def api_settings_save():
     data = request.get_json() or {}
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     if "prompt" in data and data.get("prompt") is not None:
         # Store the prompt PER-CLIENT so each brand keeps its own voice.
         cache.setdefault("prompts", {})[cid] = data["prompt"]
@@ -1843,7 +1843,7 @@ def api_reply_modes_set():
 
 @app.route("/api/dashboard/stats", methods=["GET"])
 def api_dashboard_stats():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     if cid not in conv_cache:
         return jsonify({
             "leads": 0, "deals_value": "0 EGP", "hot_opportunities": 0,
@@ -1881,7 +1881,7 @@ def api_test():
         if priv:
             reply = f"{reply} (رسالة إنبوكس: {priv})"
     else:
-        reply = generate_reply(msg, platform="test")
+        reply = generate_reply(msg, platform="test", client_id=current_client_id())
     return jsonify({"reply": reply})
 
 @app.route("/api/simulate", methods=["POST"])
@@ -1930,7 +1930,7 @@ def webhook_verify():
 
 @app.route("/webhook", methods=["POST"])
 def webhook_event():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     if cid in conv_cache: conv_cache[cid]["timestamp"] = 0
     sync_from_supabase()
     if not cache.get("bot_enabled", True):
@@ -2016,7 +2016,7 @@ def webhook_event():
                 if sender_id and text:
                     stats["dms"] += 1
                     stats["ai_calls"] += 1
-                    reply = generate_reply(text, platform="DM")
+                    reply = generate_reply(text, platform="DM", client_id=_acct_cid)
 
                     if dm_mode == "manual":
                         draft_entry = {
@@ -2055,7 +2055,7 @@ def webhook_event():
                     if sender_id and text:
                         stats["dms"] += 1
                         stats["ai_calls"] += 1
-                        reply = generate_reply(text, platform="DM")
+                        reply = generate_reply(text, platform="DM", client_id=_acct_cid)
                         if dm_mode == "manual":
                             draft_entry = {
                                 "id": int(time.time()*1000),
@@ -2090,7 +2090,7 @@ def webhook_event():
                             pub_reply = rule.get("response") or "ØªÙ… Ø§Ù„Ø±Ø¯ ÙÙŠ Ø§Ù„Ø®Ø§Øµ! "
                             priv_reply = rule.get("private_response")
                         else:
-                            pub_reply = generate_reply(text, platform="comment")
+                            pub_reply = generate_reply(text, platform="comment", client_id=_acct_cid)
                             priv_reply = pub_reply
 
                         if comment_mode == "manual":
@@ -2168,7 +2168,7 @@ def api_accounts_get():
     sync_from_supabase()
     heal_orphan_accounts()
     active_id = cache.get("active_account_id", "")
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     masked = []
     for a in ACCOUNTS_STORE:
         # Only show accounts belonging to the active client — otherwise selecting one
@@ -2858,7 +2858,7 @@ def api_secure_settings():
 
 @app.route("/api/secure/stats", methods=["GET"])
 def api_secure_stats():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") == cid or not p.get("client_id"))]
     return jsonify({
         "stats": stats,
@@ -3127,7 +3127,7 @@ def api_clients_switch():
 #  Analytics + Captions Vault + Approval Mode 
 @app.route("/api/analytics", methods=["GET"])
 def api_analytics():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid]
     if not client_accounts:
         return jsonify({"status": "no_data", "message": "لا توجد حسابات مربوطة لهذا العميل"})
@@ -3142,14 +3142,14 @@ def api_analytics():
 
 @app.route("/api/captions_vault", methods=["GET"])
 def api_captions_vault():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     return jsonify({"client_id": cid, "captions": []})
 
 @app.route("/api/approval_mode", methods=["POST"])
 def api_approval_mode():
     data = request.get_json() or {}
     mode = data.get("mode", "auto")
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     client = next((c for c in AGENCY_CLIENTS_STORE if c["id"] == cid), None)
     if client:
         client["approval_mode"] = mode
@@ -3173,7 +3173,7 @@ def api_auth_facebook():
 
 @app.route("/api/discovery/assets", methods=["GET"])
 def api_discovery_assets():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     client = next((c for c in AGENCY_CLIENTS_STORE if c["id"] == cid), None)
     if not client:
         return jsonify({"assets": []})
@@ -3302,7 +3302,7 @@ def unified_response_headers(resp):
 
 @app.route("/api/test_meta_connection", methods=["GET"])
 def api_test_meta_connection():
-    cid = current_client_id()
+    cid = client_id or current_client_id()
     client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid or not a.get("client_id")]
     
     # Check if any account has a valid decrypted access token
@@ -3518,7 +3518,7 @@ def api_chatwoot_webhook():
     # إجبار الوضع اليدوي على كل القنوات لو الـ env متظبط
     force_private = os.environ.get("CHATWOOT_ALWAYS_PRIVATE", "").lower() in ("1", "true", "yes")
 
-    reply = generate_reply(content, platform=platform)
+    reply = generate_reply(content, platform=platform, client_id=current_client_id())
 
     if is_comment and not force_private:
         ok = send_reply_via_chatwoot(conversation_id, reply)
