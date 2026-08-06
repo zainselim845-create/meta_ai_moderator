@@ -176,7 +176,13 @@ function renderInboxList(){
     listEl.innerHTML = filtered.map(t => {
         const sName = t.sender_name || t.sender || t.name || 'عميل جديد';
         const sTime = t.timestamp || t.updated_time || t.time_ago || '';
-        const sSnip = t.snippet || t.last_msg || 'محادثة جديدة';
+        let sSnip = t.snippet || t.last_msg || 'محادثة جديدة';
+        // Clean Facebook comment-reply system text / raw URLs in the list preview
+        if (/story\.php|comment_id=|https?:\/\//.test(sSnip)) {
+            sSnip = /الرد على تعليق|عرض التعليق|comment_id=/.test(sSnip)
+                ? '↩️ رد على تعليق'
+                : (sSnip.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim() || '🔗 رابط');
+        }
         const isFB = t.platform === 'facebook' || t.type === 'messenger' || String(t.id).startsWith('fb_');
         const platBadge = isFB ? '<span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded text-[10px]">🔵 فيسبوك</span>' : '<span class="bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded text-[10px]">🟣 إنستجرام</span>';
         const isComment = t.channel === 'comment' || String(t.id).startsWith('fb_comment_') || String(t.id).startsWith('ig_comment_');
@@ -212,9 +218,37 @@ function setInboxFilter(filter, btn){
 }
 
 
+// Turn Facebook's raw private-reply-to-comment system text (which dumps a long
+// story.php tracking URL into the bubble) into a compact, clean label + link.
+function cleanMessageText(raw) {
+    let t = String(raw || '');
+    const urls = t.match(/https?:\/\/[^\s]+/g) || [];
+    // Strip all raw URLs out of the visible text
+    t = t.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim();
+    // Facebook comment private-reply system message
+    const isCommentReply = /الرد على تعليق|reply to a comment|عرض التعليق/i.test(t) ||
+        urls.some(u => /story\.php|comment_id=/.test(u));
+    const commentUrl = urls.find(u => /story\.php|comment_id=/.test(u)) || urls[0];
+    let html = esc(t);
+    if (isCommentReply) {
+        html = `<span class="inline-flex items-center gap-1 text-[11px] opacity-90"><i data-lucide="corner-down-left" class="w-3.5 h-3.5 inline"></i> رد على تعليق</span>`;
+        if (commentUrl) {
+            html += ` <a href="${esc(commentUrl)}" target="_blank" rel="noopener" class="underline text-[11px] opacity-90">عرض التعليق ↗</a>`;
+        }
+    } else if (urls.length) {
+        // Keep any leftover text, append short clickable links
+        html = esc(t);
+        urls.forEach(u => {
+            html += ` <a href="${esc(u)}" target="_blank" rel="noopener" class="underline break-all">رابط ↗</a>`;
+        });
+        html = html.trim();
+    }
+    return html;
+}
+
 function renderBubble(m) {
     if (!m) return '';
-    const text = esc(m.text || m.message || '');
+    const text = cleanMessageText(m.text || m.message || '');
     const atts = (m.attachments || []).map(a => {
         if (a.type === 'image' && a.url) {
             return `<img src="${esc(a.url)}" loading="lazy" class="m-1" onclick="window.open('${esc(a.url)}','_blank')">`;
