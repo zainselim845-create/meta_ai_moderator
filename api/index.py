@@ -2352,7 +2352,11 @@ ACCOUNTS_STORE_FALLBACK = []
 ACCOUNTS_STORE = cache.get("accounts") or []
 
 def heal_orphan_accounts():
-    """ÙŠØ±Ø¨Ø· Ø£ÙŠ Ø­Ø³Ø§Ø¨ Ù…ØªØµÙ„ (Ø¨Ø¹Ø¯ OAuth) Ù…Ø´ Ù…Ø±Ø¨ÙˆØ· Ø¨Ø¹Ù…ÙŠÙ„ Ù…ÙˆØ¬ÙˆØ¯ â†’ ÙŠØ¹Ù…Ù„Ù‡ workspace ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹."""
+    """DISABLED per user request: do NOT auto-create clients/workspaces or auto-link
+    anything the user didn't add themselves. Clients are created only via explicit
+    add or the Facebook OAuth page picker."""
+    return False
+
     global AGENCY_CLIENTS_STORE, ACCOUNTS_STORE
     valid_ids = {c.get("id") for c in AGENCY_CLIENTS_STORE}
     groups = {}
@@ -2413,6 +2417,42 @@ def api_accounts_get():
         "security": "401 Protected",
         "chatwoot_free": True
     })
+
+@app.route("/api/accounts/cleanup", methods=["POST"])
+@auth_guard
+def api_accounts_cleanup():
+    """Remove duplicate account rows (e.g. an IG account stored under both its plain id
+    and an old composite `<igid>_<client>` id). Keeps one entry per real account."""
+    global ACCOUNTS_STORE
+    seen = {}
+    cleaned = []
+    removed = []
+    for a in ACCOUNTS_STORE:
+        plat = a.get("platform")
+        cidv = a.get("client_id") or "client_default"
+        # Canonical identity: IG by ig_id, FB by page id — scoped to the client.
+        real_id = str(a.get("ig_id") or a.get("id")) if plat == "instagram" else str(a.get("id"))
+        key = f"{cidv}|{plat}|{real_id}"
+        prev = seen.get(key)
+        if prev is None:
+            seen[key] = a
+            cleaned.append(a)
+        else:
+            # Duplicate: keep the one with a clean (non-composite) id / more data
+            prev_composite = "_client_" in str(prev.get("id"))
+            cur_composite = "_client_" in str(a.get("id"))
+            if prev_composite and not cur_composite:
+                # replace prev with current (cleaner id)
+                idx = cleaned.index(prev)
+                cleaned[idx] = a
+                seen[key] = a
+                removed.append(str(prev.get("id")))
+            else:
+                removed.append(str(a.get("id")))
+    ACCOUNTS_STORE = cleaned
+    cache["accounts"] = ACCOUNTS_STORE
+    push_setting("meta_ai_accounts", ACCOUNTS_STORE)
+    return jsonify({"ok": True, "removed": removed, "remaining": len(ACCOUNTS_STORE)})
 
 @app.route("/api/accounts", methods=["POST"])
 def api_accounts_add():
@@ -2642,13 +2682,17 @@ def oauth_callback():
                         cobj['ig_id'] = igid
                         cobj['ig_connected'] = True
                         
-                        unique_ig_id = f"{igid}_{pcid}"
-                        ig_acc = {"id": unique_ig_id, "name": ig.get('username') or page.get('name'), "platform": "instagram",
+                        ig_acc = {"id": igid, "name": ig.get('username') or page.get('name'), "platform": "instagram",
                                   "ig_id": igid, "client_id": pcid, "parent_page_id": pid,
                                   "access_token": ptok, "access_token_enc": encrypt(ptok),
                                   "token_expires_at": exp, "status": "connected", "dm_mode": "auto", "comment_mode": "auto"}
-                        
-                        ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get('id')) != unique_ig_id]
+
+                        # Remove any prior entry for this IG account (plain id, composite id,
+                        # or matching ig_id) so we never create duplicate IG rows.
+                        ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE
+                                          if str(a.get('id')) != igid
+                                          and str(a.get('id')) != f"{igid}_{pcid}"
+                                          and not (a.get('platform') == 'instagram' and str(a.get('ig_id')) == igid and a.get('client_id') == pcid)]
                         ACCOUNTS_STORE.append(ig_acc)
                     
                     try:
