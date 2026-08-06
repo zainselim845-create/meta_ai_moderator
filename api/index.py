@@ -2513,39 +2513,61 @@ def oauth_callback():
                 # no website page-picker. Each page becomes its own client workspace.
                 global ACCOUNTS_STORE
                 linked = 0
+                target_client_obj = next((c for c in AGENCY_CLIENTS_STORE if c.get('id') == target_client), None)
+                
                 for i, page in enumerate(pages):
                     ptok = page.get('access_token') or long_token
                     pid = str(page.get('id'))
                     if not pid:
                         continue
-                    # first page attaches to the target client (if any), rest get their own
-                    pcid = target_client if i == 0 and target_client else ("client_" + pid)
+                    
+                    pcid = "client_" + pid
+                    if target_client_obj:
+                        if target_client_obj.get('page_id') == pid:
+                            pcid = target_client
+                        elif target_client_obj.get('name') == page.get('name') and not target_client_obj.get('page_id'):
+                            pcid = target_client
+                        elif len(pages) == 1 and not target_client_obj.get('page_id'):
+                            pcid = target_client
+
                     cobj = next((c for c in AGENCY_CLIENTS_STORE if c.get('id') == pcid), None)
                     if not cobj:
                         cobj = {"id": pcid, "name": page.get('name') or "عميل", "company": page.get('name') or "",
                                 "package": "Business VIP", "status": "active", "is_active": True}
                         AGENCY_CLIENTS_STORE.append(cobj)
-                    cobj['name'] = cobj.get('name') or page.get('name')
+                    
+                    # Only overwrite name if it's a new auto-generated client
+                    if pcid != target_client:
+                        cobj['name'] = page.get('name') or cobj.get('name')
+                        cobj['company'] = page.get('name') or cobj.get('company')
+                        
                     cobj['page_id'] = pid
                     cobj['fb_connected'] = True
                     exp = (datetime.now(timezone.utc) + timedelta(days=60)).isoformat()
+                    
                     fb_acc = {"id": pid, "name": page.get('name'), "platform": "facebook", "client_id": pcid,
-                              "avatar_url": (page.get('picture') or {}).get('data', {}).get('url'),
+                              "avatar_url": (page.get('picture') or {}).get('data', {}).get('url') if isinstance(page.get('picture'), dict) else None,
                               "access_token": ptok, "access_token_enc": encrypt(ptok),
                               "token_expires_at": exp, "status": "connected", "dm_mode": "auto", "comment_mode": "auto"}
+                    
                     ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get('id')) != pid]
                     ACCOUNTS_STORE.append(fb_acc)
+                    
                     ig = page.get('instagram_business_account')
                     if ig and ig.get('id'):
                         igid = str(ig['id'])
                         cobj['ig_id'] = igid
                         cobj['ig_connected'] = True
-                        ig_acc = {"id": igid, "name": ig.get('username') or page.get('name'), "platform": "instagram",
+                        
+                        unique_ig_id = f"{igid}_{pcid}"
+                        ig_acc = {"id": unique_ig_id, "name": ig.get('username') or page.get('name'), "platform": "instagram",
                                   "ig_id": igid, "client_id": pcid, "parent_page_id": pid,
                                   "access_token": ptok, "access_token_enc": encrypt(ptok),
                                   "token_expires_at": exp, "status": "connected", "dm_mode": "auto", "comment_mode": "auto"}
-                        ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get('id')) != igid]
+                        
+                        ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a.get('id')) != unique_ig_id]
                         ACCOUNTS_STORE.append(ig_acc)
+                    
                     try:
                         requests.post(f"{GRAPH_URL}/{pid}/subscribed_apps",
                                       params={'subscribed_fields': 'messages,messaging_postbacks,feed', 'access_token': ptok}, timeout=8)
