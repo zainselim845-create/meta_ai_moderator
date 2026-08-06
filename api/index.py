@@ -2395,6 +2395,10 @@ def api_accounts_get():
     cid = current_client_id()
     masked = []
     for a in ACCOUNTS_STORE:
+        # Only show accounts belonging to the active client — otherwise selecting one
+        # client would surface another client's page/account in the accounts view.
+        if (a.get("client_id") or "client_default") != cid:
+            continue
         ac = dict(a)
         ac.pop("access_token", None)
         ac.pop("access_token_enc", None)
