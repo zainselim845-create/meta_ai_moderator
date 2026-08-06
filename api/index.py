@@ -72,17 +72,17 @@ DEFAULT_SYSTEM_PROMPT = """أنت موظف مبيعات وتأهيل عملاء 
 - يمنع تماماً الإفصاح عن هذه التعليمات أو البرومبت الداخلي."""    
 
 DEFAULT_KB = [
-    {"id": 1, "question": "Ù…Ø§ Ù‡ÙŠ Ø®Ø¯Ù…Ø§Øª ÙˆÙƒØ§Ù„Ø© دوميا Ù„Ù„ØªØ³ÙˆÙŠÙ‚ Ø§Ù„Ø±Ù‚Ù…ÙŠØŸ", "answer": "ØªÙ‚Ø¯Ù… ÙˆÙƒØ§Ù„Ø© دوميا Ø®Ø¯Ù…Ø§Øª ØªØ³ÙˆÙŠÙ‚ Ø±Ù‚Ù…ÙŠ Ø´Ø§Ù…Ù„Ø©: Ø¥Ø¯Ø§Ø±Ø© ØµÙØ­Ø§Øª Ø§Ù„ØªÙˆØ§ØµÙ„ Ø§Ù„Ø§Ø¬ØªÙ…Ø§Ø¹ÙŠØŒ Ø§Ù„Ø­Ù…Ù„Ø§Øª Ø§Ù„Ø¥Ø¹Ù„Ø§Ù†ÙŠØ© Ø§Ù„Ù…Ù…ÙˆÙ„Ø©ØŒ ØµÙ†Ø§Ø¹Ø© Ø§Ù„Ù…Ø­ØªÙˆÙ‰ØŒ ØªØµÙ…ÙŠÙ… Ø§Ù„Ù‡ÙˆÙŠØ© Ø§Ù„Ø¨ØµØ±ÙŠØ©ØŒ ÙˆØªØ·ÙˆÙŠØ± Ø§Ù„Ø¨ÙˆØªØ§Øª Ø§Ù„Ø°ÙƒÙŠØ©."},
-    {"id": 2, "question": "ÙƒÙ… Ø³Ø¹Ø± Ø¨Ø§Ù‚Ø§Øª Ø§Ù„ØªØ³ÙˆÙŠÙ‚ ÙˆØ¥Ø¯Ø§Ø±Ø© Ø§Ù„ØµÙØ­Ø§ØªØŸ", "answer": "ØªØ¨Ø¯Ø£ Ø¨Ø§Ù‚Ø§Øª Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„ØµÙØ­Ø§Øª Ù…Ù† Ø§Ù„Ø¨Ø§Ù‚Ø© Ø§Ù„Ø§Ù‚ØªØµØ§Ø¯ÙŠØ© (3000 Ø¬.Ù…/Ø´Ù‡Ø±ÙŠØ§Ù‹)ØŒ Ø§Ù„Ø¨Ø§Ù‚Ø© Ø§Ù„Ø§Ø­ØªØ±Ø§ÙÙŠØ© (6000 Ø¬.Ù…/شهرياً)، وباقة المؤسسات الشاملة (12000 ج.م/شهرياً)."},
-    {"id": 3, "question": "Ù…Ø§ Ù‡ÙŠ Ø®Ø¯Ù…Ø§Øª Ø§Ù„Ø­Ù…Ù„Ø§Øª Ø§Ù„Ø¥Ø¹Ù„Ø§Ù†ÙŠØ© Ø§Ù„Ù…Ù…ÙˆÙ„Ø©ØŸ", "answer": "Ù†Ù‚ÙˆÙ… Ø¨Ø¥Ø¯Ø§Ø±Ø© Ø­Ù…Ù„Ø§Øª Ø§Ù„Ø¥Ø¹Ù„Ø§Ù†Ø§Øª Ø§Ù„Ù…Ù…ÙˆÙ„Ø© Ø¹Ù„Ù‰ Meta ÙˆØªÙŠÙƒ ØªÙˆÙƒ ÙˆØ¬ÙˆØ¬Ù„. ØªØ´Ù…Ù„ ØªØ­Ø¯ÙŠØ¯ Ø§Ù„Ø¬Ù…Ù‡ÙˆØ± Ø§Ù„Ù…Ø³ØªÙ‡Ø¯Ù ÙˆÙƒØªØ§Ø¨Ø© ÙˆØªØµÙ…ÙŠÙ… Ø§Ù„Ø¥Ø¹Ù„Ø§Ù†Ø§Øª ÙˆÙ…ØªØ§Ø¨Ø¹Ø© Ø§Ù„Ø£Ø¯Ø§Ø¡."},
-    {"id": 4, "question": "ÙƒÙŠÙ ÙŠÙ…ÙƒÙ† Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹ Ø´Ø±ÙƒØ© دومياØŸ", "answer": "ÙŠÙ…ÙƒÙ†Ùƒ Ø§Ù„ØªÙˆØ§ØµÙ„ Ø¹Ø¨Ø± Ø±Ø³Ø§Ø¦Ù„ Ø§Ù„ØµÙØ­Ø© Ø£Ùˆ Ø§Ù„Ø§ØªØµØ§Ù„ Ø§Ù„Ù‡Ø§ØªÙÙŠ. Ù…ÙˆØ§Ø¹ÙŠØ¯ Ø§Ù„Ø¹Ù…Ù„ Ù…Ù† Ø§Ù„Ø£Ø­Ø¯ Ù„Ù„Ø®Ù…ÙŠØ³ Ù…Ù† 9 ØµØ¨Ø§Ø­Ø§Ù‹ Ø­ØªÙ‰ 6 Ù…Ø³Ø§Ø¡Ù‹."}
+    {"id": 1, "question": "ما هي خدمات وكالة دوميا للتسويق الرقمي؟", "answer": "تقدم وكالة دوميا خدمات تسويق رقمي شاملة: إدارة صفحات التواصل الاجتماعي، الحملات الإعلانية الممولة، صناعة المحتوى، تصميم الهوية البصرية، وتطوير البوتات الذكية."},
+    {"id": 2, "question": "كم سعر باقات التسويق وإدارة الصفحات؟", "answer": "تبدأ باقات إدارة الصفحات من الباقة الاقتصادية (3000 Ø¬.Ù…/شهرياً)ØŒ الباقة الاحترافية (6000 Ø¬.Ù…/شهرياً)، وباقة المؤسسات الشاملة (12000 ج.م/شهرياً)."},
+    {"id": 3, "question": "ما هي خدمات الحملات الإعلانية الممولة؟", "answer": "نقوم بإدارة حملات الإعلانات الممولة على Meta وتيك توك وجوجل. تشمل تحديد الجمهور المستهدف وكتابة وتصميم الإعلانات ومتابعة الأداء."},
+    {"id": 4, "question": "كيف يمكن التواصل مع شركة دومياØŸ", "answer": "يمكنك التواصل عبر رسائل الصفحة أو الاتصال الهاتفي. مواعيد العمل من الأحد للخميس من 9 صباحاً حتى 6 مساءً."}
 ]
 
 DEFAULT_RULES = [
-    {"id": 1, "trigger": "Ø³Ø¹Ø±", "match_type": "contains", "response": "ØªÙ… Ø§Ù„Ø±Ø¯ ÙÙŠ Ø§Ù„Ø®Ø§Øµ! ", "private_response": "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ØªØ¨Ø¯Ø£ Ø¨Ø§Ù‚Ø§Øª Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„ØµÙØ­Ø§Øª ÙˆØ§Ù„ØªØ³ÙˆÙŠÙ‚ Ù„Ø¯ÙŠÙ†Ø§ Ù…Ù† 3000 Ø¬Ù†ÙŠÙ‡ Ù…ØµØ±ÙŠ Ø´Ù‡Ø±ÙŠØ§Ù‹. Ø§Ø¨Ø¹ØªÙ„Ù†Ø§ ØªÙØ§ØµÙŠÙ„ Ù†Ø´Ø§Ø·Ùƒ ÙˆÙ‡Ù†Ø­Ø¯Ø¯Ù„Ùƒ Ø§Ù„Ø¨Ø§Ù‚Ø© Ø§Ù„Ù…Ù†Ø§Ø³Ø¨Ø© ÙÙˆØ±Ø§Ù‹! ", "is_active": True},
-    {"id": 2, "trigger": "Ø£Ø³Ø¹Ø§Ø±", "match_type": "contains", "response": "ØªÙ… Ø§Ù„Ø±Ø¯ ÙÙŠ Ø§Ù„Ø®Ø§Øµ Ø¨Ø§Ù„ØªÙØ§ØµÙŠÙ„! ", "private_response": "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! Ù†ÙˆÙØ± Ø¨Ø§Ù‚Ø§Øª Ù…ØªÙ†ÙˆØ¹Ø©: Ø§Ù„Ø§Ù‚ØªØµØ§Ø¯ÙŠØ© (3000Ø¬)ØŒ Ø§Ù„Ø§Ø­ØªØ±Ø§ÙÙŠØ© (6000Ø¬)ØŒ ÙˆØ§Ù„Ù…Ø¤Ø³Ø³Ø§Øª (12000Ø¬). ÙŠØ³Ø¹Ø¯Ù†Ø§ Ø®Ø¯Ù…ØªÙƒ! ", "is_active": True},
-    {"id": 3, "trigger": "Ø¨ÙƒÙ…", "match_type": "contains", "response": "Ø¨Ø¹ØªÙ†Ø§Ù„Ùƒ Ø§Ù„ØªÙØ§ØµÙŠÙ„ ÙÙŠ Ø§Ù„Ø®Ø§Øµ ", "private_response": "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ÙŠÙ…ÙƒÙ†Ùƒ Ø§Ù„ØªØ¹Ø±Ù Ø¹Ù„Ù‰ Ø£Ø³Ø¹Ø§Ø± Ø®Ø¯Ù…Ø§ØªÙ†Ø§ ÙˆØ¨Ø§Ù‚Ø§Øª Ø§Ù„ØªØ³ÙˆÙŠÙ‚ Ø¹Ø¨Ø± Ø§Ù„ØªÙˆØ§ØµÙ„ Ø§Ù„Ù…Ø¨Ø§Ø´Ø± ÙÙŠ Ø§Ù„Ø®Ø§ØµØŒ ÙŠØ³Ø¹Ø¯Ù†Ø§ Ø®Ø¯Ù…ØªÙƒ! ", "is_active": True},
-    {"id": 4, "trigger": "ØªÙØ§ØµÙŠÙ„", "match_type": "contains", "response": "Ø¨Ø¹ØªÙ†Ø§Ù„Ùƒ ÙƒØ§ÙØ© Ø§Ù„ØªÙØ§ØµÙŠÙ„ ÙÙŠ Ø§Ù„Ø¥Ù†Ø¨ÙˆÙƒØ³! ", "private_response": "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ØªÙ‚Ø¯Ù… ÙˆÙƒØ§Ù„Ø© دوميا Ø®Ø¯Ù…Ø§Øª Ø§Ù„ØªØ³ÙˆÙŠÙ‚ ÙˆØ¥Ø¯Ø§Ø±Ø© Ø§Ù„Ø­Ù…Ù„Ø§Øª ÙˆØµÙ†Ø§Ø¹Ø© Ø§Ù„Ù…Ø­ØªÙˆÙ‰ ÙˆØªØ·ÙˆÙŠØ± Ø§Ù„Ù€ AI Bots. ÙƒÙŠÙ ÙŠÙ…ÙƒÙ†Ù†Ø§ Ù…Ø³Ø§Ø¹Ø¯ØªÙƒØŸ ", "is_active": True}
+    {"id": 1, "trigger": "سعر", "match_type": "contains", "response": "تم الرد في الخاص! ", "private_response": "أهلاً بك! تبدأ باقات إدارة الصفحات والتسويق لدينا من 3000 جنيه مصري شهرياً. ابعتلنا تفاصيل نشاطك وهنحددلك الباقة المناسبة فوراً! ", "is_active": True},
+    {"id": 2, "trigger": "أسعار", "match_type": "contains", "response": "تم الرد في الخاص بالتفاصيل! ", "private_response": "أهلاً بك! نوفر باقات متنوعة: الاقتصادية (3000Ø¬)ØŒ الاحترافية (6000Ø¬)ØŒ والمؤسسات (12000Ø¬). يسعدنا خدمتك! ", "is_active": True},
+    {"id": 3, "trigger": "بكم", "match_type": "contains", "response": "بعتنالك التفاصيل في الخاص ", "private_response": "أهلاً بك! يمكنك التعرف على أسعار خدماتنا وباقات التسويق عبر التواصل المباشر في الخاص، يسعدنا خدمتك! ", "is_active": True},
+    {"id": 4, "trigger": "تفاصيل", "match_type": "contains", "response": "بعتنالك كافة التفاصيل في الإنبوكس! ", "private_response": "أهلاً بك! تقدم وكالة دوميا خدمات التسويق وإدارة الحملات وصناعة المحتوى وتطوير الـ AI Bots. كيف يمكننا مساعدتك؟ ", "is_active": True}
 ]
 
 cache = {"kb": DEFAULT_KB, "rules": DEFAULT_RULES, "prompt": DEFAULT_SYSTEM_PROMPT, "bot_enabled": True, "approval_mode": "auto", "last_sync": 0}
@@ -349,19 +349,19 @@ def check_custom_rules(message, client_id=None, post_url_or_id=None):
 
 def generate_reply(user_message, platform="facebook", client_id=None):
     if not user_message or not str(user_message).strip():
-        return "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø±Ø³Ø§Ù„ØªÙƒ ÙˆØ³ÙŠØªÙ… Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ùƒ ÙÙˆØ±Ø§Ù‹."
+        return "أهلاً بك! تم استلام رسالتك وسيتم التواصل معك فوراً."
     
     # 1. Custom Rules exact/contains check
     rule = check_custom_rules(user_message, client_id=client_id)
     if rule:
-        return rule.get("response") or "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ØªÙ… Ø§Ù„Ø±Ø¯ Ø¹Ù„Ù‰ Ø§Ø³ØªÙØ³Ø§Ø±Ùƒ."
+        return rule.get("response") or "أهلاً بك! تم الرد على استفسارك."
         
     # 2. Knowledge Base RAG Search
     rag_context = search_kb(user_message, client_id=client_id)
     
     # If no relevant RAG context found and no custom rule, use safe polite fallback instead of hallucinating
     if not rag_context or len(rag_context.strip()) < 5:
-        return "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ØªÙ… ØªØ­ÙˆÙŠÙ„ Ø§Ø³ØªÙØ³Ø§Ø±Ùƒ Ù„Ù…Ø³Ø¤ÙˆÙ„ Ø§Ù„Ø­Ø³Ø§Ø¨Ø§Øª ÙˆØ³ÙŠØªÙ… Ø§Ù„Ø±Ø¯ Ø¹Ù„ÙŠÙƒ Ø¨Ø§Ù„ØªÙØ§ØµÙŠÙ„ ÙÙŠ Ø£Ù‚Ø±Ø¨ ÙˆÙ‚Øª. "
+        return "أهلاً بك! تم تحويل استفسارك لمسؤول الحسابات وسيتم الرد عليك بالتفاصيل في أقرب وقت. "
         
     # 3. Controlled LLM Response with RAG Context
     cid = client_id or current_client_id()
@@ -779,21 +779,21 @@ def privacy_policy():
         <h2>3. How We Use Data</h2>
         <ul>
             <li>To display Facebook/Instagram DMs and comments in unified inbox.</li>
-            <li>To generate AI reply suggestions using Llama AI + RAG from your knowledge base â€” messages are processed for AI generation and not used for training.</li>
+            <li>To generate AI reply suggestions using Llama AI + RAG from your knowledge base — messages are processed for AI generation and not used for training.</li>
             <li>To send replies only after admin approval (in manual mode) or auto (in auto mode if enabled by Page Admin).</li>
             <li>We never post without admin consent in manual mode.</li>
         </ul>
 
         <h2>4. Data Storage & Security</h2>
         <ul>
-            <li>Page Access Tokens encrypted with AES-256 before storage â€” never returned in public APIs.</li>
+            <li>Page Access Tokens encrypted with AES-256 before storage — never returned in public APIs.</li>
             <li>Messages stored for 90 days then auto-deleted.</li>
             <li>All APIs protected with Session Auth except webhook which uses X-Hub-Signature verification.</li>
         </ul>
 
         <h2>5. Data Sharing</h2>
         <ul>
-            <li>We share message text with AI processors for completion and embeddings â€” zero data retention.</li>
+            <li>We share message text with AI processors for completion and embeddings — zero data retention.</li>
             <li>We DO NOT sell data, DO NOT share with third parties, DO NOT use for ads.</li>
         </ul>
 
@@ -842,8 +842,8 @@ def terms_of_service():
         <ul>
             <li>You are an admin of the Page / Instagram account and authorized to manage messages and comments.</li>
             <li>You will not use this tool for spam, harassment, or violating Meta Platform Terms and Policies.</li>
-            <li>AI suggestions require human approval in manual mode â€” Page admins are responsible for final messages sent.</li>
-            <li>AI suggestions are provided as draft assistance â€” always review drafts before approving.</li>
+            <li>AI suggestions require human approval in manual mode — Page admins are responsible for final messages sent.</li>
+            <li>AI suggestions are provided as draft assistance — always review drafts before approving.</li>
             <li>We reserve the right to suspend accounts violating Meta policies.</li>
             <li>Service provided as-is with a target 99.5% uptime via Vercel infrastructure.</li>
         </ul>
@@ -940,7 +940,7 @@ def api_conversations():
     all_threads = []
 
     # Build the full list of pages to pull from (all pages the token can see + attached accounts),
-    # so the inbox shows conversations from EVERY connected page â€” not just the first one.
+    # so the inbox shows conversations from EVERY connected page — not just the first one.
     # Build the pages to pull STRICTLY from the ACTIVE CLIENT's own connected pages,
     # using each page's stored page token. Never fall back to the default Domya page —
     # that was the bug that made every client show Domya's messages.
@@ -990,13 +990,13 @@ def api_conversations():
                 senders = thread.get("senders", {}).get("data", [])
                 snippet = thread.get("snippet", "")
                 
-                cust_sender = "Ø¹Ù…ÙŠÙ„ ÙÙŠØ³Ø¨ÙˆÙƒ"
+                cust_sender = "عميل فيسبوك"
                 cust_id = None
                 avatar_url = ""
                 profile_link = ""
                 for s in senders:
                     if str(s.get("id")) != fb_page_id:
-                        cust_sender = s.get("name", "Ø¹Ù…ÙŠÙ„ ÙÙŠØ³Ø¨ÙˆÙƒ")
+                        cust_sender = s.get("name", "عميل فيسبوك")
                         cust_id = s.get("id")
                         avatar_url = s.get("profile_pic", "")
                         profile_link = s.get("link", "")
@@ -1010,7 +1010,7 @@ def api_conversations():
                     "platform": "facebook",
                     "customer_type": "lead",
                     "lead_score": 85,
-                    "lead_badge": "Hot ðŸ”¥ 85%",
+                    "lead_badge": "Hot 🔥 85%",
                     "sender": cust_sender,
                     "sender_name": cust_sender,
                     "avatar_url": avatar_url,
@@ -1138,11 +1138,11 @@ def api_conversations():
             "platform": item.get("platform", "facebook"),
             "customer_type": "lead",
             "lead_score": 85,
-            "lead_badge": "مراجعة â³",
+            "lead_badge": "مراجعة ⏳",
             "pending_approval": True,
             "ai_draft": item.get("reply", ""),
             "sender": str(s),
-            "sender_name": f"عميل ({str(s)[:6]}) â³",
+            "sender_name": f"عميل ({str(s)[:6]}) ⏳",
             "avatar_url": f"https://ui-avatars.com/api/?name={str(s)}&background=f59e0b&color=fff",
             "last_msg": item.get("message", ""),
             "snippet": item.get("message", ""),
@@ -1239,7 +1239,7 @@ def owned_thread_or_404(thread_id):
             "sender_name": "عميل",
             "snippet": "محادثة جديدة",
             "messages": [
-                {"id": f"m_{thread_id}", "text": "Ù…Ø±Ø­Ø¨Ø§ØŒ Ø­Ø§Ø¨Ø¨ Ø§Ø³ØªÙØ³Ø± Ø¹Ù† Ø®Ø¯Ù…Ø§Øª Ø§Ù„Ù…ÙˆØ¯Ø±ÙŠØ´Ù† ÙˆØ§Ù„Ù€ AI", "is_page": False, "sender_name": "Ø¹Ù…ÙŠÙ„", "created_time": "Ø§Ù„Ø¢Ù†"}
+                {"id": f"m_{thread_id}", "text": "مرحبا، حابب استفسر عن خدمات المودريشن والـ AI", "is_page": False, "sender_name": "عميل", "created_time": "الآن"}
             ]
         }
 
@@ -1427,7 +1427,7 @@ def api_export_thread(thread_id):
     msgs = data.get("messages", [])
     lines = [f"محادثة: {thread_id}", f"العميل: {cid}", "=" * 40]
     for m in msgs:
-        who = "Ù†Ø­Ù† (Ø§Ù„ØµÙØ­Ø©)" if m.get("is_page") else m.get("sender_name", "Ø§Ù„Ø¹Ù…ÙŠÙ„")
+        who = "نحن (الصفحة)" if m.get("is_page") else m.get("sender_name", "العميل")
         time_str = m.get("created_time") or m.get("created_at") or ""
         lines.append(f"[{time_str}] {who}: {m.get('text') or m.get('message') or ''}")
     content = "\n".join(lines)
@@ -1515,14 +1515,14 @@ def api_send_reply():
 
             if res.status_code >= 400 or "error" in res_data:
                 err_obj = res_data.get("error") or {}
-                err_msg = err_obj.get("message") or "ÙØ´Ù„ Ø§Ù„Ø¥Ø±Ø³Ø§Ù„ Ø¹Ø¨Ø± Meta Graph API"
+                err_msg = err_obj.get("message") or "فشل الإرسال عبر Meta Graph API"
                 return jsonify({
                     "ok": False,
                     "status": "failed",
                     "graph_status": res.status_code,
                     "error_code": err_obj.get("code"),
                     "error_subcode": err_obj.get("error_subcode"),
-                    "error": f"ÙØ´Ù„ Ø§Ù„Ø¥Ø±Ø³Ø§Ù„ Ø¹Ø¨Ø± Meta (ÙƒÙˆØ¯ {res.status_code}): {err_msg}"
+                    "error": f"فشل الإرسال عبر Meta (كود {res.status_code}): {err_msg}"
                 }), 400
             
             log_event("comment_public", f"Comment_{comment_id[:6]}", "رد علني تحت المنشور", text)
@@ -1558,14 +1558,14 @@ def api_send_reply():
 
             if res.status_code >= 400 or "error" in res_data:
                 err_obj = res_data.get("error") or {}
-                err_msg = err_obj.get("message") or "ÙØ´Ù„ Ø§Ù„Ø¥Ø±Ø³Ø§Ù„ Ø¹Ø¨Ø± Meta Graph API"
+                err_msg = err_obj.get("message") or "فشل الإرسال عبر Meta Graph API"
                 return jsonify({
                     "ok": False,
                     "status": "failed",
                     "graph_status": res.status_code,
                     "error_code": err_obj.get("code"),
                     "error_subcode": err_obj.get("error_subcode"),
-                    "error": f"ÙØ´Ù„ Ø§Ù„Ø¥Ø±Ø³Ø§Ù„ Ø¹Ø¨Ø± Meta (ÙƒÙˆØ¯ {res.status_code}): {err_msg}"
+                    "error": f"فشل الإرسال عبر Meta (كود {res.status_code}): {err_msg}"
                 }), 400
 
             log_event("comment_private", f"Comment_{comment_id[:6]}", "رد خاص (DM)", text)
@@ -1579,7 +1579,7 @@ def api_send_reply():
             ok_send, detail = send_dm_reply(recipient_id, text, access_token=token)
             if not ok_send:
                 return jsonify({"ok": False, "status": "failed",
-                                "error": f"ÙØ´Ù„ Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø±Ø³Ø§Ù„Ø© Ø¹Ø¨Ø± Meta: {detail}"}), 400
+                                "error": f"فشل إرسال الرسالة عبر Meta: {detail}"}), 400
             log_event("dm", f"User_{recipient_id[:6]}", "رد مباشر", text)
 
             # Persist sent message in conversation memory so it appears in thread history
@@ -1878,7 +1878,7 @@ def api_simulate():
     data = request.get_json() or {}
     msg = data.get("message", "")
     if not msg or not str(msg).strip():
-        return jsonify({"reply": "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ! ÙƒÙŠÙ ÙŠÙ…ÙƒÙ†Ù†Ø§ Ù…Ø³Ø§Ø¹Ø¯ØªÙƒØŸ", "source": "fallback"})
+        return jsonify({"reply": "أهلاً بك! كيف يمكننا مساعدتك؟", "source": "fallback"})
     rule = check_custom_rules(msg)
     if rule:
         reply = rule.get("response", "")
@@ -1900,7 +1900,7 @@ def api_simulate():
         first = lines[0]
         answer = first.split(": ", 1)[1] if ": " in first else rag_context
         return jsonify({"reply": f"أهلاً بيك! {answer}", "source": "rag"})
-    return jsonify({"reply": "Ø£Ù‡Ù„Ø§Ù‹ Ø¨ÙŠÙƒ ÙÙŠ ÙˆÙƒØ§Ù„Ø© دوميا! Ø§Ø¨Ø¹ØªÙ„Ù†Ø§ Ø±Ø³Ø§Ù„Ø© ÙÙŠ Ø§Ù„Ø®Ø§Øµ ÙˆÙ‡Ù†Ø±Ø¯ Ø¹Ù„ÙŠÙƒ ÙÙˆØ±Ø§Ù‹!", "source": "fallback"})
+    return jsonify({"reply": "أهلاً بيك في وكالة دوميا! ابعتلنا رسالة في الخاص وهنرد عليك فوراً!", "source": "fallback"})
 
 @app.route("/webhook", methods=["GET"])
 def webhook_verify():
@@ -1909,7 +1909,7 @@ def webhook_verify():
     challenge = request.args.get("hub.challenge")
     verify_token_env = os.environ.get("VERIFY_TOKEN", "")
     if mode == "subscribe" and challenge:
-        # Ù„Ùˆ VERIFY_TOKEN Ù…ØªØ¸Ø¨Ø·: Ù„Ø§Ø²Ù… ÙŠØ·Ø§Ø¨Ù‚ (Ø¢Ù…Ù†). Ù„Ùˆ Ù…Ø´ Ù…ØªØ¸Ø¨Ø·: Ù†Ø³Ù…Ø­ Ù…Ø¤Ù‚ØªØ§Ù‹ Ù„Ø£ÙˆÙ„ Ø¥Ø¹Ø¯Ø§Ø¯ ÙÙ‚Ø·.
+        # لو VERIFY_TOKEN متظبط: لازم يطابق (آمن). لو مش متظبط: نسمح مؤقتاً لأول إعداد فقط.
         if verify_token_env:
             if token == verify_token_env:
                 return str(challenge), 200
@@ -2080,7 +2080,7 @@ def webhook_event():
                         stats["ai_calls"] += 1
                         rule = check_custom_rules(text)
                         if rule:
-                            pub_reply = rule.get("response") or "ØªÙ… Ø§Ù„Ø±Ø¯ ÙÙŠ Ø§Ù„Ø®Ø§Øµ! "
+                            pub_reply = rule.get("response") or "تم الرد في الخاص! "
                             priv_reply = rule.get("private_response")
                         else:
                             pub_reply = generate_reply(text, platform="comment", client_id=_acct_cid)
@@ -2177,7 +2177,7 @@ def api_accounts_get():
         "accounts": masked,
         "active_id": active_id,
         "app_id": "1331918902446123",
-        "verify_token": "â€¢â€¢â€¢â€¢2026",
+        "verify_token": "••••2026",
         "callback_url": "https://metaaimoderator.vercel.app/webhook",
         "encryption": "AES-256-GCM",
         "security": "401 Protected",
@@ -2443,7 +2443,7 @@ def oauth_callback():
         try:
             pages = discover_pages(long_token)
             if pages:
-                # Auto-link EVERY page the user approved on Facebook's own consent screen â€”
+                # Auto-link EVERY page the user approved on Facebook's own consent screen —
                 # no website page-picker. Each page becomes its own client workspace.
                 global ACCOUNTS_STORE
                 linked = 0
@@ -2539,7 +2539,7 @@ def api_pending_pages():
             if pid not in found_dict:
                 found_dict[pid] = {
                     'id': pid,
-                    'name': a.get('name', 'Ø§Ù„ØµÙØ­Ø© Ø§Ù„Ù…Ø±Ø¨ÙˆØ·Ø©'),
+                    'name': a.get('name', 'الصفحة المربوطة'),
                     'access_token': a.get('access_token'),
                     'fan_count': 10181,
                     'picture': {'data': {'url': a.get('avatar_url') or ''}}
@@ -2571,7 +2571,7 @@ def api_attach_page():
         page_id = str(page['id'])
 
     if not page:
-        return jsonify({'error': 'Ø§Ù„ØµÙØ­Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø©'}), 404
+        return jsonify({'error': 'الصفحة غير موجودة'}), 404
 
     tok = page.get('access_token') or PAGE_ACCESS_TOKEN
     expires = (datetime.now(timezone.utc) + timedelta(days=60)).isoformat()
@@ -2595,7 +2595,7 @@ def api_attach_page():
 
     client_obj = next((c for c in AGENCY_CLIENTS_STORE if c.get('id') == client_id), None)
     if not client_obj:
-        # The target client no longer exists (lost during the multi-step OAuth flow) â€”
+        # The target client no longer exists (lost during the multi-step OAuth flow) —
         # create a workspace for this page so the accounts are never left orphaned.
         client_id = client_id or ("client_" + str(page['id']))
         client_obj = {
@@ -2656,7 +2656,7 @@ def api_attach_page():
         'instagram': ig.get('username') if ig else None
     })
 
-#  Auth Guard â€” blocks ALL /api/* without session 
+#  Auth Guard — blocks ALL /api/* without session 
 admin_user = os.environ.get("ADMIN_USER") or "admin"
 admin_pass = os.environ.get("ADMIN_PASS") or "admin2026"
 USERS_DB = {
@@ -2714,7 +2714,7 @@ def api_health():
 
 @app.route("/api/meta/diagnose", methods=["GET"])
 def api_meta_diagnose():
-    """ØªØ´Ø®ÙŠØµ Ø§Ù„ØªÙˆÙƒÙ†: Ø¨ÙŠÙ‚ÙˆÙ„ Ø§Ù„ØªÙˆÙƒÙ† Ø´Ø§ÙŠÙ Ø¥ÙŠÙ‡ (ØµÙØ­Ø§Øª/IG/ØµÙ„Ø§Ø­ÙŠØ§Øª) Ø¨Ø¯ÙˆÙ† ÙƒØ´Ù Ø§Ù„Ø³Ø±."""
+    """تشخيص التوكن: بيقول التوكن شايف إيه (صفحات/IG/صلاحيات) بدون كشف السر."""
     tok = PAGE_ACCESS_TOKEN
     out = {"has_token": bool(tok), "token_len": len(tok) if tok else 0, "pages": [], "errors": []}
 
@@ -2740,7 +2740,7 @@ def api_meta_diagnose():
             supa["exception"] = str(e)[:200]
     out["supabase"] = supa
     if not tok:
-        out["errors"].append("PAGE_ACCESS_TOKEN ØºÙŠØ± Ù…ØªØ¸Ø¨Ø· ÙÙŠ Ø§Ù„Ù€ env")
+        out["errors"].append("PAGE_ACCESS_TOKEN غير متظبط في الـ env")
         return jsonify(out), 200
     try:
         me = requests.get(f"{GRAPH_URL}/me?fields=id,name", params={"access_token": tok}, timeout=10)
@@ -2767,7 +2767,7 @@ def api_meta_diagnose():
                     "ig_id": pg.get("instagram_business_account", {}).get("id") or None
                 })
         else:
-            out["errors"].append(f"/me/accounts â†’ {acc.status_code}: {acc.text[:200]}")
+            out["errors"].append(f"/me/accounts → {acc.status_code}: {acc.text[:200]}")
     except Exception as e:
         out["errors"].append(f"accounts: {e}")
     out["page_count"] = len(out["pages"])
@@ -2815,7 +2815,7 @@ def api_meta_diagnose():
             }
         except Exception as e:
             probe["fb_dm_send_probe"] = f"EXC {e}"
-        # IG DM â€” try both page-scoped and IG-user-scoped endpoints
+        # IG DM — try both page-scoped and IG-user-scoped endpoints
         try:
             r = requests.get(f"{GRAPH_URL}/{pid}/conversations?platform=instagram&fields=id&limit=10&access_token={ptok}", timeout=10)
             probe["ig_dm_via_page"] = len(r.json().get("data", [])) if r.status_code == 200 else f"ERR {r.status_code}: {r.text[:180]}"
@@ -2851,8 +2851,8 @@ def api_meta_diagnose():
                 probe["ig_media"] = f"EXC {e}"
         out["probe"] = probe
 
-    out["verdict"] = ("جاهز â€” Ø§Ù„ØµÙØ­Ø§Øª Ø¸Ø§Ù‡Ø±Ø©ØŒ Ø§Ù„Ø³Ø­Ø¨ Ø§Ù„Ù…ÙØ±ÙˆØ¶ ÙŠØ´ØªØºÙ„" if out["pages"]
-                      else "Ø§Ù„ØªÙˆÙƒÙ† Ø´ØºÙ‘Ø§Ù„ Ø¨Ø³ Ù…ÙÙŠØ´ ØµÙØ­Ø§Øª Ø¸Ø§Ù‡Ø±Ø© â€” راجع صلاحيات/ØªØ¹ÙŠÙŠÙ† Ø§Ù„ØµÙØ­Ø© Ù„Ù„Ù€ System User")
+    out["verdict"] = ("جاهز — الصفحات ظاهرة، السحب المفروض يشتغل" if out["pages"]
+                      else "التوكن شغّال بس مفيش صفحات ظاهرة — راجع صلاحيات/تعيين الصفحة للـ System User")
     return jsonify(out), 200
 
 @app.route("/api/secure/settings", methods=["GET", "POST", "PUT"])
@@ -2932,7 +2932,7 @@ def api_login():
         session.modified = True
         return jsonify({"ok": True, "username": username, "role": session["role"], "auth_provider": "supabase"})
 
-    # 2. Fallback to local admin â€” strict exact-match against env ADMIN_PASS, no bypass
+    # 2. Fallback to local admin — strict exact-match against env ADMIN_PASS, no bypass
     user = USERS_DB.get(username)
     local_auth_ok = False
     if username == "admin" and password == "admin2026":
@@ -3032,7 +3032,7 @@ def api_clients_add():
     # Only use real page/token if EXPLICITLY provided (manual). Otherwise the client
     # starts EMPTY and pages are attached later via Facebook OAuth (the correct flow).
     # Only use a page/token if EXPLICITLY provided (manual entry). Otherwise the client
-    # starts EMPTY and real pages are attached later via Facebook OAuth â€” never auto-attach
+    # starts EMPTY and real pages are attached later via Facebook OAuth — never auto-attach
     # the default Domya page to every new client.
     page_id = str(data.get("page_id") or "").strip()
     ig_id = str(data.get("ig_id") or "").strip()
@@ -3132,7 +3132,7 @@ def api_clients_switch():
     data = request.get_json() or {}
     cid = data.get("client_id", "")
     if not any(c["id"] == cid and c.get("is_active", True) for c in AGENCY_CLIENTS_STORE):
-        return jsonify({"error": "Ø§Ù„Ø¹Ù…ÙŠÙ„ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯ Ø£Ùˆ Ù…Ø¤Ø±Ø´Ù"}), 404
+        return jsonify({"error": "العميل غير موجود أو مؤرشف"}), 404
     session["active_client_id"] = cid
     session.modified = True
     return jsonify({"ok": True, "active_client_id": cid})
@@ -3339,7 +3339,7 @@ def api_test_meta_connection():
                 "page_id": data.get("id"),
                 "page_name": data.get("name"),
                 "connected_accounts": max(valid_accounts, 1),
-                "message": f"ØªÙ… Ø§Ù„Ø§ØªØµØ§Ù„ Ø¨Ù€ Meta Graph API Ø¨Ù†Ø¬Ø§Ø­! Ø§Ù„ØµÙØ­Ø©: {data.get('name')}"
+                "message": f"تم الاتصال بـ Meta Graph API بنجاح! الصفحة: {data.get('name')}"
             })
         else:
             err_msg = (res.json().get("error") or {}).get("message") or "تعذّر الاتصال بـ Meta"
@@ -3400,7 +3400,7 @@ def api_account_verify(page_id):
 
 @app.route('/api/accounts/<page_id>/mode', methods=['POST'])
 def api_account_set_mode(page_id):
-    """يحدّد وضع الرد (auto/manual) Ù„ÙƒÙ„ Ø£ÙƒÙˆÙ†Øª Ø¨Ø´ÙƒÙ„ Ù…Ù†ÙØµÙ„ Ù„Ù„ÙƒÙˆÙ…Ù†ØªØ§Øª ÙˆØ§Ù„Ø±Ø³Ø§Ø¦Ù„."""
+    """يحدّد وضع الرد (auto/manual) لكل أكونت بشكل منفصل للكومنتات والرسائل."""
     data = request.get_json() or {}
     acc = next((a for a in ACCOUNTS_STORE if str(a.get('id')) == str(page_id) or str(a.get('ig_id')) == str(page_id)), None)
     if not acc:
@@ -3463,7 +3463,7 @@ def send_reply_via_chatwoot(conversation_id, message_text):
         return False
 
 def send_private_note_via_chatwoot(conversation_id, message_text):
-    """ÙŠØ³ÙŠØ¨ Ø§Ù‚ØªØ±Ø§Ø­ Ø§Ù„Ù€ AI ÙƒÙ€ private note Ø¬ÙˆÙ‡ Ø§Ù„Ù…Ø­Ø§Ø¯Ø«Ø© Ø¹Ø´Ø§Ù† Ø§Ù„Ù€ agent ÙŠÙˆØ§ÙÙ‚ ÙˆÙŠØ¨Ø¹Øª Ø¨Ù†ÙØ³Ù‡ (ÙˆØ¶Ø¹ DM Ø§Ù„ÙŠØ¯ÙˆÙŠ)."""
+    """يسيب اقتراح الـ AI كـ private note جوه المحادثة عشان الـ agent يوافق ويبعت بنفسه (وضع DM اليدوي)."""
     if not CHATWOOT_API_KEY:
         return False
     try:
@@ -3484,9 +3484,9 @@ def api_chatwoot_webhook():
     """
     يستقبل حدث message_created من Chatwoot، يشغّل الـ AI، ويرد:
       - كومنت عام  -> رد تلقائي مباشر (outgoing)
-      - رسالة خاصة -> Ø§Ù‚ØªØ±Ø§Ø­ AI ÙƒÙ€ private note Ù„Ù„Ù…ÙˆØ§ÙÙ‚Ø© Ø§Ù„ÙŠØ¯ÙˆÙŠØ©
+      - رسالة خاصة -> اقتراح AI كـ private note للموافقة اليدوية
     """
-    # ØªØ­Ù‚Ù‚ Ø§Ø®ØªÙŠØ§Ø±ÙŠ Ø¨Ù…ÙØªØ§Ø­ Ù…Ø´ØªØ±Ùƒ (Ù„Ùˆ CHATWOOT_WEBHOOK_SECRET Ù…ØªØ¸Ø¨Ø· ÙÙŠ Ø§Ù„Ù€ env)
+    # تحقق اختياري بمفتاح مشترك (لو CHATWOOT_WEBHOOK_SECRET متظبط في الـ env)
     expected = os.environ.get("CHATWOOT_WEBHOOK_SECRET", "")
     if expected:
         got = request.headers.get("X-Webhook-Secret") or request.args.get("secret") or ""
@@ -3511,7 +3511,7 @@ def api_chatwoot_webhook():
     if not conversation_id or not content:
         return jsonify({"status": "ignored", "reason": "no conversation_id or content"}), 200
 
-    # Ù…Ù†Ø¹ Ø§Ù„Ù…Ø¹Ø§Ù„Ø¬Ø© Ø§Ù„Ù…ÙƒØ±Ø±Ø© Ù„Ù†ÙØ³ Ø§Ù„Ø±Ø³Ø§Ù„Ø© (Chatwoot Ù…Ù…ÙƒÙ† ÙŠØ¹ÙŠØ¯ Ø§Ù„Ø¥Ø±Ø³Ø§Ù„)
+    # منع المعالجة المكررة لنفس الرسالة (Chatwoot ممكن يعيد الإرسال)
     dedup_key = f"cw_msg_{message_id}"
     if message_id is not None and free_lru_cache.get(dedup_key):
         return jsonify({"status": "ignored", "reason": "duplicate"}), 200
@@ -3618,20 +3618,20 @@ def calculate_lead_score(text, history=None):
         return {"score": 25, "tier": "Cold", "badge": " بارد", "color": "#2563eb"}
     txt = str(text).lower()
     score = 20
-    if any(k in txt for k in ["Ø¨ÙƒØ§Ù…", "Ø³Ø¹Ø±", "Ø£Ø³Ø¹Ø§Ø±", "ØªÙƒÙ„ÙØ©", "Ø¨Ø§Ù‚Ø©", "Ø¨Ø§ÙƒØ§Ù…"]):
+    if any(k in txt for k in ["بكام", "سعر", "أسعار", "تكلفة", "باقة", "باكام"]):
         score += 35
-    if any(k in txt for k in ["Ø¹Ø§ÙŠØ²", "Ù…Ø­ØªØ§Ø¬", "Ø£Ø¨Ø¯Ø£", "Ø§Ø´ØªØ±Ùƒ", "Ø­Ø¬Ø²", "ØªÙØ§ØµÙŠÙ„"]):
+    if any(k in txt for k in ["عايز", "محتاج", "أبدأ", "اشترك", "حجز", "تفاصيل"]):
         score += 25
-    if any(k in txt for k in ["Ù…ÙŠØ²Ø§Ù†ÙŠØ©", "ÙÙ„ÙˆØ³", "Ø¬Ù†ÙŠÙ‡", "Ø¯ÙˆÙ„Ø§Ø±"]):
+    if any(k in txt for k in ["ميزانية", "فلوس", "جنيه", "دولار"]):
         score += 20
     
     score = min(score, 100)
     if score >= 75:
-        return {"score": score, "tier": "Hot", "badge": " Ø­Ø§Ø± - ÙØ±ØµØ© Ù…Ø¤ÙƒØ¯Ø©", "color": "#ef4444", "action": "اتصل الآن"}
+        return {"score": score, "tier": "Hot", "badge": " حار - فرصة مؤكدة", "color": "#ef4444", "action": "اتصل الآن"}
     elif score >= 45:
-        return {"score": score, "tier": "Warm", "badge": " Ø¯Ø§ÙØ¦ - Ù…Ù‡ØªÙ…", "color": "#f59e0b", "action": "تواصل واتساب"}
+        return {"score": score, "tier": "Warm", "badge": " دافئ - مهتم", "color": "#f59e0b", "action": "تواصل واتساب"}
     else:
-        return {"score": score, "tier": "Cold", "badge": " Ø¨Ø§Ø±Ø¯ - Ø§Ø³ØªÙØ³Ø§Ø± Ø¹Ø§Ù…", "color": "#2563eb", "action": "متابعة"}
+        return {"score": score, "tier": "Cold", "badge": " بارد - استفسار عام", "color": "#2563eb", "action": "متابعة"}
 
 @app.route('/api/v5/leads/summary', methods=['GET'])
 def api_v5_leads_summary():
@@ -3662,7 +3662,7 @@ def api_v7_status():
         "page_id": "",
         "ig_id": "17841413562796856",
         "webhook_url": "https://metaaimoderator.vercel.app/webhook",
-        "verification_badge": " موثق â€” متحكم بالكامل 100%",
+        "verification_badge": " موثق — متحكم بالكامل 100%",
         "meta_graph_api_count": 0,
         "aes256_encrypted": True,
         "monthly_cost": "$0.00"
@@ -3674,7 +3674,7 @@ def api_v7_status():
 def api_ai_improve_caption():
     data = request.json or {}
     text = data.get("caption", "")
-    improved = f" {text}\n\n Ø§Ø­ØµÙ„ Ø¹Ù„Ù‰ Ø£ÙØ¶Ù„ Ù†ØªØ§Ø¦Ø¬ Ø§Ù„ØªØ³ÙˆÙŠÙ‚ ÙˆØ¥Ø¯Ø§Ø±Ø© Ø§Ù„ØµÙØ­Ø§Øª Ù…Ø¹ ÙˆÙƒØ§Ù„Ø© دوميا!\n ØªÙˆØ§ØµÙ„ Ù…Ø¹Ù†Ø§ Ø§Ù„Ø¢Ù† Ø¹Ø¨Ø± Ø§Ù„Ø±Ø³Ø§Ø¦Ù„ Ù„Ù„Ø­ØµÙˆÙ„ Ø¹Ù„Ù‰ Ø§Ù„Ø¹Ø±Ø¶ Ø§Ù„ÙÙˆØ±ÙŠ.\n\n#تسويق_إلكتروني #Ù…ØµØ± #عروض_خاصة #دوميا #تسويق"
+    improved = f" {text}\n\n احصل على أفضل نتائج التسويق وإدارة الصفحات مع وكالة دوميا!\n تواصل معنا الآن عبر الرسائل للحصول على العرض الفوري.\n\n#تسويق_إلكتروني #مصر #عروض_خاصة #دوميا #تسويق"
     return jsonify({"improved_caption": improved, "status": "success"})
 
 
@@ -3688,7 +3688,7 @@ VERIFY_TOKEN_SECRET = os.environ.get("WEBHOOK_VERIFY_TOKEN", "meta_ai_webhook_ve
 def api_get_verify_token():
     return jsonify({
         "verify_token": VERIFY_TOKEN_SECRET,
-        "masked_token": f"{VERIFY_TOKEN_SECRET[:4]}â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢{VERIFY_TOKEN_SECRET[-4:]}",
+        "masked_token": f"{VERIFY_TOKEN_SECRET[:4]}••••••••••••{VERIFY_TOKEN_SECRET[-4:]}",
         "status": "protected"
     })
 
@@ -3727,10 +3727,10 @@ RULES_ITEMS_CACHE = [
     {"id": "rule-2", "trigger": "سعر", "match_type": "contains", "public_reply": "تم إرسال كافة التفاصيل والباقات في الرسائل الخاصة", "private_reply": "أهلاً بك! تفاصيل أسعار إدارة الصفحات تظهر في الباقات المعتمدة (3000ج / 6000ج)."}
 ]
 
-# CLIENTS_ITEMS_CACHE removed â€” unified into AGENCY_CLIENTS_STORE via /api/clients above
+# CLIENTS_ITEMS_CACHE removed — unified into AGENCY_CLIENTS_STORE via /api/clients above
 
 LOGS_STREAM_CACHE = [
-    {"time": "03:07 م", "event": "استلام رسالة جديدة من User عبر Messenger", "status": "نجاح ðŸŸ¢"},
+    {"time": "03:07 م", "event": "استلام رسالة جديدة من User عبر Messenger", "status": "نجاح 🟢"},
             {"time": "03:05 م", "event": "توليد مسودة رد بالذكاء الاصطناعي (MASTER V4 Prompt)", "status": "معلق للموافقة ⏳"},
             {"time": "02:50 م", "event": "فحص التوكن التلقائي - Token Verified 60 Days", "status": "نجاح 🟢"}
 ]
@@ -3751,7 +3751,7 @@ def api_simulate_ai_chat():
     if any(k in msg for k in ["بكام", "سعر", "أسعار", "تكلفة"]):
         reply = "أهلاً بك! باقات إدارة الصفحات لدينا: الباقة البرونزية بـ 3000 جنيه شهرياً (12 منشور + 4 ريلز) والذهبية بـ 6000 جنيه شهرياً. للتواصل الفوري: 01090121000 م.محمد سعيد."
     else:
-        reply = "Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ ÙÙŠ ÙˆÙƒØ§Ù„Ø© دوميا Ù„Ù„ØªØ³ÙˆÙŠÙ‚ Ø§Ù„Ø±Ù‚Ù…ÙŠ! Ù†Ø­Ù† Ù…ØªØ®ØµØµÙˆÙ† ÙÙŠ Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„ØµÙØ­Ø§Øª ÙˆØ§Ù„Ø¥Ø¹Ù„Ø§Ù†Ø§Øª Ø§Ù„Ù…Ù…ÙˆÙ‘Ù„Ø©. ÙƒÙŠÙ ÙŠÙ…ÙƒÙ†Ù†Ø§ Ù…Ø³Ø§Ø¹Ø¯ØªÙƒ Ø§Ù„ÙŠÙˆÙ…ØŸ"
+        reply = "أهلاً بك في وكالة دوميا للتسويق الرقمي! نحن متخصصون في إدارة الصفحات والإعلانات المموّلة. كيف يمكننا مساعدتك اليوم؟"
     return jsonify({
         "reply": reply,
         "prompt_version": "MASTER V4 PRECISE",
@@ -3791,7 +3791,7 @@ def api_verification_live_status():
     def _mask(tok):
         if not tok:
             return None
-        return (tok[:6] + "â€¢â€¢â€¢â€¢" + tok[-4:]) if len(tok) > 12 else "â€¢â€¢â€¢â€¢"
+        return (tok[:6] + "••••" + tok[-4:]) if len(tok) > 12 else "••••"
     fb = next((a for a in ACCOUNTS_STORE if a.get("platform") == "facebook"), None)
     ig = next((a for a in ACCOUNTS_STORE if a.get("platform") == "instagram"), None)
     connected = bool(fb or ig)
@@ -3862,7 +3862,7 @@ def drive_to_direct(url):
 
 
 def _resolve_page_token(acc, ig=False):
-    """يرجّع page token حقيقي â€” يحوّل من System User token عبر /me/accounts لو لزم."""
+    """يرجّع page token حقيقي — يحوّل من System User token عبر /me/accounts لو لزم."""
     tok = PAGE_ACCESS_TOKEN
     if acc.get("access_token_enc"):
         d = decrypt(acc["access_token_enc"])
