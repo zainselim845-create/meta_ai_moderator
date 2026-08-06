@@ -1380,11 +1380,6 @@ def api_conversations():
         "pending": pending,
         "approval_mode": cache.get("approval_mode", "auto"),
         "active_client_id": cid,
-        "_debug": {
-            "cid": cid,
-            "client_accounts_ids": [str(a.get("id")) for a in client_accounts],
-            "pages_pulled": [p.get("fb_page_id") for p in pages_to_pull],
-        }
     }
     conv_cache["all_threads"] = all_threads
     conv_cache["data"] = {"conversations": all_threads}
