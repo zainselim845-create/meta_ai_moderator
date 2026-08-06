@@ -964,7 +964,7 @@ def api_conversations():
             # via the account's token AND via the env System-User token (like the diagnose
             # probe, which reliably returns a comment-capable page token).
             if _pid.isdigit():
-                for _src in (_t, PAGE_ACCESS_TOKEN):
+                for _src in (PAGE_ACCESS_TOKEN, _t):
                     if not (_src and len(_src) > 20):
                         continue
                     try:
