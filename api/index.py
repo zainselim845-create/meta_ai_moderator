@@ -959,18 +959,31 @@ def api_conversations():
                 continue
             _pid = str(_a.get("id"))
             _igid = _a.get("ig_id")
-            # If the stored token is a System User token, resolve THIS page's own page token
+            # Resolve THIS page's own fully-scoped page token. The stored token can be an
+            # old/limited page token that reads posts but NOT comments — so we re-resolve
+            # via the account's token AND via the env System-User token (like the diagnose
+            # probe, which reliably returns a comment-capable page token).
             if _pid.isdigit():
-                try:
-                    _acc = requests.get(f"{GRAPH_URL}/me/accounts?fields=id,access_token,instagram_business_account{{id}}&limit=100&access_token={_t}", timeout=12)
-                    if _acc.status_code == 200:
-                        for _pg in _acc.json().get("data", []):
-                            if str(_pg.get("id")) == _pid and _pg.get("access_token"):
-                                _t = _pg["access_token"]
-                                _igid = _igid or (_pg.get("instagram_business_account") or {}).get("id")
+                for _src in (_t, PAGE_ACCESS_TOKEN):
+                    if not (_src and len(_src) > 20):
+                        continue
+                    try:
+                        # Direct page-token lookup (works when _src manages this page)
+                        _pt = requests.get(f"{GRAPH_URL}/{_pid}?fields=access_token,instagram_business_account{{id}}&access_token={_src}", timeout=12)
+                        if _pt.status_code == 200 and _pt.json().get("access_token"):
+                            _t = _pt.json()["access_token"]
+                            _igid = _igid or (_pt.json().get("instagram_business_account") or {}).get("id")
+                            break
+                        # Fallback: scan /me/accounts of _src for this page
+                        _acc = requests.get(f"{GRAPH_URL}/me/accounts?fields=id,access_token,instagram_business_account{{id}}&limit=100&access_token={_src}", timeout=12)
+                        if _acc.status_code == 200:
+                            _hit = next((p for p in _acc.json().get("data", []) if str(p.get("id")) == _pid and p.get("access_token")), None)
+                            if _hit:
+                                _t = _hit["access_token"]
+                                _igid = _igid or (_hit.get("instagram_business_account") or {}).get("id")
                                 break
-                except Exception:
-                    pass
+                    except Exception:
+                        pass
             _add_page(_pid, _t, _igid, _t)
 
     # 1. Fetch Messenger Threads from EVERY page (up to 100 each)
