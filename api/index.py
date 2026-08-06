@@ -417,22 +417,37 @@ def _call_openrouter(user_message, rag_context, platform, client_id=None):
 GRAPH_URL = "https://graph.facebook.com/v21.0"
 
 def send_dm_reply(recipient_id, text, access_token=None):
-    """يبعت رسالة خاصة عبر Graph. يرجّع (ok, detail)."""
+    """Send a private message via Graph. Returns (ok, detail).
+    Facebook only allows a plain RESPONSE within 24h of the customer's last message.
+    Outside that window we retry with the HUMAN_AGENT tag (extends the window to 7 days)."""
     tok = access_token or PAGE_ACCESS_TOKEN
+    base = f"{GRAPH_URL}/me/messages"
+
+    def _post(payload):
+        r = requests.post(base, params={"access_token": tok}, json=payload, timeout=15)
+        return r
+
     try:
-        res = requests.post(f"{GRAPH_URL}/me/messages", params={"access_token": tok},
-            json={"recipient": {"id": recipient_id}, "messaging_type": "RESPONSE", "message": {"text": text}}, timeout=15)
-        print(f"[DM Reply Page] {res.status_code} {res.text[:200]}")
+        # 1) Normal in-window reply
+        res = _post({"recipient": {"id": recipient_id}, "messaging_type": "RESPONSE", "message": {"text": text}})
+        print(f"[DM Reply] {res.status_code} {res.text[:200]}")
         if res.status_code == 200:
             return True, res.text[:200]
-        # fallback: try Instagram-scoped send
-        ig_acc_id = os.environ.get("IG_ACCOUNT_ID", "")
-        if ig_acc_id:
-            res_ig = requests.post(f"{GRAPH_URL}/{ig_acc_id}/messages", params={"access_token": tok},
-                json={"recipient": {"id": recipient_id}, "message": {"text": text}}, timeout=15)
-            print(f"[DM Reply IG] {res_ig.status_code} {res_ig.text[:200]}")
-            return (res_ig.status_code == 200), res_ig.text[:200]
-        return False, res.text[:200]
+
+        # 2) Outside 24h window (#3 capability / #10 policy / #200) → retry as HUMAN_AGENT (7-day window)
+        try:
+            err = (res.json().get("error") or {})
+        except Exception:
+            err = {}
+        if err.get("code") in (3, 10, 200):
+            res2 = _post({"recipient": {"id": recipient_id}, "messaging_type": "MESSAGE_TAG",
+                          "tag": "HUMAN_AGENT", "message": {"text": text}})
+            print(f"[DM Reply HUMAN_AGENT] {res2.status_code} {res2.text[:200]}")
+            if res2.status_code == 200:
+                return True, res2.text[:200]
+            return False, res2.text[:250]
+
+        return False, res.text[:250]
     except Exception as e:
         print(f"[DM Reply Error] {e}")
         return False, str(e)
