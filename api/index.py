@@ -3197,7 +3197,7 @@ def api_auth_facebook():
     state = secrets.token_urlsafe(32)
     session["oauth_state"] = state
     scopes = "pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging,instagram_basic,instagram_manage_messages,instagram_manage_comments,business_management"
-    url = f"https://www.facebook.com/v21.0/dialog/oauth?client_id={app_id}&redirect_uri={redirect_uri}&scope={scopes}&state={state}&response_type=code"
+    url = f"https://www.facebook.com/v21.0/dialog/oauth?client_id={app_id}&redirect_uri={redirect_uri}&scope={scopes}&state={state}&response_type=code&auth_type=rerequest"
     return redirect(url)
 
 @app.route("/api/discovery/assets", methods=["GET"])
@@ -3432,7 +3432,7 @@ def api_account_reverify(page_id):
     app_id = os.environ.get("META_APP_ID", "1331918902446123")
     redirect_uri = "https://metaaimoderator.vercel.app/api/oauth/callback"
     scope = "pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata,instagram_basic,instagram_manage_messages,instagram_manage_comments,business_management"
-    url = f"https://www.facebook.com/v21.0/dialog/oauth?client_id={app_id}&redirect_uri={redirect_uri}&scope={scope}&response_type=code"
+    url = f"https://www.facebook.com/v21.0/dialog/oauth?client_id={app_id}&redirect_uri={redirect_uri}&scope={scope}&response_type=code&auth_type=rerequest"
     return jsonify({"ok": True, "reverify_url": url})
 
 
@@ -3712,7 +3712,7 @@ def api_oauth_url_v8():
     redirect_uri = "https://metaaimoderator.vercel.app/api/oauth/callback"
     state = secrets.token_hex(16)
     scope = "pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata,instagram_basic,instagram_manage_messages,instagram_manage_comments,business_management"
-    url = f"https://www.facebook.com/v21.0/dialog/oauth?client_id={app_id}&redirect_uri={quote(redirect_uri)}&scope={quote(scope)}&response_type=code&state={state}"
+    url = f"https://www.facebook.com/v21.0/dialog/oauth?client_id={app_id}&redirect_uri={quote(redirect_uri)}&scope={quote(scope)}&response_type=code&state={state}&auth_type=rerequest"
     resp = make_response(jsonify({"oauth_url": url, "state": state}))
     resp.set_cookie('fb_oauth_state', state, httponly=True, secure=True, max_age=600)
     return resp
