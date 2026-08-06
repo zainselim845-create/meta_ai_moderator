@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import os
 
 from functools import wraps
@@ -3032,10 +3032,15 @@ def api_me():
 def api_set_active_client():
     data = request.get_json(silent=True) or {}
     cid = data.get("client_id", "client_default")
+    
+    if not AGENCY_CLIENTS_STORE:
+        sync_from_supabase()
+        
     # Validate it's a known client
     valid = [c["id"] for c in AGENCY_CLIENTS_STORE]
     if cid not in valid:
         cid = "client_default"
+        
     session["active_client_id"] = cid
     session.modified = True
     return jsonify({"ok": True, "active_client_id": cid})
