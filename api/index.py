@@ -1100,16 +1100,11 @@ def api_conversations():
         # which is why comments showed as 0. Try WITHOUT `from` first (this is what works),
         # then optionally with `from` for names.
         try:
+            # NOTE: requesting comments{from} makes Meta return posts with EMPTY comments
+            # arrays (identity needs extra access), so we omit `from` and use a generic name.
             res = requests.get(
-                f"{GRAPH_URL}/{p_fb_page_id}/feed?fields=id,message,created_time,permalink_url,comments.limit(30){{id,message,created_time,from}}&limit=50&access_token={p_fb_token}",
+                f"{GRAPH_URL}/{p_fb_page_id}/feed?fields=id,message,created_time,permalink_url,comments.limit(30){{id,message,created_time,username}}&limit=50&access_token={p_fb_token}",
                 timeout=12)
-            if res.status_code != 200:
-                # retry without `from` (identity), which Meta reliably allows
-                res = requests.get(
-                    f"{GRAPH_URL}/{p_fb_page_id}/feed?fields=id,message,created_time,permalink_url,comments.limit(30){{id,message,created_time}}&limit=50&access_token={p_fb_token}",
-                    timeout=12)
-            globals()['_fbc_dbg'] = {"page": p_fb_page_id, "status": res.status_code,
-                "tok_tail": (p_fb_token or "")[-6:], "posts": len(res.json().get("data", [])) if res.status_code==200 else res.text[:150]}
             if res.status_code == 200:
                 for post in res.json().get("data", []):
                     comments_list = post.get("comments", {}).get("data", [])
@@ -1119,7 +1114,8 @@ def api_conversations():
                     for comment in comments_list:
                         c_id = comment.get("id"); c_text = comment.get("message", "")
                         c_from = comment.get("from", {}) or {}
-                        c_user = c_from.get("name", "عميل فيسبوك"); c_user_id = c_from.get("id")
+                        c_user = c_from.get("name") or comment.get("username") or "عميل فيسبوك"
+                        c_user_id = c_from.get("id")
                         c_time = comment.get("created_time", post_time)
                         all_threads.append({
                             "id": f"fb_comment_{c_id}", "client_id": cid, "type": "facebook",
@@ -1183,7 +1179,6 @@ def api_conversations():
         "pending": pending,
         "approval_mode": cache.get("approval_mode", "auto"),
         "active_client_id": cid,
-        "_fbc_dbg": globals().get("_fbc_dbg"),
     }
     conv_cache["all_threads"] = all_threads
     conv_cache["data"] = {"conversations": all_threads}
