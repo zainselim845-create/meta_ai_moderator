@@ -225,6 +225,12 @@ def sync_from_supabase():
             print(f"[Supabase Sync Exception] {e}")
 
 def push_setting(key, value):
+    # SAFETY: never overwrite the accounts/clients lists with an empty value — an empty
+    # store almost always means "this serverless instance hasn't synced yet", and writing
+    # it would wipe real connected accounts/clients from persistence.
+    if key in ("meta_ai_accounts", "meta_ai_clients") and (not value or not isinstance(value, list)):
+        print(f"[Supabase Push BLOCKED] refusing to overwrite {key} with empty value")
+        return
     if SUPABASE_URL and SUPABASE_KEY:
         try:
             url = f"{SUPABASE_URL}/rest/v1/app_settings"
@@ -2424,6 +2430,9 @@ def api_accounts_cleanup():
     """Remove duplicate account rows (e.g. an IG account stored under both its plain id
     and an old composite `<igid>_<client>` id). Keeps one entry per real account."""
     global ACCOUNTS_STORE
+    sync_from_supabase()  # make sure we operate on the real, loaded data
+    if not ACCOUNTS_STORE:
+        return jsonify({"ok": False, "error": "no accounts loaded; aborting to avoid data loss"}), 409
     seen = {}
     cleaned = []
     removed = []
