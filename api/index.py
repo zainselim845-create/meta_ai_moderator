@@ -2463,6 +2463,46 @@ def api_accounts_cleanup():
     push_setting("meta_ai_accounts", ACCOUNTS_STORE)
     return jsonify({"ok": True, "removed": removed, "remaining": len(ACCOUNTS_STORE)})
 
+@app.route("/api/accounts/rebuild", methods=["POST"])
+@auth_guard
+def api_accounts_rebuild():
+    """Reconstruct connected accounts (with page tokens) for existing clients using the
+    System User token in env — recovers accounts without the user having to re-OAuth.
+    Matches discovered pages to clients by page_id/ig_id; never deletes anything."""
+    global ACCOUNTS_STORE
+    sync_from_supabase()
+    if not PAGE_ACCESS_TOKEN:
+        return jsonify({"ok": False, "error": "no system token in env"}), 400
+    discovered = discover_pages(PAGE_ACCESS_TOKEN)  # {pid: {...token, instagram_business_account}}
+    exp = (datetime.now(timezone.utc) + timedelta(days=60)).isoformat()
+    rebuilt = []
+    by_id = {str(a.get("id")): a for a in ACCOUNTS_STORE}
+    for c in AGENCY_CLIENTS_STORE:
+        pid = str(c.get("page_id") or "")
+        page = discovered.get(pid)
+        if not pid or not page or not page.get("access_token"):
+            continue
+        ptok = page["access_token"]
+        by_id[pid] = {"id": pid, "name": page.get("name") or c.get("name"), "platform": "facebook",
+                      "client_id": c.get("id"),
+                      "avatar_url": (page.get("picture") or {}).get("data", {}).get("url") if isinstance(page.get("picture"), dict) else None,
+                      "access_token": ptok, "access_token_enc": encrypt(ptok),
+                      "token_expires_at": exp, "status": "connected", "dm_mode": "auto", "comment_mode": "auto"}
+        rebuilt.append(pid)
+        ig = page.get("instagram_business_account")
+        igid = str(ig.get("id")) if isinstance(ig, dict) and ig.get("id") else str(c.get("ig_id") or "")
+        if igid and igid.lower() != "none":
+            by_id[igid] = {"id": igid, "name": (ig or {}).get("username") if isinstance(ig, dict) else (page.get("name")),
+                           "platform": "instagram", "ig_id": igid, "client_id": c.get("id"), "parent_page_id": pid,
+                           "access_token": ptok, "access_token_enc": encrypt(ptok),
+                           "token_expires_at": exp, "status": "connected", "dm_mode": "auto", "comment_mode": "auto"}
+            rebuilt.append(igid)
+    ACCOUNTS_STORE = list(by_id.values())
+    cache["accounts"] = ACCOUNTS_STORE
+    if ACCOUNTS_STORE:
+        push_setting("meta_ai_accounts", ACCOUNTS_STORE)
+    return jsonify({"ok": True, "rebuilt": rebuilt, "total": len(ACCOUNTS_STORE)})
+
 @app.route("/api/accounts", methods=["POST"])
 def api_accounts_add():
     data = request.get_json() or {}
