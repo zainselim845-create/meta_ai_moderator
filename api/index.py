@@ -284,25 +284,7 @@ sync_from_supabase()
 
 AGENCY_CLIENTS_STORE = cache.get("clients") or []
 
-def rebuild_kb_index():
-    raw = cache.get("kb", DEFAULT_KB) or []
-    by_cid = {}
-    if isinstance(raw, list):
-        for item in raw:
-            if isinstance(item, dict):
-                cid = item.get("client_id") or "client_default"
-                by_cid.setdefault(cid, []).append(item)
-    cache["kb_by_cid"] = by_cid
 
-def rebuild_rules_index():
-    raw = cache.get("rules", DEFAULT_RULES) or []
-    by_cid = {}
-    if isinstance(raw, list):
-        for item in raw:
-            if isinstance(item, dict):
-                cid = item.get("client_id") or "client_default"
-                by_cid.setdefault(cid, []).append(item)
-    cache["rules_by_cid"] = by_cid
 
 def get_kb_data(client_id=None):
     if not cache.get("kb_by_cid"):
@@ -3849,16 +3831,6 @@ def cleanup_placeholder_accounts():
         cleaned.append(a)
     ACCOUNTS_STORE[:] = cleaned
 
-def upsert_account(acc):
-    for i, a in enumerate(ACCOUNTS_STORE):
-        if str(a.get("platform")) == str(acc.get("platform")) and str(a.get("id")) == str(acc.get("id")):
-            ACCOUNTS_STORE[i] = {**a, **acc}
-            push_setting("meta_ai_accounts", ACCOUNTS_STORE)
-            return
-    ACCOUNTS_STORE.append(acc)
-    push_setting("meta_ai_accounts", ACCOUNTS_STORE)
-
-cleanup_placeholder_accounts()
 
 def migrate_accounts():
     changed = False
@@ -3873,16 +3845,6 @@ def migrate_accounts():
         push_setting("meta_ai_accounts", ACCOUNTS_STORE)
 
 
-def cleanup_placeholder_accounts():
-    seen = set()
-    cleaned = []
-    for a in ACCOUNTS_STORE:
-        key = (a.get("platform"), str(a.get("id")))
-        if key in seen:
-            continue
-        seen.add(key)
-        cleaned.append(a)
-    ACCOUNTS_STORE[:] = cleaned
 
 def upsert_account(acc):
     for i, a in enumerate(ACCOUNTS_STORE):

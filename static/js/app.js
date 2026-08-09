@@ -129,6 +129,7 @@ function go(id, el) {
     if (cleanId === 'settings' && typeof loadSettings === 'function') loadSettings();
     if (cleanId === 'settings' && typeof loadTeam === 'function') loadTeam();
     if (cleanId === 'mode' && typeof loadReplyModes === 'function') loadReplyModes();
+    if (cleanId === 'scheduler' && typeof loadScheduledPosts === 'function') loadScheduledPosts();
 
     initLucideIcons();
   } catch (e) {
