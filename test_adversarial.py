@@ -13,11 +13,8 @@ import os
 from unittest.mock import patch, MagicMock
 import requests
 
-import server
-from server import (
-    app, search_kb, check_custom_rules, generate_reply,
-    _call_groq, _call_openrouter, activity_log, stats
-)
+from api.index import app, search_kb, check_custom_rules, generate_reply, _call_groq, _call_openrouter, activity_log, stats
+import api.index as server
 
 
 class TestAdversarialSuite(unittest.TestCase):
@@ -25,6 +22,8 @@ class TestAdversarialSuite(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
         self.client.testing = True
+        with self.client.session_transaction() as sess:
+            sess['uid'] = 'admin'
 
         # Default Mock Database
         self.mock_db = {

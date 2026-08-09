@@ -89,6 +89,8 @@ cache = {"kb": DEFAULT_KB, "rules": DEFAULT_RULES, "prompt": DEFAULT_SYSTEM_PROM
 activity_log = []
 pending_approvals = []
 stats = {"dms": 0, "comments": 0, "ai_calls": 0, "pending": 0}
+AGENCY_CLIENTS_STORE = []
+ACCOUNTS_STORE = []
 
 
 def ensure_default_clients_grouped():
@@ -1723,6 +1725,13 @@ def api_stats():
                     "approval_mode": get_client_mode(cid),
                     "supabase_active": True})
 
+@app.route("/api/logs/stream", methods=["GET"])
+def api_logs_stream():
+    cid = current_client_id()
+    client_log = [e for e in activity_log if (e.get("client_id") or cid) == cid] or activity_log
+    latest = client_log[-1] if client_log else {}
+    return Response(f"data: {json.dumps(latest, ensure_ascii=False)}\n\n", mimetype="text/event-stream")
+
 @app.route("/api/toggle", methods=["POST"])
 def api_toggle_bot():
     data = request.get_json() or {}
@@ -1762,12 +1771,18 @@ def api_approve_draft(draft_id):
     push_setting("meta_ai_pending", pending_approvals)
     return jsonify({"ok": True, "status": "approved"})
 
+@app.route("/api/approvals", methods=["GET"])
+def api_get_approvals():
+    cid = current_client_id()
+    pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") or cid) == cid]
+    return jsonify(pending)
+
 @app.route("/api/reject/<int:draft_id>", methods=["POST"])
 def api_reject_draft(draft_id):
     draft = next((p for p in pending_approvals if p.get("id") == draft_id), None)
-    if draft:
-        draft["status"] = "rejected"
-    
+    if not draft:
+        return jsonify({"error": "Draft not found"}), 404
+    draft["status"] = "rejected"
     push_setting("meta_ai_pending", pending_approvals)
     return jsonify({"ok": True, "status": "rejected"})
 
@@ -4003,6 +4018,32 @@ def drive_file_id(url):
         return ""
     m = re.search(r"/file/d/([A-Za-z0-9_-]+)", url) or re.search(r"[?&]id=([A-Za-z0-9_-]+)", url)
     return m.group(1) if m else ""
+
+
+def extract_post_id_from_url(url):
+    """استخراج معرف المنشور (Post/Reel ID) من روابط فيسبوك وإنستجرام المختلفة."""
+    if not url:
+        return None
+    url = str(url).strip()
+    m = re.search(r'(?:posts/|story\.php\?story_fbid=|fbid=|p/|reel/|videos/|groups/[^/]+/posts/|\?v=|[?&]v=)(?:pfbid0)?([a-zA-Z0-9_-]+)', url)
+    if m:
+        return m.group(1).rstrip('/')
+    m2 = re.search(r'([0-9]{6,20})', url)
+    return m2.group(1) if m2 else None
+
+@app.route("/api/regenerate_draft", methods=["POST"])
+def api_regenerate_draft():
+    data = request.get_json() or {}
+    msg = data.get("message", "")
+    tone = data.get("tone", "friendly")
+    res = generate_reply(msg, current_client_id())
+    if isinstance(res, tuple):
+        reply = res[0]
+        private_reply = res[1] if len(res) > 1 else None
+        prov = res[2] if len(res) > 2 else "rule"
+    else:
+        reply, private_reply, prov = res, None, "rule"
+    return jsonify({"ok": True, "reply": reply, "private_reply": private_reply, "tone": tone, "provider": prov})
 
 
 def drive_to_direct(url):

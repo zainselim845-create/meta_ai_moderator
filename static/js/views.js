@@ -25,6 +25,14 @@ async function loadStats(){
         if (aiEl) aiEl.textContent = statsObj.ai_calls || 0;
         if (pendEl) pendEl.textContent = statsObj.pending || (d.pending ? d.pending.length : 0);
 
+        const pendingBadge = document.getElementById('pending-count');
+        const pCount = (d.pending ? d.pending.length : (statsObj.pending || 0));
+        if (pendingBadge) {
+            pendingBadge.textContent = pCount;
+            if (pCount > 0) pendingBadge.classList.remove('hidden');
+            else pendingBadge.classList.add('hidden');
+        }
+
         const logContainer = document.getElementById('dash-activity-log');
         if (logContainer && Array.isArray(d.log) && d.log.length > 0) {
             logContainer.innerHTML = d.log.map(item => `
@@ -123,6 +131,26 @@ async function loadAccounts(){
                 headerSelect.value = savedAct;
             } else if (clientsList.length) {
                 headerSelect.value = clientsList[0].id;
+            }
+        }
+
+        const sideAccountsList = document.getElementById('accounts-list');
+        if (sideAccountsList) {
+            if (accs.length === 0) {
+                sideAccountsList.innerHTML = '<div class="py-3 text-slate-500">لا توجد حسابات مربوطة بعد.</div>';
+            } else {
+                sideAccountsList.innerHTML = accs.map(a => `
+                    <div class="py-2.5 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">${a.platform === 'facebook' ? '🔵' : '🟣'}</span>
+                            <div>
+                                <strong class="font-bold text-slate-800">${esc(a.name)}</strong>
+                                <span class="text-[10px] text-slate-400 block font-mono">ID: ${esc(a.id)}</span>
+                            </div>
+                        </div>
+                        <span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded">متصل</span>
+                    </div>
+                `).join('');
             }
         }
 
