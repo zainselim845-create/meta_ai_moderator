@@ -16,7 +16,7 @@
   </script>
   <script src="https://unpkg.com/lucide@latest">
   </script>
-  <link href="/static/css/styles.css?v=4.4" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=4.5" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -841,14 +841,16 @@
         <label class="block text-xs font-bold text-slate-700 mb-1">
          رابط الميديا من Google Drive
         </label>
-        <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="post-drive-link" type="url" oninput="updatePostPreview()" placeholder="الصق رابط ملف Google Drive (صورة أو فيديو) وسيتم سحبه تلقائياً"/>
-        <span class="text-[10px] text-slate-400 block mt-1">تأكد إن مشاركة الملف على "أي شخص لديه الرابط".</span>
+        <textarea class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" id="post-drive-link" rows="2" oninput="updatePostPreview()" placeholder="الصق رابط ملف Google Drive. للكاروسيل: ضع كل رابط في سطر (أو افصلهم بفاصلة)."></textarea>
+        <span class="text-[10px] text-slate-400 block mt-1">تأكد إن مشاركة الملف على "أي شخص لديه الرابط". للكاروسيل ضع 2–10 روابط.</span>
         <div class="flex items-center gap-2 mt-2">
-         <span class="text-[11px] font-bold text-slate-600">نوع الميديا:</span>
+         <span class="text-[11px] font-bold text-slate-600">نوع المحتوى:</span>
          <select class="text-xs px-2 py-1 border border-slate-200 rounded-lg" id="post-media-type" onchange="updatePostPreview()">
-          <option value="image">صورة</option>
-          <option value="video">فيديو (فيسبوك)</option>
-          <option value="reel">ريلز (إنستجرام)</option>
+          <option value="image">📷 صورة (Post)</option>
+          <option value="video">🎬 فيديو</option>
+          <option value="reel">🎞️ ريلز (Reel)</option>
+          <option value="story">⭕ استوري (Story)</option>
+          <option value="carousel">🖼️ كاروسيل (عدة صور/فيديو)</option>
          </select>
         </div>
        </div>
@@ -1246,15 +1248,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=4.4">
+  <script src="/static/js/app.js?v=4.5">
   </script>
-  <script src="/static/js/inbox.js?v=4.4">
+  <script src="/static/js/inbox.js?v=4.5">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=4.4">
+  <script src="/static/js/chatwoot_free.js?v=4.5">
   </script>
-  <script src="/static/js/views.js?v=4.4">
+  <script src="/static/js/views.js?v=4.5">
   </script>
-  <script src="/static/js/clients.js?v=4.4">
+  <script src="/static/js/clients.js?v=4.5">
   </script>
  
   <!-- Modal: Add New Connected Account -->

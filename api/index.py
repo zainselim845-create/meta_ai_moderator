@@ -4097,61 +4097,114 @@ def _resolve_page_token(acc, ig=False):
 
 
 def publish_scheduled_post(post):
-    """ينشر بوست/فيديو/ريلز مجدول على فيسبوك و/أو إنستجرام عبر Graph API. يرجّع (ok, detail)."""
-    media_url = post.get("media_url") or drive_to_direct(post.get("drive_link", ""))
+    """Publish to FB and/or IG. Supports media types: image | video | reel | story | carousel.
+    Returns (ok, results)."""
     caption = post.get("caption", "")
     target = post.get("target", "fb")
-    media_type = (post.get("media_type") or "image").lower()  # image | video | reel
-    is_video = media_type in ("video", "reel")
+    media_type = (post.get("media_type") or "image").lower()
+    # Media can be a single link or a list (carousel). Accept media_urls[] or split the link field.
+    urls = post.get("media_urls")
+    if not urls:
+        raw = post.get("drive_link", "") or post.get("media_url", "")
+        urls = [u.strip() for u in re.split(r'[\n,]+', str(raw)) if u.strip()]
+    media_urls = [drive_to_direct(u) for u in urls]
+    first = media_urls[0] if media_urls else ""
+    is_video = media_type in ("video", "reel") or bool(re.search(r'\.(mp4|mov|m4v)(\?|$)', first, re.I))
     results = []
 
-    # Publish to the accounts of the post's OWN client (never the first account globally).
     _pcid = post.get("client_id")
     _pool = [a for a in ACCOUNTS_STORE if (a.get("client_id") == _pcid or not _pcid)]
 
+    def _ig_publish_container(ig_id, tok, creation_id, video=False):
+        if video:
+            for _ in range(20):
+                time.sleep(3)
+                st = requests.get(f"{GRAPH_URL}/{creation_id}?fields=status_code&access_token={tok}", timeout=15)
+                if st.status_code == 200 and st.json().get("status_code") == "FINISHED":
+                    break
+        return requests.post(f"{GRAPH_URL}/{ig_id}/media_publish",
+                             data={"creation_id": creation_id, "access_token": tok}, timeout=30)
+
+    # ---------------- Facebook ----------------
     if target in ("fb", "both"):
         fb = next((a for a in _pool if a.get("platform") == "facebook"), None)
         if fb:
-            tok = _resolve_page_token(fb)
+            pid = fb["id"]; tok = _resolve_page_token(fb)
             try:
-                if is_video and media_url:
-                    r = requests.post(f"{GRAPH_URL}/{fb['id']}/videos",
-                                      data={"file_url": media_url, "description": caption, "access_token": tok}, timeout=120)
-                elif media_url:
-                    r = requests.post(f"{GRAPH_URL}/{fb['id']}/photos",
-                                      data={"url": media_url, "caption": caption, "access_token": tok}, timeout=60)
+                if media_type == "carousel" and len(media_urls) > 1:
+                    # upload each photo unpublished, then attach to one feed post
+                    fbids = []
+                    for u in media_urls:
+                        up = requests.post(f"{GRAPH_URL}/{pid}/photos",
+                                           data={"url": u, "published": "false", "access_token": tok}, timeout=60)
+                        if up.status_code == 200 and up.json().get("id"):
+                            fbids.append(up.json()["id"])
+                    payload = {"message": caption, "access_token": tok}
+                    for i, mid in enumerate(fbids):
+                        payload[f"attached_media[{i}]"] = json.dumps({"media_fbid": mid})
+                    r = requests.post(f"{GRAPH_URL}/{pid}/feed", data=payload, timeout=60)
+                elif media_type == "story" and first:
+                    if is_video:
+                        r = requests.post(f"{GRAPH_URL}/{pid}/video_stories",
+                                          data={"file_url": first, "access_token": tok}, timeout=120)
+                    else:
+                        up = requests.post(f"{GRAPH_URL}/{pid}/photos",
+                                           data={"url": first, "published": "false", "access_token": tok}, timeout=60)
+                        photo_id = up.json().get("id") if up.status_code == 200 else None
+                        r = requests.post(f"{GRAPH_URL}/{pid}/photo_stories",
+                                          data={"photo_id": photo_id, "access_token": tok}, timeout=60) if photo_id else up
+                elif is_video and first:
+                    r = requests.post(f"{GRAPH_URL}/{pid}/videos",
+                                      data={"file_url": first, "description": caption, "access_token": tok}, timeout=120)
+                elif first:
+                    r = requests.post(f"{GRAPH_URL}/{pid}/photos",
+                                      data={"url": first, "caption": caption, "access_token": tok}, timeout=60)
                 else:
-                    r = requests.post(f"{GRAPH_URL}/{fb['id']}/feed",
+                    r = requests.post(f"{GRAPH_URL}/{pid}/feed",
                                       data={"message": caption, "access_token": tok}, timeout=30)
                 results.append(("fb", r.status_code == 200, r.text[:200]))
             except Exception as e:
                 results.append(("fb", False, str(e)))
 
+    # ---------------- Instagram ----------------
     if target in ("ig", "both"):
         ig = next((a for a in _pool if a.get("platform") == "instagram"), None)
-        if ig and media_url:
-            ig_id = ig.get("ig_id") or ig.get("id")
-            tok = _resolve_page_token(ig, ig=True)
+        if ig and media_urls:
+            ig_id = ig.get("ig_id") or ig.get("id"); tok = _resolve_page_token(ig, ig=True)
             try:
-                if is_video:
-                    create_data = {"media_type": "REELS", "video_url": media_url, "caption": caption, "access_token": tok}
+                if media_type == "carousel" and len(media_urls) > 1:
+                    child_ids = []
+                    for u in media_urls:
+                        vid = bool(re.search(r'\.(mp4|mov|m4v)(\?|$)', u, re.I))
+                        d = {"is_carousel_item": "true", "access_token": tok}
+                        d["video_url" if vid else "image_url"] = u
+                        cc = requests.post(f"{GRAPH_URL}/{ig_id}/media", data=d, timeout=60)
+                        if cc.status_code == 200 and cc.json().get("id"):
+                            cid_ = cc.json()["id"]
+                            if vid:
+                                for _ in range(15):
+                                    time.sleep(3)
+                                    stt = requests.get(f"{GRAPH_URL}/{cid_}?fields=status_code&access_token={tok}", timeout=15)
+                                    if stt.status_code == 200 and stt.json().get("status_code") == "FINISHED":
+                                        break
+                            child_ids.append(cid_)
+                    parent = requests.post(f"{GRAPH_URL}/{ig_id}/media",
+                                           data={"media_type": "CAROUSEL", "children": ",".join(child_ids),
+                                                 "caption": caption, "access_token": tok}, timeout=60)
+                    cidp = parent.json().get("id") if parent.status_code == 200 else None
+                    r = _ig_publish_container(ig_id, tok, cidp) if cidp else parent
                 else:
-                    create_data = {"image_url": media_url, "caption": caption, "access_token": tok}
-                c = requests.post(f"{GRAPH_URL}/{ig_id}/media", data=create_data, timeout=60)
-                creation_id = c.json().get("id") if c.status_code == 200 else None
-                if creation_id:
-                    # video containers need processing time before publish
-                    if is_video:
-                        for _ in range(10):
-                            time.sleep(3)
-                            st = requests.get(f"{GRAPH_URL}/{creation_id}?fields=status_code&access_token={tok}", timeout=15)
-                            if st.status_code == 200 and st.json().get("status_code") == "FINISHED":
-                                break
-                    pub = requests.post(f"{GRAPH_URL}/{ig_id}/media_publish",
-                                        data={"creation_id": creation_id, "access_token": tok}, timeout=30)
-                    results.append(("ig", pub.status_code == 200, pub.text[:200]))
-                else:
-                    results.append(("ig", False, c.text[:200]))
+                    if media_type == "story":
+                        d = {"media_type": "STORIES", "access_token": tok}
+                        d["video_url" if is_video else "image_url"] = first
+                    elif is_video:
+                        d = {"media_type": "REELS", "video_url": first, "caption": caption, "access_token": tok}
+                    else:
+                        d = {"image_url": first, "caption": caption, "access_token": tok}
+                    c = requests.post(f"{GRAPH_URL}/{ig_id}/media", data=d, timeout=60)
+                    cid_ = c.json().get("id") if c.status_code == 200 else None
+                    r = _ig_publish_container(ig_id, tok, cid_, video=is_video) if cid_ else c
+                results.append(("ig", r.status_code == 200, r.text[:200]))
             except Exception as e:
                 results.append(("ig", False, str(e)))
 
@@ -4208,6 +4261,7 @@ def api_scheduler():
         date_s = data.get("date", "")
         time_s = data.get("time", "")
         scheduled_at = _local_to_utc_iso(date_s, time_s)  # stored in UTC
+        media_urls = data.get("media_urls") or [u.strip() for u in re.split(r'[\n,]+', str(drive_link)) if u.strip()]
         post = {
             "id": f"post-{int(time.time()*1000)}",
             "client_id": current_client_id(),
@@ -4215,7 +4269,8 @@ def api_scheduler():
             "target": data.get("target", "fb"),
             "media_type": (data.get("media_type") or "image").lower(),
             "drive_link": drive_link,
-            "media_url": drive_to_direct(drive_link),
+            "media_urls": media_urls,
+            "media_url": drive_to_direct(media_urls[0]) if media_urls else "",
             "date": date_s,
             "time": time_s,
             "scheduled_at": scheduled_at,

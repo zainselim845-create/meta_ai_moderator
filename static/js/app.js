@@ -647,13 +647,19 @@ function updatePostPreview() {
   const link = document.getElementById('post-drive-link')?.value || '';
   const type = document.getElementById('post-media-type')?.value || 'image';
   if (!box) return;
-  const fid = driveFileId(link);
-  if (!fid) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  const links = link.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  const fids = links.map(driveFileId).filter(Boolean);
+  if (!fids.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
   box.classList.remove('hidden');
-  if (type === 'image') {
-    box.innerHTML = `<img src="https://drive.google.com/thumbnail?id=${fid}&sz=w640" class="w-full object-cover" style="max-height:340px" onerror="this.parentNode.innerHTML='&lt;iframe src=\\'https://drive.google.com/file/d/${fid}/preview\\' class=\\'w-full\\' style=\\'height:320px;border:0\\' allow=\\'autoplay\\'&gt;&lt;/iframe&gt;'">`;
+  const isVid = (type === 'video' || type === 'reel');
+  const cell = (fid) => (isVid || type === 'story')
+    ? `<iframe src="https://drive.google.com/file/d/${fid}/preview" class="w-full" style="height:280px;border:0" allow="autoplay"></iframe>`
+    : `<img src="https://drive.google.com/thumbnail?id=${fid}&sz=w640" class="w-full object-cover rounded-lg" style="max-height:280px">`;
+  if (type === 'carousel' && fids.length > 1) {
+    box.innerHTML = `<div class="grid grid-cols-2 gap-1">${fids.map(f=>`<div>${cell(f)}</div>`).join('')}</div>
+      <div class="text-[10px] text-slate-400 mt-1 text-center">كاروسيل — ${fids.length} عناصر</div>`;
   } else {
-    box.innerHTML = `<iframe src="https://drive.google.com/file/d/${fid}/preview" class="w-full" style="height:320px;border:0" allow="autoplay"></iframe>`;
+    box.innerHTML = cell(fids[0]);
   }
 }
 async function saveScheduledPost() {
@@ -662,13 +668,17 @@ async function saveScheduledPost() {
   const tm = document.getElementById('post-time')?.value;
   const drive = document.getElementById('post-drive-link')?.value || '';
   const mediaType = document.getElementById('post-media-type')?.value || 'image';
-  if (!cap) { showToast('يرجى كتابة المحتوى', 'error'); return; }
+  const mediaUrls = drive.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  // Media is required for everything except a plain text post
+  if (!mediaUrls.length && mediaType !== 'image') { showToast('أضف رابط الميديا أولاً', 'error'); return; }
+  if (mediaType === 'carousel' && mediaUrls.length < 2) { showToast('الكاروسيل يحتاج رابطين على الأقل', 'error'); return; }
+  if (!cap && !mediaUrls.length) { showToast('اكتب المحتوى أو أضف ميديا', 'error'); return; }
 
   try {
       const res = await fetch('/api/scheduler', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ caption: cap, target: (typeof postTarget !== 'undefined' ? postTarget : 'fb'), drive_link: drive, media_type: mediaType, date: dt, time: tm })
+          body: JSON.stringify({ caption: cap, target: (typeof postTarget !== 'undefined' ? postTarget : 'fb'), drive_link: drive, media_urls: mediaUrls, media_type: mediaType, date: dt, time: tm })
       });
       const data = await res.json();
       if(data.success) {
