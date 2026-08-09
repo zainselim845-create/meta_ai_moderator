@@ -240,14 +240,17 @@ def sync_from_supabase():
                         cache["client_modes"] = parsed  # per-client auto/manual reply mode
                     elif k == "meta_ai_users":
                         try:
-                            if isinstance(parsed, dict):
-                                for _un, _rec in parsed.items():
-                                    if isinstance(_rec, dict) and _rec.get("password"):
-                                        USERS_DB[_un] = _rec
-                            elif isinstance(parsed, list):
-                                for u in parsed:
-                                    if isinstance(u, dict) and u.get("username") and u.get("password"):
-                                        USERS_DB[u["username"]] = u
+                            # NEVER overwrite the env-derived admin account — its password
+                            # comes from ADMIN_PASS and must stay authoritative, else a stale
+                            # stored admin hash would lock the real admin out.
+                            _admin_un = os.environ.get("ADMIN_USER") or "admin"
+                            _items = parsed.items() if isinstance(parsed, dict) else \
+                                     [(u.get("username"), u) for u in parsed if isinstance(u, dict)]
+                            for _un, _rec in _items:
+                                if _un == _admin_un:
+                                    continue
+                                if isinstance(_rec, dict) and _rec.get("password"):
+                                    USERS_DB[_un] = _rec
                             cache["users"] = USERS_DB
                         except Exception:
                             pass
