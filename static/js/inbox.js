@@ -139,7 +139,9 @@ function renderInboxList(){
     const listEl = document.getElementById('inbox-list') || document.getElementById('inbox-threads');
     if (!listEl) return;
     
+    const activeCid = localStorage.getItem('active_client_id');
     let filtered = allInboxThreads.filter(t => {
+        if (activeCid && t.client_id && String(t.client_id) !== String(activeCid)) return false;
         const tId = String(t.id || '');
         const ch = String(t.channel || t.type || '');
         const platform = String(t.platform || '');
