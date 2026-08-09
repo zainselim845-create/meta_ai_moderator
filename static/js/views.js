@@ -222,8 +222,8 @@ async function loadAccounts(){
 
         clientsList.forEach(c => {
             const cid = String(c.id || '');
-            const cPageId = String(c.page_id || '100821894800009');
-            const cIgId = String(c.ig_id || '17841413562796856');
+            const cPageId = String(c.page_id || '');
+            const cIgId = String(c.ig_id || '');
 
             let fbAcc = accs.find(a => a.platform === 'facebook' && (String(a.client_id) === cid || String(a.id) === cPageId)) || accs.find(a => a.platform === 'facebook');
             let igAcc = accs.find(a => a.platform === 'instagram' && (String(a.client_id) === cid || String(a.id) === cIgId)) || accs.find(a => a.platform === 'instagram');
@@ -657,21 +657,22 @@ async function checkAuth() {
 }
 
 async function quickDemoLogin() {
+    // Demo/backdoor login removed for security.
     const uEl = document.getElementById('auth-username') || document.querySelector('#login-modal-overlay input[type="text"]');
-    const pEl = document.getElementById('auth-password') || document.querySelector('#login-modal-overlay input[type="password"]');
-    if (uEl) uEl.value = 'admin';
-    if (pEl) pEl.value = 'admin2026';
-    await handleLogin(null, 'admin', 'admin2026');
+    if (uEl) uEl.focus();
 }
 
 async function handleLogin(e, demoU, demoP) {
     if (e && e.preventDefault) e.preventDefault();
     const uEl = document.getElementById('auth-username') || document.querySelector('#login-modal-overlay input[type="text"]');
     const pEl = document.getElementById('auth-password') || document.querySelector('#login-modal-overlay input[type="password"]');
-    let u = demoU || (uEl ? uEl.value : '').trim() || 'admin';
-    let p = demoP || (pEl ? pEl.value : '').trim() || 'admin2026';
-    
+    let u = (uEl ? uEl.value : '').trim();
+    let p = (pEl ? pEl.value : '').trim();
     const err = document.getElementById('auth-error');
+    if (!u || !p) {
+        if (err) { err.style.display = 'block'; err.textContent = 'من فضلك اكتب اسم المستخدم وكلمة المرور'; }
+        return;
+    }
     if (err) err.style.display = 'none';
     const modal = document.getElementById('auth-modal') || document.getElementById('login-modal-overlay');
     

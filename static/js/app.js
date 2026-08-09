@@ -214,18 +214,20 @@ function checkAuth() {
 }
 
 async function quickDemoLogin() {
+  // Demo/backdoor login removed for security — just focus the form.
   const u = document.getElementById('auth-username');
-  const p = document.getElementById('auth-password');
-  if (u) u.value = 'admin';
-  if (p) p.value = 'admin2026';
-  await handleLogin();
+  if (u) u.focus();
 }
 
 async function handleLogin(e) {
   if (e && e.preventDefault) e.preventDefault();
-  const u = document.getElementById('auth-username')?.value.trim() || 'admin';
-  const p = document.getElementById('auth-password')?.value.trim() || 'admin2026';
+  const u = document.getElementById('auth-username')?.value.trim() || '';
+  const p = document.getElementById('auth-password')?.value.trim() || '';
   const errEl = document.getElementById('auth-error');
+  if (!u || !p) {
+    if (errEl) { errEl.classList.remove('hidden'); errEl.textContent = 'من فضلك اكتب اسم المستخدم وكلمة المرور'; }
+    return;
+  }
   if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
 
   try {

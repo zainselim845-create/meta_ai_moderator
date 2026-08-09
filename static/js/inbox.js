@@ -414,7 +414,7 @@ async function selectThread(id){
     
     // Extract Phone Number if any
     const phoneMatch = initText.match(/(\+?2?01[0125]\d{8})|(\b01[0125]\d{8}\b)|(\b\d{10,11}\b)/);
-    const extractedPhone = phoneMatch ? phoneMatch[0] : (t.phone || '01090121000');
+    const extractedPhone = phoneMatch ? phoneMatch[0] : (t.phone || '');  // no hardcoded agency number
     const cleanPhone = extractedPhone ? extractedPhone.replace(/\D/g, '') : null;
     
     // Empty State when no threads
