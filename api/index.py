@@ -253,6 +253,8 @@ def sync_from_supabase():
                             pass
                     elif k == "meta_ai_email_logs" and isinstance(parsed, list):
                         cache["email_logs"] = parsed
+                    elif k == "meta_ai_smtp_config" and isinstance(parsed, dict):
+                        cache["smtp_config"] = parsed
         except Exception as e:
             print(f"[Supabase Sync Exception] {e}")
     rebuild_kb_index()
@@ -3286,15 +3288,26 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER", "")
-SMTP_PASS = os.environ.get("SMTP_PASS", "")
-SMTP_FROM = os.environ.get("SMTP_FROM", "") or SMTP_USER or "noreply@metaaimoderator.vercel.app"
+def get_smtp_config():
+    db_config = cache.get("smtp_config") or {}
+    return {
+        "host": db_config.get("host") or os.environ.get("SMTP_HOST", "smtp.gmail.com"),
+        "port": int(db_config.get("port") or os.environ.get("SMTP_PORT", "587")),
+        "user": db_config.get("user") or os.environ.get("SMTP_USER", ""),
+        "pass": db_config.get("pass") or os.environ.get("SMTP_PASS", ""),
+        "from": db_config.get("from") or os.environ.get("SMTP_FROM", "")
+    }
 
 def send_credentials_email(recipient_email, username, password, action="welcome"):
     if not recipient_email or "@" not in recipient_email:
         return False, "عنوان بريد إلكتروني غير صالح"
+
+    cfg = get_smtp_config()
+    smtp_user = cfg["user"]
+    smtp_pass = cfg["pass"]
+    smtp_host = cfg["host"]
+    smtp_port = cfg["port"]
+    smtp_from = cfg["from"] or smtp_user or "noreply@metaaimoderator.vercel.app"
 
     portal_url = "https://metaaimoderator.vercel.app/"
     
@@ -3341,18 +3354,18 @@ def send_credentials_email(recipient_email, username, password, action="welcome"
     cache["email_logs"] = email_logs
     push_setting("meta_ai_email_logs", email_logs[:50])
 
-    if SMTP_USER and SMTP_PASS:
+    if smtp_user and smtp_pass:
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"] = SMTP_FROM
+            msg["From"] = smtp_from
             msg["To"] = recipient_email
             msg.attach(MIMEText(html_content, "html", "utf-8"))
             
-            server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10)
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=5)
             server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(SMTP_FROM, [recipient_email], msg.as_string())
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_from, [recipient_email], msg.as_string())
             server.quit()
             
             log_entry["sent_status"] = "delivered_smtp"
