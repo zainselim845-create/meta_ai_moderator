@@ -2850,6 +2850,7 @@ PUBLIC_PATHS = {
     '/api/oauth/callback', '/oauth_callback',
     '/api/auth/facebook',
     '/api/cron/refresh_tokens',
+    '/api/cron/process_scheduled',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
     '/api/oauth/start',
