@@ -127,6 +127,7 @@ function go(id, el) {
     if (cleanId === 'analytics' && typeof loadAnalytics === 'function') loadAnalytics();
     if (cleanId === 'logs' && typeof loadLogs === 'function') loadLogs();
     if (cleanId === 'settings' && typeof loadSettings === 'function') loadSettings();
+    if (cleanId === 'settings' && typeof loadTeam === 'function') loadTeam();
     if (cleanId === 'mode' && typeof loadReplyModes === 'function') loadReplyModes();
 
     initLucideIcons();
@@ -342,6 +343,107 @@ function setApprovalMode(mode) {
   if (sel) sel.value = mode;
   fetch('/api/settings/mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode})}).catch(()=>{});
   showToast(mode === 'auto' ? 'تم تفعيل الرد التلقائي الفوري ⚡' : 'تم تفعيل وضع المراجعة البشرية 👨‍💼');
+}
+
+// ---- Team & Access management (admin only) ----
+async function loadTeam() {
+  const panel = document.getElementById('team-panel');
+  if (!panel) return;
+  let me = {};
+  try { me = await (await fetch('/api/me')).json(); } catch(e) {}
+  if (!me.is_admin) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  // client checkboxes for the add form
+  let clients = [];
+  try { const r = await fetch('/api/clients'); const d = await r.json(); clients = Array.isArray(d) ? d : (d.clients||[]); } catch(e){}
+  window._teamClients = clients;
+  const box = document.getElementById('nm-clients');
+  if (box) box.innerHTML = clients.map(c => `
+    <label class="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 cursor-pointer">
+      <input type="checkbox" class="nm-client-cb" value="${esc(c.id)}"> ${esc(c.name)}
+    </label>`).join('') || '<span class="text-slate-400">لا يوجد عملاء</span>';
+  renderMembers();
+  if (window.lucide) lucide.createIcons();
+}
+
+async function renderMembers() {
+  const list = document.getElementById('members-list');
+  if (!list) return;
+  let users = [];
+  try { const d = await (await fetch('/api/users')).json(); users = d.users || []; } catch(e){}
+  const clients = window._teamClients || [];
+  const nameOf = id => (clients.find(c => c.id === id)||{}).name || id;
+  list.innerHTML = users.map(u => {
+    const assigned = (u.assigned_clients||[]).map(nameOf);
+    const chips = clients.map(c => {
+      const on = (u.assigned_clients||[]).includes(c.id);
+      return `<button onclick="toggleAssign('${esc(u.username)}','${esc(c.id)}',${!on})" class="text-[11px] px-2 py-0.5 rounded-full border ${on?'bg-blue-600 text-white border-blue-600':'bg-white text-slate-600 border-slate-200'}">${esc(c.name)}</button>`;
+    }).join(' ');
+    return `<div class="border border-slate-200 rounded-xl p-3 flex flex-col gap-2">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <span class="font-bold text-sm text-slate-900">${esc(u.username)}</span>
+          <span class="text-[11px] px-2 py-0.5 rounded-full ${u.role==='admin'?'bg-purple-100 text-purple-700':'bg-slate-100 text-slate-600'} mr-1">${u.role==='admin'?'مدير':'أكونت مانيجر'}</span>
+          <span class="text-[11px] text-slate-400">${esc(u.email||'')}</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button onclick="resendCreds('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 text-slate-600">إرسال بيانات جديدة</button>
+          ${u.role==='admin'?'':`<button onclick="deleteMember('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600">حذف</button>`}
+        </div>
+      </div>
+      ${u.role==='admin'?'<div class="text-[11px] text-slate-400">يرى كل العملاء</div>':`<div class="flex flex-wrap gap-1">${chips}</div>`}
+    </div>`;
+  }).join('') || '<div class="text-xs text-slate-400 text-center p-3">لا يوجد أعضاء بعد</div>';
+}
+
+async function createMember() {
+  const username = document.getElementById('nm-username')?.value.trim();
+  const email = document.getElementById('nm-email')?.value.trim();
+  const role = document.getElementById('nm-role')?.value || 'account_manager';
+  const assigned = Array.from(document.querySelectorAll('.nm-client-cb:checked')).map(cb => cb.value);
+  if (!username) { showToast('اكتب اسم المستخدم', 'error'); return; }
+  if (!email) { showToast('اكتب البريد الإلكتروني لإرسال البيانات', 'error'); return; }
+  try {
+    const r = await fetch('/api/register', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, email, role, assigned_clients: assigned, send_email: true})});
+    const d = await r.json();
+    if (!r.ok) { showToast(d.error || 'تعذّر الإضافة', 'error'); return; }
+    // Show credentials to the admin once (works even if SMTP email isn't configured).
+    const info = document.getElementById('new-member-creds');
+    if (info) {
+      info.classList.remove('hidden');
+      info.innerHTML = `تم إنشاء الحساب ✅ ${d.email_sent ? '(واتبعت على بريده)' : '(الإيميل مش مفعّل — انسخ البيانات وابعتها له)'}
+        <div class="mt-1 font-mono text-slate-800">اسم المستخدم: <b>${esc(d.username)}</b> — كلمة المرور: <b>${esc(d.password||'')}</b></div>`;
+    }
+    showToast(d.email_sent ? 'تم إضافة العضو وإرسال البيانات على بريده ✅' : 'تم إضافة العضو — انسخ بيانات الدخول');
+    document.getElementById('nm-username').value=''; document.getElementById('nm-email').value='';
+    document.querySelectorAll('.nm-client-cb:checked').forEach(cb=>cb.checked=false);
+    renderMembers();
+  } catch(e) { showToast('خطأ في الشبكة', 'error'); }
+}
+
+async function toggleAssign(username, clientId, add) {
+  try {
+    const d = await (await fetch('/api/users')).json();
+    const u = (d.users||[]).find(x => x.username === username) || {assigned_clients:[]};
+    let set = new Set(u.assigned_clients||[]);
+    if (add) set.add(clientId); else set.delete(clientId);
+    await fetch(`/api/users/${encodeURIComponent(username)}/clients`, {method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({assigned_clients: Array.from(set)})});
+    renderMembers();
+  } catch(e) { showToast('تعذّر تحديث الصلاحيات', 'error'); }
+}
+
+async function deleteMember(username) {
+  if (!confirm('حذف العضو ' + username + '؟')) return;
+  await fetch('/api/users/' + encodeURIComponent(username), {method:'DELETE'});
+  renderMembers();
+}
+
+async function resendCreds(username) {
+  const r = await fetch('/api/auth/send-credentials', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username})});
+  const d = await r.json();
+  showToast(d.ok ? 'تم إرسال بيانات دخول جديدة على بريده ✅' : (d.error||d.message||'تعذّر الإرسال'), d.ok?'success':'error');
 }
 
 // ---- Per-client auto/manual reply-mode panel (v-mode) ----

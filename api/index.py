@@ -3404,10 +3404,12 @@ def api_register():
     if send_email and email:
         email_ok, email_msg = send_credentials_email(email, username, password, action="welcome")
 
+    # Return the plaintext password to the creating admin ONCE (it's hashed in storage and
+    # can't be shown again) so onboarding works even if SMTP isn't configured yet.
     return jsonify({"ok": True, "username": username, "email": email, "role": role,
                     "assigned_clients": user_record["assigned_clients"],
                     "email_sent": email_ok, "email_status": email_msg,
-                    "generated_password": (not data.get("password"))})
+                    "password": password})
 
 
 @app.route("/api/users", methods=["GET"])
