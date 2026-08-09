@@ -1811,6 +1811,23 @@ def api_upload_doc():
         
     cache["kb"] = kb
     push_setting("meta_ai_kb", kb)
+
+    # Also push chunks to Supabase public.documents vector table if Supabase is configured
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            for p in paragraphs:
+                emb = generate_embedding(p)
+                doc_payload = {
+                    "content": p,
+                    "metadata": {"source": "doc_upload"},
+                    "client_id": cid
+                }
+                if emb and len(emb) == 1536:
+                    doc_payload["embedding"] = emb
+                requests.post(f"{SUPABASE_URL}/rest/v1/documents", headers=supa_headers(), json=doc_payload, timeout=5)
+        except Exception as _ex:
+            print(f"[Supabase Vector Document Insert Error] {_ex}")
+
     return jsonify({"ok": True, "chunks": added_chunks, "total_kb": len(kb)})
 
 @app.route("/api/kb", methods=["GET"])
