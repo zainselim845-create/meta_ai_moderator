@@ -3251,6 +3251,12 @@ def api_login():
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
 
+    # Load the latest users so members created on another serverless instance are found.
+    try:
+        sync_from_supabase()
+    except Exception:
+        pass
+
     # 1. Try Supabase Auth if credentials provided
     supa_user = supabase_auth_login(username, password) if (SUPABASE_URL and username and password) else None
     if supa_user:
