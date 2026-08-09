@@ -795,13 +795,11 @@ async function saveScheduledPost() {
       const data = await res.json();
       if(data.success) {
           showToast('تم حفظ الجدولة في السيرفر بنجاح ✅');
-          const list = document.getElementById('scheduled-posts-list');
-          if (list) {
-              const item = document.createElement('div');
-              item.className = 'border border-slate-100 rounded-xl p-3 flex items-center justify-between';
-              item.innerHTML = `<div><span class="font-bold text-slate-900 block">${esc(cap.substring(0,40))}${cap.length>40?'...':''}</span><span class="text-slate-400">${dt||'اليوم'} - ${tm||'10:00'}</span></div><span class="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-lg">Pending</span>`;
-              list.prepend(item);
-          }
+          if (typeof loadScheduledPosts === 'function') loadScheduledPosts();
+          const capInput = document.getElementById('post-caption-input');
+          const driveInput = document.getElementById('post-drive-link');
+          if (capInput) capInput.value = '';
+          if (driveInput) driveInput.value = '';
       }
   } catch(e) {
       showToast('حدث خطأ أثناء الجدولة', 'error');

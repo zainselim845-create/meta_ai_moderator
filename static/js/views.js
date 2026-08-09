@@ -456,10 +456,11 @@ function parseDriveLink(input) {
 async function loadScheduledPosts() {
     try {
         const res = await fetch('/api/scheduler');
-        const list = await res.json();
-        scheduledPosts = list || [];
+        const data = await res.json();
+        scheduledPosts = (data && data.scheduled_posts) ? data.scheduled_posts : (Array.isArray(data) ? data : []);
         renderScheduledPosts();
     } catch(e) {
+        scheduledPosts = [];
         renderScheduledPosts();
     }
 }
@@ -468,21 +469,21 @@ function renderScheduledPosts() {
     const el = document.getElementById('scheduled-posts-list');
     if (!el) return;
     if (!scheduledPosts || scheduledPosts.length === 0) {
-        el.innerHTML = '<div class="p-4 text-center text-xs text-slate-500">لا توجد منشورات مجدولة بعد</div>';
+        el.innerHTML = '<div class="p-4 text-center text-xs text-slate-500">لا توجد منشورات مجدولة بعد 📅</div>';
         return;
     }
     el.innerHTML = scheduledPosts.map(p => `
         <div class="p-3 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between gap-3 text-xs mb-2">
             <div class="space-y-1 flex-1">
                 <div class="flex items-center gap-2">
-                    <span class="font-bold text-blue-600">${esc(p.typeLabel || p.type || 'منشور مجدول')}</span>
-                    <span class="px-2 py-0.5 rounded-md font-bold ${p.status && p.status.includes('تم') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${esc(p.status || 'مجدول')}</span>
-                    <span class="text-slate-400 font-mono">(${esc(p.datetime || p.scheduled_at || '')})</span>
+                    <span class="font-bold text-blue-600">${esc(p.typeLabel || p.media_type || p.target || 'منشور مجدول')}</span>
+                    <span class="px-2 py-0.5 rounded-md font-bold ${p.status && (p.status.includes('تم') || p.status === 'published') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${esc(p.status || 'pending')}</span>
+                    <span class="text-slate-400 font-mono">(${esc(p.date || '')} ${esc(p.time || '')})</span>
                 </div>
                 <p class="text-slate-800 font-medium">${esc(p.caption)}</p>
-                ${p.media_url || p.mediaUrl ? `<span class="text-slate-500 text-xs block truncate">الميديا: ${esc(p.media_url || p.mediaUrl)}</span>` : ''}
+                ${p.media_url || p.drive_link ? `<span class="text-slate-500 text-xs block truncate">الميديا: ${esc(p.media_url || p.drive_link)}</span>` : ''}
             </div>
-            <button onclick="deleteScheduledPost(${p.id})" class="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            <button onclick="deleteScheduledPost('${esc(p.id)}')" class="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
         </div>
     `).join('');
     if (window.lucide) lucide.createIcons();
@@ -491,7 +492,7 @@ function renderScheduledPosts() {
 async function deleteScheduledPost(id) {
     try {
         await fetch('/api/scheduler/' + id, {method: 'DELETE'});
-        showToast('تم حذف المنشور المجدول');
+        showToast('تم حذف المنشور المجدول بنجاح');
         loadScheduledPosts();
     } catch(e) {}
 }
