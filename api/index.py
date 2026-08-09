@@ -73,14 +73,14 @@ DEFAULT_SYSTEM_PROMPT = """أنت موظف مبيعات وتأهيل عملاء 
 
 DEFAULT_KB = [
     {"id": 1, "question": "ما هي خدمات وكالة دوميا للتسويق الرقمي؟", "answer": "تقدم وكالة دوميا خدمات تسويق رقمي شاملة: إدارة صفحات التواصل الاجتماعي، الحملات الإعلانية الممولة، صناعة المحتوى، تصميم الهوية البصرية، وتطوير البوتات الذكية."},
-    {"id": 2, "question": "كم سعر باقات التسويق وإدارة الصفحات؟", "answer": "تبدأ باقات إدارة الصفحات من الباقة الاقتصادية (3000 Ø¬.Ù…/شهرياً)ØŒ الباقة الاحترافية (6000 Ø¬.Ù…/شهرياً)، وباقة المؤسسات الشاملة (12000 ج.م/شهرياً)."},
+    {"id": 2, "question": "كم سعر باقات التسويق وإدارة الصفحات؟", "answer": "تبدأ باقات إدارة الصفحات من الباقة الاقتصادية (3000 ج.م/شهرياً)، الباقة الاحترافية (6000 ج.م/شهرياً)، وباقة المؤسسات الشاملة (12000 ج.م/شهرياً)."},
     {"id": 3, "question": "ما هي خدمات الحملات الإعلانية الممولة؟", "answer": "نقوم بإدارة حملات الإعلانات الممولة على Meta وتيك توك وجوجل. تشمل تحديد الجمهور المستهدف وكتابة وتصميم الإعلانات ومتابعة الأداء."},
-    {"id": 4, "question": "كيف يمكن التواصل مع شركة دومياØŸ", "answer": "يمكنك التواصل عبر رسائل الصفحة أو الاتصال الهاتفي. مواعيد العمل من الأحد للخميس من 9 صباحاً حتى 6 مساءً."}
+    {"id": 4, "question": "كيف يمكن التواصل مع شركة دوميا؟", "answer": "يمكنك التواصل عبر رسائل الصفحة أو الاتصال الهاتفي. مواعيد العمل من الأحد للخميس من 9 صباحاً حتى 6 مساءً."}
 ]
 
 DEFAULT_RULES = [
     {"id": 1, "trigger": "سعر", "match_type": "contains", "response": "تم الرد في الخاص! ", "private_response": "أهلاً بك! تبدأ باقات إدارة الصفحات والتسويق لدينا من 3000 جنيه مصري شهرياً. ابعتلنا تفاصيل نشاطك وهنحددلك الباقة المناسبة فوراً! ", "is_active": True},
-    {"id": 2, "trigger": "أسعار", "match_type": "contains", "response": "تم الرد في الخاص بالتفاصيل! ", "private_response": "أهلاً بك! نوفر باقات متنوعة: الاقتصادية (3000Ø¬)ØŒ الاحترافية (6000Ø¬)ØŒ والمؤسسات (12000Ø¬). يسعدنا خدمتك! ", "is_active": True},
+    {"id": 2, "trigger": "أسعار", "match_type": "contains", "response": "تم الرد في الخاص بالتفاصيل! ", "private_response": "أهلاً بك! نوفر باقات متنوعة: الاقتصادية (3000ج)، الاحترافية (6000ج)، والمؤسسات (12000ج). يسعدنا خدمتك! ", "is_active": True},
     {"id": 3, "trigger": "بكم", "match_type": "contains", "response": "بعتنالك التفاصيل في الخاص ", "private_response": "أهلاً بك! يمكنك التعرف على أسعار خدماتنا وباقات التسويق عبر التواصل المباشر في الخاص، يسعدنا خدمتك! ", "is_active": True},
     {"id": 4, "trigger": "تفاصيل", "match_type": "contains", "response": "بعتنالك كافة التفاصيل في الإنبوكس! ", "private_response": "أهلاً بك! تقدم وكالة دوميا خدمات التسويق وإدارة الحملات وصناعة المحتوى وتطوير الـ AI Bots. كيف يمكننا مساعدتك؟ ", "is_active": True}
 ]
@@ -1763,6 +1763,46 @@ def api_get_kb():
     all_kb = get_kb_data()
     client_kb = [k for k in all_kb if (k.get("client_id") or "client_default") == cid]
     return jsonify({"kb": client_kb, "total": len(client_kb), "active_client_id": cid})
+
+@app.route("/api/kb", methods=["POST"])
+def api_kb_add():
+    cid = current_client_id()
+    data = request.get_json() or {}
+    q = data.get("question")
+    a = data.get("answer")
+    if not q or not a:
+        return jsonify({"error": "Missing data"}), 400
+    
+    kb = get_kb_data()
+    new_id = int(time.time() * 1000)
+    
+    # Generate embedding and save to Supabase Vector DB if possible
+    content_text = f"Q: {q}\nA: {a}"
+    embedding = generate_embedding(content_text)
+    if embedding and SUPABASE_URL and SUPABASE_KEY:
+        try:
+            requests.post(
+                f"{SUPABASE_URL}/rest/v1/documents",
+                headers=supa_headers(),
+                json={
+                    "client_id": cid,
+                    "content": content_text,
+                    "embedding": embedding
+                },
+                timeout=5
+            )
+        except Exception as e:
+            print(f"[Supabase Vector Insert Error] {e}")
+    
+    kb.append({
+        "id": new_id,
+        "question": q,
+        "answer": a,
+        "client_id": cid
+    })
+    cache["kb"] = kb
+    push_setting("meta_ai_kb", kb)
+    return jsonify({"ok": True, "id": new_id})
 
 @app.route("/api/kb/<int:item_id>", methods=["DELETE"])
 def api_kb_delete(item_id):
