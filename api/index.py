@@ -3579,7 +3579,10 @@ def api_clients_add():
     name = data.get("name", "").strip()
     if not name:
         return jsonify({"error": "اسم العميل/البراند مطلوب"}), 400
-    cid = "client_" + re.sub(r"[^a-z0-9]", "", name.lower().replace(" ", "_"))[:30]
+    # Honor an explicit id (used to re-link/recover an existing client + its accounts).
+    cid = str(data.get("id") or "").strip()
+    if not cid:
+        cid = "client_" + re.sub(r"[^a-z0-9]", "", name.lower().replace(" ", "_"))[:30]
     if not cid or len(cid) < 8:
         cid = f"client_{int(time.time())}"
         
