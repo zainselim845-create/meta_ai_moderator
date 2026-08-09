@@ -1377,9 +1377,9 @@ def fetch_rich_thread_messages(thread_id, before=None, limit=50):
         }
     
     cid = current_client_id()
-    client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid or not a.get("client_id")]
+    client_accounts = [a for a in ACCOUNTS_STORE if a.get("client_id") == cid]
     token = PAGE_ACCESS_TOKEN
-    page_ids = {"", "17841413562796856"}
+    page_ids = {""}  # this client's own page/ig ids only — no hardcoded Domya id
     for a in client_accounts:
         if a.get("id"):
             page_ids.add(str(a["id"]))
@@ -2711,21 +2711,10 @@ def oauth_callback():
 def api_pending_pages():
     tok = session.get('pending_token')
     discovered = discover_pages(tok) if tok else []
+    # Show ONLY the pages the current OAuth session just authorized — never merge other
+    # clients' already-connected pages, which caused mixing (e.g. a new person's FB page
+    # shown next to Domya's page/Instagram).
     found_dict = {str(p['id']): p for p in discovered if p.get('id')}
-    
-    # Also merge accounts from ACCOUNTS_STORE so all connected pages are pickable
-    for a in ACCOUNTS_STORE:
-        if a.get('platform') == 'facebook' and a.get('id'):
-            pid = str(a['id'])
-            if pid not in found_dict:
-                found_dict[pid] = {
-                    'id': pid,
-                    'name': a.get('name', 'الصفحة المربوطة'),
-                    'access_token': a.get('access_token'),
-                    'fan_count': 10181,
-                    'picture': {'data': {'url': a.get('avatar_url') or ''}}
-                }
-    
     pages = list(found_dict.values())
     return jsonify({
         'client_id': session.get('oauth_client_id'),
@@ -2734,7 +2723,7 @@ def api_pending_pages():
             'name': p.get('name'),
             'picture': (p.get('picture') or {}).get('data', {}).get('url') if isinstance(p.get('picture'), dict) else p.get('picture'),
             'followers': p.get('fan_count'),
-            'instagram': (p.get('instagram_business_account') or {}).get('username') if isinstance(p.get('instagram_business_account'), dict) else (p.get('instagram') or 'domya_marketing'),
+            'instagram': (p.get('instagram_business_account') or {}).get('username') if isinstance(p.get('instagram_business_account'), dict) else p.get('instagram'),
         } for p in pages]
     })
 
