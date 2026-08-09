@@ -288,11 +288,52 @@ def get_system_prompt(client_id=None):
         return f"{base_prompt}\n\nملاحظة: أنت تعمل كمنسق وراد آلي مخصص للعميل: {client.get('name')}."
     return base_prompt
 
+def generate_embedding(text):
+    if OPENROUTER_API_KEY:
+        try:
+            import requests
+            res = requests.post(
+                "https://openrouter.ai/api/v1/embeddings",
+                headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
+                json={"model": "openai/text-embedding-3-small", "input": text},
+                timeout=10
+            )
+            if res.status_code == 200:
+                return res.json()["data"][0]["embedding"]
+        except Exception as e:
+            print(f"[Embedding Error] {e}")
+    return None
+
 def search_kb(query, client_id=None):
     cid = client_id or current_client_id()
     items = get_kb_data()
     if not items or not query or not str(query).strip():
         return ""
+        
+    # 1. Try vector RAG on Supabase if possible
+    embedding = generate_embedding(query)
+    if embedding and SUPABASE_URL and SUPABASE_KEY:
+        try:
+            import requests
+            res = requests.post(
+                f"{SUPABASE_URL}/rest/v1/rpc/match_documents",
+                headers=supa_headers(),
+                json={
+                    "query_embedding": embedding,
+                    "match_threshold": 0.7,
+                    "match_count": 3,
+                    "p_client_id": cid
+                },
+                timeout=10
+            )
+            if res.status_code == 200:
+                docs = res.json()
+                if docs:
+                    return "\n".join([doc.get("content", "") for doc in docs])
+        except Exception as e:
+            print(f"[Vector Search Error] {e}")
+
+    # 2. Fallback to keyword search
     client_items = [i for i in items if (i.get("client_id") or "client_default") == cid]
     words = [w for w in re.split(r'\s+', str(query).lower()) if len(w) >= 2]
     scored = []
