@@ -229,6 +229,8 @@ def sync_from_supabase():
                         cache["approval_mode"] = str(parsed) if parsed else "auto"
                     elif k == "meta_ai_scheduled_posts":
                         cache["scheduled_posts"] = parsed if isinstance(parsed, list) else []
+                    elif k == "meta_ai_customer_styles":
+                        cache["customer_styles"] = parsed if isinstance(parsed, dict) else {}
                     elif k == "meta_ai_system_prompt":
                         cache["prompt"] = parsed  # global/default base prompt
                     elif k.startswith("meta_ai_system_prompt::"):
@@ -424,26 +426,99 @@ def check_custom_rules(message, client_id=None, post_url_or_id=None):
             return rule
     return None
 
-def generate_reply(user_message, platform="facebook", client_id=None):
+# ==========================================
+# Machine Learning Customer Style Engine
+# ==========================================
+def get_customer_styles():
+    return cache.get("customer_styles") or {}
+
+def analyze_and_update_customer_style(sender_id, user_message, client_id=None):
+    if not sender_id or not user_message:
+        return
+    sender_key = str(sender_id).strip()
+    styles = get_customer_styles()
+    profile = styles.get(sender_key) or {
+        "sender_id": sender_key,
+        "client_id": client_id or "client_default",
+        "messages_count": 0,
+        "tone": "عادي وودود",
+        "dialect": "عامية مصرية",
+        "formality": "غير رسمي (ودود)",
+        "preferred_topics": [],
+        "last_message": ""
+    }
+    
+    profile["messages_count"] += 1
+    profile["last_message"] = str(user_message)[:100]
+    
+    msg_lower = str(user_message).lower()
+    
+    # ML Feature Extraction: Dialect & Style
+    if any(w in msg_lower for w in ["ازيك", "ازيكوا", "اخبارك", "عامل ايه", "عايز", "عاوز", "ابعتلي", "كام"]):
+        profile["dialect"] = "عامية مصرية بسيطة وسريعة"
+    elif any(w in msg_lower for w in ["مرحبا", "السلام عليكم", "تحية طيبة", "أود الاستفسار", "حضرتك"]):
+        profile["formality"] = "رسمي ومؤدب جداً"
+        profile["tone"] = "مؤدب ومهذب"
+    
+    # ML Feature Extraction: Product / Service Interest
+    topics = profile.get("preferred_topics", [])
+    if any(w in msg_lower for w in ["باقة", "باقات", "حملة", "إعلان", "تسويق", "صفحة", "بوت", "فيديو", "ريلز"]) and "تسويق وحملات" not in topics:
+        topics.append("تسويق وحملات")
+    if any(w in msg_lower for w in ["غرفة", "غرف", "أثاث", "صالون", "انتريه", "سفرة", "موردن", "كلاسيك"]) and "أثاث وديكور" not in topics:
+        topics.append("أثاث وديكور")
+    if any(w in msg_lower for w in ["سعر", "أسعار", "كام", "بكم", "عرض", "عروض", "خصم"]) and "استفسار عن العروض والأسعار" not in topics:
+        topics.append("استفسار عن العروض والأسعار")
+    profile["preferred_topics"] = topics[:5]
+    
+    styles[sender_key] = profile
+    cache["customer_styles"] = styles
+    push_setting("meta_ai_customer_styles", styles)
+
+def get_customer_style_prompt(sender_id):
+    if not sender_id:
+        return ""
+    styles = get_customer_styles()
+    profile = styles.get(str(sender_id))
+    if not profile:
+        return ""
+    
+    prompt = f"\n\n[ملاحظات تعلم الذكاء الاصطناعي بأسلوب هذا العميل (ML Customer Style Learning)]:\n"
+    prompt += f"- نبرة العميل وحالته: {profile.get('tone', 'ودود')}\n"
+    prompt += f"- اللهجة المفضلة للعميل: {profile.get('dialect', 'عامية مصرية')}\n"
+    prompt += f"- درجة الرسمية: {profile.get('formality', 'غير رسمي (ودود)')}\n"
+    if profile.get("preferred_topics"):
+        prompt += f"- اهتمامات العميل السابقة: {', '.join(profile.get('preferred_topics'))}\n"
+    prompt += "قم بمحاكاة ومطابقة أسلوب العميل ولهجته واهتماماته لتقديم تجربة شخصية ممتازة بدقة."
+    return prompt
+
+def generate_reply(user_message, platform="facebook", client_id=None, sender_id=None):
     if not user_message or not str(user_message).strip():
         return "أهلاً بك! تم استلام رسالتك وسيتم التواصل معك فوراً."
     
+    cid = client_id or current_client_id()
+    
+    # 0. Machine Learning Customer Style Learning & Profile Extraction
+    if sender_id:
+        try:
+            analyze_and_update_customer_style(sender_id, user_message, cid)
+        except Exception as _ex:
+            print(f"[ML Style Update Error] {_ex}")
+
     # 1. Custom Rules exact/contains check
-    rule = check_custom_rules(user_message, client_id=client_id)
+    rule = check_custom_rules(user_message, client_id=cid)
     if rule:
         return rule.get("response") or "أهلاً بك! تم الرد على استفسارك."
         
     # 2. Knowledge Base RAG Search
-    rag_context = search_kb(user_message, client_id=client_id)
+    rag_context = search_kb(user_message, client_id=cid)
     
     # 3. Controlled LLM Response with RAG Context or Interactive Sales Engagement
-    cid = client_id or current_client_id()
     if GROQ_API_KEY:
-        reply = _call_groq(user_message, rag_context, platform, cid)
+        reply = _call_groq(user_message, rag_context, platform, cid, sender_id=sender_id)
         if reply:
             return reply
     if OPENROUTER_API_KEY:
-        reply = _call_openrouter(user_message, rag_context, platform, cid)
+        reply = _call_openrouter(user_message, rag_context, platform, cid, sender_id=sender_id)
         if reply:
             return reply
             
@@ -456,8 +531,10 @@ def generate_reply(user_message, platform="facebook", client_id=None):
 
     return "أهلاً وسهلاً بك! يسعدنا جداً خدمتك، يا ترى بتدور على إيه بالضبط؟ شاركنا تفاصيل طلبك أو رقم الواتساب ونتابع معاك ونبعتلك كافة التفاصيل والكتالوج فوراً ✨"
 
-def _call_groq(user_message, rag_context, platform, client_id=None):
+def _call_groq(user_message, rag_context, platform, client_id=None, sender_id=None):
     system_prompt = get_system_prompt(client_id)
+    if sender_id:
+        system_prompt += get_customer_style_prompt(sender_id)
     if rag_context:
         system_prompt += f"\n\nمعلومات الشركة:\n{rag_context}\n\nاستخدم هذه المعلومات للرد بدقة."
     try:
@@ -473,8 +550,10 @@ def _call_groq(user_message, rag_context, platform, client_id=None):
         print(f"[Groq Error] {e}")
     return None
 
-def _call_openrouter(user_message, rag_context, platform, client_id=None):
+def _call_openrouter(user_message, rag_context, platform, client_id=None, sender_id=None):
     system_prompt = get_system_prompt(client_id)
+    if sender_id:
+        system_prompt += get_customer_style_prompt(sender_id)
     if rag_context:
         system_prompt += f"\n\nمعلومات الشركة:\n{rag_context}\n\nاستخدم هذه المعلومات للرد بدقة."
     try:
@@ -489,6 +568,7 @@ def _call_openrouter(user_message, rag_context, platform, client_id=None):
     except Exception as e:
         print(f"[OpenRouter Error] {e}")
     return None
+
 
 GRAPH_URL = "https://graph.facebook.com/v21.0"
 
@@ -1782,6 +1862,13 @@ def api_reject_draft(draft_id):
     draft["status"] = "rejected"
     push_setting("meta_ai_pending", pending_approvals)
     return jsonify({"ok": True, "status": "rejected"})
+
+@app.route("/api/customer_insights", methods=["GET"])
+def api_customer_insights():
+    cid = current_client_id()
+    all_styles = get_customer_styles()
+    client_styles = [s for s in all_styles.values() if (s.get("client_id") or "client_default") == cid or cid == "client_default"]
+    return jsonify({"success": True, "profiles": client_styles, "total": len(client_styles)})
 
 @app.route("/api/upload_doc", methods=["POST"])
 def api_upload_doc():
