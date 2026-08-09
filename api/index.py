@@ -12,6 +12,7 @@ def auth_guard(f):
 
 import json
 import re
+import unicodedata
 import time
 import hmac
 import hashlib
@@ -3457,25 +3458,49 @@ def api_users_assign(username):
     return jsonify({"ok": True, "username": username, "assigned_clients": rec["assigned_clients"]})
 
 
+def _supabase_get_setting(key):
+    """Read one app_settings value fresh from Supabase (bypasses per-instance memory)."""
+    if not (SUPABASE_URL and SUPABASE_KEY):
+        return None
+    try:
+        r = requests.get(f"{SUPABASE_URL}/rest/v1/app_settings?select=value&key=eq.{key}",
+                         headers=supa_headers(), timeout=6)
+        if r.status_code == 200 and r.json():
+            v = r.json()[0].get("value")
+            parsed = json.loads(v) if isinstance(v, str) else v
+            if isinstance(parsed, str):
+                try: parsed = json.loads(parsed)
+                except: pass
+            return parsed
+    except Exception as e:
+        print(f"[supa get {key}] {e}")
+    return None
+
+def _norm(s):
+    try:
+        return unicodedata.normalize("NFC", str(s)).strip()
+    except Exception:
+        return str(s).strip()
+
 @app.route("/api/users/<username>", methods=["DELETE"])
 @app.route("/api/users/delete", methods=["POST"])
 @require_admin
 def api_users_delete(username=None):
-    sync_from_supabase()
-    # Username may arrive via the path OR the body (path fails for non-ASCII names on
-    # some setups), so accept both and match flexibly.
     body = request.get_json(silent=True) or {}
-    uname = username or body.get("username") or request.args.get("username") or ""
-    if uname not in USERS_DB:
-        # fallback: exact match ignoring surrounding whitespace
-        uname = next((u for u in USERS_DB if str(u).strip() == str(uname).strip()), uname)
-    if uname == admin_user:
+    uname = _norm(username or body.get("username") or request.args.get("username") or "")
+    if uname == _norm(admin_user):
         return jsonify({"error": "لا يمكن حذف حساب المدير الرئيسي"}), 400
-    if uname in USERS_DB:
-        del USERS_DB[uname]
-        push_setting("meta_ai_users", USERS_DB)
-        return jsonify({"ok": True})
-    return jsonify({"error": "المستخدم غير موجود"}), 404
+    # Operate on the authoritative Supabase copy so a stale instance can't fail the delete.
+    users = _supabase_get_setting("meta_ai_users")
+    if not isinstance(users, dict):
+        users = dict(USERS_DB)
+    match = next((k for k in users if _norm(k) == uname), None)
+    if not match:
+        return jsonify({"error": "المستخدم غير موجود"}), 404
+    users.pop(match, None)
+    USERS_DB.pop(match, None)
+    push_setting("meta_ai_users", users)
+    return jsonify({"ok": True, "deleted": match})
 
 
 @app.route("/api/auth/send-credentials", methods=["POST"])
