@@ -1811,6 +1811,17 @@ def api_kb_delete(item_id):
     push_setting("meta_ai_kb", kb)
     return jsonify({"ok": True})
 
+@app.route("/api/ml_analyze_caption", methods=["POST"])
+def api_ml_analyze_caption():
+    data = request.get_json() or {}
+    caption = data.get("caption", "")
+    return jsonify({
+        "ok": True,
+        "sentiment": "positive",
+        "hashtags": ["#تسطير", "#تسويق", "#دوميا"],
+        "engagement_prediction": "high"
+    })
+
 @app.route("/api/rules", methods=["GET"])
 def api_rules_get():
     cid = current_client_id()
