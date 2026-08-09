@@ -468,7 +468,7 @@ async function loadReplyModes() {
             <div class="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-sm">${ch}</div>
             <div class="min-w-0">
               <div class="font-bold text-sm text-slate-900 truncate">${esc(c.name)}</div>
-              <div class="text-[11px] ${on ? 'text-blue-600' : 'text-slate-500'} font-bold">${on ? '⚡ رد آلي فوري' : '👨‍💼 مراجعة يدوية'}</div>
+              <div class="text-[11px] ${on ? 'text-emerald-600' : 'text-red-500'} font-bold">${on ? '🟢 الرد الآلي شغّال' : '🔴 الرد متوقف (مراجعة يدوية)'}</div>
             </div>
           </div>
           <button onclick="toggleReplyMode('${esc(c.client_id)}', '${on ? 'manual' : 'auto'}')"

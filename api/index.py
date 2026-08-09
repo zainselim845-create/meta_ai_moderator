@@ -2272,8 +2272,10 @@ def webhook_event():
         # If the client is on manual, NOTHING is auto-sent — it goes to review instead.
         # (The old per-account dm_mode/comment_mode defaults are ignored, since every
         # account was created with "auto" baked in and would override the manual setting.)
+        # Fail-safe: if we can't identify the client that owns this page, default to
+        # manual (never auto-blast). Turning a client OFF (manual) always stops sending.
         _acct_cid = (matched_acct or {}).get("client_id")
-        client_mode = get_client_mode(_acct_cid) if _acct_cid else cache.get("approval_mode", "auto")
+        client_mode = get_client_mode(_acct_cid) if _acct_cid else "manual"
         dm_mode = client_mode
         comment_mode = client_mode
                     
