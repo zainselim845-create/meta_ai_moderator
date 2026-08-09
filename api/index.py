@@ -436,11 +436,7 @@ def generate_reply(user_message, platform="facebook", client_id=None):
     # 2. Knowledge Base RAG Search
     rag_context = search_kb(user_message, client_id=client_id)
     
-    # If no relevant RAG context found and no custom rule, use safe polite fallback instead of hallucinating
-    if not rag_context or len(rag_context.strip()) < 5:
-        return "أهلاً بك! تم تحويل استفسارك لمسؤول الحسابات وسيتم الرد عليك بالتفاصيل في أقرب وقت. "
-        
-    # 3. Controlled LLM Response with RAG Context
+    # 3. Controlled LLM Response with RAG Context or Interactive Sales Engagement
     cid = client_id or current_client_id()
     if GROQ_API_KEY:
         reply = _call_groq(user_message, rag_context, platform, cid)
@@ -451,11 +447,14 @@ def generate_reply(user_message, platform="facebook", client_id=None):
         if reply:
             return reply
             
-    lines = rag_context.strip().split("\n")
-    first = lines[0]
-    if ": " in first:
-        return f"أهلاً بيك! {first.split(': ', 1)[1]}"
-    return f"أهلاً بيك! {rag_context}" 
+    if rag_context and len(rag_context.strip()) >= 5:
+        lines = rag_context.strip().split("\n")
+        first = lines[0]
+        if ": " in first:
+            return f"أهلاً وسهلاً بك! {first.split(': ', 1)[1]} تواصل معنا في الخاص أو شاركنا رقم الواتساب ونحدد معاك ميتنج فوراً ✨"
+        return f"أهلاً وسهلاً بك! {rag_context} شاركنا رقم الواتساب ونتابع معاك فوراً ✨" 
+
+    return "أهلاً وسهلاً بك! يسعدنا جداً خدمتك، يا ترى بتدور على إيه بالضبط؟ شاركنا تفاصيل طلبك أو رقم الواتساب ونتابع معاك ونبعتلك كافة التفاصيل والكتالوج فوراً ✨"
 
 def _call_groq(user_message, rag_context, platform, client_id=None):
     system_prompt = get_system_prompt(client_id)
