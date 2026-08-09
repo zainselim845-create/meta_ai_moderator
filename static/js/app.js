@@ -652,12 +652,16 @@ function updatePostPreview() {
   if (!fids.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
   box.classList.remove('hidden');
   const isVid = (type === 'video' || type === 'reel');
+  // Aspect ratio per platform: story/reel = 9/16 (vertical), image/carousel/video = 4/5.
+  const ratio = (type === 'story' || type === 'reel') ? '9 / 16' : (isVid ? '16 / 9' : '4 / 5');
+  // Keep the preview centered with a framed media box that matches the target ratio.
+  const frame = (inner) => `<div style="aspect-ratio:${ratio};max-height:360px;margin:0 auto;background:#0f172a;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center">${inner}</div>`;
   const cell = (fid) => (isVid || type === 'story')
-    ? `<iframe src="https://drive.google.com/file/d/${fid}/preview" class="w-full" style="height:280px;border:0" allow="autoplay"></iframe>`
-    : `<img src="https://drive.google.com/thumbnail?id=${fid}&sz=w640" class="w-full object-cover rounded-lg" style="max-height:280px">`;
+    ? frame(`<iframe src="https://drive.google.com/file/d/${fid}/preview" style="width:100%;height:100%;border:0" allow="autoplay"></iframe>`)
+    : frame(`<img src="https://drive.google.com/thumbnail?id=${fid}&sz=w800" style="width:100%;height:100%;object-fit:cover">`);
   if (type === 'carousel' && fids.length > 1) {
     box.innerHTML = `<div class="grid grid-cols-2 gap-1">${fids.map(f=>`<div>${cell(f)}</div>`).join('')}</div>
-      <div class="text-[10px] text-slate-400 mt-1 text-center">كاروسيل — ${fids.length} عناصر</div>`;
+      <div class="text-[10px] text-slate-400 mt-1 text-center">كاروسيل — ${fids.length} عناصر • اسحب لرؤية الكل</div>`;
   } else {
     box.innerHTML = cell(fids[0]);
   }

@@ -1705,6 +1705,11 @@ def api_send_reply():
 @app.route("/api/stats")
 def api_stats():
     sync_from_supabase()
+    # Opportunistically publish any due scheduled posts while the app is active.
+    try:
+        _process_due_posts()
+    except Exception:
+        pass
     cid = current_client_id()
     pending = [p for p in pending_approvals if p.get("status") == "pending" and (p.get("client_id") or cid) == cid]
     client_log = [e for e in activity_log if (e.get("client_id") or cid) == cid]
