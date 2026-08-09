@@ -3496,9 +3496,7 @@ def api_users_delete(username=None):
         users = dict(USERS_DB)
     match = next((k for k in users if _norm(k) == uname), None)
     if not match:
-        return jsonify({"error": "المستخدم غير موجود",
-                        "_debug": {"looking_for": uname, "src": ("supabase" if isinstance(_supabase_get_setting("meta_ai_users"), dict) else "memory"),
-                                   "available": list(users.keys())}}), 404
+        return jsonify({"error": "المستخدم غير موجود"}), 404
     users.pop(match, None)
     USERS_DB.pop(match, None)
     push_setting("meta_ai_users", users)
