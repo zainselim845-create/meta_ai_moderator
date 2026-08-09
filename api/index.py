@@ -4128,7 +4128,7 @@ def publish_scheduled_post(post):
                 results.append(("fb", False, str(e)))
 
     if target in ("ig", "both"):
-        ig = next((a for a in ACCOUNTS_STORE if a.get("platform") == "instagram"), None)
+        ig = next((a for a in _pool if a.get("platform") == "instagram"), None)
         if ig and media_url:
             ig_id = ig.get("ig_id") or ig.get("id")
             tok = _resolve_page_token(ig, ig=True)
@@ -4159,21 +4159,55 @@ def publish_scheduled_post(post):
     return ok, results
 
 
+# Local timezone offset (hours ahead of UTC) for interpreting the user's chosen times.
+# Egypt is UTC+2 (winter) / UTC+3 (summer). Configurable via env; default 3 (summer).
+def _tz_offset():
+    try:
+        return float(os.environ.get("TZ_OFFSET_HOURS", "3"))
+    except Exception:
+        return 3.0
+
+def _local_to_utc_iso(date_s, time_s):
+    """Convert the user's wall-clock date+time (their local tz) to a UTC ISO string,
+    so publishing fires at the exact local time the user picked regardless of server tz."""
+    if not date_s:
+        return None
+    try:
+        local = datetime.strptime(f"{date_s} {time_s or '00:00'}", "%Y-%m-%d %H:%M")
+        return (local - timedelta(hours=_tz_offset())).replace(tzinfo=timezone.utc).isoformat()
+    except Exception:
+        return None
+
+def _process_due_posts():
+    """Publish every pending post whose UTC time has arrived. Safe to call often
+    (from the cron AND opportunistically when the user opens the scheduler)."""
+    now_utc = datetime.now(timezone.utc).isoformat()
+    published = []
+    for post in IN_MEMORY_POSTS:
+        if post.get("status") != "pending":
+            continue
+        sched = post.get("scheduled_at")
+        if sched is not None and sched > now_utc:
+            continue  # not due yet
+        ok, detail = publish_scheduled_post(post)
+        post["status"] = "published" if ok else "failed"
+        post["result"] = detail
+        post["published_at"] = now_utc
+        published.append({"id": post.get("id"), "ok": ok, "detail": detail})
+    if published:
+        push_setting("meta_ai_scheduled_posts", IN_MEMORY_POSTS)
+    return published
+
+
 @app.route("/api/scheduler", methods=["GET", "POST"])
 @auth_guard
 def api_scheduler():
     if request.method == "POST":
         data = request.json or {}
         drive_link = data.get("drive_link") or data.get("media_url", "")
-        # scheduled_at: من date (YYYY-MM-DD) + time (HH:MM)؛ لو ناقص يتنشر حالاً
         date_s = data.get("date", "")
         time_s = data.get("time", "")
-        scheduled_at = None
-        if date_s:
-            try:
-                scheduled_at = datetime.strptime(f"{date_s} {time_s or '00:00'}", "%Y-%m-%d %H:%M").isoformat()
-            except Exception:
-                scheduled_at = None
+        scheduled_at = _local_to_utc_iso(date_s, time_s)  # stored in UTC
         post = {
             "id": f"post-{int(time.time()*1000)}",
             "client_id": current_client_id(),
@@ -4190,7 +4224,11 @@ def api_scheduler():
         IN_MEMORY_POSTS.insert(0, post)
         push_setting("meta_ai_scheduled_posts", IN_MEMORY_POSTS)
         return jsonify({"success": True, "post": post})
-    # Only return the active client's scheduled posts (total isolation per client).
+    # Opportunistically publish anything already due, then return this client's posts.
+    try:
+        _process_due_posts()
+    except Exception as _e:
+        print(f"[Scheduler opportunistic] {_e}")
     _cid = current_client_id()
     mine = [p for p in IN_MEMORY_POSTS if (p.get("client_id") or _cid) == _cid]
     return jsonify({"success": True, "scheduled_posts": mine})
@@ -4220,31 +4258,16 @@ def api_scheduler_delete(post_id):
 
 @app.route('/api/cron/process_scheduled', methods=['GET', 'POST'])
 def process_scheduled_cron():
-    auth_header = request.headers.get('authorization', '')
+    # Accept Vercel Cron (Bearer CRON_SECRET) OR an external minute-level cron via ?key=
     cron_secret = os.environ.get('CRON_SECRET', '')
-    if cron_secret and auth_header != f"Bearer {cron_secret}":
-        return jsonify({"error": "Unauthorized"}), 401
+    if cron_secret:
+        auth_header = request.headers.get('authorization', '')
+        key = request.args.get('key', '')
+        if auth_header != f"Bearer {cron_secret}" and key != cron_secret:
+            return jsonify({"error": "Unauthorized"}), 401
 
-    # Refresh cached settings/pending state from Supabase (no-arg; safe if unconfigured)
     sync_from_supabase()
-
-    # Publish any scheduled posts whose time has come
-    now_iso = datetime.now().isoformat()
-    published = []
-    for post in IN_MEMORY_POSTS:
-        if post.get("status") != "pending":
-            continue
-        sched = post.get("scheduled_at")
-        due = (sched is None) or (sched <= now_iso)
-        if not due:
-            continue
-        ok, detail = publish_scheduled_post(post)
-        post["status"] = "published" if ok else "failed"
-        post["result"] = detail
-        published.append({"id": post.get("id"), "ok": ok})
-    if published:
-        push_setting("meta_ai_scheduled_posts", IN_MEMORY_POSTS)
-
+    published = _process_due_posts()
     return jsonify({
         "status": "processed",
         "pending_count": len(pending_approvals),
