@@ -69,8 +69,9 @@ function renderClientsGrid() {
         return;
     }
     grid.innerHTML = agencyClients.map(c => {
-        const phone = c.phone || '01090121000';
+        const phone = (c.phone && /\d{7,}/.test(String(c.phone))) ? String(c.phone) : '';
         const cleanPhone = phone.replace(/\D/g, '');
+        const hasPhone = !!phone;
 
         return `
         <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3 relative flex flex-col justify-between">

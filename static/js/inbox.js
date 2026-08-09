@@ -353,8 +353,8 @@ async function selectThread(id){
     const isFB = t.platform === 'facebook' || t.type === 'messenger' || String(t.id).startsWith('fb_');
     const isComment = t.channel === 'comment' || String(t.id).startsWith('fb_comment_') || String(t.id).startsWith('ig_comment_');
     const isClient = t.customer_type === 'client' || (t.lead_badge && t.lead_badge.includes('مشترك'));
-    const phone = t.phone || '01090121000';
-    const scoreVal = t.lead_score || (isClient ? 100 : 85);
+    // Only use a REAL phone the customer provided — never a hardcoded agency number.
+    const phone = (t.phone && /\d{7,}/.test(String(t.phone))) ? String(t.phone) : '';
 
     const crmEl = document.getElementById('crm-sidebar');
     if (crmEl) {
@@ -368,7 +368,7 @@ async function selectThread(id){
                         ${avatarHtml}
                     </div>
                     <div>
-                        <h4 class="font-bold text-slate-900 text-sm">${esc(t.name || t.sender_name || 'عميل جديد')}</h4>
+                        <h4 class="font-bold text-slate-900 text-sm">${esc(fixMojibake(t.name || t.sender_name || 'عميل جديد'))}</h4>
                         <div class="text-slate-500">${esc(t.business || 'عميل محتمل')}</div>
                         ${linkHtml}
                     </div>
@@ -386,14 +386,18 @@ async function selectThread(id){
                 </div>
 
                 <div class="space-y-2 pt-1">
+                    ${phone ? `
                     <a href="tel:${phone}" class="btn-primary w-full flex items-center justify-center gap-2 py-2.5 rounded-xl shadow-sm">
                         <i data-lucide="phone" class="w-4 h-4"></i>
                         <span>اتصل الآن (${phone})</span>
                     </a>
-                    <a href="https://wa.me/2${phone}" target="_blank" class="btn-ghost w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-300">
+                    <a href="https://wa.me/2${phone.replace(/\\D/g,'')}" target="_blank" class="btn-ghost w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-300">
                         <i data-lucide="message-square" class="w-4 h-4 text-emerald-600"></i>
                         <span>محادثة عبر واتساب</span>
-                    </a>
+                    </a>` : `
+                    <div class="text-[11px] text-slate-400 text-center py-2 border border-dashed border-slate-200 rounded-xl">
+                        لا يوجد رقم هاتف — تواصل عبر الرسائل
+                    </div>`}
                 </div>
             </div>
         `;
