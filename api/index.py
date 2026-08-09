@@ -239,15 +239,18 @@ def sync_from_supabase():
                     elif k == "meta_ai_client_modes" and isinstance(parsed, dict):
                         cache["client_modes"] = parsed  # per-client auto/manual reply mode
                     elif k == "meta_ai_users":
-                        if isinstance(parsed, dict):
-                            USERS_DB.update(parsed)
-                        elif isinstance(parsed, list):
-                            for u in parsed:
-                                if isinstance(u, dict) and u.get("username"):
-                                    USERS_DB[u["username"]] = u
-                                elif isinstance(u, str):
-                                    USERS_DB.setdefault(u, {"password": "admin2026", "role": "admin"})
-                        cache["users"] = USERS_DB
+                        try:
+                            if isinstance(parsed, dict):
+                                for _un, _rec in parsed.items():
+                                    if isinstance(_rec, dict) and _rec.get("password"):
+                                        USERS_DB[_un] = _rec
+                            elif isinstance(parsed, list):
+                                for u in parsed:
+                                    if isinstance(u, dict) and u.get("username") and u.get("password"):
+                                        USERS_DB[u["username"]] = u
+                            cache["users"] = USERS_DB
+                        except Exception:
+                            pass
                     elif k == "meta_ai_email_logs" and isinstance(parsed, list):
                         cache["email_logs"] = parsed
         except Exception as e:
@@ -688,11 +691,14 @@ def current_client_id():
         return "client_default"
     cid = session.get("active_client_id")
     # Trust the user's selection even if this serverless instance hasn't synced the
-    # client list yet — otherwise valid clients get rejected and wrongly fall back to
-    # the first client (which showed every client the same page's messages).
+    # client list yet — BUT an account manager may only use a client assigned to them.
     if cid:
-        return cid
-    nxt = next((c.get("id") for c in AGENCY_CLIENTS_STORE if c.get("is_active", True)), "client_default")
+        if is_admin() or can_see_client(cid):
+            return cid
+        # not allowed → fall through to their first assigned client
+    _allowed = assigned_client_ids()
+    nxt = next((c.get("id") for c in AGENCY_CLIENTS_STORE
+                if c.get("is_active", True) and (is_admin() or c.get("id") in _allowed)), "client_default")
     if nxt and nxt != "client_default":
         session["active_client_id"] = nxt
         session.modified = True
@@ -2925,12 +2931,66 @@ def api_attach_page():
         'instagram': ig.get('username') if ig else None
     })
 
-#  Auth Guard — blocks ALL /api/* without session 
+#  Auth Guard — blocks ALL /api/* without session
 admin_user = os.environ.get("ADMIN_USER") or "admin"
-admin_pass = os.environ.get("ADMIN_PASS") or "admin2026"
+# No insecure default: if ADMIN_PASS isn't set, generate a random one (no known backdoor).
+admin_pass = os.environ.get("ADMIN_PASS") or secrets.token_urlsafe(18)
+
+def hash_password(pw):
+    salt = secrets.token_hex(8)
+    h = hashlib.sha256((salt + str(pw)).encode("utf-8")).hexdigest()
+    return f"sha256${salt}${h}"
+
+def verify_password(stored, pw):
+    if not stored:
+        return False
+    s = str(stored)
+    if s.startswith("sha256$"):
+        try:
+            _, salt, h = s.split("$", 2)
+            calc = hashlib.sha256((salt + str(pw)).encode("utf-8")).hexdigest()
+            return hmac.compare_digest(calc, h)
+        except Exception:
+            return False
+    # Legacy plaintext record — constant-time compare
+    return hmac.compare_digest(s, str(pw))
+
 USERS_DB = {
-    admin_user: {"password": admin_pass, "role": "admin"},
+    admin_user: {"username": admin_user, "password": hash_password(admin_pass),
+                 "role": "admin", "assigned_clients": []},
 }
+
+# ---- Role-based access helpers ----
+def current_username():
+    return session.get("uid") if has_request_context() else None
+
+def current_user_rec():
+    return USERS_DB.get(current_username() or "", {})
+
+def current_role():
+    if has_request_context() and session.get("role"):
+        return session.get("role")
+    return current_user_rec().get("role", "account_manager")
+
+def is_admin():
+    return current_role() == "admin"
+
+def assigned_client_ids():
+    """Client ids the current user is allowed to see. Admins see all."""
+    if is_admin():
+        return [c.get("id") for c in AGENCY_CLIENTS_STORE]
+    return list(current_user_rec().get("assigned_clients") or [])
+
+def can_see_client(cid):
+    return is_admin() or (cid in assigned_client_ids())
+
+def require_admin(f):
+    @wraps(f)
+    def _w(*a, **k):
+        if not is_admin():
+            return jsonify({"error": "صلاحيات المدير مطلوبة"}), 403
+        return f(*a, **k)
+    return _w
 
 PUBLIC_PATHS = {
     '/api/login', '/api/logout', '/api/me',
@@ -3202,18 +3262,12 @@ def api_login():
         session.modified = True
         return jsonify({"ok": True, "username": username, "role": session["role"], "auth_provider": "supabase"})
 
-    # 2. Fallback to local admin — strict exact-match against env ADMIN_PASS, no bypass
+    # 2. Local users — verify against hashed (or legacy plaintext) password. No backdoor.
     user = USERS_DB.get(username)
-    local_auth_ok = False
-    if username == "admin" and password == "admin2026":
-        local_auth_ok = True
-    elif user and password and hmac.compare_digest(str(user.get("password", "")), str(password)):
-        local_auth_ok = True
-        
-    if local_auth_ok:
+    if user and password and verify_password(user.get("password", ""), password):
         session.permanent = True
         session["uid"] = username
-        session["role"] = user.get("role", "admin")
+        session["role"] = user.get("role", "account_manager")
         session.modified = True
         return jsonify({"ok": True, "username": username, "role": session["role"], "auth_provider": "local"})
 
@@ -3310,101 +3364,131 @@ def send_credentials_email(recipient_email, username, password, action="welcome"
 
 
 @app.route("/api/register", methods=["POST"])
+@require_admin
 def api_register():
+    """Admin-only: create a team member (manager or account manager) and email credentials."""
     data = request.get_json() or {}
     username = (data.get("username") or "").strip()
-    email = (data.get("email") or "").strip() or (f"{username}@agency.com" if username else "")
-    password = (data.get("password") or "").strip()
-    role = data.get("role", "moderator")
+    email = (data.get("email") or "").strip()
+    password = (data.get("password") or "").strip() or secrets.token_urlsafe(9)
+    role = data.get("role", "account_manager")
+    if role not in ("admin", "account_manager"):
+        role = "account_manager"
+    assigned = data.get("assigned_clients") or []
     send_email = data.get("send_email", True)
-    
-    if not username or not password:
-        return jsonify({"error": "اسم المستخدم وكلمة المرور مطلوبان"}), 400
 
-    # Save to USERS_DB and push to Supabase
+    if not username:
+        return jsonify({"error": "اسم المستخدم مطلوب"}), 400
+    if username in USERS_DB and username != current_username():
+        return jsonify({"error": "اسم المستخدم موجود بالفعل"}), 409
+
     user_record = {
         "username": username,
-        "password": password,
+        "password": hash_password(password),  # never store plaintext
         "role": role,
         "email": email,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "assigned_clients": [str(c) for c in assigned],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": current_username(),
     }
     USERS_DB[username] = user_record
     push_setting("meta_ai_users", USERS_DB)
 
-    # Try Supabase Auth signup if available
-    supa = supabase_auth_signup(email, password, role)
-    
-    # Send credentials to user's email
-    email_ok, email_msg = (False, "")
+    email_ok, email_msg = (False, "لم يُطلب إرسال بريد")
     if send_email and email:
         email_ok, email_msg = send_credentials_email(email, username, password, action="welcome")
 
-    return jsonify({
-        "ok": True,
-        "username": username,
-        "email": email,
-        "role": role,
-        "supabase_auth": bool(supa),
-        "email_sent": email_ok,
-        "email_status": email_msg
-    })
+    return jsonify({"ok": True, "username": username, "email": email, "role": role,
+                    "assigned_clients": user_record["assigned_clients"],
+                    "email_sent": email_ok, "email_status": email_msg,
+                    "generated_password": (not data.get("password"))})
+
+
+@app.route("/api/users", methods=["GET"])
+@require_admin
+def api_users_list():
+    sync_from_supabase()
+    out = []
+    for un, rec in USERS_DB.items():
+        out.append({
+            "username": un,
+            "role": rec.get("role", "account_manager"),
+            "email": rec.get("email", ""),
+            "assigned_clients": rec.get("assigned_clients") or [],
+            "created_at": rec.get("created_at"),
+        })
+    return jsonify({"users": out})
+
+
+@app.route("/api/users/<username>/clients", methods=["PUT", "POST"])
+@require_admin
+def api_users_assign(username):
+    rec = USERS_DB.get(username)
+    if not rec:
+        return jsonify({"error": "المستخدم غير موجود"}), 404
+    data = request.get_json() or {}
+    assigned = data.get("assigned_clients") or []
+    rec["assigned_clients"] = [str(c) for c in assigned]
+    USERS_DB[username] = rec
+    push_setting("meta_ai_users", USERS_DB)
+    return jsonify({"ok": True, "username": username, "assigned_clients": rec["assigned_clients"]})
+
+
+@app.route("/api/users/<username>", methods=["DELETE"])
+@require_admin
+def api_users_delete(username):
+    if username == admin_user:
+        return jsonify({"error": "لا يمكن حذف حساب المدير الرئيسي"}), 400
+    if username in USERS_DB:
+        del USERS_DB[username]
+        push_setting("meta_ai_users", USERS_DB)
+        return jsonify({"ok": True})
+    return jsonify({"error": "المستخدم غير موجود"}), 404
 
 
 @app.route("/api/auth/send-credentials", methods=["POST"])
-@auth_guard
+@require_admin
 def api_send_credentials():
+    """Admin-only. Passwords are hashed and cannot be read back, so this issues a NEW
+    password, stores it hashed, and emails the plaintext to the member once."""
     data = request.get_json() or {}
     username = (data.get("username") or "").strip()
-    email = (data.get("email") or "").strip()
-    
     user = USERS_DB.get(username)
-    if not user and not email:
-        return jsonify({"error": "يرجى تحديد اسم المستخدم أو البريد الإلكتروني"}), 400
-
-    target_email = email or (user.get("email") if user else "")
-    target_username = username or (user.get("username") if user else "user")
-    target_password = user.get("password") if user else "admin2026"
-
-    email_ok, email_msg = send_credentials_email(target_email, target_username, target_password, action="welcome")
-    return jsonify({
-        "ok": email_ok,
-        "recipient": target_email,
-        "message": email_msg
-    })
+    if not user:
+        return jsonify({"error": "المستخدم غير موجود"}), 404
+    target_email = (data.get("email") or user.get("email") or "").strip()
+    if not target_email:
+        return jsonify({"error": "لا يوجد بريد إلكتروني لهذا المستخدم"}), 400
+    new_password = secrets.token_urlsafe(9)
+    user["password"] = hash_password(new_password)
+    USERS_DB[username] = user
+    push_setting("meta_ai_users", USERS_DB)
+    email_ok, email_msg = send_credentials_email(target_email, username, new_password, action="welcome")
+    return jsonify({"ok": email_ok, "recipient": target_email, "message": email_msg})
 
 
 @app.route("/api/auth/reset-password", methods=["POST"])
 def api_reset_password():
+    """Forgot-password: issues a new password, stores it hashed, and emails it to the
+    account's own email. Never returns the password in the response."""
     data = request.get_json() or {}
     username = (data.get("username") or "").strip()
     email = (data.get("email") or "").strip()
-
     user = USERS_DB.get(username)
-    if not user:
+    if not user and email:
         user = next((u for u in USERS_DB.values() if isinstance(u, dict) and u.get("email") == email), None)
-
-    if not user and username != "admin":
-        return jsonify({"error": "لم يتم العثور على الحساب"}), 404
-
-    target_user = user.get("username") if user else "admin"
-    target_email = email or (user.get("email") if user else "admin@agency.com")
-    
-    # Generate new temporary 8-char password
-    new_password = f"Pass{int(time.time()) % 10000:04d}!"
-    if user:
-        user["password"] = new_password
-        USERS_DB[target_user] = user
-        push_setting("meta_ai_users", USERS_DB)
-
-    email_ok, email_msg = send_credentials_email(target_email, target_user, new_password, action="reset")
-    return jsonify({
-        "ok": True,
-        "username": target_user,
-        "new_password": new_password,
-        "email_sent": email_ok,
-        "email_status": email_msg
-    })
+    if not user:
+        # Do not reveal whether the account exists.
+        return jsonify({"ok": True, "message": "لو الحساب موجود، هيتم إرسال كلمة مرور جديدة على بريده."})
+    target_user = user.get("username")
+    target_email = user.get("email") or ""
+    new_password = secrets.token_urlsafe(9)
+    user["password"] = hash_password(new_password)
+    USERS_DB[target_user] = user
+    push_setting("meta_ai_users", USERS_DB)
+    if target_email:
+        send_credentials_email(target_email, target_user, new_password, action="reset")
+    return jsonify({"ok": True, "message": "لو الحساب موجود، هيتم إرسال كلمة مرور جديدة على بريده."})
 
 
 @app.route("/api/auth/users", methods=["GET"])
@@ -3443,7 +3527,9 @@ def api_me():
         "logged_in": True,
         "username": session.get("uid"),
         "user_id": session.get("user_id"),
-        "role": session.get("role", "admin"),
+        "role": current_role(),
+        "is_admin": is_admin(),
+        "assigned_clients": assigned_client_ids(),
         "active_client_id": current_client_id(),
         "supabase_connected": bool(SUPABASE_URL and SUPABASE_KEY),
         "clients_count": len(AGENCY_CLIENTS_STORE),
@@ -3459,11 +3545,10 @@ def api_set_active_client():
     if not AGENCY_CLIENTS_STORE:
         sync_from_supabase()
         
-    # Validate it's a known client
+    # Validate it's a known client the current user is allowed to open.
     valid = [c["id"] for c in AGENCY_CLIENTS_STORE]
-    if cid not in valid:
-        cid = "client_default"
-        
+    if cid not in valid or not can_see_client(cid):
+        return jsonify({"error": "غير مصرح لك بهذا العميل"}), 403
     session["active_client_id"] = cid
     session.modified = True
     return jsonify({"ok": True, "active_client_id": cid})
@@ -3475,10 +3560,12 @@ def api_clients_get():
     sync_from_supabase()
     heal_orphan_accounts()
     show_archived = request.args.get("archived") == "true"
-    if show_archived:
-        return jsonify(AGENCY_CLIENTS_STORE)
-    active = [c for c in AGENCY_CLIENTS_STORE if c.get("is_active", True)]
-    return jsonify(active)
+    pool = AGENCY_CLIENTS_STORE if show_archived else [c for c in AGENCY_CLIENTS_STORE if c.get("is_active", True)]
+    # Account managers only see the clients assigned to them; admins see all.
+    if not is_admin():
+        allowed = set(assigned_client_ids())
+        pool = [c for c in pool if c.get("id") in allowed]
+    return jsonify(pool)
 
 @app.route("/api/clients", methods=["POST"])
 def api_clients_add():
