@@ -85,7 +85,7 @@ DEFAULT_RULES = [
     {"id": 4, "trigger": "تفاصيل", "match_type": "contains", "response": "بعتنالك كافة التفاصيل في الإنبوكس! ", "private_response": "أهلاً بك! تقدم وكالة دوميا خدمات التسويق وإدارة الحملات وصناعة المحتوى وتطوير الـ AI Bots. كيف يمكننا مساعدتك؟ ", "is_active": True}
 ]
 
-cache = {"kb": DEFAULT_KB, "rules": DEFAULT_RULES, "prompt": DEFAULT_SYSTEM_PROMPT, "bot_enabled": True, "approval_mode": "auto", "last_sync": 0}
+cache = {"kb": DEFAULT_KB, "rules": DEFAULT_RULES, "prompt": DEFAULT_SYSTEM_PROMPT, "bot_enabled": True, "approval_mode": "auto", "last_sync": 0, "kb_by_cid": {}, "rules_by_cid": {}}
 activity_log = []
 pending_approvals = []
 stats = {"dms": 0, "comments": 0, "ai_calls": 0, "pending": 0}
@@ -180,6 +180,26 @@ def verify_signature(payload_bytes, signature_header):
     given_sig = signature_header.split("sha256=")[1]
     return hmac.compare_digest(expected_sig, given_sig)
 
+def rebuild_kb_index():
+    raw = cache.get("kb", DEFAULT_KB) or []
+    by_cid = {}
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                cid = item.get("client_id") or "client_default"
+                by_cid.setdefault(cid, []).append(item)
+    cache["kb_by_cid"] = by_cid
+
+def rebuild_rules_index():
+    raw = cache.get("rules", DEFAULT_RULES) or []
+    by_cid = {}
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                cid = item.get("client_id") or "client_default"
+                by_cid.setdefault(cid, []).append(item)
+    cache["rules_by_cid"] = by_cid
+
 def sync_from_supabase():
     global AGENCY_CLIENTS_STORE, ACCOUNTS_STORE
     if SUPABASE_URL and SUPABASE_KEY:
@@ -223,6 +243,8 @@ def sync_from_supabase():
                         cache["client_modes"] = parsed  # per-client auto/manual reply mode
         except Exception as e:
             print(f"[Supabase Sync Exception] {e}")
+    rebuild_kb_index()
+    rebuild_rules_index()
 
 def push_setting(key, value):
     # SAFETY: never overwrite the accounts/clients lists with an empty value — an empty
@@ -244,22 +266,41 @@ sync_from_supabase()
 
 AGENCY_CLIENTS_STORE = cache.get("clients") or []
 
-def get_kb_data():
+def rebuild_kb_index():
+    raw = cache.get("kb", DEFAULT_KB) or []
+    by_cid = {}
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                cid = item.get("client_id") or "client_default"
+                by_cid.setdefault(cid, []).append(item)
+    cache["kb_by_cid"] = by_cid
+
+def rebuild_rules_index():
+    raw = cache.get("rules", DEFAULT_RULES) or []
+    by_cid = {}
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                cid = item.get("client_id") or "client_default"
+                by_cid.setdefault(cid, []).append(item)
+    cache["rules_by_cid"] = by_cid
+
+def get_kb_data(client_id=None):
+    if not cache.get("kb_by_cid"):
+        rebuild_kb_index()
+    if client_id:
+        return cache.get("kb_by_cid", {}).get(client_id, [])
     raw = cache.get("kb", DEFAULT_KB)
     if not isinstance(raw, list):
         return []
-    seen = set()
-    unique_kb = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        key = (item.get("question", "") + "||" + item.get("answer", "")).strip().lower()
-        if key not in seen:
-            seen.add(key)
-            unique_kb.append(item)
-    return unique_kb
+    return raw
 
-def get_rules_data():
+def get_rules_data(client_id=None):
+    if not cache.get("rules_by_cid"):
+        rebuild_rules_index()
+    if client_id:
+        return cache.get("rules_by_cid", {}).get(client_id, [])
     return cache.get("rules", DEFAULT_RULES)
 
 def get_client_prompt(cid):
