@@ -238,6 +238,18 @@ def sync_from_supabase():
                         cache.setdefault("prompts", {})[_pcid] = parsed  # per-client brand prompt
                     elif k == "meta_ai_client_modes" and isinstance(parsed, dict):
                         cache["client_modes"] = parsed  # per-client auto/manual reply mode
+                    elif k == "meta_ai_users":
+                        if isinstance(parsed, dict):
+                            USERS_DB.update(parsed)
+                        elif isinstance(parsed, list):
+                            for u in parsed:
+                                if isinstance(u, dict) and u.get("username"):
+                                    USERS_DB[u["username"]] = u
+                                elif isinstance(u, str):
+                                    USERS_DB.setdefault(u, {"password": "admin2026", "role": "admin"})
+                        cache["users"] = USERS_DB
+                    elif k == "meta_ai_email_logs" and isinstance(parsed, list):
+                        cache["email_logs"] = parsed
         except Exception as e:
             print(f"[Supabase Sync Exception] {e}")
     rebuild_kb_index()
@@ -3207,6 +3219,96 @@ def api_login():
 
     return jsonify({"error": "اسم المستخدم أو كلمة المرور غير صحيحة"}), 401
 
+# ==========================================
+# Full Auth & Email Credentials System
+# ==========================================
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", "") or SMTP_USER or "noreply@metaaimoderator.vercel.app"
+
+def send_credentials_email(recipient_email, username, password, action="welcome"):
+    if not recipient_email or "@" not in recipient_email:
+        return False, "عنوان بريد إلكتروني غير صالح"
+
+    portal_url = "https://metaaimoderator.vercel.app/"
+    
+    if action == "reset":
+        subject = "🔑 إعادة ضبط كلمة المرور - Domya Meta AI Moderator"
+        heading = "تمت إعادة ضبط كلمة المرور بنجاح"
+        intro_text = "تم إصدار كلمة مرور جديدة لحسابك على منصة إدارة Meta AI."
+    else:
+        subject = "🎉 بيانات دخول حسابك الجديد - Domya Meta AI Moderator"
+        heading = "أهلاً بك في منصة Domya Meta AI Moderator"
+        intro_text = "تم إنشاء حسابك الجديد بنجاح على منصة إدارة الصفحات والمحادثات الذكية."
+
+    html_content = f"""
+    <div dir="rtl" style="font-family: Arial, sans-serif; background-color: #f8fafc; padding: 20px; color: #1e293b;">
+        <div style="max-width: 550px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
+            <h2 style="color: #2563eb; margin-top: 0; text-align: center;">{heading}</h2>
+            <p style="font-size: 15px; line-height: 1.6;">{intro_text}</p>
+            
+            <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 5px 0;"><strong>اسم المستخدم:</strong> <code style="background:#e2e8f0; padding:2px 6px; border-radius:4px; font-size:14px;">{username}</code></p>
+                <p style="margin: 5px 0;"><strong>كلمة المرور:</strong> <code style="background:#e2e8f0; padding:2px 6px; border-radius:4px; font-size:14px;">{password}</code></p>
+                <p style="margin: 5px 0;"><strong>رابط المنصة:</strong> <a href="{portal_url}" style="color:#2563eb;">{portal_url}</a></p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 25px;">
+                <a href="{portal_url}" style="background-color: #2563eb; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">الدخول إلى لوحة التحكم 🚀</a>
+            </div>
+            <p style="font-size: 12px; color: #64748b; margin-top: 30px; text-align: center;">هذه الرسالة تم إرسالها تلقائياً من منصة Meta AI Moderator Suite.</p>
+        </div>
+    </div>
+    """
+
+    log_entry = {
+        "id": f"email-{int(time.time()*1000)}",
+        "recipient": recipient_email,
+        "username": username,
+        "action": action,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "sent_status": "queued"
+    }
+    
+    email_logs = cache.get("email_logs") or []
+    email_logs.insert(0, log_entry)
+    cache["email_logs"] = email_logs
+    push_setting("meta_ai_email_logs", email_logs[:50])
+
+    if SMTP_USER and SMTP_PASS:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = SMTP_FROM
+            msg["To"] = recipient_email
+            msg.attach(MIMEText(html_content, "html", "utf-8"))
+            
+            server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10)
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(SMTP_FROM, [recipient_email], msg.as_string())
+            server.quit()
+            
+            log_entry["sent_status"] = "delivered_smtp"
+            push_setting("meta_ai_email_logs", email_logs[:50])
+            return True, "تم إرسال الرسالة بنجاح إلى البريد الإلكتروني (SMTP)"
+        except Exception as e:
+            print(f"[SMTP Send Exception] {e}")
+            log_entry["sent_status"] = f"failed_smtp: {e}"
+            push_setting("meta_ai_email_logs", email_logs[:50])
+            return False, f"خطأ في سيرفر الإيميل (SMTP): {e}"
+    else:
+        log_entry["sent_status"] = "saved_to_db_log (No SMTP configured)"
+        push_setting("meta_ai_email_logs", email_logs[:50])
+        return True, "تم حفظ بيانات الحساب وسجل البريد الإلكتروني بنجاح في قاعدة البيانات (يمكنك ربط SMTP لتلقي الإيميلات مباشرة)"
+
+
 @app.route("/api/register", methods=["POST"])
 def api_register():
     data = request.get_json() or {}
@@ -3214,18 +3316,119 @@ def api_register():
     email = (data.get("email") or "").strip() or (f"{username}@agency.com" if username else "")
     password = (data.get("password") or "").strip()
     role = data.get("role", "moderator")
+    send_email = data.get("send_email", True)
     
     if not username or not password:
         return jsonify({"error": "اسم المستخدم وكلمة المرور مطلوبان"}), 400
 
-    # Add to USERS_DB locally
-    USERS_DB[username] = {"password": password, "role": role, "email": email}
-    push_setting("meta_ai_users", list(USERS_DB.keys()))
+    # Save to USERS_DB and push to Supabase
+    user_record = {
+        "username": username,
+        "password": password,
+        "role": role,
+        "email": email,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    USERS_DB[username] = user_record
+    push_setting("meta_ai_users", USERS_DB)
 
-    # Try Supabase Auth if active
+    # Try Supabase Auth signup if available
     supa = supabase_auth_signup(email, password, role)
     
-    return jsonify({"ok": True, "username": username, "role": role, "supabase": bool(supa)})
+    # Send credentials to user's email
+    email_ok, email_msg = (False, "")
+    if send_email and email:
+        email_ok, email_msg = send_credentials_email(email, username, password, action="welcome")
+
+    return jsonify({
+        "ok": True,
+        "username": username,
+        "email": email,
+        "role": role,
+        "supabase_auth": bool(supa),
+        "email_sent": email_ok,
+        "email_status": email_msg
+    })
+
+
+@app.route("/api/auth/send-credentials", methods=["POST"])
+@auth_guard
+def api_send_credentials():
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
+    
+    user = USERS_DB.get(username)
+    if not user and not email:
+        return jsonify({"error": "يرجى تحديد اسم المستخدم أو البريد الإلكتروني"}), 400
+
+    target_email = email or (user.get("email") if user else "")
+    target_username = username or (user.get("username") if user else "user")
+    target_password = user.get("password") if user else "admin2026"
+
+    email_ok, email_msg = send_credentials_email(target_email, target_username, target_password, action="welcome")
+    return jsonify({
+        "ok": email_ok,
+        "recipient": target_email,
+        "message": email_msg
+    })
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+def api_reset_password():
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
+
+    user = USERS_DB.get(username)
+    if not user:
+        user = next((u for u in USERS_DB.values() if isinstance(u, dict) and u.get("email") == email), None)
+
+    if not user and username != "admin":
+        return jsonify({"error": "لم يتم العثور على الحساب"}), 404
+
+    target_user = user.get("username") if user else "admin"
+    target_email = email or (user.get("email") if user else "admin@agency.com")
+    
+    # Generate new temporary 8-char password
+    new_password = f"Pass{int(time.time()) % 10000:04d}!"
+    if user:
+        user["password"] = new_password
+        USERS_DB[target_user] = user
+        push_setting("meta_ai_users", USERS_DB)
+
+    email_ok, email_msg = send_credentials_email(target_email, target_user, new_password, action="reset")
+    return jsonify({
+        "ok": True,
+        "username": target_user,
+        "new_password": new_password,
+        "email_sent": email_ok,
+        "email_status": email_msg
+    })
+
+
+@app.route("/api/auth/users", methods=["GET"])
+@auth_guard
+def api_get_users():
+    users_list = []
+    for uname, udata in USERS_DB.items():
+        if isinstance(udata, dict):
+            users_list.append({
+                "username": uname,
+                "email": udata.get("email", ""),
+                "role": udata.get("role", "moderator"),
+                "created_at": udata.get("created_at")
+            })
+        else:
+            users_list.append({"username": uname, "email": "", "role": "admin"})
+    return jsonify({"users": users_list, "total": len(users_list)})
+
+
+@app.route("/api/auth/email-logs", methods=["GET"])
+@auth_guard
+def api_get_email_logs():
+    logs = cache.get("email_logs") or []
+    return jsonify({"email_logs": logs, "total": len(logs)})
 
 @app.route("/api/logout", methods=["POST"])
 def api_logout():
