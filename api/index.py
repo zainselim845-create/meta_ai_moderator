@@ -2265,18 +2265,14 @@ def webhook_event():
             except Exception as _ex:
                 print(f"[Webhook Token Exchange Error] {_ex}")
 
-        # Per-client auto/manual control: use the mode of the client that owns this
-        # page/account, then per-account overrides, then the global mode as last resort.
+        # The per-CLIENT reply mode (set from the "وضع الرد" panel) is authoritative.
+        # If the client is on manual, NOTHING is auto-sent — it goes to review instead.
+        # (The old per-account dm_mode/comment_mode defaults are ignored, since every
+        # account was created with "auto" baked in and would override the manual setting.)
         _acct_cid = (matched_acct or {}).get("client_id")
-        global_mode = get_client_mode(_acct_cid) if _acct_cid else (approval_mode or cache.get("approval_mode", "auto"))
-        acct_dm = (matched_acct or {}).get("dm_mode")
-        acct_cm = (matched_acct or {}).get("comment_mode")
-        
-        dm_mode = acct_dm if acct_dm else global_mode
-        comment_mode = acct_cm if acct_cm else global_mode
-        if global_mode == "manual":
-            if acct_dm != "auto": dm_mode = "manual"
-            if acct_cm != "auto": comment_mode = "manual"
+        client_mode = get_client_mode(_acct_cid) if _acct_cid else cache.get("approval_mode", "auto")
+        dm_mode = client_mode
+        comment_mode = client_mode
                     
         if "messaging" in entry and isinstance(entry["messaging"], list):
             for msg_event in entry["messaging"]:
