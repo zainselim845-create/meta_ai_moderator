@@ -4,8 +4,9 @@ async function loadClients() {
     try {
         const res = await fetch('/api/clients');
         const d = await res.json();
-        agencyClients = d.clients || [];
-        activeClientId = d.active_client_id || 'client_1';
+        // /api/clients returns a bare array — support both shapes.
+        agencyClients = Array.isArray(d) ? d : (d.clients || []);
+        activeClientId = (!Array.isArray(d) && d.active_client_id) || window.activeClientId || activeClientId || (agencyClients[0] && agencyClients[0].id);
         renderClientSelector();
         renderClientsGrid();
         renderActiveClientBar();
