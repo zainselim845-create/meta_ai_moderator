@@ -3660,7 +3660,11 @@ def api_clients_restore(cid):
     return jsonify({"ok": True})
 
 @app.route("/api/clients/<cid>", methods=["DELETE"])
+@require_admin
 def api_clients_delete(cid):
+    # Load the full client list first so a stale serverless instance never overwrites
+    # Supabase with a shorter list (which previously dropped a real client).
+    sync_from_supabase()
     data = request.get_json() or {}
     confirm = data.get("confirm_name", "")
     client = next((c for c in AGENCY_CLIENTS_STORE if c["id"] == cid), None)
