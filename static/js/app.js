@@ -388,7 +388,7 @@ async function renderMembers() {
         </div>
         <div class="flex items-center gap-1">
           <button onclick="resendCreds('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 text-slate-600">إرسال بيانات جديدة</button>
-          ${u.role==='admin'?'':`<button onclick="deleteMember('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600">حذف</button>`}
+          ${u.is_primary?'<span class="text-[10px] text-slate-400">المدير الرئيسي</span>':`<button onclick="deleteMember('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600">حذف</button>`}
         </div>
       </div>
       ${u.role==='admin'?'<div class="text-[11px] text-slate-400">يرى كل العملاء</div>':`<div class="flex flex-wrap gap-1">${chips}</div>`}
@@ -436,7 +436,13 @@ async function toggleAssign(username, clientId, add) {
 
 async function deleteMember(username) {
   if (!confirm('حذف العضو ' + username + '؟')) return;
-  await fetch('/api/users/' + encodeURIComponent(username), {method:'DELETE'});
+  // Send via body (path param fails for Arabic/non-ASCII usernames).
+  try {
+    const r = await fetch('/api/users/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username})});
+    const d = await r.json();
+    if (!r.ok || !d.ok) { showToast(d.error || 'تعذّر الحذف', 'error'); return; }
+    showToast('تم حذف العضو ✅');
+  } catch(e) { showToast('خطأ في الشبكة', 'error'); return; }
   renderMembers();
 }
 

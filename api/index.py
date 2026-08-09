@@ -3438,6 +3438,7 @@ def api_users_list():
             "email": rec.get("email", ""),
             "assigned_clients": rec.get("assigned_clients") or [],
             "created_at": rec.get("created_at"),
+            "is_primary": (un == admin_user),
         })
     return jsonify({"users": out})
 
@@ -3457,12 +3458,21 @@ def api_users_assign(username):
 
 
 @app.route("/api/users/<username>", methods=["DELETE"])
+@app.route("/api/users/delete", methods=["POST"])
 @require_admin
-def api_users_delete(username):
-    if username == admin_user:
+def api_users_delete(username=None):
+    sync_from_supabase()
+    # Username may arrive via the path OR the body (path fails for non-ASCII names on
+    # some setups), so accept both and match flexibly.
+    body = request.get_json(silent=True) or {}
+    uname = username or body.get("username") or request.args.get("username") or ""
+    if uname not in USERS_DB:
+        # fallback: exact match ignoring surrounding whitespace
+        uname = next((u for u in USERS_DB if str(u).strip() == str(uname).strip()), uname)
+    if uname == admin_user:
         return jsonify({"error": "لا يمكن حذف حساب المدير الرئيسي"}), 400
-    if username in USERS_DB:
-        del USERS_DB[username]
+    if uname in USERS_DB:
+        del USERS_DB[uname]
         push_setting("meta_ai_users", USERS_DB)
         return jsonify({"ok": True})
     return jsonify({"error": "المستخدم غير موجود"}), 404
