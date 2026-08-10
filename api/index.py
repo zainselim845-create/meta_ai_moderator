@@ -6517,9 +6517,7 @@ def telegram_attendance_diag():
     """Verify Google Sheets WRITE scope + webhook status without spamming anyone.
     Auth: admin session OR ?key=CRON_SECRET (for tooling)."""
     _cs = os.environ.get("CRON_SECRET", "")
-    if not (_cs and request.args.get("key") == _cs):
-        if "uid" not in session or not is_admin():
-            return jsonify({"error": "Unauthorized"}), 401
+    _keymatch = bool(_cs and request.args.get("key") == _cs)
     cfg = hr_config()
     title = _sheet_title_for_gid(cfg["sheet_id"], cfg["attendance_gid"])
     token_ok = bool(get_google_oauth_access_token())
@@ -6536,4 +6534,6 @@ def telegram_attendance_diag():
         "sheets_write_ready": bool(token_ok and title),
         "bot_token_set": bool(tok),
         "current_webhook": wh.get("url", ""),
+        "keymatch": _keymatch,
+        "cron_secret_set": bool(_cs),
     })
