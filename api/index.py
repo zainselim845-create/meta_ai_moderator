@@ -3014,6 +3014,8 @@ PUBLIC_PATHS = {
     '/api/telegram/attendance/setup',
     '/api/drive/diag',
     '/api/telegram/bots',
+    '/api/telegram/attendance/whois',
+    '/api/telegram/attendance/advance',
     '/api/hr/cleanup',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
@@ -6580,6 +6582,40 @@ def telegram_attendance_webhook():
     except Exception as e:
         print(f"[att webhook] {e}")
         return jsonify({"ok": True})  # always 200 so Telegram doesn't retry-storm
+
+
+@app.route("/api/telegram/attendance/whois", methods=["GET"])
+def att_whois():
+    """Debug: what does _att_emp_by_tg find for ?tg=<id>. Auth: admin OR ?key=CRON_SECRET."""
+    _cs = os.environ.get("CRON_SECRET", "")
+    if not (_cs and request.args.get("key") == _cs):
+        if "uid" not in session or not is_admin():
+            return jsonify({"error": "Unauthorized"}), 401
+    tg = (request.args.get("tg") or "").strip()
+    cfg = hr_config()
+    header, rows = _sheets_get_all(cfg["sheet_id"], cfg["employees_gid"])
+    emp = _att_emp_by_tg(tg) if tg else None
+    return jsonify({"tg": tg, "found": bool(emp), "emp": emp,
+                    "sheet_read_ok": bool(header), "data_rows": len(rows)})
+
+
+@app.route("/api/telegram/attendance/advance", methods=["POST", "GET"])
+def att_advance_onboarding():
+    """Manually set an onboarding employee's name and move them to the job step,
+    DMing them the job question. Body/query: tg, name. Auth: admin OR ?key=CRON_SECRET."""
+    _cs = os.environ.get("CRON_SECRET", "")
+    if not (_cs and request.args.get("key") == _cs):
+        if "uid" not in session or not is_admin():
+            return jsonify({"error": "Unauthorized"}), 401
+    tg = (request.args.get("tg") or (request.get_json(silent=True) or {}).get("tg") or "").strip()
+    name = (request.args.get("name") or (request.get_json(silent=True) or {}).get("name") or "").strip()
+    if not tg or not name:
+        return jsonify({"error": "tg and name required"}), 400
+    cfg = hr_config()
+    ok = _sheets_update_match(cfg["sheet_id"], cfg["employees_gid"], {"telegram_id": str(tg)},
+                              {"name": name, "status": "awaiting job", "state": "awaiting job"})
+    sent = _att_send(tg, f"تمام يا <b>{name}</b> 👍\nخطوة أخيرة: اكتب <b>وظيفتك</b> (مصمم / كاتب / مونتير / محاسب...):")
+    return jsonify({"ok": ok, "telegram_sent": sent})
 
 
 @app.route("/api/hr/cleanup", methods=["POST", "GET"])
