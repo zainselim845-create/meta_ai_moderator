@@ -3013,6 +3013,7 @@ PUBLIC_PATHS = {
     '/api/telegram/attendance/diag',
     '/api/telegram/attendance/setup',
     '/api/drive/diag',
+    '/api/telegram/bots',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
     '/api/oauth/start',
@@ -6191,6 +6192,21 @@ def _att_answer_callback(cb_id, text=""):
     except Exception as e:
         print(f"[att answer cb] {e}")
 
+def _att_delete_message(chat_id, message_id):
+    """Delete a message (used to wipe the shared location for privacy). Bots can
+    delete incoming messages in private chats within 48h."""
+    tok = _att_bot_token()
+    if not tok or not chat_id or not message_id:
+        return False
+    try:
+        req = _urlreq.Request(f"https://api.telegram.org/bot{tok}/deleteMessage",
+                              data=json.dumps({"chat_id": str(chat_id), "message_id": message_id}).encode("utf-8"),
+                              headers={"Content-Type": "application/json"})
+        return json.loads(_urlreq.urlopen(req, timeout=10).read()).get("ok", False)
+    except Exception as e:
+        print(f"[att delete msg] {e}")
+        return False
+
 def _att_menu():
     return [["📍 تسجيل حضور", "🚪 تسجيل انصراف"], ["📊 حالتي اليوم", "🚫 تسجيل غياب"]]
 
@@ -6495,7 +6511,23 @@ def telegram_attendance_webhook():
             return jsonify({"ok": True})
 
         if loc:
+            msg_id = msg.get("message_id")
+            msg_date = max(int(msg.get("date") or 0), int(msg.get("edit_date") or 0))
+            now_ts = int(datetime.now(timezone.utc).timestamp())
+            max_age = int(os.environ.get("ATT_LOC_MAX_AGE", "150"))  # seconds
+            # 1) freshness / anti-spoof: reject an old or replayed location pin
+            if msg_date and (now_ts - msg_date) > max_age:
+                _att_delete_message(chat_id, msg_id)
+                _att_send(chat_id, "⚠️ الموقع ده قديم. اضغط 📎 ثم Location واختر <b>«إرسال موقعي الحالي»</b> (مش موقع محفوظ أو محوّل).", keyboard=_att_menu())
+                return jsonify({"ok": True})
+            # 2) reject forwarded locations (a location relayed from elsewhere)
+            if msg.get("forward_date") or msg.get("forward_from") or msg.get("forward_origin"):
+                _att_delete_message(chat_id, msg_id)
+                _att_send(chat_id, "⚠️ مينفعش موقع محوّل (Forwarded). ابعت موقعك الحالي المباشر.", keyboard=_att_menu())
+                return jsonify({"ok": True})
+            # 3) process, then wipe the shared location for privacy
             _att_handle_location(emp, chat_id, loc)
+            _att_delete_message(chat_id, msg_id)
         elif text == "📍 تسجيل حضور":
             _att_send(chat_id, "📍 ابعت موقعك الجغرافي (Location) عشان أسجّل حضورك.",
                       keyboard=[[{"text": "📍 إرسال موقعي", "request_location": True}]])
@@ -6512,6 +6544,39 @@ def telegram_attendance_webhook():
     except Exception as e:
         print(f"[att webhook] {e}")
         return jsonify({"ok": True})  # always 200 so Telegram doesn't retry-storm
+
+
+@app.route("/api/telegram/bots", methods=["GET"])
+def telegram_bots_info():
+    """List the configured Telegram bots (username + role). Auth: admin OR ?key=CRON_SECRET."""
+    _cs = os.environ.get("CRON_SECRET", "")
+    if not (_cs and request.args.get("key") == _cs):
+        if "uid" not in session or not is_admin():
+            return jsonify({"error": "Unauthorized"}), 401
+    import urllib.request as _u
+    defs = [
+        ("attendance", os.environ.get("TELEGRAM_ATTENDANCE_BOT_TOKEN", ""),
+         "الحضور والانصراف: تسجيل حضور/انصراف بالموقع (geofence)، الحالة اليومية، الغياب، تسجيل موظف جديد وموافقة المدير."),
+        ("tasks", os.environ.get("TELEGRAM_TASKS_BOT_TOKEN", ""),
+         "المهام: يبعت للموظف مهامه ولينك البوابة وبياناته، وتذكير يومي بالتاسكات اللي عليه دورها، وإشعارات التسليم/المراجعة."),
+    ]
+    out = []
+    for role, tok, desc in defs:
+        info = {"role": role, "configured": bool(tok), "description": desc}
+        if tok:
+            try:
+                r = json.loads(_u.urlopen(f"https://api.telegram.org/bot{tok}/getMe", timeout=10).read())
+                me = r.get("result", {})
+                info["username"] = "@" + me.get("username", "") if me.get("username") else ""
+                info["name"] = me.get("first_name", "")
+                info["id"] = me.get("id")
+                # webhook status
+                w = json.loads(_u.urlopen(f"https://api.telegram.org/bot{tok}/getWebhookInfo", timeout=10).read()).get("result", {})
+                info["webhook"] = w.get("url", "") or "(polling / none)"
+            except Exception as e:
+                info["error"] = str(e)[:120]
+        out.append(info)
+    return jsonify({"bots": out})
 
 
 @app.route("/api/drive/diag", methods=["GET"])
