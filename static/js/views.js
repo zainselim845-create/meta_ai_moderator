@@ -1241,3 +1241,55 @@ async function sendMonthlyReportAction() {
         showToast('\u062e\u0637\u0623 \u0641\u064a \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0642\u0631\u064a\u0631', 'error');
     }
 }
+
+
+// =========================================================
+// Advanced Strategy, Time Tracking & Enterprise Workspace JS
+// =========================================================
+
+async function promptUploadStrategy(clientId) {
+    var stratText = prompt("\u0623\u062f\u062e\u0644 \u0646\u0635 \u0627\u0644\u0627\u0633\u062a\u0631\u0627\u062a\u064a\u062c\u064a\u0629 \u0627\u0644\u062a\u0633\u0648\u064a\u0642\u064a\u0629 \u0627\u0644\u062e\u0627\u0635\u0629 \u0628\u0647\u0630\u0627 \u0627\u0644\u0639\u0645\u064a\u0644 (\u0633\u064a\u062a\u0645 \u062d\u0641\u0638\u0647\u0627 \u0648\u062a\u063a\u0630\u064a\u0629 \u0627\u0644\u0640 AI RAG \u0628\u0647\u0627 \u0641\u0648\u0631\u0627\u064b):");
+    if (!stratText) return;
+
+    var folderUrl = prompt("\u0623\u062f\u062e\u0644 \u0631\u0627\u0628\u0637 \u0645\u062c\u0644\u062f Google Drive \u0627\u0644\u062e\u0627\u0635 \u0628\u0627\u0644\u0627\u0633\u062a\u0631\u0627\u062a\u064a\u062c\u064a\u0629 (\u0627\u062e\u062a\u064a\u0627\u0631\u064a):", "");
+
+    try {
+        var res = await fetch('/api/clients/' + clientId + '/strategy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: 'استراتيجية المحتوى والتسويق',
+                content: stratText,
+                drive_folder: folderUrl || ''
+            })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast('تم حفظ وتفعيل استراتيجية العميل في الـ AI RAG بنجاح 🎉');
+            loadAMWorkspace();
+        } else {
+            showToast(data.error || 'خطأ في حفظ الاستراتيجية', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالخادم', 'error');
+    }
+}
+
+async function toggleTaskTimerAction(taskId) {
+    try {
+        var res = await fetch('/api/tasks/' + taskId + '/timer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'toggle' })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast(data.timer_state.is_running ? '⏱️ تم بدء تسجيل وقت المهمة!' : '⏸️ تم إيقاف وتثبيت الوقت بنجاح');
+            loadTasksEngine();
+        } else {
+            showToast(data.error || 'خطأ في تشغيل المؤشر', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال', 'error');
+    }
+}

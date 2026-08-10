@@ -267,6 +267,8 @@ def sync_from_supabase():
                         cache["task_logs"] = parsed
                     elif k == "meta_ai_project_teams" and isinstance(parsed, dict):
                         cache["project_teams"] = parsed
+                    elif k == "meta_ai_client_strategies" and isinstance(parsed, dict):
+                        cache["client_strategies"] = parsed
         except Exception as e:
             print(f"[Supabase Sync Exception] {e}")
     rebuild_kb_index()
@@ -4833,6 +4835,97 @@ def api_projects_teams():
     return jsonify({"success": True, "client_id": _cid, "members": team})
 
 
+def get_client_strategy(_cid=None):
+    _cid = _cid or current_client_id()
+    strats = cache.get("client_strategies") or {}
+    return strats.get(_cid) or {}
+
+def save_client_strategy(strat_data, _cid=None):
+    _cid = _cid or current_client_id()
+    strats = cache.get("client_strategies") or {}
+    strats[_cid] = strat_data
+    cache["client_strategies"] = strats
+    push_setting("meta_ai_client_strategies", strats)
+
+
+@app.route("/api/clients/<client_id>/strategy", methods=["GET", "POST"])
+@auth_guard
+def api_client_strategy(client_id):
+    if request.method == "POST":
+        data = request.get_json() or {}
+        title = (data.get("title") or "").strip() or "استراتيجية التسويق والمحتوى"
+        content = (data.get("content") or "").strip()
+        file_name = (data.get("file_name") or "").strip()
+        drive_folder = (data.get("drive_folder") or "").strip()
+
+        if not content and not drive_folder:
+            return jsonify({"error": "يرجى أدخال محتوى الاستراتيجية أو رابط مجلد Google Drive"}), 400
+
+        strat = {
+            "client_id": client_id,
+            "title": title,
+            "content": content,
+            "file_name": file_name,
+            "drive_folder": drive_folder,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        save_client_strategy(strat, client_id)
+
+        # Ingest strategy into client RAG knowledge base
+        if content:
+            kb_list = get_kb_data()
+            kb_list.insert(0, {
+                "id": int(time.time() * 1000),
+                "client_id": client_id,
+                "question": f"ما هي استراتيجية التسويق والمحتوى الخاصة بـ {client_id}؟",
+                "answer": content,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+            push_setting("meta_ai_kb", kb_list)
+
+        return jsonify({"success": True, "message": "تم حفظ وتفعيل استراتيجية العميل في الـ AI RAG بنجاح 🎯", "strategy": strat})
+
+    strat = get_client_strategy(client_id)
+    return jsonify({"success": True, "strategy": strat})
+
+
+@app.route("/api/tasks/<task_id>/timer", methods=["POST"])
+@auth_guard
+def api_task_timer(task_id):
+    _cid = current_client_id()
+    data = request.get_json() or {}
+    action = data.get("action", "toggle")
+
+    tasks = get_client_tasks(_cid)
+    target_task = next((t for t in tasks if str(t.get("task_id")) == str(task_id)), None)
+    if not target_task:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    timer_state = target_task.get("timer_state") or {"is_running": False, "elapsed_seconds": 0, "last_start": None}
+
+    if action == "start" or (action == "toggle" and not timer_state.get("is_running")):
+        timer_state["is_running"] = True
+        timer_state["last_start"] = now_iso
+        target_task["status"] = "In Progress"
+    else:
+        if timer_state.get("is_running") and timer_state.get("last_start"):
+            try:
+                start_dt = datetime.fromisoformat(timer_state["last_start"])
+                elapsed = (datetime.now(timezone.utc) - start_dt).total_seconds()
+                timer_state["elapsed_seconds"] = (timer_state.get("elapsed_seconds") or 0) + int(elapsed)
+            except Exception:
+                pass
+        timer_state["is_running"] = False
+        timer_state["last_start"] = None
+
+    target_task["timer_state"] = timer_state
+    save_client_tasks(tasks, _cid)
+
+    elapsed_mins = round((timer_state.get("elapsed_seconds") or 0) / 60, 1)
+    return jsonify({"success": True, "task_id": task_id, "timer_state": timer_state, "elapsed_minutes": elapsed_mins})
+
+
 @app.route("/api/am/workspace", methods=["GET"])
 @auth_guard
 def api_am_workspace():
@@ -4857,6 +4950,7 @@ def api_am_workspace():
     all_tasks = cache.get("tasks") or []
     all_emps = cache.get("employees") or []
     teams_dict = cache.get("project_teams") or {}
+    strats_dict = cache.get("client_strategies") or {}
 
     for client in all_clients:
         cid = str(client.get("client_id") or client.get("id") or "")
@@ -4869,13 +4963,32 @@ def api_am_workspace():
         member_ids = teams_dict.get(cid) or ["EMP-002", "EMP-003"]
         c_team = [e for e in all_emps if isinstance(e, dict) and str(e.get("employee_id")) in member_ids]
 
+        # Strategy
+        c_strat = strats_dict.get(cid) or {}
+
+        # Calculate Total Plan Elapsed Hours
+        total_seconds = 0
+        for t in c_tasks:
+            ts = t.get("timer_state") or {}
+            sec = ts.get("elapsed_seconds") or 0
+            if ts.get("is_running") and ts.get("last_start"):
+                try:
+                    sec += int((datetime.now(timezone.utc) - datetime.fromisoformat(ts["last_start"])).total_seconds())
+                except Exception:
+                    pass
+            total_seconds += sec
+
+        total_hours = round(total_seconds / 3600, 1)
+
         workspace_columns.append({
             "client_id": cid,
             "client_name": cname,
             "company": client.get("company", ""),
+            "strategy": c_strat,
             "team_members": c_team,
             "total_tasks": len(c_tasks),
             "completed_tasks": len([t for t in c_tasks if t.get("status") == "Completed"]),
+            "total_hours_spent": total_hours,
             "tasks": c_tasks
         })
 
