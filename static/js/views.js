@@ -1112,3 +1112,251 @@ async function toggleTaskTimerAction(taskId) {
         showToast('خطأ في الاتصال', 'error');
     }
 }
+
+
+async function promptUploadStrategy(clientId) {
+    var stratText = prompt("أدخل نص الاستراتيجية التسويقية الخاصة بهذا العميل (سيتم حفظها وتغذية الـ AI RAG بها فوراً):");
+    if (!stratText) return;
+
+    var folderUrl = prompt("أدخل رابط مجلد Google Drive الخاص بالاستراتيجية (اختياري):", "");
+
+    try {
+        var res = await fetch('/api/clients/' + clientId + '/strategy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: 'استراتيجية المحتوى والتسويق',
+                content: stratText,
+                drive_folder: folderUrl || ''
+            })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast('تم حفظ وتفعيل استراتيجية العميل في الـ AI RAG بنجاح 🎉');
+            loadAMWorkspace();
+        } else {
+            showToast(data.error || 'خطأ في حفظ الاستراتيجية', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالخادم', 'error');
+    }
+}
+
+async function toggleTaskTimerAction(taskId) {
+    try {
+        var res = await fetch('/api/tasks/' + taskId + '/timer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'toggle' })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast(data.timer_state.is_running ? '⏱️ تم بدء تسجيل وقت المهمة!' : '⏸️ تم إيقاف وتثبيت الوقت بنجاح');
+            loadTasksEngine();
+        } else {
+            showToast(data.error || 'خطأ في تشغيل المؤشر', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال', 'error');
+    }
+}
+
+async function promptLinkDrive(taskId) {
+    var driveUrl = prompt("أدخل رابط مجلد أو ملف Google Drive (High-Res Assets):");
+    if (!driveUrl) return;
+    try {
+        var res = await fetch('/api/drive/asset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId, drive_link: driveUrl })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast('تم ربط ملف Google Drive بنجاح 🎉');
+            loadTasksEngine();
+        } else {
+            showToast(data.error || 'خطأ في ربط الملف', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالخادم', 'error');
+    }
+}
+
+function renderTasksBoard() {
+    var board = document.getElementById('tasks-board-grid');
+    if (!board) return;
+
+    if (!tasksList || tasksList.length === 0) {
+        board.innerHTML = '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">لا توجد مهام مسجلة حالياً. يمكنك تقسيم وتفريغ الخطة الشهرية أو إضافة مهمة جديدة 🚀</div>';
+        return;
+    }
+
+    var empOptions = employeesList.map(function(e) {
+        return '<option value="' + esc(e.employee_id) + '">' + esc(e.name) + ' (' + esc(e.role) + ')</option>';
+    }).join('');
+
+    board.innerHTML = tasksList.map(function(t) {
+        var statusBadgeClass = t.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
+                               t.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                               t.status === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800';
+
+        var isTimerRunning = t.timer_state && t.timer_state.is_running;
+        var timerBtnText = isTimerRunning ? '⏸️ إيقاف وتثبيت الوقت' : '🚀 بدء التوقيت الحي';
+        var timerBtnClass = isTimerRunning ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200';
+
+        var html = '<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
+            '<div class="flex items-center justify-between gap-2">' +
+                '<span class="font-mono font-bold text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
+                '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full ' + statusBadgeClass + '">' + esc(t.status || 'Pending AM Approval') + '</span>' +
+            '</div>' +
+            '<div>' +
+                '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
+                '<p class="text-xs text-slate-600 mt-1 line-clamp-2">' + esc(t.description || '') + '</p>' +
+            '</div>' +
+            '<div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-xs space-y-1">' +
+                '<div class="flex justify-between text-blue-700 font-bold"><span>📅 النزول عند الدكتور:</span><span>' + esc(t.publish_date || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
+                '<div class="flex justify-between text-amber-700 font-bold"><span>⏰ التسليم الداخلي:</span><span>' + esc(t.delivery_deadline || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
+            '</div>' +
+            '<div class="flex gap-1">' +
+                '<button onclick="toggleTaskTimerAction(\'' + esc(t.task_id) + '\')" class="w-full font-bold text-xs py-1.5 px-3 rounded-xl transition ' + timerBtnClass + '">' + timerBtnText + '</button>' +
+            '</div>' +
+            '<div class="text-[11px] text-slate-500 flex items-center justify-between border-t border-slate-100 pt-2">' +
+                '<span>👤 الموظف: <strong>' + esc(t.assignee_name || 'غير معين') + '</strong></span>' +
+            '</div>';
+
+        if (t.drive_link) {
+            html += '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs py-1.5 px-3 rounded-xl border border-emerald-200 transition">📁 فتح الملف في Google Drive (أعلى جودة 🚀)</a>';
+        } else {
+            html += '<button onclick="promptLinkDrive(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-bold py-1.5 px-3 rounded-xl border border-slate-200 transition">+ ربط ملف Google Drive عالي الجودة</button>';
+        }
+
+        if (t.note) {
+            html += '<div class="bg-slate-50 p-2 rounded-xl text-xs text-slate-700 border border-slate-100">📝 ملاحظة: ' + esc(t.note) + '</div>';
+        }
+
+        html += '<div class="flex flex-wrap gap-2 pt-1">';
+        if (t.status === 'Pending AM Approval') {
+            html += '<div class="flex gap-1 w-full"><select id="emp-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1 border border-slate-200 rounded-lg flex-1">' + empOptions + '</select>' +
+                '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1 rounded-lg">إسناد 🎯</button></div>';
+        }
+        if (t.status === 'Assigned') {
+            html += '<button onclick="updateTaskStatusAction(\'' + esc(t.task_id) + '\', \'In Progress\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg w-full">🚀 بدء العمل بالمهمة</button>';
+        }
+        if (t.status === 'In Progress') {
+            html += '<button onclick="promptCompleteTask(\'' + esc(t.task_id) + '\')" class="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg w-full">✅ إنهاء وتدوين الملاحظات</button>';
+        }
+        if (t.status === 'Awaiting AM Review') {
+            html += '<button onclick="updateTaskStatusAction(\'' + esc(t.task_id) + '\', \'Completed\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg w-full">🎉 اعتماد المهمة وإغلاقها</button>';
+        }
+        if (t.status === 'Completed') {
+            html += '<span class="text-xs font-bold text-emerald-600 block text-center w-full">✓ مكتمل ومحتسب بالتقرير</span>';
+        }
+        html += '</div></div>';
+        return html;
+    }).join('');
+}
+
+async function assignTaskFromBoard(taskId) {
+    var sel = document.getElementById('emp-select-' + taskId);
+    var empId = sel ? sel.value : '';
+    if (!empId) return;
+    await updateTaskStatusAction(taskId, 'Assigned', empId);
+}
+
+async function promptCompleteTask(taskId) {
+    var notes = prompt("أدخل ملاحظات وملخص ما تم إنجازه بالمهمة:");
+    if (notes === null) return;
+    await updateTaskStatusAction(taskId, 'Awaiting AM Review', null, notes);
+}
+
+async function updateTaskStatusAction(taskId, newStatus, empId, notes) {
+    try {
+        var res = await fetch('/api/tasks/' + taskId + '/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus, employee_id: empId || '', notes: notes || '' })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast('تم تحديث حالة المهمة بنجاح ✅');
+            loadTasksEngine();
+        } else {
+            showToast(data.error || 'حدث خطأ في التحديث', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالخادم', 'error');
+    }
+}
+
+async function ingestPlanAction(ev) {
+    if (ev) ev.preventDefault();
+    var el = document.getElementById('plan-ingest-input');
+    var txt = el ? el.value : '';
+    if (!txt) { showToast('أدخل نص الخطة أولاً', 'error'); return; }
+
+    try {
+        var res = await fetch('/api/tasks/ingest-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_text: txt })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast('تم تفريغ وإنشاء ' + data.ingested_count + ' مهمة بنجاح 🎉');
+            if (el) el.value = '';
+            loadTasksEngine();
+        } else {
+            showToast(data.error || 'خطأ في معالجة الخطة', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في معالجة الخطة', 'error');
+    }
+}
+
+async function loadTaskMonthlyReport() {
+    try {
+        var res = await fetch('/api/tasks/monthly-report');
+        var data = await res.json();
+        var tbody = document.getElementById('monthly-report-table-body');
+        if (!tbody) return;
+
+        var report = (data && data.report) ? data.report : [];
+        if (!report || report.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">لا توجد سجلات أداء لهذا الشهر بعد</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = report.map(function(r) {
+            return '<tr>' +
+                '<td class="p-3 font-bold text-slate-900">' + esc(r.employee) + ' <span class="text-xs font-normal text-slate-500">(' + esc(r.role) + ')</span></td>' +
+                '<td class="p-3 font-mono">' + r.assigned + '</td>' +
+                '<td class="p-3 font-mono">' + r.started + '</td>' +
+                '<td class="p-3 font-mono font-bold text-emerald-600">' + r.completed + '</td>' +
+                '<td class="p-3 font-mono font-bold text-blue-600">' + r.completion_rate + '</td>' +
+                '<td class="p-3 font-mono">' + r.avg_duration + '</td>' +
+                '<td class="p-3 text-xs text-slate-700">' + (r.notes && r.notes.length ? r.notes.join('<br>') : '-') + '</td>' +
+            '</tr>';
+        }).join('');
+    } catch(e) { console.error(e); }
+}
+
+async function sendMonthlyReportAction() {
+    var targetEmail = prompt("أدخل البريد الإلكتروني لاستلام التقرير الشهري:", "agencydomya@gmail.com");
+    if (!targetEmail) return;
+    try {
+        showToast("جاري تجهيز وإرسال التقرير للإيميل... ⏳");
+        var res = await fetch('/api/tasks/send-monthly-report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: targetEmail })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast(data.message || 'تم إرسال التقرير بنجاح 📧');
+        } else {
+            showToast(data.error || 'خطأ في إرسال التقرير', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في إرسال التقرير', 'error');
+    }
+}
