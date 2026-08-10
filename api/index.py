@@ -3014,6 +3014,7 @@ PUBLIC_PATHS = {
     '/api/telegram/attendance/setup',
     '/api/drive/diag',
     '/api/telegram/bots',
+    '/api/hr/cleanup',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
     '/api/oauth/start',
@@ -6234,16 +6235,25 @@ def _sheet_title_for_gid(spreadsheet_id, gid):
     return None
 
 def _sheets_append(spreadsheet_id, gid, header_order, row_dict):
+    """Write a new row at the first empty row, aligned to the sheet's ACTUAL header.
+    Uses values.update at a fixed A{row} anchor — NOT values.append, whose table
+    detection mis-places rows when the header has trailing empty columns."""
     token = get_google_oauth_access_token()
     title = _sheet_title_for_gid(spreadsheet_id, gid)
     if not token or not title:
         return False
-    values = [[row_dict.get(h, "") for h in header_order]]
+    header, rows = _sheets_get_all(spreadsheet_id, gid)
+    if not header:
+        header = header_order
+    # align values to the real header columns (fills trailing empty header cols with "")
+    line = [row_dict.get(h, "") for h in header]
+    rownum = len(rows) + 2  # header is row 1
     try:
         url = (f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
-               f"{urllib.parse.quote(title)}!A:Z:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
-        req = _urlreq.Request(url, data=json.dumps({"values": values}).encode("utf-8"),
-                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+               f"{urllib.parse.quote(title)}!A{rownum}?valueInputOption=USER_ENTERED")
+        req = _urlreq.Request(url, data=json.dumps({"values": [line]}).encode("utf-8"),
+                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                              method="PUT")
         _urlreq.urlopen(req, timeout=15).read()
         return True
     except Exception as e:
@@ -6570,6 +6580,44 @@ def telegram_attendance_webhook():
     except Exception as e:
         print(f"[att webhook] {e}")
         return jsonify({"ok": True})  # always 200 so Telegram doesn't retry-storm
+
+
+@app.route("/api/hr/cleanup", methods=["POST", "GET"])
+def hr_cleanup_blank_rows():
+    """Delete corrupted employee rows where column A (employee_id) is empty but the
+    row still holds stray data (from the old mis-aligned append). Auth: admin OR ?key=CRON_SECRET."""
+    _cs = os.environ.get("CRON_SECRET", "")
+    if not (_cs and request.args.get("key") == _cs):
+        if "uid" not in session or not is_admin():
+            return jsonify({"error": "Unauthorized"}), 401
+    cfg = hr_config()
+    sid, gid = cfg["sheet_id"], cfg["employees_gid"]
+    token = get_google_oauth_access_token()
+    header, rows = _sheets_get_all(sid, gid)
+    if not token or not header:
+        return jsonify({"error": "no token or empty sheet"}), 400
+    # rows[i] -> sheet row index (0-based) = i + 1 (header is index 0)
+    bad = []
+    for i, row in enumerate(rows):
+        col_a = (row[0].strip() if len(row) > 0 else "")
+        has_data = any((c or "").strip() for c in row)
+        if not col_a and has_data:
+            bad.append(i + 1)  # 0-based sheet row index
+    if not bad:
+        return jsonify({"ok": True, "removed": 0})
+    # delete bottom-up so indices stay valid
+    requests_body = [{"deleteDimension": {"range": {
+        "sheetId": int(gid), "dimension": "ROWS", "startIndex": idx, "endIndex": idx + 1}}}
+        for idx in sorted(bad, reverse=True)]
+    try:
+        req = urllib.request.Request(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{sid}:batchUpdate",
+            data=json.dumps({"requests": requests_body}).encode("utf-8"),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=20).read()
+        return jsonify({"ok": True, "removed": len(bad)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)[:200]}), 500
 
 
 @app.route("/api/telegram/bots", methods=["GET"])
