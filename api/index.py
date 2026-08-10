@@ -265,6 +265,8 @@ def sync_from_supabase():
                         cache["tasks"] = parsed
                     elif k == "meta_ai_task_logs" and isinstance(parsed, list):
                         cache["task_logs"] = parsed
+                    elif k == "meta_ai_project_teams" and isinstance(parsed, dict):
+                        cache["project_teams"] = parsed
         except Exception as e:
             print(f"[Supabase Sync Exception] {e}")
     rebuild_kb_index()
@@ -4800,6 +4802,120 @@ def parse_flexible_date_str(val_str):
     return None
 
 
+def get_client_project_team(_cid=None):
+    _cid = _cid or current_client_id()
+    teams = cache.get("project_teams") or {}
+    return teams.get(_cid) or []
+
+def save_client_project_team(team_list, _cid=None):
+    _cid = _cid or current_client_id()
+    teams = cache.get("project_teams") or {}
+    teams[_cid] = team_list
+    cache["project_teams"] = teams
+    push_setting("meta_ai_project_teams", teams)
+
+
+@app.route("/api/projects/teams", methods=["GET", "POST"])
+@auth_guard
+def api_projects_teams():
+    _cid = current_client_id()
+    if request.method == "POST":
+        data = request.get_json() or {}
+        members = data.get("members") or []
+        save_client_project_team(members, _cid)
+        return jsonify({"success": True, "client_id": _cid, "members": members})
+
+    team = get_client_project_team(_cid)
+    if not team:
+        # Default team members for client
+        team = ["EMP-002", "EMP-003"]
+        save_client_project_team(team, _cid)
+    return jsonify({"success": True, "client_id": _cid, "members": team})
+
+
+@app.route("/api/am/workspace", methods=["GET"])
+@auth_guard
+def api_am_workspace():
+    user = session.get("uid") or "admin"
+    role = session.get("role") or "admin"
+
+    # Admin sees all clients; Account Manager sees assigned_clients only
+    clients_dict = cache.get("clients") or {}
+    all_clients = []
+
+    if role == "admin" or user == admin_user:
+        all_clients = list(clients_dict.values()) if isinstance(clients_dict, dict) else clients_dict
+    else:
+        user_rec = USERS_DB.get(user) or {}
+        assigned_ids = [str(c) for c in (user_rec.get("assigned_clients") or [])]
+        all_clients = [c for c in clients_dict.values() if isinstance(c, dict) and str(c.get("client_id") or c.get("id")) in assigned_ids]
+
+    if not all_clients and isinstance(clients_dict, dict):
+        all_clients = list(clients_dict.values())[:3]
+
+    workspace_columns = []
+    all_tasks = cache.get("tasks") or []
+    all_emps = cache.get("employees") or []
+    teams_dict = cache.get("project_teams") or {}
+
+    for client in all_clients:
+        cid = str(client.get("client_id") or client.get("id") or "")
+        cname = client.get("name") or client.get("company") or f"العميل {cid}"
+
+        # Get client tasks
+        c_tasks = [t for t in all_tasks if isinstance(t, dict) and str(t.get("client_id") or "") == cid]
+        
+        # Get client project team members
+        member_ids = teams_dict.get(cid) or ["EMP-002", "EMP-003"]
+        c_team = [e for e in all_emps if isinstance(e, dict) and str(e.get("employee_id")) in member_ids]
+
+        workspace_columns.append({
+            "client_id": cid,
+            "client_name": cname,
+            "company": client.get("company", ""),
+            "team_members": c_team,
+            "total_tasks": len(c_tasks),
+            "completed_tasks": len([t for t in c_tasks if t.get("status") == "Completed"]),
+            "tasks": c_tasks
+        })
+
+    return jsonify({
+        "success": True,
+        "role": role,
+        "account_manager": user,
+        "columns": workspace_columns
+    })
+
+
+@app.route("/api/drive/asset", methods=["POST"])
+@auth_guard
+def api_drive_asset():
+    _cid = current_client_id()
+    data = request.get_json() or {}
+    task_id = data.get("task_id")
+    drive_link = (data.get("drive_link") or "").strip()
+    drive_file_id = (data.get("drive_file_id") or "").strip()
+    quality = data.get("quality", "High-Res Original (Uncompressed)")
+
+    if not task_id or not (drive_link or drive_file_id):
+        return jsonify({"error": "يرجى تحديد المهمة ورابط Google Drive"}), 400
+
+    tasks = get_client_tasks(_cid)
+    target_task = next((t for t in tasks if str(t.get("task_id")) == str(task_id)), None)
+    if not target_task:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+
+    target_task["drive_link"] = drive_link
+    target_task["drive_file_id"] = drive_file_id
+    target_task["drive_asset_metadata"] = {
+        "quality": quality,
+        "linked_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    save_client_tasks(tasks, _cid)
+    return jsonify({"success": True, "message": "تم ربط ملف Google Drive بأعلى جودة بنجاح 🎉", "task": target_task})
+
+
 @app.route("/api/tasks/employees", methods=["GET", "POST"])
 @auth_guard
 def api_tasks_employees():
@@ -4867,7 +4983,10 @@ def api_tasks():
         new_id = f"TASK-{max_num + 1:04d}"
         title = (data.get("title") or "").strip() or "مهمة جديدة"
         description = (data.get("description") or "").strip()
-        scheduled_start = data.get("scheduled_start_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        scheduled_start = data.get("scheduled_start_date") or data.get("publish_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        publish_date = data.get("publish_date") or scheduled_start
+        delivery_deadline = data.get("delivery_deadline") or scheduled_start
+        drive_link = (data.get("drive_link") or "").strip()
         
         new_task = {
             "task_id": new_id,
@@ -4876,6 +4995,9 @@ def api_tasks():
             "description": description,
             "status": data.get("status", "Pending AM Approval"),
             "scheduled_start_date": scheduled_start,
+            "publish_date": publish_date,
+            "delivery_deadline": delivery_deadline,
+            "drive_link": drive_link,
             "am_id": data.get("am_id") or "EMP-001",
             "assigned_employee_id": data.get("assigned_employee_id") or "",
             "assignee_name": data.get("assignee_name") or "",
@@ -4923,6 +5045,8 @@ def api_tasks_ingest_plan():
         title = parts[0]
         desc = parts[1] if len(parts) > 1 else title
         post_type = parts[2] if len(parts) > 2 else "post"
+        pub_date = parts[3] if len(parts) > 3 else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        deadline = parts[4] if len(parts) > 4 else pub_date
         
         new_task = {
             "task_id": f"TASK-{counter:04d}",
@@ -4930,7 +5054,9 @@ def api_tasks_ingest_plan():
             "title": title,
             "description": desc,
             "status": "Pending AM Approval",
-            "scheduled_start_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "scheduled_start_date": pub_date,
+            "publish_date": pub_date,
+            "delivery_deadline": deadline,
             "am_id": "EMP-001",
             "assigned_employee_id": "",
             "assignee_name": "",
