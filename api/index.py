@@ -6518,6 +6518,8 @@ def telegram_attendance_diag():
     Auth: admin session OR ?key=CRON_SECRET (for tooling)."""
     _cs = os.environ.get("CRON_SECRET", "")
     _keymatch = bool(_cs and request.args.get("key") == _cs)
+    if not _keymatch and ("uid" not in session or not is_admin()):
+        return jsonify({"error": "Unauthorized"}), 401
     cfg = hr_config()
     title = _sheet_title_for_gid(cfg["sheet_id"], cfg["attendance_gid"])
     token_ok = bool(get_google_oauth_access_token())
