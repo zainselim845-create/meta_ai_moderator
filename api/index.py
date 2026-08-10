@@ -5800,9 +5800,18 @@ def api_my_task_start(task_id):
     ts["last_start"] = t["started_at"]
     t["timer_state"] = ts
     save_client_tasks(get_client_tasks(cid), cid)  # persist (t is a live ref inside cache)
-    send_telegram_bot_notification(_owner_chat(),
-        f"🚀 <b>بدأ العمل على مهمة</b>\n👤 {t.get('assignee_name','')}\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}")
     return jsonify({"ok": True, "task": t})
+
+
+def _notify_client_am(cid, msg):
+    """DM the account manager(s) assigned to this client (via their sheet telegram_id).
+    No owner spam — only the responsible AM is pinged."""
+    for un, rec in list(USERS_DB.items()):
+        if rec.get("role") == "account_manager" and cid in (rec.get("assigned_clients") or []):
+            emp = _sheet_emp(rec.get("employee_id"))
+            tg = str(emp.get("telegram_id", "")).replace(".0", "").strip()
+            if tg:
+                send_telegram_bot_notification(tg, msg)
 
 
 @app.route("/api/me/tasks/<task_id>/submit", methods=["POST"])
@@ -5832,8 +5841,8 @@ def api_my_task_submit(task_id):
     t["submitted_at"] = datetime.now(timezone.utc).isoformat()
     save_client_tasks(get_client_tasks(cid), cid)
     mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
-    # notify the account manager (owner chat as fallback)
-    send_telegram_bot_notification(_owner_chat(),
+    # ping ONLY the client's account manager (it also shows in their web board).
+    _notify_client_am(cid,
         f"📥 <b>مهمة جاهزة للمراجعة</b>\n👤 {t.get('assignee_name','')}\n📝 {t.get('title','')}\n"
         f"🏢 {_client_name(cid)}\n⏱️ الوقت: {mins} دقيقة\n📝 ملاحظات: {notes or '—'}")
     return jsonify({"ok": True, "task": t, "minutes": mins})
@@ -5842,29 +5851,72 @@ def api_my_task_submit(task_id):
 @app.route("/api/tasks/<task_id>/review", methods=["POST"])
 @require_manager
 def api_task_review(task_id):
-    """Manager approves (→Completed) or rejects (→Assigned) a submitted task."""
+    """AM review of a submitted task, three outcomes:
+      • reject  → back to the same employee for fixes.
+      • forward → hand off to the NEXT employee in the chain (next_employee_id).
+      • finalize → mark Completed AND auto-create a scheduled post in the Scheduler.
+    """
     sync_from_supabase()
     data = request.get_json() or {}
     action = (data.get("action") or "approve").lower()
     review_note = (data.get("note") or "").strip()
+    next_emp_id = str(data.get("next_employee_id") or "").strip()
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
-    emp = _sheet_emp(t.get("assigned_employee_id"))
-    tg = str(emp.get("telegram_id", "")).replace(".0", "").strip()
-    if action == "approve":
+    cur_emp = _sheet_emp(t.get("assigned_employee_id"))
+    cur_tg = str(cur_emp.get("telegram_id", "")).replace(".0", "").strip()
+    t["review_note"] = review_note
+    scheduled = None
+
+    if action in ("reject", "return"):
+        t["status"] = "Assigned"
+        if cur_tg:
+            send_telegram_bot_notification(cur_tg,
+                f"🔄 <b>محتاج تعديل</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\n📝 {review_note or 'راجع الملاحظات'}")
+    elif next_emp_id:
+        # Forward to the next person in the chain.
+        nxt = _sheet_emp(next_emp_id)
+        t["assigned_employee_id"] = next_emp_id
+        t["assignee_name"] = nxt.get("name", next_emp_id)
+        t["status"] = "Assigned"
+        t["stage_history"] = (t.get("stage_history") or []) + [{
+            "employee_id": t.get("assigned_employee_id"), "at": datetime.now(timezone.utc).isoformat()}]
+        ntg = str(nxt.get("telegram_id", "")).replace(".0", "").strip()
+        if ntg:
+            send_telegram_bot_notification(ntg,
+                f"📋 <b>مهمة وصلتلك</b>\n👤 {nxt.get('name','')}\n📝 {t.get('title','')}\n"
+                f"🏢 {_client_name(cid)}\n⏰ تسليم: {t.get('delivery_deadline','-')}\nابدأ من البوابة 🚀")
+    else:
+        # Finalize → Completed → auto-create a scheduled post from the task data.
         t["status"] = "Completed"
         t["completed_at"] = datetime.now(timezone.utc).isoformat()
-        t["review_note"] = review_note
-        if tg:
-            send_telegram_bot_notification(tg,
-                f"✅ <b>تم اعتماد مهمتك</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\n"
+        try:
+            urls = t.get("media_urls") or ([t.get("drive_link")] if t.get("drive_link") else [])
+            post = {
+                "id": f"post-{int(time.time()*1000)}",
+                "client_id": cid,
+                "caption": t.get("caption") or t.get("description") or t.get("title", ""),
+                "target": t.get("target", "fb"),
+                "media_type": (t.get("media_type") or "image").lower(),
+                "drive_link": t.get("drive_link", ""),
+                "media_urls": [u for u in urls if u],
+                "media_url": drive_to_direct(urls[0]) if urls and urls[0] else "",
+                "date": t.get("publish_date", ""),
+                "time": t.get("publish_time", "10:00"),
+                "scheduled_at": _local_to_utc_iso(t.get("publish_date", ""), t.get("publish_time", "10:00")),
+                "status": "pending",
+                "from_task": t.get("task_id"),
+            }
+            IN_MEMORY_POSTS.insert(0, post)
+            push_setting("meta_ai_scheduled_posts", IN_MEMORY_POSTS)
+            t["scheduled_post_id"] = post["id"]
+            scheduled = post
+        except Exception as _e:
+            print(f"[task→schedule] {_e}")
+        if cur_tg:
+            send_telegram_bot_notification(cur_tg,
+                f"✅ <b>تم اعتماد مهمتك واتجدولت للنشر</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\n"
                 + (f"📝 {review_note}" if review_note else "شغل جميل 👏"))
-    else:
-        t["status"] = "Assigned"
-        t["review_note"] = review_note
-        if tg:
-            send_telegram_bot_notification(tg,
-                f"🔄 <b>محتاج تعديل</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\n📝 {review_note or 'راجع الملاحظات'}")
     save_client_tasks(get_client_tasks(cid), cid)
-    return jsonify({"ok": True, "task": t})
+    return jsonify({"ok": True, "task": t, "scheduled": scheduled})
