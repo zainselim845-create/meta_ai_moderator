@@ -3011,6 +3011,7 @@ PUBLIC_PATHS = {
     '/api/cron/process_scheduled',
     '/api/telegram/attendance',
     '/api/telegram/attendance/diag',
+    '/api/telegram/attendance/setup',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
     '/api/oauth/start',
@@ -6510,6 +6511,37 @@ def telegram_attendance_webhook():
     except Exception as e:
         print(f"[att webhook] {e}")
         return jsonify({"ok": True})  # always 200 so Telegram doesn't retry-storm
+
+
+@app.route("/api/telegram/attendance/setup", methods=["POST", "GET"])
+def telegram_attendance_setup():
+    """Register (or delete) the attendance bot webhook to point at THIS app.
+    Auth: admin session OR ?key=CRON_SECRET. ?action=delete restores n8n polling."""
+    _cs = os.environ.get("CRON_SECRET", "")
+    if not (_cs and request.args.get("key") == _cs):
+        if "uid" not in session or not is_admin():
+            return jsonify({"error": "Unauthorized"}), 401
+    tok = _att_bot_token()
+    if not tok:
+        return jsonify({"error": "attendance bot token not set"}), 400
+    action = request.args.get("action", "set")
+    try:
+        if action == "delete":
+            r = _urlreq.urlopen(f"https://api.telegram.org/bot{tok}/deleteWebhook?drop_pending_updates=false", timeout=12).read()
+            return jsonify({"ok": True, "action": "deleted", "result": json.loads(r)})
+        base = os.environ.get("PORTAL_URL", "https://metaaimoderator.vercel.app").rstrip("/")
+        hook = f"{base}/api/telegram/attendance"
+        payload = {"url": hook, "allowed_updates": ["message", "edited_message", "callback_query"]}
+        sec = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+        if sec:
+            payload["secret_token"] = sec
+        req = _urlreq.Request(f"https://api.telegram.org/bot{tok}/setWebhook",
+                              data=json.dumps(payload).encode("utf-8"),
+                              headers={"Content-Type": "application/json"})
+        res = json.loads(_urlreq.urlopen(req, timeout=12).read())
+        return jsonify({"ok": res.get("ok", False), "webhook": hook, "result": res})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/api/telegram/attendance/diag", methods=["GET"])
