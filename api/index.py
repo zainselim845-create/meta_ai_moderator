@@ -3014,8 +3014,7 @@ PUBLIC_PATHS = {
     '/api/telegram/attendance/setup',
     '/api/drive/diag',
     '/api/telegram/bots',
-    '/api/telegram/attendance/whois',
-    '/api/telegram/attendance/advance',
+    '/api/telegram/attendance/welcome',
     '/api/hr/cleanup',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
@@ -5330,8 +5329,6 @@ def api_tasks():
     return jsonify({"success": True, "tasks": tasks})
 
 
-@app.route("/api/tasks/ingest-plan", methods=["POST"])
-@auth_guard
 def _docx_to_text(file_bytes, upload_images=True):
     """Extract readable text from a .docx (a zip of XML) with no external libs.
     Each Word paragraph becomes its own line. Embedded images are uploaded to
@@ -5382,6 +5379,8 @@ def _docx_to_text(file_bytes, upload_images=True):
     lines = [l.strip() for l in text.splitlines()]
     return "\n".join(l for l in lines if l)
 
+@app.route("/api/tasks/ingest-plan", methods=["POST"])
+@auth_guard
 def api_tasks_ingest_plan():
     _cid = current_client_id()
     plan_text = ""
@@ -6152,10 +6151,18 @@ _SHEET_TITLE_CACHE = {}
 def _att_bot_token():
     return os.environ.get("TELEGRAM_ATTENDANCE_BOT_TOKEN", "")
 
+def _cairo_now():
+    """Current time in Africa/Cairo, DST-aware (Egypt uses UTC+3 in summer)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Africa/Cairo"))
+    except Exception:
+        # fallback: fixed offset from env (default +3, current Egypt summer time)
+        return datetime.now(timezone.utc) + timedelta(hours=float(os.environ.get("CAIRO_TZ_OFFSET", "3")))
+
 def _cairo_now_parts():
-    """Return (date 'YYYY-MM-DD', time 'HH:MM:SS') in Africa/Cairo (UTC+2, no DST handling)."""
-    tz = float(os.environ.get("CAIRO_TZ_OFFSET", "2"))
-    now = datetime.now(timezone.utc) + timedelta(hours=tz)
+    """Return (date 'YYYY-MM-DD', time 'HH:MM:SS') in Africa/Cairo, DST-aware."""
+    now = _cairo_now()
     return now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S")
 
 def _haversine_m(lat1, lon1, lat2, lon2):
@@ -6342,8 +6349,23 @@ def _att_emp_by_tg(tg_id):
     return None
 
 def _att_today_records(emp_id, today):
+    """Read TODAY's attendance rows for an employee — FRESH via Sheets API (gviz lags
+    minutes and would cause a duplicate check-in row instead of a checkout update)."""
     cfg = hr_config()
     out = []
+    try:
+        header, rows = _sheets_get_all(cfg["sheet_id"], cfg["attendance_gid"])
+        if header:
+            idx = {h: i for i, h in enumerate(header)}
+            ei, di = idx.get("employee_id"), idx.get("date")
+            for row in rows:
+                eid = row[ei] if ei is not None and ei < len(row) else ""
+                dt = row[di] if di is not None and di < len(row) else ""
+                if str(eid).strip() == str(emp_id).strip() and str(dt)[:10] == today:
+                    out.append({h: (row[i] if i < len(row) else "") for h, i in idx.items()})
+            return out
+    except Exception as e:
+        print(f"[att today fresh] {e}")
     for r in _gsheet_rows(cfg["sheet_id"], cfg["attendance_gid"]):
         if str(r.get("employee_id", "")).strip() == str(emp_id).strip() and str(r.get("date", ""))[:10] == today:
             out.append(r)
@@ -6509,9 +6531,10 @@ def _att_owner_callback(cbq):
 
 @app.route("/api/telegram/attendance", methods=["POST"])
 def telegram_attendance_webhook():
-    # Optional shared-secret check (Telegram sends it as a header when set via setWebhook)
+    # Mandatory shared-secret check — Telegram sends it as a header (set via setWebhook).
+    # Fail CLOSED: if the secret isn't configured, or the header doesn't match, reject.
     secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
-    if secret and request.headers.get("X-Telegram-Bot-Api-Secret-Token", "") != secret:
+    if not secret or request.headers.get("X-Telegram-Bot-Api-Secret-Token", "") != secret:
         return jsonify({"ok": False}), 401
     try:
         update = request.get_json(force=True, silent=True) or {}
@@ -6584,48 +6607,50 @@ def telegram_attendance_webhook():
         return jsonify({"ok": True})  # always 200 so Telegram doesn't retry-storm
 
 
-@app.route("/api/telegram/attendance/whois", methods=["GET"])
-def att_whois():
-    """Debug: what does _att_emp_by_tg find for ?tg=<id>. Auth: admin OR ?key=CRON_SECRET."""
+def _diag_ok():
+    """Auth for diagnostic/maintenance endpoints: admin session OR the CRON_SECRET
+    supplied in the X-Diag-Key HEADER (never a query param, which would be logged)."""
     _cs = os.environ.get("CRON_SECRET", "")
-    if not (_cs and request.args.get("key") == _cs):
-        if "uid" not in session or not is_admin():
-            return jsonify({"error": "Unauthorized"}), 401
-    tg = (request.args.get("tg") or "").strip()
+    if _cs and request.headers.get("X-Diag-Key", "") == _cs:
+        return True
+    return ("uid" in session) and is_admin()
+
+
+@app.route("/api/telegram/attendance/welcome", methods=["POST"])
+def att_welcome_broadcast():
+    """Send a welcome message via the attendance bot to every active employee who
+    has a telegram_id. Auth: admin session OR X-Diag-Key header."""
+    if not _diag_ok():
+        return jsonify({"error": "Unauthorized"}), 401
     cfg = hr_config()
-    header, rows = _sheets_get_all(cfg["sheet_id"], cfg["employees_gid"])
-    emp = _att_emp_by_tg(tg) if tg else None
-    return jsonify({"tg": tg, "found": bool(emp), "emp": emp,
-                    "sheet_read_ok": bool(header), "data_rows": len(rows)})
+    custom = (request.get_json(silent=True) or {}).get("message", "").strip()
+    results = {"sent": 0, "skipped": 0, "total": 0}
+    for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
+        name = (e.get("name") or "").strip()
+        tg = str(e.get("telegram_id", "")).replace(".0", "").strip()
+        status = str(e.get("status", "")).strip().lower()
+        if not name or not tg or status not in ("active", "approved"):
+            results["skipped"] += 1
+            continue
+        results["total"] += 1
+        msg = custom or (
+            f"👋 أهلاً <b>{name}</b> في نظام دوميه!\n\n"
+            f"من هنا تقدر:\n"
+            f"📍 تسجيل حضورك وانصرافك بموقعك\n"
+            f"📊 متابعة حالتك اليومية\n"
+            f"🚫 تسجيل غيابك\n\n"
+            f"اختر من القائمة بالأسفل للبدء 👇")
+        if _att_send(tg, msg, keyboard=_att_menu()):
+            results["sent"] += 1
+    return jsonify({"ok": True, **results})
 
 
-@app.route("/api/telegram/attendance/advance", methods=["POST", "GET"])
-def att_advance_onboarding():
-    """Manually set an onboarding employee's name and move them to the job step,
-    DMing them the job question. Body/query: tg, name. Auth: admin OR ?key=CRON_SECRET."""
-    _cs = os.environ.get("CRON_SECRET", "")
-    if not (_cs and request.args.get("key") == _cs):
-        if "uid" not in session or not is_admin():
-            return jsonify({"error": "Unauthorized"}), 401
-    tg = (request.args.get("tg") or (request.get_json(silent=True) or {}).get("tg") or "").strip()
-    name = (request.args.get("name") or (request.get_json(silent=True) or {}).get("name") or "").strip()
-    if not tg or not name:
-        return jsonify({"error": "tg and name required"}), 400
-    cfg = hr_config()
-    ok = _sheets_update_match(cfg["sheet_id"], cfg["employees_gid"], {"telegram_id": str(tg)},
-                              {"name": name, "status": "awaiting job", "state": "awaiting job"})
-    sent = _att_send(tg, f"تمام يا <b>{name}</b> 👍\nخطوة أخيرة: اكتب <b>وظيفتك</b> (مصمم / كاتب / مونتير / محاسب...):")
-    return jsonify({"ok": ok, "telegram_sent": sent})
-
-
-@app.route("/api/hr/cleanup", methods=["POST", "GET"])
+@app.route("/api/hr/cleanup", methods=["POST"])
 def hr_cleanup_blank_rows():
     """Delete corrupted employee rows where column A (employee_id) is empty but the
     row still holds stray data (from the old mis-aligned append). Auth: admin OR ?key=CRON_SECRET."""
-    _cs = os.environ.get("CRON_SECRET", "")
-    if not (_cs and request.args.get("key") == _cs):
-        if "uid" not in session or not is_admin():
-            return jsonify({"error": "Unauthorized"}), 401
+    if not _diag_ok():
+        return jsonify({"error": "Unauthorized"}), 401
     cfg = hr_config()
     sid, gid = cfg["sheet_id"], cfg["employees_gid"]
     token = get_google_oauth_access_token()
@@ -6659,10 +6684,8 @@ def hr_cleanup_blank_rows():
 @app.route("/api/telegram/bots", methods=["GET"])
 def telegram_bots_info():
     """List the configured Telegram bots (username + role). Auth: admin OR ?key=CRON_SECRET."""
-    _cs = os.environ.get("CRON_SECRET", "")
-    if not (_cs and request.args.get("key") == _cs):
-        if "uid" not in session or not is_admin():
-            return jsonify({"error": "Unauthorized"}), 401
+    if not _diag_ok():
+        return jsonify({"error": "Unauthorized"}), 401
     import urllib.request as _u
     defs = [
         ("attendance", os.environ.get("TELEGRAM_ATTENDANCE_BOT_TOKEN", ""),
@@ -6693,10 +6716,8 @@ def telegram_bots_info():
 def drive_diag():
     """Verify Google Drive is fully wired: OAuth token, folder create, file upload
     (link-readable), and cleanup. Auth: admin session OR ?key=CRON_SECRET."""
-    _cs = os.environ.get("CRON_SECRET", "")
-    if not (_cs and request.args.get("key") == _cs):
-        if "uid" not in session or not is_admin():
-            return jsonify({"error": "Unauthorized"}), 401
+    if not _diag_ok():
+        return jsonify({"error": "Unauthorized"}), 401
     out = {"token": False, "upload": False, "link": "", "public": False, "folder": False, "cleanup": False}
     token = get_google_oauth_access_token()
     out["token"] = bool(token)
@@ -6739,10 +6760,8 @@ def drive_diag():
 def telegram_attendance_setup():
     """Register (or delete) the attendance bot webhook to point at THIS app.
     Auth: admin session OR ?key=CRON_SECRET. ?action=delete restores n8n polling."""
-    _cs = os.environ.get("CRON_SECRET", "")
-    if not (_cs and request.args.get("key") == _cs):
-        if "uid" not in session or not is_admin():
-            return jsonify({"error": "Unauthorized"}), 401
+    if not _diag_ok():
+        return jsonify({"error": "Unauthorized"}), 401
     tok = _att_bot_token()
     if not tok:
         return jsonify({"error": "attendance bot token not set"}), 400
@@ -6769,10 +6788,8 @@ def telegram_attendance_setup():
 @app.route("/api/telegram/attendance/diag", methods=["GET"])
 def telegram_attendance_diag():
     """Verify Google Sheets WRITE scope + webhook status without spamming anyone.
-    Auth: admin session OR ?key=CRON_SECRET (for tooling)."""
-    _cs = os.environ.get("CRON_SECRET", "")
-    _keymatch = bool(_cs and request.args.get("key") == _cs)
-    if not _keymatch and ("uid" not in session or not is_admin()):
+    Auth: admin session OR X-Diag-Key header."""
+    if not _diag_ok():
         return jsonify({"error": "Unauthorized"}), 401
     cfg = hr_config()
     title = _sheet_title_for_gid(cfg["sheet_id"], cfg["attendance_gid"])
@@ -6790,6 +6807,5 @@ def telegram_attendance_diag():
         "sheets_write_ready": bool(token_ok and title),
         "bot_token_set": bool(tok),
         "current_webhook": wh.get("url", ""),
-        "keymatch": _keymatch,
-        "cron_secret_set": bool(_cs),
+        "cron_secret_set": bool(os.environ.get("CRON_SECRET", "")),
     })
