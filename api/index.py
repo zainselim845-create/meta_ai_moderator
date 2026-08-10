@@ -6311,6 +6311,19 @@ def _sheets_update_match(spreadsheet_id, gid, match, updates):
 def _att_emp_by_tg(tg_id):
     cfg = hr_config()
     tg = str(tg_id).replace(".0", "").strip()
+    # Read FRESH via the Sheets API (gviz CSV lags a few minutes behind writes,
+    # which would break the multi-step onboarding). Fall back to gviz on error.
+    try:
+        header, rows = _sheets_get_all(cfg["sheet_id"], cfg["employees_gid"])
+        if header:
+            idx = {h: i for i, h in enumerate(header)}
+            ti = idx.get("telegram_id")
+            for row in rows:
+                if ti is not None and ti < len(row) and str(row[ti]).replace(".0", "").strip() == tg:
+                    return {h: (row[i] if i < len(row) else "") for h, i in idx.items()}
+            return None  # fresh read succeeded, not found
+    except Exception as e:
+        print(f"[att emp fresh] {e}")
     for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
         if str(e.get("telegram_id", "")).replace(".0", "").strip() == tg:
             return e
@@ -6414,29 +6427,29 @@ def _att_onboard(msg, tg_id, text, chat_id):
     cfg = hr_config()
     emp = _att_emp_by_tg(tg_id)
     status = str((emp or {}).get("status", "")).strip().lower()
-    from_user = msg.get("from", {})
-    if text == "/start":
-        if emp and status in ("active", "approved"):
+    # Already active → only greet on /start; otherwise let the caller handle commands.
+    if emp and status in ("active", "approved"):
+        if text == "/start":
             _att_send(chat_id, f"👋 أهلاً {emp.get('name','')}! حسابك مفعّل. اختر من القائمة:", keyboard=_att_menu())
-            return
-        if not emp:
-            eid = f"EMP-{str(tg_id)[-4:]}-{str(int(datetime.now(timezone.utc).timestamp()))[-4:]}"
-            _sheets_append(cfg["sheet_id"], cfg["employees_gid"],
-                ["employee_id", "name", "telegram_id", "salary_per_day", "status", "job", "state"],
-                {"employee_id": eid, "telegram_id": str(tg_id), "status": "awaiting name", "state": "awaiting name"})
-            _att_send(chat_id, "👋 أهلاً بك! لتسجيلك، اكتب <b>اسمك الكامل</b>:")
-            return
-        if status in ("awaiting name",):
-            _att_send(chat_id, "اكتب <b>اسمك الكامل</b>:")
-            return
-        if status in ("awaiting job",):
-            _att_send(chat_id, "اكتب <b>وظيفتك</b>:")
-            return
-        _att_send(chat_id, "⏳ حسابك تحت المراجعة من الإدارة.")
-        return
-    # not /start → treat as answer to onboarding step
+            return True
+        return False
+    # Unknown user → ANY first message starts registration (not only /start).
     if not emp:
-        return False  # not in onboarding, let caller handle
+        eid = f"EMP-{str(tg_id)[-4:]}-{str(int(datetime.now(timezone.utc).timestamp()))[-4:]}"
+        _sheets_append(cfg["sheet_id"], cfg["employees_gid"],
+            ["employee_id", "name", "telegram_id", "salary_per_day", "status", "job", "state"],
+            {"employee_id": eid, "telegram_id": str(tg_id), "status": "awaiting name", "state": "awaiting name"})
+        _att_send(chat_id, "👋 أهلاً بك في نظام دوميه!\nلتسجيلك، اكتب <b>اسمك الكامل</b>:")
+        return True
+    # In-progress onboarding — /start just re-asks the current step.
+    if text == "/start":
+        if status == "awaiting name":
+            _att_send(chat_id, "اكتب <b>اسمك الكامل</b>:")
+        elif status == "awaiting job":
+            _att_send(chat_id, "اكتب <b>وظيفتك</b>:")
+        else:
+            _att_send(chat_id, "⏳ حسابك تحت المراجعة من الإدارة.")
+        return True
     if status == "awaiting name":
         _sheets_update_match(cfg["sheet_id"], cfg["employees_gid"], {"telegram_id": str(tg_id)},
                              {"name": text, "status": "awaiting job", "state": "awaiting job"})
@@ -6495,16 +6508,20 @@ def telegram_attendance_webhook():
         loc = msg.get("location")
 
         emp = _att_emp_by_tg(tg_id)
-        active = emp and str(emp.get("status", "")).strip().lower() in ("active", "approved")
+        emp_status = str((emp or {}).get("status", "")).strip().lower()
+        active = bool(emp) and emp_status in ("active", "approved")
+        kind = "location" if loc else ("callback" if update.get("callback_query") else "text")
+        print(f"[att in] tg={tg_id} kind={kind} text={text[:40]!r} "
+              f"emp={'Y' if emp else 'N'} status={emp_status or '-'} active={active}")
 
-        # onboarding path for non-active users OR /start
-        if text == "/start" or (emp and not active):
+        # Onboarding path: unknown user (any message), in-progress onboarding, or /start.
+        if (not emp) or (not active) or text == "/start":
             handled = _att_onboard(msg, tg_id, text, chat_id)
             if handled is not False:
                 return jsonify({"ok": True})
 
         if not emp:
-            _att_send(chat_id, "❌ حسابك غير مسجل. اكتب /start للتسجيل.")
+            _att_send(chat_id, "👋 أهلاً بك! اكتب /start لتسجيل حسابك في نظام دوميه.")
             return jsonify({"ok": True})
         if not active:
             _att_send(chat_id, "⏳ حسابك تحت المراجعة من الإدارة.")
