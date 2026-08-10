@@ -1293,19 +1293,34 @@ async function updateTaskStatusAction(taskId, newStatus, empId, notes) {
 async function ingestPlanAction(ev) {
     if (ev) ev.preventDefault();
     var el = document.getElementById('plan-ingest-input');
-    var txt = el ? el.value : '';
-    if (!txt) { showToast('أدخل نص الخطة أولاً', 'error'); return; }
+    var fileEl = document.getElementById('plan-ingest-file');
+    var driveEl = document.getElementById('plan-ingest-drive');
+    var txt = el ? el.value.trim() : '';
+    var file = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
+    var drive = driveEl ? driveEl.value.trim() : '';
+    if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
 
+    var opts;
+    if (file) {
+        var fd = new FormData();
+        fd.append('file', file);
+        if (drive) fd.append('drive_link', drive);
+        opts = { method: 'POST', body: fd }; // let browser set multipart boundary
+    } else if (drive) {
+        opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ drive_link: drive }) };
+    } else {
+        opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_text: txt }) };
+    }
+
+    showToast('جاري تحليل الخطة وسحب الصور... قد يستغرق لحظات ⏳');
     try {
-        var res = await fetch('/api/tasks/ingest-plan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan_text: txt })
-        });
+        var res = await fetch('/api/tasks/ingest-plan', opts);
         var data = await res.json();
         if (data.success) {
             showToast('تم تفريغ وإنشاء ' + data.ingested_count + ' مهمة بنجاح 🎉');
             if (el) el.value = '';
+            if (fileEl) fileEl.value = '';
+            if (driveEl) driveEl.value = '';
             loadTasksEngine();
         } else {
             showToast(data.error || 'خطأ في معالجة الخطة', 'error');
