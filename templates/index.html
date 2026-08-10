@@ -16,7 +16,7 @@
   </script>
   <script src="https://unpkg.com/lucide@latest">
   </script>
-  <link href="/static/css/styles.css?v=7.11" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.12" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -801,6 +801,23 @@
       </div>
       <div id="onboard-result" class="hidden text-[11px] bg-slate-50 border border-slate-200 rounded-lg p-2"></div>
 
+      <!-- Add a new company employee (linked to the Telegram bot) -->
+      <div class="border border-blue-200 bg-blue-50 rounded-xl p-4 space-y-3">
+       <div class="text-xs text-blue-800 font-bold flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="user-plus"></i> إضافة موظف جديد للفريق (مربوط ببوت التليجرام)</div>
+       <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+        <input id="ne-name" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="اسم الموظف"/>
+        <input id="ne-role" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="الدور (مصمم / كاتب / مونتير)"/>
+        <input id="ne-telegram" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="Telegram Chat ID"/>
+        <input id="ne-empid" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="كود الموظف (اختياري)"/>
+       </div>
+       <div class="flex items-center gap-2 flex-wrap">
+        <button onclick="addEmployeeAndInvite(false)" class="btn-primary text-xs py-2 px-4 rounded-lg inline-flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="plus"></i> إضافة فقط</button>
+        <button onclick="addEmployeeAndInvite(true)" class="btn-primary text-xs py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold inline-flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="send"></i> إضافة + إرسال لينك الدخول على التليجرام</button>
+       </div>
+       <p class="text-[10px] text-blue-500">لازم الموظف يكون عمل /start للبوت الأول عشان الرسالة توصله.</p>
+       <div id="ne-result" class="hidden text-[11px] bg-white border border-slate-200 rounded-lg p-2"></div>
+      </div>
+
       <!-- Members list -->
       <div id="members-list" class="space-y-2"></div>
      </div>
@@ -1467,15 +1484,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.11">
+  <script src="/static/js/app.js?v=7.12">
   </script>
-  <script src="/static/js/inbox.js?v=7.11">
+  <script src="/static/js/inbox.js?v=7.12">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.11">
+  <script src="/static/js/chatwoot_free.js?v=7.12">
   </script>
-  <script src="/static/js/views.js?v=7.11">
+  <script src="/static/js/views.js?v=7.12">
   </script>
-  <script src="/static/js/clients.js?v=7.11">
+  <script src="/static/js/clients.js?v=7.12">
   </script>
  
   <!-- Modal: Add New Connected Account -->

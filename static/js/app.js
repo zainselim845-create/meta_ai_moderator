@@ -520,6 +520,37 @@ async function onboardEmployees() {
   }
 }
 
+// Add a new company employee, optionally DM them their portal login via the Telegram bot.
+async function addEmployeeAndInvite(invite) {
+  const name = (document.getElementById('ne-name')||{}).value?.trim();
+  const role = (document.getElementById('ne-role')||{}).value?.trim() || 'Employee';
+  const tg = (document.getElementById('ne-telegram')||{}).value?.trim();
+  const empid = (document.getElementById('ne-empid')||{}).value?.trim();
+  const box = document.getElementById('ne-result');
+  if (!name) { showToast('اكتب اسم الموظف', 'error'); return; }
+  if (invite && !tg) { showToast('لإرسال اللينك لازم Telegram Chat ID', 'error'); return; }
+  try {
+    const body = { name: name, role: role, telegram_id: tg || '' };
+    if (empid) body.employee_id = empid;
+    const r = await fetch('/api/tasks/employees', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok || d.success === false) { showToast(d.error || 'تعذّر إضافة الموظف', 'error'); return; }
+    // find the id we just saved (server may have generated it)
+    const saved = (d.employees||[]).find(e => e.name === name) || {};
+    const newId = empid || saved.employee_id;
+    let msg = 'تمت إضافة الموظف ✅';
+    if (invite && newId) {
+      const o = await (await fetch('/api/employees/onboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ employee_ids: [newId] }) })).json();
+      const sent = (o.results||[]).filter(x => x.telegram_sent).length;
+      msg = sent ? 'تمت الإضافة وإرسال لينك الدخول على التليجرام ✅' : 'تمت الإضافة لكن الرسالة لم تصل (اتأكد إنه عمل /start للبوت).';
+    }
+    if (box) { box.classList.remove('hidden'); box.textContent = msg; }
+    showToast(msg);
+    ['ne-name','ne-role','ne-telegram','ne-empid'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    if (typeof loadTasksEngine === 'function') loadTasksEngine();
+  } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
 // ---- Team & Access management (admin only) ----
 async function loadTeam() {
   const panel = document.getElementById('team-panel');

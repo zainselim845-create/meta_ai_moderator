@@ -1116,53 +1116,6 @@ async function toggleTaskTimerAction(taskId) {
 }
 
 
-async function promptUploadStrategy(clientId) {
-    var stratText = prompt("أدخل نص الاستراتيجية التسويقية الخاصة بهذا العميل (سيتم حفظها وتغذية الـ AI RAG بها فوراً):");
-    if (!stratText) return;
-
-    var folderUrl = prompt("أدخل رابط مجلد Google Drive الخاص بالاستراتيجية (اختياري):", "");
-
-    try {
-        var res = await fetch('/api/clients/' + clientId + '/strategy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: 'استراتيجية المحتوى والتسويق',
-                content: stratText,
-                drive_folder: folderUrl || ''
-            })
-        });
-        var data = await res.json();
-        if (data.success) {
-            showToast('تم حفظ وتفعيل استراتيجية العميل في الـ AI RAG بنجاح 🎉');
-            loadAMWorkspace();
-        } else {
-            showToast(data.error || 'خطأ في حفظ الاستراتيجية', 'error');
-        }
-    } catch(e) {
-        showToast('خطأ في الاتصال بالخادم', 'error');
-    }
-}
-
-async function toggleTaskTimerAction(taskId) {
-    try {
-        var res = await fetch('/api/tasks/' + taskId + '/timer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'toggle' })
-        });
-        var data = await res.json();
-        if (data.success) {
-            showToast(data.timer_state.is_running ? '⏱️ تم بدء تسجيل وقت المهمة!' : '⏸️ تم إيقاف وتثبيت الوقت بنجاح');
-            loadTasksEngine();
-        } else {
-            showToast(data.error || 'خطأ في تشغيل المؤشر', 'error');
-        }
-    } catch(e) {
-        showToast('خطأ في الاتصال', 'error');
-    }
-}
-
 async function promptLinkDrive(taskId) {
     var driveUrl = prompt("أدخل رابط مجلد أو ملف Google Drive (High-Res Assets):");
     if (!driveUrl) return;
@@ -1184,78 +1137,143 @@ async function promptLinkDrive(taskId) {
     }
 }
 
+// show a date only if it's a real YYYY-MM-DD, otherwise a clean placeholder
+function fmtDate(d) {
+    d = (d || '').toString().trim();
+    return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : '—';
+}
+function empOptionsHtml(selectedId) {
+    return (employeesList || []).map(function(e) {
+        var sel = (String(e.employee_id) === String(selectedId)) ? ' selected' : '';
+        return '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(e.name) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
+    }).join('');
+}
+
 function renderTasksBoard() {
     var board = document.getElementById('tasks-board-grid');
     if (!board) return;
 
     if (!tasksList || tasksList.length === 0) {
-        board.innerHTML = '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">لا توجد مهام مسجلة حالياً. يمكنك تقسيم وتفريغ الخطة الشهرية أو إضافة مهمة جديدة 🚀</div>';
+        board.innerHTML = '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 🚀</div>';
         return;
     }
 
-    var empOptions = employeesList.map(function(e) {
-        return '<option value="' + esc(e.employee_id) + '">' + esc(e.name) + ' (' + esc(e.role) + ')</option>';
-    }).join('');
-
     board.innerHTML = tasksList.map(function(t) {
-        var statusBadgeClass = t.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
-                               t.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                               t.status === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800';
+        var st = t.status || 'Pending AM Approval';
+        var statusBadgeClass = st === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
+                               st === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                               st === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' :
+                               st === 'Assigned' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800';
+        var stLabel = st === 'Completed' ? 'مكتملة' : st === 'In Progress' ? 'جاري العمل' :
+                      st === 'Awaiting AM Review' ? 'بانتظار مراجعتك' : st === 'Assigned' ? 'مُسندة' : 'بانتظار الإسناد';
 
-        var isTimerRunning = t.timer_state && t.timer_state.is_running;
-        var timerBtnText = isTimerRunning ? '⏸️ إيقاف وتثبيت الوقت' : '🚀 بدء التوقيت الحي';
-        var timerBtnClass = isTimerRunning ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200';
+        // reference images pulled from the plan (media_urls) shown as thumbnails
+        var refs = (t.media_urls && t.media_urls.length) ? t.media_urls : [];
+        var refsHtml = refs.length ? '<div class="flex gap-1 flex-wrap">' + refs.slice(0, 4).map(function(u) {
+            return '<a href="' + esc(u) + '" target="_blank" class="block w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-50"><img src="' + esc(u) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
+        }).join('') + (refs.length > 4 ? '<span class="text-[10px] text-slate-400 self-center">+' + (refs.length - 4) + '</span>' : '') + '</div>' : '';
 
+        var links = (t.reference_links && t.reference_links.length) ?
+            '<div class="text-[10px] text-slate-500">🔗 ' + t.reference_links.slice(0, 3).map(function(u) {
+                return '<a href="' + esc(u) + '" target="_blank" class="text-blue-600 underline">مرجع</a>'; }).join(' · ') + '</div>' : '';
+
+        var assignee = t.assignee_name || (t.assigned_employee_id ? t.assigned_employee_id : '');
         var html = '<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
             '<div class="flex items-center justify-between gap-2">' +
-                '<span class="font-mono font-bold text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
-                '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full ' + statusBadgeClass + '">' + esc(t.status || 'Pending AM Approval') + '</span>' +
+                '<span class="font-mono font-bold text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
+                '<div class="flex items-center gap-1">' +
+                    '<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ' + statusBadgeClass + '">' + esc(stLabel) + '</span>' +
+                    '<button onclick="deleteTaskAction(\'' + esc(t.task_id) + '\')" title="حذف المهمة" class="text-slate-300 hover:text-red-500 text-xs px-1">✕</button>' +
+                '</div>' +
             '</div>' +
             '<div>' +
                 '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
                 '<p class="text-xs text-slate-600 mt-1 line-clamp-2">' + esc(t.description || '') + '</p>' +
             '</div>' +
-            '<div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-xs space-y-1">' +
-                '<div class="flex justify-between text-blue-700 font-bold"><span>📅 النزول عند الدكتور:</span><span>' + esc(t.publish_date || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
-                '<div class="flex justify-between text-amber-700 font-bold"><span>⏰ التسليم الداخلي:</span><span>' + esc(t.delivery_deadline || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
-            '</div>' +
-            '<div class="flex gap-1">' +
-                '<button onclick="toggleTaskTimerAction(\'' + esc(t.task_id) + '\')" class="w-full font-bold text-xs py-1.5 px-3 rounded-xl transition ' + timerBtnClass + '">' + timerBtnText + '</button>' +
-            '</div>' +
-            '<div class="text-[11px] text-slate-500 flex items-center justify-between border-t border-slate-100 pt-2">' +
-                '<span>👤 الموظف: <strong>' + esc(t.assignee_name || 'غير معين') + '</strong></span>' +
+            (refsHtml || links ? '<div class="space-y-1">' + refsHtml + links + '</div>' : '') +
+            '<div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-[11px] space-y-1">' +
+                '<div class="flex justify-between text-blue-700 font-bold"><span>📅 النشر:</span><span>' + esc(fmtDate(t.publish_date || t.scheduled_start_date)) + '</span></div>' +
+                '<div class="flex justify-between text-amber-700 font-bold"><span>⏰ التسليم الداخلي:</span><span>' + esc(fmtDate(t.delivery_deadline || t.scheduled_start_date)) + '</span></div>' +
+                '<div class="flex justify-between text-slate-600 font-bold border-t border-slate-100 pt-1"><span>👤 المسؤول:</span><span>' + (assignee ? esc(assignee) : '<span class="text-slate-400">غير معيّن</span>') + '</span></div>' +
             '</div>';
 
         if (t.drive_link) {
-            html += '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs py-1.5 px-3 rounded-xl border border-emerald-200 transition">📁 فتح الملف في Google Drive (أعلى جودة 🚀)</a>';
+            html += '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs py-1.5 px-3 rounded-xl border border-emerald-200 transition">📁 ملف Google Drive</a>';
         } else {
-            html += '<button onclick="promptLinkDrive(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-bold py-1.5 px-3 rounded-xl border border-slate-200 transition">+ ربط ملف Google Drive عالي الجودة</button>';
+            html += '<button onclick="promptLinkDrive(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-bold py-1.5 px-3 rounded-xl border border-slate-200 transition">+ ربط ملف Google Drive</button>';
         }
 
-        if (t.note) {
-            html += '<div class="bg-slate-50 p-2 rounded-xl text-xs text-slate-700 border border-slate-100">📝 ملاحظة: ' + esc(t.note) + '</div>';
+        if (t.review_note) {
+            html += '<div class="bg-purple-50 p-2 rounded-xl text-[11px] text-purple-700 border border-purple-100">📝 ملاحظة المراجعة: ' + esc(t.review_note) + '</div>';
+        } else if (t.note) {
+            html += '<div class="bg-slate-50 p-2 rounded-xl text-[11px] text-slate-700 border border-slate-100">📝 ' + esc(t.note) + '</div>';
         }
 
-        html += '<div class="flex flex-wrap gap-2 pt-1">';
-        if (t.status === 'Pending AM Approval') {
-            html += '<div class="flex gap-1 w-full"><select id="emp-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1 border border-slate-200 rounded-lg flex-1">' + empOptions + '</select>' +
-                '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1 rounded-lg">إسناد 🎯</button></div>';
+        // ---- Account-Manager controls ----
+        html += '<div class="flex flex-col gap-1.5 pt-1 border-t border-slate-100">';
+        if (st === 'Pending AM Approval') {
+            html += '<div class="flex gap-1"><select id="emp-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1">' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
+                '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">إسناد 🎯</button></div>';
         }
-        if (t.status === 'Assigned') {
-            html += '<button onclick="updateTaskStatusAction(\'' + esc(t.task_id) + '\', \'In Progress\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg w-full">🚀 بدء العمل بالمهمة</button>';
+        if (st === 'Assigned' || st === 'In Progress') {
+            html += '<span class="text-[11px] text-slate-400 text-center">في يد الموظف — يعمل عليها من بوابته / بوت التليجرام</span>';
         }
-        if (t.status === 'In Progress') {
-            html += '<button onclick="promptCompleteTask(\'' + esc(t.task_id) + '\')" class="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg w-full">✅ إنهاء وتدوين الملاحظات</button>';
+        if (st === 'Awaiting AM Review') {
+            html += '<div class="grid grid-cols-2 gap-1">' +
+                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs py-1.5 rounded-lg">↩️ رجّع للتعديل</button>' +
+                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-lg">✅ اعتماد + جدولة</button>' +
+                '</div>' +
+                '<div class="flex gap-1"><select id="fwd-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">مرّرها للي بعده...</option>' + empOptionsHtml('') + '</select>' +
+                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">مرّر ➡️</button></div>';
         }
-        if (t.status === 'Awaiting AM Review') {
-            html += '<button onclick="updateTaskStatusAction(\'' + esc(t.task_id) + '\', \'Completed\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg w-full">🎉 اعتماد المهمة وإغلاقها</button>';
-        }
-        if (t.status === 'Completed') {
-            html += '<span class="text-xs font-bold text-emerald-600 block text-center w-full">✓ مكتمل ومحتسب بالتقرير</span>';
+        if (st === 'Completed') {
+            html += '<span class="text-xs font-bold text-emerald-600 block text-center">✓ مكتملة' + (t.scheduled_post_id ? ' ومجدولة للنشر 🗓️' : '') + '</span>';
         }
         html += '</div></div>';
         return html;
     }).join('');
+}
+
+async function deleteTaskAction(taskId) {
+    if (!confirm('حذف المهمة ' + taskId + ' نهائياً؟')) return;
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId), { method: 'DELETE' });
+        var data = await res.json();
+        if (res.ok && (data.success !== false)) {
+            showToast('تم حذف المهمة 🗑️');
+            loadTasksEngine();
+        } else { showToast(data.error || 'تعذّر الحذف', 'error'); }
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
+async function reviewTaskDecision(taskId, action) {
+    var body = { action: action };
+    if (action === 'forward') {
+        var sel = document.getElementById('fwd-select-' + taskId);
+        var nid = sel ? sel.value : '';
+        if (!nid) { showToast('اختر الموظف اللي هتمرّرله المهمة', 'error'); return; }
+        body.next_employee_id = nid;
+        body.action = 'forward';
+    }
+    if (action === 'reject') {
+        var note = prompt('اكتب سبب الإرجاع / التعديل المطلوب:');
+        if (note === null) return;
+        body.note = note;
+    }
+    if (action === 'finalize') {
+        var n2 = prompt('ملاحظة اعتماد (اختياري):', '');
+        body.note = n2 || '';
+    }
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/review', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        var data = await res.json();
+        if (res.ok && data.success !== false) {
+            showToast(action === 'finalize' ? 'تم الاعتماد والجدولة للنشر ✅🗓️' : action === 'forward' ? 'تم تمرير المهمة للموظف التالي ➡️' : 'تم إرجاع المهمة للموظف ↩️');
+            loadTasksEngine();
+        } else { showToast(data.error || 'تعذّر تنفيذ المراجعة', 'error'); }
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
 async function assignTaskFromBoard(taskId) {
