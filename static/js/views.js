@@ -1006,23 +1006,31 @@ function renderAMWorkspaceColumns(columns) {
     if (!container) return;
 
     if (!columns || columns.length === 0) {
-        container.innerHTML = '<div class="p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl w-full">\u0644\u0627 \u062a\u0648\u062c\u062f \u0639\u0645\u0644\u0627\u0621 \u0623\u0648 \u0645\u0634\u0627\u0631\u064a\u0639 \u0645\u0633\u0646\u062f\u0629 \u0644\u062d\u0633\u0627\u0628\u0643 \u062d\u0627\u0644\u064a\u0627\u064b \ud83c\udfaf</div>';
+        container.innerHTML = '<div class="p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl w-full">لا توجد عملاء أو مشاريع مسندة لحسابك حالياً. تواصل مع الأدمن لإسناد العملاء 🎯</div>';
         return;
     }
 
     container.innerHTML = columns.map(function(col) {
         var teamHtml = col.team_members && col.team_members.length ?
-            col.team_members.map(function(m) { return '<span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100">' + esc(m.name) + '</span>'; }).join(' ') :
-            '<span class="text-[10px] text-slate-400">\u0644\u0645 \u064a\u062a\u0645 \u062a\u062d\u062f\u064a\u062f \u0641\u0631\u064a\u0642</span>';
+            col.team_members.map(function(m) { 
+                return '<span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100">👤 ' + esc(m.name) + ' (' + esc(m.role) + ')</span>'; 
+            }).join(' ') :
+            '<span class="text-[10px] text-slate-400">لم يتم تحديد فريق</span>';
+
+        var stratTitle = (col.strategy && col.strategy.title) ? col.strategy.title : 'إضافة ملف استراتيجية العميل';
 
         var tasksHtml = col.tasks && col.tasks.length ? col.tasks.map(function(t) {
             var statusClass = t.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
                               t.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
                               t.status === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800';
 
+            var isTimerRunning = t.timer_state && t.timer_state.is_running;
+            var timerBtnText = isTimerRunning ? '⏸️ إيقاف وتثبيت الوقت' : '🚀 بدء التوقيت الحي';
+            var timerBtnClass = isTimerRunning ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200';
+
             var driveBtn = t.drive_link ?
-                '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] py-1 px-2 rounded-lg border border-blue-200 transition">\ud83d\udcc1 \u0641\u062a\u062d \u0627\u0644\u0645\u0644\u0641 \u0641\u064a Google Drive (\u0623\u0639\u0644\u0649 \u062c\u0648\u062f\u0629 \ud83d\ude80)</a>' :
-                '<button onclick="promptLinkDrive(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 transition">+ \u0631\u0628\u0637 \u0645\u0644\u0641 Google Drive \u0639\u0627\u0644\u064a \u0627\u0644\u062c\u0648\u062f\u0629</button>';
+                '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] py-1 px-2 rounded-lg border border-emerald-200 transition">📁 فتح الملف في Google Drive (أعلى جودة 🚀)</a>' :
+                '<button onclick="promptLinkDrive(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 transition">+ ربط ملف Google Drive عالي الجودة</button>';
 
             return '<div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm space-y-2 text-xs">' +
                 '<div class="flex items-center justify-between">' +
@@ -1032,221 +1040,32 @@ function renderAMWorkspaceColumns(columns) {
                 '<h5 class="font-bold text-slate-900 leading-snug">' + esc(t.title) + '</h5>' +
                 '<p class="text-[11px] text-slate-600 line-clamp-2">' + esc(t.description || '') + '</p>' +
                 '<div class="bg-slate-50 p-2 rounded-lg border border-slate-100 text-[10px] space-y-1">' +
-                    '<div class="flex justify-between text-blue-700 font-bold"><span>\ud83d\udcc5 \u0627\u0644\u0646\u0632\u0648\u0644 \u0639\u0646\u062f \u0627\u0644\u062f\u0643\u062a\u0648\u0631:</span><span>' + esc(t.publish_date || t.scheduled_start_date || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f') + '</span></div>' +
-                    '<div class="flex justify-between text-amber-700 font-bold"><span>\u23f0 \u0627\u0644\u062a\u0633\u0644\u064a\u0645 \u0627\u0644\u062f\u0627\u062e\u0644\u064a:</span><span>' + esc(t.delivery_deadline || t.scheduled_start_date || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f') + '</span></div>' +
+                    '<div class="flex justify-between text-blue-700 font-bold"><span>📅 النزول عند الدكتور:</span><span>' + esc(t.publish_date || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
+                    '<div class="flex justify-between text-amber-700 font-bold"><span>⏰ التسليم الداخلي:</span><span>' + esc(t.delivery_deadline || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
+                '</div>' +
+                '<div class="flex gap-1">' +
+                    '<button onclick="toggleTaskTimerAction(\'' + esc(t.task_id) + '\')" class="flex-1 font-bold text-[10px] py-1 px-2 rounded-lg transition ' + timerBtnClass + '">' + timerBtnText + '</button>' +
                 '</div>' +
                 driveBtn +
             '</div>';
-        }).join('') : '<div class="p-4 text-center text-slate-400 text-[11px]">\u0644\u0627 \u062a\u0648\u062c\u062f \u0645\u0647\u0627\u0645 \u0644\u0647\u0630\u0627 \u0627\u0644\u0639\u0645\u064a\u0644 \u0628\u0639\u062f</div>';
+        }).join('') : '<div class="p-4 text-center text-slate-400 text-[11px]">لا توجد مهام لهذا العميل بعد</div>';
 
-        return '<div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col space-y-4 w-80 shrink-0">' +
+        return '<div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col space-y-3 w-80 shrink-0 shadow-sm">' +
             '<div class="border-b border-slate-200 pb-3 space-y-2">' +
                 '<div class="flex items-center justify-between">' +
                     '<h4 class="font-bold text-sm text-slate-900 flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span> ' + esc(col.client_name) + '</h4>' +
-                    '<span class="bg-blue-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">' + col.completed_tasks + '/' + col.total_tasks + '</span>' +
+                    '<div class="flex gap-1">' +
+                        '<span class="bg-amber-100 text-amber-800 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">⏱️ ' + (col.total_hours_spent || 0) + 'h</span>' +
+                        '<span class="bg-blue-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">' + col.completed_tasks + '/' + col.total_tasks + '</span>' +
+                    '</div>' +
                 '</div>' +
+                '<div><button onclick="promptUploadStrategy(\'' + esc(col.client_id) + '\')" class="w-full text-center bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[11px] py-1 px-2 rounded-lg border border-purple-200 transition">📄 ' + esc(stratTitle) + '</button></div>' +
                 '<div class="flex flex-wrap gap-1">' + teamHtml + '</div>' +
             '</div>' +
             '<div class="space-y-3 flex-1 overflow-y-auto max-h-[550px] pr-1">' + tasksHtml + '</div>' +
         '</div>';
     }).join('');
 }
-
-async function promptLinkDrive(taskId) {
-    var driveUrl = prompt("\u0623\u062f\u062e\u0644 \u0631\u0627\u0628\u0637 \u0645\u062c\u0644\u062f \u0623\u0648 \u0645\u0644\u0641 Google Drive (High-Res Assets):");
-    if (!driveUrl) return;
-    try {
-        var res = await fetch('/api/drive/asset', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ task_id: taskId, drive_link: driveUrl })
-        });
-        var data = await res.json();
-        if (data.success) {
-            showToast('\u062a\u0645 \u0631\u0628\u0637 \u0645\u0644\u0641 Google Drive \u0628\u0646\u062c\u0627\u062d \ud83c\udf89');
-            loadTasksEngine();
-        } else {
-            showToast(data.error || '\u062e\u0637\u0623 \u0641\u064a \u0631\u0628\u0637 \u0627\u0644\u0645\u0644\u0641', 'error');
-        }
-    } catch(e) {
-        showToast('\u062e\u0637\u0623 \u0641\u064a \u0627\u0644\u0627\u062a\u0635\u0627\u0644 \u0628\u0627\u0644\u062e\u0627\u062f\u0645', 'error');
-    }
-}
-
-function renderTasksBoard() {
-    var board = document.getElementById('tasks-board-grid');
-    if (!board) return;
-
-    if (!tasksList || tasksList.length === 0) {
-        board.innerHTML = '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">\u0644\u0627 \u062a\u0648\u062c\u062f \u0645\u0647\u0627\u0645 \u0645\u0633\u062c\u0644\u0629 \u062d\u0627\u0644\u064a\u0627\u064b. \u064a\u0645\u0643\u0646\u0643 \u062a\u0642\u0633\u064a\u0645 \u0648\u062a\u0641\u0631\u064a\u063a \u0627\u0644\u062e\u0637\u0629 \u0627\u0644\u0634\u0647\u0631\u064a\u0629 \u0623\u0648 \u0625\u0636\u0627\u0641\u0629 \u0645\u0647\u0645\u0629 \u062c\u062f\u064a\u062f\u0629 \ud83d\ude80</div>';
-        return;
-    }
-
-    var empOptions = employeesList.map(function(e) {
-        return '<option value="' + esc(e.employee_id) + '">' + esc(e.name) + ' (' + esc(e.role) + ')</option>';
-    }).join('');
-
-    board.innerHTML = tasksList.map(function(t) {
-        var sbc = t.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
-                  t.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                  t.status === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800';
-
-        var h = '<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
-            '<div class="flex items-center justify-between gap-2">' +
-                '<span class="font-mono font-bold text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
-                '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full ' + sbc + '">' + esc(t.status || 'Pending AM Approval') + '</span>' +
-            '</div>' +
-            '<div><h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
-                '<p class="text-xs text-slate-600 mt-1 line-clamp-2">' + esc(t.description || '') + '</p></div>' +
-            '<div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-xs space-y-1">' +
-                '<div class="flex justify-between text-blue-700 font-bold"><span>\ud83d\udcc5 \u0627\u0644\u0646\u0632\u0648\u0644 \u0639\u0646\u062f \u0627\u0644\u062f\u0643\u062a\u0648\u0631:</span><span>' + esc(t.publish_date || t.scheduled_start_date || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f') + '</span></div>' +
-                '<div class="flex justify-between text-amber-700 font-bold"><span>\u23f0 \u0627\u0644\u062a\u0633\u0644\u064a\u0645 \u0627\u0644\u062f\u0627\u062e\u0644\u064a:</span><span>' + esc(t.delivery_deadline || t.scheduled_start_date || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f') + '</span></div>' +
-            '</div>' +
-            '<div class="text-[11px] text-slate-500 flex items-center justify-between border-t border-slate-100 pt-2">' +
-                '<span>\ud83d\udc64 \u0627\u0644\u0645\u0648\u0638\u0641: <strong>' + esc(t.assignee_name || '\u063a\u064a\u0631 \u0645\u0639\u064a\u0646') + '</strong></span></div>';
-
-        if (t.drive_link) {
-            h += '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs py-1.5 px-3 rounded-xl border border-blue-200 transition">\ud83d\udcc1 \u0641\u062a\u062d \u0627\u0644\u0645\u0644\u0641 \u0641\u064a Google Drive (\u0623\u0639\u0644\u0649 \u062c\u0648\u062f\u0629 \ud83d\ude80)</a>';
-        } else {
-            h += '<button onclick="promptLinkDrive(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-bold py-1.5 px-3 rounded-xl border border-slate-200 transition">+ \u0631\u0628\u0637 \u0645\u0644\u0641 Google Drive \u0639\u0627\u0644\u064a \u0627\u0644\u062c\u0648\u062f\u0629</button>';
-        }
-
-        if (t.note) {
-            h += '<div class="bg-slate-50 p-2 rounded-xl text-xs text-slate-700 border border-slate-100">\ud83d\udcdd \u0645\u0644\u0627\u062d\u0638\u0629: ' + esc(t.note) + '</div>';
-        }
-
-        h += '<div class="flex flex-wrap gap-2 pt-1">';
-        if (t.status === 'Pending AM Approval') {
-            h += '<div class="flex gap-1 w-full"><select id="emp-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1 border border-slate-200 rounded-lg flex-1">' + empOptions + '</select>' +
-                '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1 rounded-lg">\u0625\u0633\u0646\u0627\u062f \ud83c\udfaf</button></div>';
-        }
-        if (t.status === 'Assigned') {
-            h += '<button onclick="updateTaskStatusAction(\'' + esc(t.task_id) + '\', \'In Progress\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg w-full">\ud83d\ude80 \u0628\u062f\u0621 \u0627\u0644\u0639\u0645\u0644 \u0628\u0627\u0644\u0645\u0647\u0645\u0629</button>';
-        }
-        if (t.status === 'In Progress') {
-            h += '<button onclick="promptCompleteTask(\'' + esc(t.task_id) + '\')" class="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg w-full">\u2705 \u0625\u0646\u0647\u0627\u0621 \u0648\u062a\u062f\u0648\u064a\u0646 \u0627\u0644\u0645\u0644\u0627\u062d\u0638\u0627\u062a</button>';
-        }
-        if (t.status === 'Awaiting AM Review') {
-            h += '<button onclick="updateTaskStatusAction(\'' + esc(t.task_id) + '\', \'Completed\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg w-full">\ud83c\udf89 \u0627\u0639\u062a\u0645\u0627\u062f \u0627\u0644\u0645\u0647\u0645\u0629 \u0648\u0625\u063a\u0644\u0627\u0642\u0647\u0627</button>';
-        }
-        if (t.status === 'Completed') {
-            h += '<span class="text-xs font-bold text-emerald-600 block text-center w-full">\u2713 \u0645\u0643\u062a\u0645\u0644 \u0648\u0645\u062d\u062a\u0633\u0628 \u0628\u0627\u0644\u062a\u0642\u0631\u064a\u0631</span>';
-        }
-        h += '</div></div>';
-        return h;
-    }).join('');
-}
-
-async function assignTaskFromBoard(taskId) {
-    var sel = document.getElementById('emp-select-' + taskId);
-    var empId = sel ? sel.value : '';
-    if (!empId) return;
-    await updateTaskStatusAction(taskId, 'Assigned', empId);
-}
-
-async function promptCompleteTask(taskId) {
-    var notes = prompt("\u0623\u062f\u062e\u0644 \u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0648\u0645\u0644\u062e\u0635 \u0645\u0627 \u062a\u0645 \u0625\u0646\u062c\u0627\u0632\u0647 \u0628\u0627\u0644\u0645\u0647\u0645\u0629:");
-    if (notes === null) return;
-    await updateTaskStatusAction(taskId, 'Awaiting AM Review', null, notes);
-}
-
-async function updateTaskStatusAction(taskId, newStatus, empId, notes) {
-    try {
-        var res = await fetch('/api/tasks/' + taskId + '/status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus, employee_id: empId || '', notes: notes || '' })
-        });
-        var data = await res.json();
-        if (data.success) {
-            showToast('\u062a\u0645 \u062a\u062d\u062f\u064a\u062b \u062d\u0627\u0644\u0629 \u0627\u0644\u0645\u0647\u0645\u0629 \u0628\u0646\u062c\u0627\u062d \u2705');
-            loadTasksEngine();
-        } else {
-            showToast(data.error || '\u062d\u062f\u062b \u062e\u0637\u0623 \u0641\u064a \u0627\u0644\u062a\u062d\u062f\u064a\u062b', 'error');
-        }
-    } catch(e) {
-        showToast('\u062e\u0637\u0623 \u0641\u064a \u0627\u0644\u0627\u062a\u0635\u0627\u0644 \u0628\u0627\u0644\u062e\u0627\u062f\u0645', 'error');
-    }
-}
-
-async function ingestPlanAction(ev) {
-    if (ev) ev.preventDefault();
-    var el = document.getElementById('plan-ingest-input');
-    var txt = el ? el.value : '';
-    if (!txt) { showToast('\u0623\u062f\u062e\u0644 \u0646\u0635 \u0627\u0644\u062e\u0637\u0629 \u0623\u0648\u0644\u0627\u064b', 'error'); return; }
-
-    try {
-        var res = await fetch('/api/tasks/ingest-plan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan_text: txt })
-        });
-        var data = await res.json();
-        if (data.success) {
-            showToast('\u062a\u0645 \u062a\u0641\u0631\u064a\u063a \u0648\u0625\u0646\u0634\u0627\u0621 ' + data.ingested_count + ' \u0645\u0647\u0645\u0629 \u0628\u0646\u062c\u0627\u062d \ud83c\udf89');
-            if (el) el.value = '';
-            loadTasksEngine();
-        } else {
-            showToast(data.error || '\u062e\u0637\u0623 \u0641\u064a \u0645\u0639\u0627\u0644\u062c\u0629 \u0627\u0644\u062e\u0637\u0629', 'error');
-        }
-    } catch(e) {
-        showToast('\u062e\u0637\u0623 \u0641\u064a \u0645\u0639\u0627\u0644\u062c\u0629 \u0627\u0644\u062e\u0637\u0629', 'error');
-    }
-}
-
-async function loadTaskMonthlyReport() {
-    try {
-        var res = await fetch('/api/tasks/monthly-report');
-        var data = await res.json();
-        var tbody = document.getElementById('monthly-report-table-body');
-        if (!tbody) return;
-
-        var report = (data && data.report) ? data.report : [];
-        if (!report || report.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">\u0644\u0627 \u062a\u0648\u062c\u062f \u0633\u062c\u0644\u0627\u062a \u0623\u062f\u0627\u0621 \u0644\u0647\u0630\u0627 \u0627\u0644\u0634\u0647\u0631 \u0628\u0639\u062f</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = report.map(function(r) {
-            return '<tr>' +
-                '<td class="p-3 font-bold text-slate-900">' + esc(r.employee) + ' <span class="text-xs font-normal text-slate-500">(' + esc(r.role) + ')</span></td>' +
-                '<td class="p-3 font-mono">' + r.assigned + '</td>' +
-                '<td class="p-3 font-mono">' + r.started + '</td>' +
-                '<td class="p-3 font-mono font-bold text-emerald-600">' + r.completed + '</td>' +
-                '<td class="p-3 font-mono font-bold text-blue-600">' + r.completion_rate + '</td>' +
-                '<td class="p-3 font-mono">' + r.avg_duration + '</td>' +
-                '<td class="p-3 text-xs text-slate-700">' + (r.notes && r.notes.length ? r.notes.join('<br>') : '-') + '</td>' +
-            '</tr>';
-        }).join('');
-    } catch(e) { console.error(e); }
-}
-
-async function sendMonthlyReportAction() {
-    var targetEmail = prompt("\u0623\u062f\u062e\u0644 \u0627\u0644\u0628\u0631\u064a\u062f \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a \u0644\u0627\u0633\u062a\u0644\u0627\u0645 \u0627\u0644\u062a\u0642\u0631\u064a\u0631 \u0627\u0644\u0634\u0647\u0631\u064a:", "agencydomya@gmail.com");
-    if (!targetEmail) return;
-    try {
-        showToast("\u062c\u0627\u0631\u064a \u062a\u062c\u0647\u064a\u0632 \u0648\u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0642\u0631\u064a\u0631 \u0644\u0644\u0625\u064a\u0645\u064a\u0644... \u23f3");
-        var res = await fetch('/api/tasks/send-monthly-report', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: targetEmail })
-        });
-        var data = await res.json();
-        if (data.success) {
-            showToast(data.message || '\u062a\u0645 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0642\u0631\u064a\u0631 \u0628\u0646\u062c\u0627\u062d \ud83d\udce7');
-        } else {
-            showToast(data.error || '\u062e\u0637\u0623 \u0641\u064a \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0642\u0631\u064a\u0631', 'error');
-        }
-    } catch(e) {
-        showToast('\u062e\u0637\u0623 \u0641\u064a \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0642\u0631\u064a\u0631', 'error');
-    }
-}
-
-
-// =========================================================
-// Advanced Strategy, Time Tracking & Enterprise Workspace JS
-// =========================================================
-
 async function promptUploadStrategy(clientId) {
     var stratText = prompt("\u0623\u062f\u062e\u0644 \u0646\u0635 \u0627\u0644\u0627\u0633\u062a\u0631\u0627\u062a\u064a\u062c\u064a\u0629 \u0627\u0644\u062a\u0633\u0648\u064a\u0642\u064a\u0629 \u0627\u0644\u062e\u0627\u0635\u0629 \u0628\u0647\u0630\u0627 \u0627\u0644\u0639\u0645\u064a\u0644 (\u0633\u064a\u062a\u0645 \u062d\u0641\u0638\u0647\u0627 \u0648\u062a\u063a\u0630\u064a\u0629 \u0627\u0644\u0640 AI RAG \u0628\u0647\u0627 \u0641\u0648\u0631\u0627\u064b):");
     if (!stratText) return;
