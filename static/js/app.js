@@ -402,6 +402,26 @@ async function loadHR() {
   if (window.lucide) lucide.createIcons();
 }
 
+// Send each company employee their portal link + login via Telegram.
+async function onboardEmployees() {
+  if (!confirm('هيتبعت لكل موظف (له تليجرام في الشيت) لينك البوابة وبيانات دخوله. تكمل؟')) return;
+  const box = document.getElementById('onboard-result');
+  if (box) { box.classList.remove('hidden'); box.textContent = 'جارِ الإرسال...'; }
+  try {
+    const d = await (await fetch('/api/employees/onboard', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
+    const rows = d.results || [];
+    const sent = rows.filter(r => r.telegram_sent).length;
+    const noTg = rows.filter(r => !r.has_telegram);
+    if (box) box.innerHTML = `تمت معالجة <b>${d.onboarded}</b> موظف — اتبعت على تليجرام لـ <b>${sent}</b>.`
+      + (noTg.length ? `<div class="mt-1 text-amber-700">بدون تليجرام (سلّمهم يدوي): ${noTg.map(r=>esc(r.name)+' ('+esc(r.username)+'/'+esc(r.password||'')+')').join(' — ')}</div>` : '');
+    showToast(`تم إرسال بيانات الدخول لـ ${sent} موظف ✅`);
+    if (typeof renderMembers === 'function') renderMembers();
+  } catch(e) {
+    if (box) box.textContent = 'تعذّر الإرسال.';
+    showToast('تعذّر إرسال اللينكات', 'error');
+  }
+}
+
 // ---- Team & Access management (admin only) ----
 async function loadTeam() {
   const panel = document.getElementById('team-panel');

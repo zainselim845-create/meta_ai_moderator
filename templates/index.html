@@ -16,7 +16,7 @@
   </script>
   <script src="https://unpkg.com/lucide@latest">
   </script>
-  <link href="/static/css/styles.css?v=7.7" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.8" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -761,6 +761,17 @@
        <div id="new-member-creds" class="hidden text-[11px] bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-2"></div>
       </div>
 
+      <!-- Onboard company employees via Telegram -->
+      <div class="border border-emerald-200 bg-emerald-50 rounded-xl p-4 flex items-center justify-between flex-wrap gap-2">
+       <div class="text-xs text-emerald-800">
+        <b>بوابة الموظفين:</b> يبعت لكل موظف (من شيت الشركة) لينك البوابة + بيانات دخوله على تيليجرام، وكل واحد يشوف مهامه وحضوره بس.
+       </div>
+       <button onclick="onboardEmployees()" class="btn-primary text-xs py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1">
+        <i class="w-3.5 h-3.5" data-lucide="send"></i> إرسال لينكات الدخول للموظفين
+       </button>
+      </div>
+      <div id="onboard-result" class="hidden text-[11px] bg-slate-50 border border-slate-200 rounded-lg p-2"></div>
+
       <!-- Members list -->
       <div id="members-list" class="space-y-2"></div>
      </div>
@@ -1416,15 +1427,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.7">
+  <script src="/static/js/app.js?v=7.8">
   </script>
-  <script src="/static/js/inbox.js?v=7.7">
+  <script src="/static/js/inbox.js?v=7.8">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.7">
+  <script src="/static/js/chatwoot_free.js?v=7.8">
   </script>
-  <script src="/static/js/views.js?v=7.7">
+  <script src="/static/js/views.js?v=7.8">
   </script>
-  <script src="/static/js/clients.js?v=7.7">
+  <script src="/static/js/clients.js?v=7.8">
   </script>
  
   <!-- Modal: Add New Connected Account -->
