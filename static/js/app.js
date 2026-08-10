@@ -86,7 +86,7 @@ function go(id, el) {
     const paneIds = [
       'v-inbox', 'v-dash', 'v-help', 'v-rules', 'v-automation', 'v-kb',
       'v-crm', 'v-settings', 'v-logs', 'v-scheduler', 'v-chatwoot', 'v-accounts',
-      'v-analytics', 'v-mode', 'v-chat'
+      'v-analytics', 'v-mode', 'v-chat', 'v-tasks'
     ];
     
     paneIds.forEach(pid => {
@@ -130,6 +130,7 @@ function go(id, el) {
     if (cleanId === 'settings' && typeof loadTeam === 'function') loadTeam();
     if (cleanId === 'mode' && typeof loadReplyModes === 'function') loadReplyModes();
     if (cleanId === 'scheduler' && typeof loadScheduledPosts === 'function') loadScheduledPosts();
+    if (cleanId === 'tasks' && typeof loadTasksEngine === 'function') loadTasksEngine();
 
     initLucideIcons();
   } catch (e) {

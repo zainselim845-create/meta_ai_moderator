@@ -259,6 +259,12 @@ def sync_from_supabase():
                         cache["email_logs"] = parsed
                     elif k == "meta_ai_smtp_config" and isinstance(parsed, dict):
                         cache["smtp_config"] = parsed
+                    elif k == "meta_ai_employees" and isinstance(parsed, list):
+                        cache["employees"] = parsed
+                    elif k == "meta_ai_tasks" and isinstance(parsed, list):
+                        cache["tasks"] = parsed
+                    elif k == "meta_ai_task_logs" and isinstance(parsed, list):
+                        cache["task_logs"] = parsed
         except Exception as e:
             print(f"[Supabase Sync Exception] {e}")
     rebuild_kb_index()
@@ -4726,4 +4732,394 @@ def process_scheduled_cron():
         "pending_count": len(pending_approvals),
         "published": published
     }), 200
+
+
+# =========================================================
+# Task & Operations Management Engine (Plan -> Tasks -> Workflow)
+# =========================================================
+
+def get_client_employees(_cid=None):
+    _cid = _cid or current_client_id()
+    all_emps = cache.get("employees") or []
+    return [e for e in all_emps if isinstance(e, dict) and (e.get("client_id") or _cid) == _cid]
+
+def save_client_employees(emp_list, _cid=None):
+    _cid = _cid or current_client_id()
+    all_emps = cache.get("employees") or []
+    other_emps = [e for e in all_emps if isinstance(e, dict) and e.get("client_id") and e.get("client_id") != _cid]
+    updated = other_emps + emp_list
+    cache["employees"] = updated
+    push_setting("meta_ai_employees", updated)
+
+def get_client_tasks(_cid=None):
+    _cid = _cid or current_client_id()
+    all_tasks = cache.get("tasks") or []
+    return [t for t in all_tasks if isinstance(t, dict) and (t.get("client_id") or _cid) == _cid]
+
+def save_client_tasks(tasks_list, _cid=None):
+    _cid = _cid or current_client_id()
+    all_tasks = cache.get("tasks") or []
+    other_tasks = [t for t in all_tasks if isinstance(t, dict) and t.get("client_id") and t.get("client_id") != _cid]
+    updated = other_tasks + tasks_list
+    cache["tasks"] = updated
+    push_setting("meta_ai_tasks", updated)
+
+def get_client_task_logs(_cid=None):
+    _cid = _cid or current_client_id()
+    all_logs = cache.get("task_logs") or []
+    return [l for l in all_logs if isinstance(l, dict) and (l.get("client_id") or _cid) == _cid]
+
+def save_client_task_logs(logs_list, _cid=None):
+    _cid = _cid or current_client_id()
+    all_logs = cache.get("task_logs") or []
+    other_logs = [l for l in all_logs if isinstance(l, dict) and l.get("client_id") and l.get("client_id") != _cid]
+    updated = other_logs + logs_list
+    cache["task_logs"] = updated
+    push_setting("meta_ai_task_logs", updated)
+
+def parse_flexible_date_str(val_str):
+    if not val_str:
+        return None
+    s = str(val_str).strip()
+    if re.match(r'^\d{4}-\d{2}-\d{2}', s):
+        try:
+            return datetime.fromisoformat(s.replace('Z', '+00:00'))
+        except Exception:
+            pass
+    m = re.match(r'^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})(?:\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)?)?', s, re.I)
+    if m:
+        d, mth, y, h, mn, ampm = m.groups()
+        hr = int(h) if h else 0
+        if ampm:
+            if ampm.upper() == 'PM' and hr != 12: hr += 12
+            if ampm.upper() == 'AM' and hr == 12: hr = 0
+        try:
+            return datetime(int(y), int(mth), int(d), hr, int(mn or 0), tzinfo=timezone.utc)
+        except Exception:
+            pass
+    return None
+
+
+@app.route("/api/tasks/employees", methods=["GET", "POST"])
+@auth_guard
+def api_tasks_employees():
+    _cid = current_client_id()
+    if request.method == "POST":
+        data = request.get_json() or {}
+        emp_id = (data.get("employee_id") or "").strip() or f"EMP-{int(time.time()*1000)}"
+        name = (data.get("name") or "").strip()
+        role = data.get("role", "Employee")
+        telegram_id = (data.get("telegram_id") or "").strip()
+        email = (data.get("email") or "").strip()
+        status = data.get("status", "active")
+
+        if not name:
+            return jsonify({"error": "اسم الموظف مطلوب"}), 400
+
+        emps = get_client_employees(_cid)
+        found = False
+        for e in emps:
+            if str(e.get("employee_id")) == str(emp_id):
+                e.update({"name": name, "role": role, "telegram_id": telegram_id, "email": email, "status": status})
+                found = True
+                break
+        if not found:
+            emps.append({
+                "employee_id": emp_id,
+                "client_id": _cid,
+                "name": name,
+                "role": role,
+                "telegram_id": telegram_id,
+                "email": email,
+                "status": status,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+        save_client_employees(emps, _cid)
+        return jsonify({"success": True, "employees": emps})
+
+    emps = get_client_employees(_cid)
+    if not emps:
+        emps = [
+            {"employee_id": "EMP-001", "client_id": _cid, "name": "مدير الحسابات (Account Manager)", "role": "Account Manager", "status": "active"},
+            {"employee_id": "EMP-002", "client_id": _cid, "name": "مصمم الجرافيك (Graphic Designer)", "role": "Employee", "status": "active"},
+            {"employee_id": "EMP-003", "client_id": _cid, "name": "كاتب المحتوى (Content Writer)", "role": "Employee", "status": "active"}
+        ]
+        save_client_employees(emps, _cid)
+    return jsonify({"success": True, "employees": emps})
+
+
+@app.route("/api/tasks", methods=["GET", "POST"])
+@auth_guard
+def api_tasks():
+    _cid = current_client_id()
+    if request.method == "POST":
+        data = request.get_json() or {}
+        tasks = get_client_tasks(_cid)
+        
+        max_num = 0
+        for t in tasks:
+            tid = str(t.get("task_id") or "")
+            m = re.search(r'TASK-(\d+)', tid)
+            if m:
+                num = int(m.group(1))
+                if num > max_num: max_num = num
+        
+        new_id = f"TASK-{max_num + 1:04d}"
+        title = (data.get("title") or "").strip() or "مهمة جديدة"
+        description = (data.get("description") or "").strip()
+        scheduled_start = data.get("scheduled_start_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        
+        new_task = {
+            "task_id": new_id,
+            "client_id": _cid,
+            "title": title,
+            "description": description,
+            "status": data.get("status", "Pending AM Approval"),
+            "scheduled_start_date": scheduled_start,
+            "am_id": data.get("am_id") or "EMP-001",
+            "assigned_employee_id": data.get("assigned_employee_id") or "",
+            "assignee_name": data.get("assignee_name") or "",
+            "content_data": data.get("content_data") or {},
+            "graphic_data": data.get("graphic_data") or {},
+            "video_data": data.get("video_data") or {},
+            "reference_link": data.get("reference_link") or "",
+            "note": data.get("note") or "",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        tasks.insert(0, new_task)
+        save_client_tasks(tasks, _cid)
+        return jsonify({"success": True, "task": new_task})
+
+    tasks = get_client_tasks(_cid)
+    return jsonify({"success": True, "tasks": tasks})
+
+
+@app.route("/api/tasks/ingest-plan", methods=["POST"])
+@auth_guard
+def api_tasks_ingest_plan():
+    _cid = current_client_id()
+    data = request.get_json() or {}
+    plan_text = (data.get("plan_text") or "").strip()
+    if not plan_text:
+        return jsonify({"error": "يرجى أدخال نص أو جدول الخطة الشهرية"}), 400
+
+    tasks = get_client_tasks(_cid)
+    max_num = 0
+    for t in tasks:
+        tid = str(t.get("task_id") or "")
+        m = re.search(r'TASK-(\d+)', tid)
+        if m:
+            num = int(m.group(1))
+            if num > max_num: max_num = num
+
+    lines = [l.strip() for l in plan_text.splitlines() if l.strip()]
+    created_count = 0
+    counter = max_num + 1
+
+    for line in lines:
+        if line.startswith("#") or len(line) < 3:
+            continue
+        parts = [p.strip() for p in line.split("|") if p.strip()] if "|" in line else [line]
+        title = parts[0]
+        desc = parts[1] if len(parts) > 1 else title
+        post_type = parts[2] if len(parts) > 2 else "post"
+        
+        new_task = {
+            "task_id": f"TASK-{counter:04d}",
+            "client_id": _cid,
+            "title": title,
+            "description": desc,
+            "status": "Pending AM Approval",
+            "scheduled_start_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "am_id": "EMP-001",
+            "assigned_employee_id": "",
+            "assignee_name": "",
+            "content_data": {"post_type": post_type, "tag_line": title},
+            "graphic_data": {"idea": desc},
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        tasks.insert(0, new_task)
+        counter += 1
+        created_count += 1
+
+    save_client_tasks(tasks, _cid)
+    return jsonify({"success": True, "ingested_count": created_count, "tasks": tasks})
+
+
+@app.route("/api/tasks/<task_id>/status", methods=["PUT", "POST"])
+@auth_guard
+def api_tasks_update_status(task_id):
+    _cid = current_client_id()
+    data = request.get_json() or {}
+    new_status = data.get("status")
+    emp_id = data.get("employee_id") or data.get("assigned_employee_id")
+    notes = data.get("notes") or ""
+
+    if not new_status:
+        return jsonify({"error": "الحالة الجديدة مطلوبة"}), 400
+
+    tasks = get_client_tasks(_cid)
+    target_task = next((t for t in tasks if str(t.get("task_id")) == str(task_id)), None)
+    if not target_task:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+
+    logs = get_client_task_logs(_cid)
+    now_formatted = datetime.now(timezone.utc).strftime("%d/%m/%Y - %I:%M %p")
+
+    target_task["status"] = new_status
+    if emp_id:
+        emps = get_client_employees(_cid)
+        emp_obj = next((e for e in emps if str(e.get("employee_id")) == str(emp_id)), None)
+        target_task["assigned_employee_id"] = emp_id
+        if emp_obj:
+            target_task["assignee_name"] = emp_obj.get("name", "")
+
+    if notes:
+        target_task["note"] = notes
+
+    log_entry = next((l for l in logs if str(l.get("task_id")) == str(task_id) and l.get("status") in ("In Progress", "Assigned")), None)
+    if not log_entry:
+        log_entry = {
+            "log_id": f"LOG-{task_id}-{int(time.time()*1000)}",
+            "client_id": _cid,
+            "task_id": task_id,
+            "title": target_task.get("title", ""),
+            "employee_name": target_task.get("assignee_name", "Unassigned"),
+            "status": new_status,
+            "start_time": now_formatted if new_status == "In Progress" else "",
+            "end_time": now_formatted if new_status in ("Completed", "Awaiting AM Review") else "",
+            "notes": notes
+        }
+        logs.insert(0, log_entry)
+    else:
+        log_entry["status"] = new_status
+        if notes: log_entry["notes"] = notes
+        if new_status == "In Progress" and not log_entry.get("start_time"):
+            log_entry["start_time"] = now_formatted
+        if new_status in ("Completed", "Awaiting AM Review"):
+            log_entry["end_time"] = now_formatted
+
+    save_client_tasks(tasks, _cid)
+    save_client_task_logs(logs, _cid)
+    return jsonify({"success": True, "task": target_task})
+
+
+@app.route("/api/tasks/<task_id>", methods=["DELETE"])
+@require_admin
+def api_tasks_delete(task_id):
+    _cid = current_client_id()
+    tasks = get_client_tasks(_cid)
+    before_len = len(tasks)
+    tasks = [t for t in tasks if str(t.get("task_id")) != str(task_id)]
+    save_client_tasks(tasks, _cid)
+    return jsonify({"success": len(tasks) < before_len})
+
+
+@app.route("/api/tasks/monthly-report", methods=["GET"])
+@auth_guard
+def api_tasks_monthly_report():
+    _cid = current_client_id()
+    month_str = request.args.get("month") or datetime.now(timezone.utc).strftime("%Y-%m")
+    
+    emps = get_client_employees(_cid)
+    active_emps = [e for e in emps if str(e.get("role", "")).lower() in ("employee", "account manager")]
+    logs = get_client_task_logs(_cid)
+
+    stats = {}
+    for emp in active_emps:
+        name = emp.get("name", "Unknown")
+        stats[name] = {
+            "name": name,
+            "role": emp.get("role", "Employee"),
+            "assigned": 0,
+            "started": 0,
+            "completed": 0,
+            "durations": [],
+            "notes": []
+        }
+
+    for log in logs:
+        emp_name = log.get("employee_name")
+        if not emp_name or emp_name not in stats:
+            continue
+        status = log.get("status")
+        if status == "Assigned":
+            stats[emp_name]["assigned"] += 1
+        elif status == "In Progress":
+            stats[emp_name]["started"] += 1
+        elif status in ("Completed", "Awaiting AM Review"):
+            stats[emp_name]["completed"] += 1
+            if log.get("notes") and log["notes"] not in (".", "-"):
+                stats[emp_name]["notes"].append(f"<b>Task {log.get('task_id')}:</b> {log['notes']}")
+            
+            st = parse_flexible_date_str(log.get("start_time"))
+            et = parse_flexible_date_str(log.get("end_time"))
+            if st and et:
+                diff_min = int((et - st).total_seconds() / 60)
+                if 0 < diff_min < 1440:
+                    stats[emp_name]["durations"].append(diff_min)
+
+    report_data = []
+    for emp_name, s in stats.items():
+        avg_dur = f"{int(sum(s['durations'])/len(s['durations']))} min" if s["durations"] else "-"
+        rate = f"{int((s['completed'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
+        report_data.append({
+            "employee": emp_name,
+            "role": s["role"],
+            "assigned": s["assigned"],
+            "started": s["started"],
+            "completed": s["completed"],
+            "completion_rate": rate,
+            "avg_duration": avg_dur,
+            "notes": s["notes"]
+        })
+
+    return jsonify({"success": True, "month": month_str, "report": report_data})
+
+
+@app.route("/api/tasks/send-monthly-report", methods=["POST"])
+@auth_guard
+def api_tasks_send_monthly_report():
+    _cid = current_client_id()
+    data = request.get_json() or {}
+    target_email = data.get("email") or os.environ.get("ADMIN_EMAIL", "agencydomya@gmail.com")
+    month_str = data.get("month") or datetime.now(timezone.utc).strftime("%Y-%m")
+
+    r_res = api_tasks_monthly_report()
+    r_json = r_res.get_json() or {}
+    report_rows = r_json.get("report") or []
+
+    rows_html = ""
+    for r in report_rows:
+        notes_html = f"<ul>{''.join([f'<li>{n}</li>' for n in r['notes']])}</ul>" if r['notes'] else "<i>No notes</i>"
+        rows_html += f"<tr><td style='padding:8px;border:1px solid #e2e8f0;'>{r['employee']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['assigned']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['started']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completed']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completion_rate']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['avg_duration']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{notes_html}</td></tr>"
+
+    generated_at = datetime.now(timezone.utc).strftime("%d/%m/%Y - %I:%M %p UTC")
+    html_content = f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>body{{font-family:Arial,sans-serif;background:#f8fafc;padding:20px;color:#1e293b;}}table{{border-collapse:collapse;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;}}th{{background:#2563eb;color:white;padding:10px;text-align:right;}}td{{padding:8px;border:1px solid #e2e8f0;}}</style></head><body><div style="max-width:700px;margin:0 auto;background:#ffffff;padding:25px;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.05);"><h2 style="color:#2563eb;margin-top:0;text-align:center;">📊 تقرير أداء وساعات عمل الفريق - {month_str}</h2><p style="font-size:14px;color:#64748b;text-align:center;">تاريخ التقرير: <strong>{month_str}</strong> | وقت التقديم: {generated_at}</p><table><thead><tr><th>الموظف</th><th>المكتسبة</th><th>جاري العمل</th><th>المكتملة</th><th>معدل الإنجاز</th><th>متوسط الوقت</th><th>الملاحظات</th></tr></thead><tbody>{rows_html if rows_html else "<tr><td colspan='7' style='text-align:center;padding:15px;'>لا توجد مهام مسجلة لهذا الشهر بعد</td></tr>"}</tbody></table><p style="font-size:12px;color:#94a3b8;margin-top:25px;text-align:center;">تم إصدار هذا التقرير تلقائياً من منصة Domya Meta AI Task & Operations Engine 🚀</p></div></body></html>"""
+
+    cfg = get_smtp_config()
+    smtp_user = cfg["user"]
+    smtp_pass = cfg["pass"]
+    smtp_host = cfg["host"]
+    smtp_port = cfg["port"]
+    smtp_from = cfg["from"] or smtp_user or "agencydomya@gmail.com"
+
+    if smtp_user and smtp_pass:
+        try:
+            msg_mime = MIMEMultipart("alternative")
+            msg_mime["Subject"] = f"📊 تقرير أداء وساعات عمل الفريق - {month_str}"
+            msg_mime["From"] = f"Domya Operations <{smtp_from}>"
+            msg_mime["To"] = target_email
+            msg_mime.attach(MIMEText(html_content, "html", "utf-8"))
+
+            s = smtplib.SMTP(smtp_host, smtp_port, timeout=5)
+            s.starttls()
+            s.login(smtp_user, smtp_pass)
+            s.sendmail(smtp_from, [target_email], msg_mime.as_string())
+            s.quit()
+            return jsonify({"success": True, "message": f"تم إرسال التقرير بنجاح إلى البريد الإلكتروني {target_email} 📧"})
+        except Exception as e:
+            return jsonify({"success": False, "error": f"خطأ في سيرفر الإيميل: {e}"}), 500
+
+    return jsonify({"success": True, "message": f"تم تجهيز وحفظ التقرير بنجاح بداخل الداتا بيز (يرجى التأكد من ربط SMTP الإيميل)"})
 
