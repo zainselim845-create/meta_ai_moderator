@@ -3010,6 +3010,7 @@ PUBLIC_PATHS = {
     '/api/cron/refresh_tokens',
     '/api/cron/process_scheduled',
     '/api/telegram/attendance',
+    '/api/telegram/attendance/diag',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
     '/api/oauth/start',
@@ -6512,9 +6513,13 @@ def telegram_attendance_webhook():
 
 
 @app.route("/api/telegram/attendance/diag", methods=["GET"])
-@require_admin
 def telegram_attendance_diag():
-    """Admin-only: verify Google Sheets WRITE scope + webhook status without spamming anyone."""
+    """Verify Google Sheets WRITE scope + webhook status without spamming anyone.
+    Auth: admin session OR ?key=CRON_SECRET (for tooling)."""
+    _cs = os.environ.get("CRON_SECRET", "")
+    if not (_cs and request.args.get("key") == _cs):
+        if "uid" not in session or not is_admin():
+            return jsonify({"error": "Unauthorized"}), 401
     cfg = hr_config()
     title = _sheet_title_for_gid(cfg["sheet_id"], cfg["attendance_gid"])
     token_ok = bool(get_google_oauth_access_token())

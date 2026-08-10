@@ -1,0 +1,7 @@
+.env
+.env.*
+scripts/
+*.json.local
+Domya_*.json
+Plan_Tasks_*.json
+.git
