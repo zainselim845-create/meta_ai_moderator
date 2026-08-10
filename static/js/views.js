@@ -1234,6 +1234,19 @@ function renderTasksBoard() {
     }).join('');
 }
 
+async function clearAllTasks() {
+    if (!confirm('هيتمسح كل التاسكات الحالية نهائياً (الديمو والحقيقي). متأكد؟')) return;
+    if (!confirm('تأكيد أخير: مسح الكل؟')) return;
+    try {
+        var res = await fetch('/api/tasks/clear', { method: 'POST' });
+        var data = await res.json();
+        if (res.ok && data.success) {
+            showToast('تم مسح ' + (data.removed || 0) + ' مهمة 🗑️ — ابدأ برفع الخطة');
+            loadTasksEngine();
+        } else { showToast(data.error || 'تعذّر المسح', 'error'); }
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
 async function deleteTaskAction(taskId) {
     if (!confirm('حذف المهمة ' + taskId + ' نهائياً؟')) return;
     try {
