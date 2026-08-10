@@ -3012,6 +3012,7 @@ PUBLIC_PATHS = {
     '/api/telegram/attendance',
     '/api/telegram/attendance/diag',
     '/api/telegram/attendance/setup',
+    '/api/drive/diag',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
     '/api/oauth/start',
@@ -6511,6 +6512,52 @@ def telegram_attendance_webhook():
     except Exception as e:
         print(f"[att webhook] {e}")
         return jsonify({"ok": True})  # always 200 so Telegram doesn't retry-storm
+
+
+@app.route("/api/drive/diag", methods=["GET"])
+def drive_diag():
+    """Verify Google Drive is fully wired: OAuth token, folder create, file upload
+    (link-readable), and cleanup. Auth: admin session OR ?key=CRON_SECRET."""
+    _cs = os.environ.get("CRON_SECRET", "")
+    if not (_cs and request.args.get("key") == _cs):
+        if "uid" not in session or not is_admin():
+            return jsonify({"error": "Unauthorized"}), 401
+    out = {"token": False, "upload": False, "link": "", "public": False, "folder": False, "cleanup": False}
+    token = get_google_oauth_access_token()
+    out["token"] = bool(token)
+    if not token:
+        out["hint"] = "GOOGLE_* env not set or refresh token invalid"
+        return jsonify(out)
+    # 1) upload a tiny text file
+    link = drive_upload_bytes("domya_drive_healthcheck.txt", b"ok", "text/plain")
+    out["upload"] = bool(link)
+    out["link"] = link or ""
+    fid = drive_file_id(link) if link else ""
+    # 2) verify it is readable via the public link (anyone-with-link)
+    if link:
+        try:
+            import urllib.request as _u
+            code = _u.urlopen(f"https://drive.google.com/uc?export=download&id={fid}", timeout=15).getcode()
+            out["public"] = (code == 200)
+        except Exception as e:
+            out["public_err"] = str(e)[:120]
+    # 3) folder create
+    folder = create_google_drive_client_folder("Domya — Health Check")
+    out["folder"] = bool(folder)
+    out["folder_link"] = folder or ""
+    # 4) cleanup both test items
+    for _id in [fid, drive_file_id(folder) if folder else ""]:
+        if not _id:
+            continue
+        try:
+            req = urllib.request.Request(f"https://www.googleapis.com/drive/v3/files/{_id}",
+                                         headers={"Authorization": f"Bearer {token}"}, method="DELETE")
+            urllib.request.urlopen(req, timeout=15).read()
+            out["cleanup"] = True
+        except Exception as e:
+            out["cleanup_err"] = str(e)[:120]
+    out["ready"] = bool(out["token"] and out["upload"] and out["public"])
+    return jsonify(out)
 
 
 @app.route("/api/telegram/attendance/setup", methods=["POST", "GET"])
