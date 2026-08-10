@@ -689,6 +689,8 @@ async function handleLogin(e, demoU, demoP) {
             localStorage.setItem('domya_auth', 'true');
             if (modal) modal.style.display = 'none';
             if (typeof showToast === 'function') showToast('تم تسجيل الدخول بنجاح! ');
+            // Role-aware UI: employees get their locked-down portal; managers the full app.
+            if (typeof applyRoleUI === 'function') { await applyRoleUI(); if ((window._me||{}).role === 'employee') return; }
             if (typeof loadClients === 'function') loadClients();
             if (typeof loadInbox === 'function') loadInbox();
             return;

@@ -86,7 +86,7 @@ function go(id, el) {
     const paneIds = [
       'v-inbox', 'v-dash', 'v-help', 'v-rules', 'v-automation', 'v-kb',
       'v-crm', 'v-settings', 'v-logs', 'v-scheduler', 'v-chatwoot', 'v-accounts',
-      'v-analytics', 'v-mode', 'v-chat', 'v-tasks', 'v-hr'
+      'v-analytics', 'v-mode', 'v-chat', 'v-tasks', 'v-hr', 'v-myportal'
     ];
     
     paneIds.forEach(pid => {
@@ -131,6 +131,7 @@ function go(id, el) {
     if (cleanId === 'mode' && typeof loadReplyModes === 'function') loadReplyModes();
     if (cleanId === 'scheduler' && typeof loadScheduledPosts === 'function') loadScheduledPosts();
     if (cleanId === 'hr' && typeof loadHR === 'function') loadHR();
+    if (cleanId === 'myportal' && typeof loadMyPortal === 'function') loadMyPortal();
     if (cleanId === 'tasks' && typeof loadTasksEngine === 'function') loadTasksEngine();
 
     initLucideIcons();
@@ -398,6 +399,63 @@ async function loadHR() {
         <td class="p-3 text-center">${esc(r.hours||'0')}</td>
         <td class="p-3">${esc(r.status||r.action||'')}</td>
       </tr>`).join('') : '<tr><td colspan="6" class="p-4 text-center text-slate-400">لا يوجد سجلات حضور لهذا الشهر</td></tr>';
+  } catch(e) {}
+  if (window.lucide) lucide.createIcons();
+}
+
+// Adapt the UI to the logged-in user's role. Employees get a locked-down portal
+// (only "بوابتي"); managers/admin see the full agency nav.
+async function applyRoleUI() {
+  let me = {};
+  try { me = await (await fetch('/api/me')).json(); } catch(e) { return; }
+  const isEmp = me.role === 'employee';
+  const portalNav = document.getElementById('nav-myportal');
+  if (portalNav) portalNav.classList.toggle('hidden', !isEmp);
+  if (isEmp) {
+    // hide every other nav button, show only my portal, and open it
+    document.querySelectorAll('#sidebar .nb').forEach(b => {
+      if (b.id !== 'nav-myportal') b.classList.add('hidden');
+    });
+    // hide header client switcher + add-account (agency-only controls)
+    ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.add('hidden'); });
+    if (typeof go === 'function') go('myportal');
+  }
+  window._me = me;
+}
+
+async function loadMyPortal() {
+  const nameEl = document.getElementById('myportal-name');
+  try {
+    const me = window._me || await (await fetch('/api/me')).json();
+    if (nameEl) nameEl.textContent = 'أهلاً ' + (me.username || '') ;
+  } catch(e) {}
+  // My tasks
+  try {
+    const d = await (await fetch('/api/me/tasks')).json();
+    const tasks = d.tasks || [];
+    const box = document.getElementById('my-tasks-list');
+    if (box) box.innerHTML = tasks.length ? tasks.map(t => `
+      <div class="border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3">
+        <div>
+          <div class="font-bold text-sm text-slate-900">${esc(t.title||t.task_id||'')}</div>
+          <div class="text-[11px] text-slate-500">📅 نزول: ${esc(t.publish_date||'-')} · ⏰ تسليم: ${esc(t.delivery_deadline||'-')}</div>
+        </div>
+        <span class="text-[11px] px-2 py-0.5 rounded-full ${/(Completed|مكتمل)/.test(t.status||'')?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${esc(t.status||'')}</span>
+      </div>`).join('') : '<div class="p-4 text-center text-xs text-slate-400">مفيش مهام مسندة ليك حالياً</div>';
+  } catch(e) {}
+  // My attendance
+  try {
+    const d = await (await fetch('/api/me/attendance')).json();
+    const rows = (d.attendance || []).slice(0,40);
+    const body = document.getElementById('my-attendance-body');
+    if (body) body.innerHTML = rows.length ? rows.map(r => `
+      <tr class="hover:bg-slate-50">
+        <td class="p-2 font-mono text-slate-500">${esc(r.date||'')}</td>
+        <td class="p-2 text-center">${esc(r.checkin_time||'-')}</td>
+        <td class="p-2 text-center">${esc(r.checkout_time||'-')}</td>
+        <td class="p-2 text-center">${esc(r.hours||'0')}</td>
+        <td class="p-2">${esc(r.status||r.action||'')}</td>
+      </tr>`).join('') : '<tr><td colspan="5" class="p-4 text-center text-slate-400">مفيش سجلات حضور</td></tr>';
   } catch(e) {}
   if (window.lucide) lucide.createIcons();
 }
@@ -885,6 +943,7 @@ async function saveScheduledPost() {
 
 document.addEventListener('DOMContentLoaded', () => {
   checkAuth();
+  if (typeof applyRoleUI === 'function') applyRoleUI();
   initLucideIcons();
   // Set today's date as default for scheduler
   const dateInput = document.getElementById('post-date');
