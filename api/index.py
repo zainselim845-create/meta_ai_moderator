@@ -4850,17 +4850,11 @@ def api_projects_teams():
 # =========================================================
 # Live Google OAuth2 & Telegram Bot Credentials Integration (Dynamic)
 # =========================================================
-_g_cid_parts = ["229832161422-ka3k08pqhavb8i0irst9evndbpn5045s", ".apps.googleusercontent.com"]
-_g_sec_parts = ["GOCSPX-", "Edo8iVZ2mMGUR4a3gO_Ux6NNyP7r"]
-_g_ref_hex = "312f2f303359716d387171332d635a57436759494152414147414d534e77462d4c3949726867553354595a70444254685169633766462d4b6c6e426b3670726747304d634b6834776f68555f4e4e4962366279594453696b776d6f795546467a6e785678433451"
-_t_tasks_parts = ["8624496017:", "AAFu32QEmGx1Vgkh8T7L__y-gue_fm1l71g"]
-_t_attend_parts = ["8531657762:", "AAGYVokoFMSGUyLS-0KD8fWBwKm099VOTw0"]
-
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID") or "".join(_g_cid_parts)
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET") or "".join(_g_sec_parts)
-GOOGLE_DRIVE_REFRESH_TOKEN = os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN") or bytes.fromhex(_g_ref_hex).decode("utf-8")
-TELEGRAM_TASKS_BOT_TOKEN = os.environ.get("TELEGRAM_TASKS_BOT_TOKEN") or "".join(_t_tasks_parts)
-TELEGRAM_ATTENDANCE_BOT_TOKEN = os.environ.get("TELEGRAM_ATTENDANCE_BOT_TOKEN") or "".join(_t_attend_parts)
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_DRIVE_REFRESH_TOKEN = os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN", "")
+TELEGRAM_TASKS_BOT_TOKEN = os.environ.get("TELEGRAM_TASKS_BOT_TOKEN", "")
+TELEGRAM_ATTENDANCE_BOT_TOKEN = os.environ.get("TELEGRAM_ATTENDANCE_BOT_TOKEN", "")
 
 def get_google_oauth_access_token():
     try:
