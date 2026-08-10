@@ -5613,3 +5613,102 @@ def api_hr_summary():
     out.sort(key=lambda x: x["salary"], reverse=True)
     total_salary = round(sum(x["salary"] for x in out), 2)
     return jsonify({"month": month, "summary": out, "employees": len(out), "total_salary": total_salary})
+
+
+
+# ============================================================
+#  Employee onboarding + self-service portal
+#  - Admin/AM creates a portal account for each real company employee
+#    (from the Google Sheet) and Telegram-DMs them their link + login.
+#  - Employees sign in and see ONLY their own tasks + attendance.
+# ============================================================
+PORTAL_URL = os.environ.get("PORTAL_URL", "https://metaaimoderator.vercel.app")
+
+def _emp_username(emp):
+    # Stable, simple username = the employee id from the sheet.
+    return str(emp.get("employee_id") or "").strip()
+
+def _my_employee_id():
+    """The sheet employee_id linked to the logged-in portal user (if any)."""
+    return str(current_user_rec().get("employee_id") or "").strip()
+
+
+@app.route("/api/employees/onboard", methods=["POST"])
+@require_manager
+def api_employees_onboard():
+    """Create portal accounts for company employees and DM each their link + credentials
+    via the tasks Telegram bot. Body: {employee_ids?: [...], resend?: bool}.
+    If employee_ids omitted, onboards every sheet employee that has a telegram_id."""
+    sync_from_supabase()
+    data = request.get_json() or {}
+    only = set(str(x) for x in (data.get("employee_ids") or []))
+    cfg = hr_config()
+    sheet_emps = _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"])
+    results = []
+    for e in sheet_emps:
+        eid = str(e.get("employee_id") or "").strip()
+        if not eid or (only and eid not in only):
+            continue
+        tg = str(e.get("telegram_id") or "").replace(".0", "").strip()
+        name = e.get("name") or eid
+        job = (e.get("job") or "").strip().lower()
+        # Account managers in the sheet become account_manager role; everyone else employee.
+        role = "account_manager" if ("account manager" in job or eid.startswith("AM-")) else "employee"
+        username = eid
+        password = secrets.token_urlsafe(6)
+        rec = USERS_DB.get(username) or {}
+        rec.update({
+            "username": username, "password": hash_password(password), "role": role,
+            "email": e.get("email", ""), "employee_id": eid, "name": name,
+            "assigned_clients": rec.get("assigned_clients", []),
+            "created_at": rec.get("created_at") or datetime.now(timezone.utc).isoformat(),
+        })
+        USERS_DB[username] = rec
+        sent = False
+        if tg:
+            msg = (f"👋 أهلاً <b>{name}</b>\n\n"
+                   f"ده حسابك على بوابة دوميه لمتابعة مهامك وحضورك:\n"
+                   f"🔗 {PORTAL_URL}\n\n"
+                   f"👤 اسم المستخدم: <code>{username}</code>\n"
+                   f"🔑 كلمة المرور: <code>{password}</code>\n\n"
+                   f"سجّل دخولك وهتلاقي المهام المسندة ليك 🚀")
+            sent = bool(send_telegram_bot_notification(tg, msg))
+        results.append({"employee_id": eid, "name": name, "role": role,
+                        "username": username, "password": password if not tg else None,
+                        "telegram_sent": sent, "has_telegram": bool(tg)})
+    push_setting("meta_ai_users", USERS_DB)
+    return jsonify({"ok": True, "onboarded": len(results), "results": results})
+
+
+@app.route("/api/me/tasks", methods=["GET"])
+@auth_guard
+def api_my_tasks():
+    """Tasks assigned to the logged-in employee, across all clients."""
+    sync_from_supabase()
+    eid = _my_employee_id()
+    uname = current_username()
+    if is_manager() and not eid:
+        return jsonify({"tasks": [], "note": "manager"}), 200
+    all_tasks = cache.get("tasks") or []
+    mine = [t for t in all_tasks if isinstance(t, dict) and (
+        str(t.get("assigned_employee_id") or "") == eid or
+        str(t.get("assignee_name") or "") == (current_user_rec().get("name") or uname))]
+    mine.sort(key=lambda t: str(t.get("delivery_deadline") or t.get("publish_date") or ""))
+    return jsonify({"tasks": mine, "employee_id": eid})
+
+
+@app.route("/api/me/attendance", methods=["GET"])
+@auth_guard
+def api_my_attendance():
+    """The logged-in employee's own attendance rows from the company sheet."""
+    eid = _my_employee_id()
+    if not eid:
+        return jsonify({"attendance": [], "note": "no linked employee_id"})
+    cfg = hr_config()
+    rows = [r for r in _gsheet_rows(cfg["sheet_id"], cfg["attendance_gid"])
+            if str(r.get("employee_id", "")) == eid]
+    month = (request.args.get("month") or "").strip()
+    if month:
+        rows = [r for r in rows if str(r.get("date", "")).startswith(month)]
+    rows.sort(key=lambda r: str(r.get("date", "")), reverse=True)
+    return jsonify({"attendance": rows, "employee_id": eid, "total": len(rows)})
