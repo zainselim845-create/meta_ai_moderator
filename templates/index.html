@@ -16,7 +16,7 @@
   </script>
   <script src="https://unpkg.com/lucide@latest">
   </script>
-  <link href="/static/css/styles.css?v=7.5" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.7" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -117,6 +117,10 @@
      <span class="flex-1 text-right">
       إدارة المهام
      </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-hr" onclick="go('hr',this)">
+     <i class="w-4 h-4 text-blue-600" data-lucide="user-check"></i>
+     <span class="flex-1 text-right">الموظفين والحضور</span>
     </button>
     <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-chatwoot" onclick="go('chatwoot',this)">
      <i class="w-4 h-4" data-lucide="link">
@@ -1210,6 +1214,62 @@
       </div>
      </div>
     </div>
+    <!-- HR: Company Employees / Attendance / Payroll (reads the company Google Sheet) -->
+    <div class="view hidden space-y-6" id="v-hr">
+     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+        <i class="w-5 h-5 text-blue-600" data-lucide="user-check"></i>
+        <span>موظفين الشركة — الحضور والرواتب</span>
+       </h3>
+       <div class="flex items-center gap-2">
+        <input type="month" id="hr-month" onchange="loadHR()" class="text-xs px-3 py-1.5 border border-slate-200 rounded-lg"/>
+        <button onclick="loadHR()" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 inline-flex items-center gap-1">
+         <i class="w-3.5 h-3.5" data-lucide="refresh-cw"></i> تحديث
+        </button>
+       </div>
+      </div>
+      <div id="hr-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+     </div>
+
+     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+      <h4 class="font-bold text-sm text-slate-900 mb-3 flex items-center gap-2">
+       <i class="w-4 h-4 text-emerald-600" data-lucide="wallet"></i>
+       <span>مسير الرواتب والأداء الشهري</span>
+      </h4>
+      <div class="overflow-x-auto">
+       <table class="w-full text-right text-xs">
+        <thead class="bg-slate-50 text-slate-600">
+         <tr>
+          <th class="p-3">الموظف</th><th class="p-3">الوظيفة</th>
+          <th class="p-3">أيام حضور</th><th class="p-3">غياب</th><th class="p-3">تأخير</th>
+          <th class="p-3">ساعات</th><th class="p-3">الراتب المستحق</th>
+         </tr>
+        </thead>
+        <tbody id="hr-payroll-body" class="divide-y divide-slate-100">
+         <tr><td colspan="7" class="p-4 text-center text-slate-400">جارِ التحميل...</td></tr>
+        </tbody>
+       </table>
+      </div>
+     </div>
+
+     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+      <h4 class="font-bold text-sm text-slate-900 mb-3 flex items-center gap-2">
+       <i class="w-4 h-4 text-blue-600" data-lucide="clock"></i>
+       <span>آخر سجلات الحضور والانصراف</span>
+      </h4>
+      <div class="overflow-x-auto">
+       <table class="w-full text-right text-xs">
+        <thead class="bg-slate-50 text-slate-600">
+         <tr><th class="p-3">التاريخ</th><th class="p-3">الموظف</th><th class="p-3">حضور</th><th class="p-3">انصراف</th><th class="p-3">ساعات</th><th class="p-3">الحالة</th></tr>
+        </thead>
+        <tbody id="hr-attendance-body" class="divide-y divide-slate-100">
+         <tr><td colspan="6" class="p-4 text-center text-slate-400">جارِ التحميل...</td></tr>
+        </tbody>
+       </table>
+      </div>
+     </div>
+    </div>
     <!-- Task & Operations Management Engine View -->
     <div class="view hidden space-y-6" id="v-tasks">
       <!-- Section 1: Top Bar & Quick Ingest -->
@@ -1356,15 +1416,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.5">
+  <script src="/static/js/app.js?v=7.7">
   </script>
-  <script src="/static/js/inbox.js?v=7.5">
+  <script src="/static/js/inbox.js?v=7.7">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.5">
+  <script src="/static/js/chatwoot_free.js?v=7.7">
   </script>
-  <script src="/static/js/views.js?v=7.5">
+  <script src="/static/js/views.js?v=7.7">
   </script>
-  <script src="/static/js/clients.js?v=7.5">
+  <script src="/static/js/clients.js?v=7.7">
   </script>
  
   <!-- Modal: Add New Connected Account -->

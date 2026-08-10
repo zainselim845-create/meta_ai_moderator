@@ -86,7 +86,7 @@ function go(id, el) {
     const paneIds = [
       'v-inbox', 'v-dash', 'v-help', 'v-rules', 'v-automation', 'v-kb',
       'v-crm', 'v-settings', 'v-logs', 'v-scheduler', 'v-chatwoot', 'v-accounts',
-      'v-analytics', 'v-mode', 'v-chat', 'v-tasks'
+      'v-analytics', 'v-mode', 'v-chat', 'v-tasks', 'v-hr'
     ];
     
     paneIds.forEach(pid => {
@@ -130,6 +130,7 @@ function go(id, el) {
     if (cleanId === 'settings' && typeof loadTeam === 'function') loadTeam();
     if (cleanId === 'mode' && typeof loadReplyModes === 'function') loadReplyModes();
     if (cleanId === 'scheduler' && typeof loadScheduledPosts === 'function') loadScheduledPosts();
+    if (cleanId === 'hr' && typeof loadHR === 'function') loadHR();
     if (cleanId === 'tasks' && typeof loadTasksEngine === 'function') loadTasksEngine();
 
     initLucideIcons();
@@ -347,6 +348,58 @@ function setApprovalMode(mode) {
   if (sel) sel.value = mode;
   fetch('/api/settings/mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode})}).catch(()=>{});
   showToast(mode === 'auto' ? 'تم تفعيل الرد التلقائي الفوري ⚡' : 'تم تفعيل وضع المراجعة البشرية 👨‍💼');
+}
+
+// ---- HR: company employees / attendance / payroll (from the company Google Sheet) ----
+async function loadHR() {
+  const monthEl = document.getElementById('hr-month');
+  const month = (monthEl && monthEl.value) ? monthEl.value : new Date().toISOString().slice(0,7);
+  if (monthEl && !monthEl.value) monthEl.value = month;
+  // Summary (payroll + performance)
+  try {
+    const d = await (await fetch('/api/hr/summary?month=' + month)).json();
+    const rows = d.summary || [];
+    const stats = document.getElementById('hr-stats');
+    if (stats) {
+      const totalDays = rows.reduce((a,r)=>a+(r.days||0),0);
+      const totalLate = rows.reduce((a,r)=>a+(r.late||0),0);
+      const card = (label,val,color)=>`<div class="p-3 rounded-xl border border-slate-200 bg-slate-50 text-center"><div class="text-[11px] text-slate-500">${label}</div><div class="text-lg font-bold ${color}">${val}</div></div>`;
+      stats.innerHTML = card('الموظفين',d.employees||0,'text-slate-900')
+        + card('إجمالي أيام الحضور',totalDays,'text-blue-600')
+        + card('مرات التأخير',totalLate,'text-amber-600')
+        + card('إجمالي الرواتب',(d.total_salary||0).toLocaleString()+' ج','text-emerald-600');
+    }
+    const body = document.getElementById('hr-payroll-body');
+    if (body) body.innerHTML = rows.length ? rows.map(r=>`
+      <tr class="hover:bg-slate-50">
+        <td class="p-3 font-bold text-slate-900">${esc(r.name)}</td>
+        <td class="p-3 text-slate-600">${esc(r.job||'')}</td>
+        <td class="p-3 text-center">${r.days}</td>
+        <td class="p-3 text-center ${r.absent>0?'text-red-500 font-bold':''}">${r.absent}</td>
+        <td class="p-3 text-center ${r.late>0?'text-amber-600 font-bold':''}">${r.late}</td>
+        <td class="p-3 text-center">${r.hours}</td>
+        <td class="p-3 font-bold text-emerald-700">${(r.salary||0).toLocaleString()} ج</td>
+      </tr>`).join('') : '<tr><td colspan="7" class="p-4 text-center text-slate-400">لا يوجد بيانات لهذا الشهر</td></tr>';
+  } catch(e) {
+    const body = document.getElementById('hr-payroll-body');
+    if (body) body.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">تعذّر تحميل بيانات الموظفين (تأكد إن شيت الشركة مشارَك "أي شخص لديه الرابط")</td></tr>';
+  }
+  // Attendance log
+  try {
+    const d = await (await fetch('/api/hr/attendance?month=' + month)).json();
+    const rows = (d.attendance || []).slice(0,50);
+    const body = document.getElementById('hr-attendance-body');
+    if (body) body.innerHTML = rows.length ? rows.map(r=>`
+      <tr class="hover:bg-slate-50">
+        <td class="p-3 font-mono text-slate-500">${esc(r.date||'')}</td>
+        <td class="p-3 font-bold text-slate-900">${esc(r.name||r.employee_id||'')}</td>
+        <td class="p-3 text-center">${esc(r.checkin_time||'-')}</td>
+        <td class="p-3 text-center">${esc(r.checkout_time||'-')}</td>
+        <td class="p-3 text-center">${esc(r.hours||'0')}</td>
+        <td class="p-3">${esc(r.status||r.action||'')}</td>
+      </tr>`).join('') : '<tr><td colspan="6" class="p-4 text-center text-slate-400">لا يوجد سجلات حضور لهذا الشهر</td></tr>';
+  } catch(e) {}
+  if (window.lucide) lucide.createIcons();
 }
 
 // ---- Team & Access management (admin only) ----
