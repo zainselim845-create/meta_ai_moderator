@@ -3009,6 +3009,7 @@ PUBLIC_PATHS = {
     '/api/auth/facebook',
     '/api/cron/refresh_tokens',
     '/api/cron/process_scheduled',
+    '/api/telegram/attendance',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
     '/api/oauth/start',
@@ -6124,3 +6125,410 @@ def api_task_review(task_id):
                 + (f"📝 {review_note}" if review_note else "شغل جميل 👏"))
     save_client_tasks(get_client_tasks(cid), cid)
     return jsonify({"ok": True, "task": t, "scheduled": scheduled})
+
+
+# ============================================================
+#  Native Attendance Telegram Bot (replaces the n8n workflow)
+#  Handles check-in / check-out (geofenced), status, absent, and
+#  self-onboarding + owner approval — all inside our system.
+#  Writes attendance/employees to the SAME Google Sheet the app reads.
+# ============================================================
+import urllib.request as _urlreq
+import urllib.error as _urlerr
+
+ATT_GEOFENCE_M = float(os.environ.get("ATT_GEOFENCE_M", "50"))
+ATT_DEFAULT_LAT = float(os.environ.get("ATT_DEFAULT_LAT", "30.46977"))
+ATT_DEFAULT_LON = float(os.environ.get("ATT_DEFAULT_LON", "31.18002"))
+ATT_LATE_AFTER = os.environ.get("ATT_LATE_AFTER", "11:01:00")  # HH:MM:SS
+_SHEET_TITLE_CACHE = {}
+
+def _att_bot_token():
+    return os.environ.get("TELEGRAM_ATTENDANCE_BOT_TOKEN", "")
+
+def _cairo_now_parts():
+    """Return (date 'YYYY-MM-DD', time 'HH:MM:SS') in Africa/Cairo (UTC+2, no DST handling)."""
+    tz = float(os.environ.get("CAIRO_TZ_OFFSET", "2"))
+    now = datetime.now(timezone.utc) + timedelta(hours=tz)
+    return now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S")
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    import math
+    R = 6371000.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat/2)**2 + math.cos(math.radians(lat1))*math.cos(math.radians(lat2))*math.sin(dlon/2)**2)
+    return int(round(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))))
+
+# ---- Telegram send helpers (attendance bot) ----
+def _att_send(chat_id, text, keyboard=None, inline=None):
+    tok = _att_bot_token()
+    if not tok or not chat_id:
+        return False
+    payload = {"chat_id": str(chat_id), "text": text, "parse_mode": "HTML"}
+    if keyboard is not None:
+        payload["reply_markup"] = {"keyboard": keyboard, "resize_keyboard": True}
+    if inline is not None:
+        payload["reply_markup"] = {"inline_keyboard": inline}
+    try:
+        req = _urlreq.Request(f"https://api.telegram.org/bot{tok}/sendMessage",
+                              data=json.dumps(payload).encode("utf-8"),
+                              headers={"Content-Type": "application/json"})
+        return json.loads(_urlreq.urlopen(req, timeout=12).read()).get("ok", False)
+    except Exception as e:
+        print(f"[att send] {e}")
+        return False
+
+def _att_answer_callback(cb_id, text=""):
+    tok = _att_bot_token()
+    try:
+        req = _urlreq.Request(f"https://api.telegram.org/bot{tok}/answerCallbackQuery",
+                              data=json.dumps({"callback_query_id": cb_id, "text": text}).encode("utf-8"),
+                              headers={"Content-Type": "application/json"})
+        _urlreq.urlopen(req, timeout=10).read()
+    except Exception as e:
+        print(f"[att answer cb] {e}")
+
+def _att_menu():
+    return [["📍 تسجيل حضور", "🚪 تسجيل انصراف"], ["📊 حالتي اليوم", "🚫 تسجيل غياب"]]
+
+# ---- Google Sheets read/write (uses the Drive OAuth token) ----
+def _sheet_title_for_gid(spreadsheet_id, gid):
+    key = f"{spreadsheet_id}:{gid}"
+    if key in _SHEET_TITLE_CACHE:
+        return _SHEET_TITLE_CACHE[key]
+    token = get_google_oauth_access_token()
+    if not token:
+        return None
+    try:
+        req = _urlreq.Request(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}?fields=sheets.properties",
+            headers={"Authorization": f"Bearer {token}"})
+        meta = json.loads(_urlreq.urlopen(req, timeout=15).read())
+        for s in meta.get("sheets", []):
+            props = s.get("properties", {})
+            if str(props.get("sheetId")) == str(gid):
+                title = props.get("title")
+                _SHEET_TITLE_CACHE[key] = title
+                return title
+    except Exception as e:
+        print(f"[sheet title] {e}")
+    return None
+
+def _sheets_append(spreadsheet_id, gid, header_order, row_dict):
+    token = get_google_oauth_access_token()
+    title = _sheet_title_for_gid(spreadsheet_id, gid)
+    if not token or not title:
+        return False
+    values = [[row_dict.get(h, "") for h in header_order]]
+    try:
+        url = (f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
+               f"{urllib.parse.quote(title)}!A:Z:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS")
+        req = _urlreq.Request(url, data=json.dumps({"values": values}).encode("utf-8"),
+                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        _urlreq.urlopen(req, timeout=15).read()
+        return True
+    except Exception as e:
+        print(f"[sheets append] {e}")
+        return False
+
+def _sheets_get_all(spreadsheet_id, gid):
+    """Return (header_list, rows_as_lists) for the whole tab."""
+    token = get_google_oauth_access_token()
+    title = _sheet_title_for_gid(spreadsheet_id, gid)
+    if not token or not title:
+        return [], []
+    try:
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{urllib.parse.quote(title)}!A:Z"
+        req = _urlreq.Request(url, headers={"Authorization": f"Bearer {token}"})
+        data = json.loads(_urlreq.urlopen(req, timeout=15).read())
+        vals = data.get("values", [])
+        if not vals:
+            return [], []
+        return vals[0], vals[1:]
+    except Exception as e:
+        print(f"[sheets get] {e}")
+        return [], []
+
+def _sheets_update_match(spreadsheet_id, gid, match, updates):
+    """Find the first data row where all match{} cols equal, apply updates{}, write it back.
+    Returns True on success."""
+    token = get_google_oauth_access_token()
+    title = _sheet_title_for_gid(spreadsheet_id, gid)
+    if not token or not title:
+        return False
+    header, rows = _sheets_get_all(spreadsheet_id, gid)
+    if not header:
+        return False
+    idx = {h: i for i, h in enumerate(header)}
+    for r_i, row in enumerate(rows):
+        ok = True
+        for k, v in match.items():
+            cur = row[idx[k]] if k in idx and idx[k] < len(row) else ""
+            if str(cur).strip() != str(v).strip():
+                ok = False
+                break
+        if not ok:
+            continue
+        # pad row to header length
+        row = list(row) + [""] * (len(header) - len(row))
+        for k, v in updates.items():
+            if k in idx:
+                row[idx[k]] = v
+        rownum = r_i + 2  # 1-based + header
+        try:
+            url = (f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
+                   f"{urllib.parse.quote(title)}!A{rownum}?valueInputOption=USER_ENTERED")
+            req = _urlreq.Request(url, data=json.dumps({"values": [row]}).encode("utf-8"),
+                                  headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                                  method="PUT")
+            _urlreq.urlopen(req, timeout=15).read()
+            return True
+        except Exception as e:
+            print(f"[sheets update] {e}")
+            return False
+    return False
+
+# ---- Employee lookup by telegram id ----
+def _att_emp_by_tg(tg_id):
+    cfg = hr_config()
+    tg = str(tg_id).replace(".0", "").strip()
+    for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
+        if str(e.get("telegram_id", "")).replace(".0", "").strip() == tg:
+            return e
+    return None
+
+def _att_today_records(emp_id, today):
+    cfg = hr_config()
+    out = []
+    for r in _gsheet_rows(cfg["sheet_id"], cfg["attendance_gid"]):
+        if str(r.get("employee_id", "")).strip() == str(emp_id).strip() and str(r.get("date", ""))[:10] == today:
+            out.append(r)
+    return out
+
+# ---- Core flows ----
+def _att_handle_location(emp, chat_id, loc):
+    cfg = hr_config()
+    today, now_t = _cairo_now_parts()
+    try:
+        clat = float(emp.get("latitude") or ATT_DEFAULT_LAT)
+        clon = float(emp.get("longitude") or ATT_DEFAULT_LON)
+    except Exception:
+        clat, clon = ATT_DEFAULT_LAT, ATT_DEFAULT_LON
+    dist = _haversine_m(float(loc["latitude"]), float(loc["longitude"]), clat, clon)
+    if dist > ATT_GEOFENCE_M:
+        _att_send(chat_id, f"❌ <b>أنت خارج نطاق الشركة</b>\n📍 المسافة: <code>{dist} متر</code>\nلازم تكون في مكان العمل عشان تسجّل.", keyboard=_att_menu())
+        return
+    recs = _att_today_records(emp.get("employee_id"), today)
+    has_in = any(str(r.get("checkin_time", "")).strip() not in ("", "0") for r in recs)
+    has_out = any(str(r.get("checkout_time", "")).strip() not in ("", "0") for r in recs)
+    emp_id = str(emp.get("employee_id", "")).strip()
+    fdist = f"{dist} متر" if dist < 1000 else f"{dist/1000:.2f} كم"
+    if has_in and has_out:
+        _att_send(chat_id, "✅ سجّلت حضورك وانصرافك النهاردة خلاص. شكراً!", keyboard=_att_menu())
+        return
+    if not has_in:
+        status = "متأخر" if now_t >= ATT_LATE_AFTER else "حاضر"
+        ok = _sheets_append(cfg["sheet_id"], cfg["attendance_gid"],
+            ["employee_id", "date", "name", "checkin_time", "checkout_time", "hours", "latitude", "longitude", "distance", "status"],
+            {"employee_id": emp_id, "date": today, "name": emp.get("name", ""), "checkin_time": now_t,
+             "checkout_time": "", "hours": "", "latitude": loc["latitude"], "longitude": loc["longitude"],
+             "distance": f"{dist}m", "status": status})
+        if ok:
+            emoji = "⚠️" if status == "متأخر" else "✅"
+            _att_send(chat_id, f"🟢 <b>تم تسجيل الحضور بنجاح!</b>\n👤 {emp.get('name','')}\n📅 {today}\n⏰ {now_t}\n{emoji} الحالة: {status}\n📍 {fdist}", keyboard=_att_menu())
+            _att_notify_owner(f"🟢 حضور: {emp.get('name','')} — {now_t} ({status})")
+        else:
+            _att_send(chat_id, "⚠️ حصل خطأ في حفظ الحضور. حاول تاني.", keyboard=_att_menu())
+    else:
+        # checkout
+        rec = next((r for r in recs if str(r.get("checkin_time", "")).strip() not in ("", "0")), {})
+        cin = str(rec.get("checkin_time", "")).strip()
+        hours = "0"
+        try:
+            ih, im = int(cin.split(":")[0]), int(cin.split(":")[1])
+            oh, om = int(now_t.split(":")[0]), int(now_t.split(":")[1])
+            hours = f"{(oh*60+om-ih*60-im)/60:.2f}"
+        except Exception:
+            pass
+        ok = _sheets_update_match(cfg["sheet_id"], cfg["attendance_gid"],
+            {"employee_id": emp_id, "date": today},
+            {"checkout_time": now_t, "hours": hours})
+        if ok:
+            _att_send(chat_id, f"🔴 <b>تم تسجيل الانصراف بنجاح!</b>\n👤 {emp.get('name','')}\n📅 {today}\n⏰ {now_t}\n⌛ ساعات العمل: {hours}\n📍 {fdist}", keyboard=_att_menu())
+            _att_notify_owner(f"🔴 انصراف: {emp.get('name','')} — {now_t} ({hours}h)")
+        else:
+            _att_send(chat_id, "⚠️ حصل خطأ في حفظ الانصراف. حاول تاني.", keyboard=_att_menu())
+
+def _att_notify_owner(msg):
+    _att_send(_owner_chat(), msg)
+
+def _att_status(emp, chat_id):
+    today, _ = _cairo_now_parts()
+    recs = _att_today_records(emp.get("employee_id"), today)
+    rec = recs[0] if recs else None
+    txt = f"📊 <b>تقرير حالتك ({today})</b>\n\n👤 {emp.get('name','')}\n"
+    if not rec:
+        txt += "📌 الحالة: ❌ لم تسجّل الحضور بعد."
+    else:
+        st = str(rec.get("status", "")).lower()
+        badge = "🚫 غياب" if st in ("غياب", "absent") else "⚠️ متأخر" if st in ("متأخر", "late") else "✅ في الوقت"
+        txt += (f"📥 الحضور: {rec.get('checkin_time') or '-'}\n"
+                f"📤 الانصراف: {rec.get('checkout_time') or 'لم يُسجل بعد'}\n"
+                f"⏱️ ساعات العمل: {rec.get('hours') or '0'}\n📌 الحالة: {badge}")
+    _att_send(chat_id, txt, keyboard=_att_menu())
+
+def _att_absent(emp, chat_id):
+    cfg = hr_config()
+    today, _ = _cairo_now_parts()
+    recs = _att_today_records(emp.get("employee_id"), today)
+    if recs:
+        _att_send(chat_id, "📌 عندك سجل بالفعل النهاردة، مش هينفع تسجّل غياب.", keyboard=_att_menu())
+        return
+    ok = _sheets_append(cfg["sheet_id"], cfg["attendance_gid"],
+        ["employee_id", "date", "name", "checkin_time", "checkout_time", "hours", "latitude", "longitude", "distance", "status"],
+        {"employee_id": str(emp.get("employee_id", "")).strip(), "date": today, "name": emp.get("name", ""),
+         "checkin_time": "", "checkout_time": "", "hours": "0", "latitude": "0", "longitude": "0", "distance": "0", "status": "غياب"})
+    _att_send(chat_id, "🚫 تم تسجيل غيابك لليوم." if ok else "⚠️ خطأ في التسجيل.", keyboard=_att_menu())
+
+# ---- Onboarding (self-registration) ----
+def _att_onboard(msg, tg_id, text, chat_id):
+    cfg = hr_config()
+    emp = _att_emp_by_tg(tg_id)
+    status = str((emp or {}).get("status", "")).strip().lower()
+    from_user = msg.get("from", {})
+    if text == "/start":
+        if emp and status in ("active", "approved"):
+            _att_send(chat_id, f"👋 أهلاً {emp.get('name','')}! حسابك مفعّل. اختر من القائمة:", keyboard=_att_menu())
+            return
+        if not emp:
+            eid = f"EMP-{str(tg_id)[-4:]}-{str(int(datetime.now(timezone.utc).timestamp()))[-4:]}"
+            _sheets_append(cfg["sheet_id"], cfg["employees_gid"],
+                ["employee_id", "name", "telegram_id", "salary_per_day", "status", "job", "state"],
+                {"employee_id": eid, "telegram_id": str(tg_id), "status": "awaiting name", "state": "awaiting name"})
+            _att_send(chat_id, "👋 أهلاً بك! لتسجيلك، اكتب <b>اسمك الكامل</b>:")
+            return
+        if status in ("awaiting name",):
+            _att_send(chat_id, "اكتب <b>اسمك الكامل</b>:")
+            return
+        if status in ("awaiting job",):
+            _att_send(chat_id, "اكتب <b>وظيفتك</b>:")
+            return
+        _att_send(chat_id, "⏳ حسابك تحت المراجعة من الإدارة.")
+        return
+    # not /start → treat as answer to onboarding step
+    if not emp:
+        return False  # not in onboarding, let caller handle
+    if status == "awaiting name":
+        _sheets_update_match(cfg["sheet_id"], cfg["employees_gid"], {"telegram_id": str(tg_id)},
+                             {"name": text, "status": "awaiting job", "state": "awaiting job"})
+        _att_send(chat_id, f"تمام يا {text} 👍\nدلوقتي اكتب <b>وظيفتك</b> (مصمم / كاتب / مونتير...):")
+        return True
+    if status == "awaiting job":
+        _sheets_update_match(cfg["sheet_id"], cfg["employees_gid"], {"telegram_id": str(tg_id)},
+                             {"job": text, "status": "pending approval", "state": "pending approval"})
+        _att_send(chat_id, "✅ تم استلام بياناتك! حسابك تحت مراجعة الإدارة وهيتفعّل قريب.")
+        # notify owner with approve/reject buttons
+        nm = (emp.get("name") or "")
+        _att_send(_owner_chat(),
+            f"🆕 <b>طلب تسجيل موظف جديد</b>\n👤 الاسم: {nm}\n💼 الوظيفة: {text}\n🆔 تليجرام ID: {tg_id}\n🔑 كود الموظف: {emp.get('employee_id','')}",
+            inline=[[{"text": "✅ قبول", "callback_data": f"owner_approve_{tg_id}"},
+                     {"text": "❌ رفض", "callback_data": f"owner_reject_{tg_id}"}]])
+        return True
+    return False
+
+def _att_owner_callback(cbq):
+    cfg = hr_config()
+    data = str(cbq.get("data", ""))
+    cb_id = cbq.get("id")
+    approve = data.startswith("owner_approve_")
+    tg_id = data.replace("owner_approve_", "").replace("owner_reject_", "").strip()
+    emp = _att_emp_by_tg(tg_id)
+    if approve:
+        _sheets_update_match(cfg["sheet_id"], cfg["employees_gid"], {"telegram_id": str(tg_id)},
+                             {"status": "active", "state": "active"})
+        _att_answer_callback(cb_id, "تم القبول")
+        _att_send(tg_id, "🎉 <b>تم تفعيل حسابك!</b> تقدر تسجّل حضورك دلوقتي.", keyboard=_att_menu())
+    else:
+        _sheets_update_match(cfg["sheet_id"], cfg["employees_gid"], {"telegram_id": str(tg_id)},
+                             {"status": "rejected", "state": "rejected"})
+        _att_answer_callback(cb_id, "تم الرفض")
+        _att_send(tg_id, "❌ نأسف، تم رفض طلب تسجيلك. تواصل مع الإدارة.")
+
+@app.route("/api/telegram/attendance", methods=["POST"])
+def telegram_attendance_webhook():
+    # Optional shared-secret check (Telegram sends it as a header when set via setWebhook)
+    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+    if secret and request.headers.get("X-Telegram-Bot-Api-Secret-Token", "") != secret:
+        return jsonify({"ok": False}), 401
+    try:
+        update = request.get_json(force=True, silent=True) or {}
+    except Exception:
+        update = {}
+    try:
+        # owner inline approve/reject
+        if update.get("callback_query"):
+            _att_owner_callback(update["callback_query"])
+            return jsonify({"ok": True})
+        msg = update.get("message") or update.get("edited_message") or {}
+        chat_id = str((msg.get("chat") or {}).get("id", ""))
+        tg_id = str((msg.get("from") or {}).get("id", ""))
+        text = (msg.get("text") or "").strip()
+        loc = msg.get("location")
+
+        emp = _att_emp_by_tg(tg_id)
+        active = emp and str(emp.get("status", "")).strip().lower() in ("active", "approved")
+
+        # onboarding path for non-active users OR /start
+        if text == "/start" or (emp and not active):
+            handled = _att_onboard(msg, tg_id, text, chat_id)
+            if handled is not False:
+                return jsonify({"ok": True})
+
+        if not emp:
+            _att_send(chat_id, "❌ حسابك غير مسجل. اكتب /start للتسجيل.")
+            return jsonify({"ok": True})
+        if not active:
+            _att_send(chat_id, "⏳ حسابك تحت المراجعة من الإدارة.")
+            return jsonify({"ok": True})
+
+        if loc:
+            _att_handle_location(emp, chat_id, loc)
+        elif text == "📍 تسجيل حضور":
+            _att_send(chat_id, "📍 ابعت موقعك الجغرافي (Location) عشان أسجّل حضورك.",
+                      keyboard=[[{"text": "📍 إرسال موقعي", "request_location": True}]])
+        elif text == "🚪 تسجيل انصراف":
+            _att_send(chat_id, "📍 ابعت موقعك الجغرافي (Location) عشان أسجّل انصرافك.",
+                      keyboard=[[{"text": "📍 إرسال موقعي", "request_location": True}]])
+        elif text == "📊 حالتي اليوم":
+            _att_status(emp, chat_id)
+        elif text == "🚫 تسجيل غياب":
+            _att_absent(emp, chat_id)
+        else:
+            _att_send(chat_id, f"👋 أهلاً {emp.get('name','')}! اختر من القائمة:", keyboard=_att_menu())
+        return jsonify({"ok": True})
+    except Exception as e:
+        print(f"[att webhook] {e}")
+        return jsonify({"ok": True})  # always 200 so Telegram doesn't retry-storm
+
+
+@app.route("/api/telegram/attendance/diag", methods=["GET"])
+@require_admin
+def telegram_attendance_diag():
+    """Admin-only: verify Google Sheets WRITE scope + webhook status without spamming anyone."""
+    cfg = hr_config()
+    title = _sheet_title_for_gid(cfg["sheet_id"], cfg["attendance_gid"])
+    token_ok = bool(get_google_oauth_access_token())
+    tok = _att_bot_token()
+    wh = {}
+    if tok:
+        try:
+            wh = json.loads(_urlreq.urlopen(f"https://api.telegram.org/bot{tok}/getWebhookInfo", timeout=10).read()).get("result", {})
+        except Exception as e:
+            wh = {"error": str(e)}
+    return jsonify({
+        "google_token": token_ok,
+        "attendance_tab_title": title,
+        "sheets_write_ready": bool(token_ok and title),
+        "bot_token_set": bool(tok),
+        "current_webhook": wh.get("url", ""),
+    })
