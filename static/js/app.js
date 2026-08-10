@@ -434,13 +434,25 @@ async function loadMyPortal() {
     const d = await (await fetch('/api/me/tasks')).json();
     const tasks = d.tasks || [];
     const box = document.getElementById('my-tasks-list');
+    const actionBtns = (t) => {
+      const s = t.status || '';
+      if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 text-white">🚀 بدأت العمل</button>`;
+      if (/In Progress/i.test(s)) return `<button onclick="submitMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white">✅ سلّمت (+ملاحظات)</button>`;
+      if (/Awaiting/i.test(s)) return `<span class="text-[11px] text-amber-600 font-bold">⏳ عند المراجعة</span>`;
+      if (/Completed|مكتمل/i.test(s)) return `<span class="text-[11px] text-emerald-600 font-bold">✅ مكتملة</span>`;
+      return '';
+    };
     if (box) box.innerHTML = tasks.length ? tasks.map(t => `
-      <div class="border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3">
+      <div class="border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <div class="font-bold text-sm text-slate-900">${esc(t.title||t.task_id||'')}</div>
           <div class="text-[11px] text-slate-500">📅 نزول: ${esc(t.publish_date||'-')} · ⏰ تسليم: ${esc(t.delivery_deadline||'-')}</div>
+          ${t.review_note ? `<div class="text-[11px] text-amber-700 mt-0.5">📝 ملاحظة المراجعة: ${esc(t.review_note)}</div>` : ''}
         </div>
-        <span class="text-[11px] px-2 py-0.5 rounded-full ${/(Completed|مكتمل)/.test(t.status||'')?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${esc(t.status||'')}</span>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] px-2 py-0.5 rounded-full ${/(Completed|مكتمل)/.test(t.status||'')?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${esc(t.status||'')}</span>
+          ${actionBtns(t)}
+        </div>
       </div>`).join('') : '<div class="p-4 text-center text-xs text-slate-400">مفيش مهام مسندة ليك حالياً</div>';
   } catch(e) {}
   // My attendance
@@ -458,6 +470,34 @@ async function loadMyPortal() {
       </tr>`).join('') : '<tr><td colspan="5" class="p-4 text-center text-slate-400">مفيش سجلات حضور</td></tr>';
   } catch(e) {}
   if (window.lucide) lucide.createIcons();
+}
+
+async function startMyTask(id) {
+  try {
+    const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/start`, {method:'POST'});
+    if (!r.ok) { showToast('تعذّر البدء', 'error'); return; }
+    showToast('بالتوفيق! ابدأ شغلك 🚀'); loadMyPortal();
+  } catch(e) { showToast('خطأ', 'error'); }
+}
+async function submitMyTask(id) {
+  const notes = prompt('اكتب ملاحظاتك عن الشغل اللي خلصته (اختياري):') || '';
+  try {
+    const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/submit`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({notes})});
+    const d = await r.json();
+    if (!r.ok) { showToast(d.error||'تعذّر التسليم', 'error'); return; }
+    showToast('تم التسليم للمراجعة ✅'); loadMyPortal();
+  } catch(e) { showToast('خطأ', 'error'); }
+}
+
+// Manager reviews a submitted task (approve → Completed, reject → back to employee).
+async function reviewTask(id, approve) {
+  const note = prompt(approve ? 'ملاحظة اعتماد (اختياري):' : 'اكتب سبب الرفض/التعديل المطلوب:') || '';
+  try {
+    const r = await fetch(`/api/tasks/${encodeURIComponent(id)}/review`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action: approve?'approve':'reject', note})});
+    if (!r.ok) { showToast('تعذّرت المراجعة', 'error'); return; }
+    showToast(approve ? 'تم الاعتماد ✅' : 'رجعت للموظف للتعديل');
+    if (typeof loadTasksEngine === 'function') loadTasksEngine();
+  } catch(e) { showToast('خطأ', 'error'); }
 }
 
 // Send each company employee their portal link + login via Telegram.
