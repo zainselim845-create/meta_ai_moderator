@@ -6472,6 +6472,15 @@ def _att_owner_callback(cbq):
     cfg = hr_config()
     data = str(cbq.get("data", ""))
     cb_id = cbq.get("id")
+    # Only the owner (محمد سعيد) may approve/reject. Extra approvers via env
+    # OWNER_APPROVERS (comma-separated chat ids). Anyone else is ignored.
+    presser = str((cbq.get("from") or {}).get("id", "")).strip()
+    allowed = {str(_owner_chat()).strip()}
+    allowed |= {x.strip() for x in os.environ.get("OWNER_APPROVERS", "").split(",") if x.strip()}
+    if presser not in allowed:
+        print(f"[att approval blocked] presser={presser} not in {allowed}")
+        _att_answer_callback(cb_id, "غير مصرح لك بالموافقة")
+        return
     approve = data.startswith("owner_approve_")
     tg_id = data.replace("owner_approve_", "").replace("owner_reject_", "").strip()
     emp = _att_emp_by_tg(tg_id)
