@@ -6314,10 +6314,11 @@ def api_tasks_update_status(task_id):
 @require_admin
 def api_tasks_delete(task_id):
     _cid = current_client_id()
+    sync_from_supabase()  # refresh the blob first so we never push a stale/empty list
     # delete from mam_tasks (authoritative — upsert alone never removes rows)
     if SUPABASE_URL and SUPABASE_KEY:
         supa_delete("mam_tasks", f"task_id=eq.{urllib.parse.quote(str(task_id))}")
-    # and from the cache blob
+    # and from the cache blob (now fresh)
     all_tasks = cache.get("tasks") or []
     new = [t for t in all_tasks if str(t.get("task_id")) != str(task_id)]
     cache["tasks"] = new
@@ -6349,6 +6350,7 @@ def api_employees_workload():
 def api_tasks_clear():
     """Delete all tasks for the current client (used to wipe demo/seed tasks)."""
     _cid = current_client_id()
+    sync_from_supabase()  # refresh first so other clients' tasks aren't lost from the blob
     removed = len(get_client_tasks(_cid))
     if SUPABASE_URL and SUPABASE_KEY:
         supa_delete("mam_tasks", f"client_id=eq.{urllib.parse.quote(str(_cid))}")
