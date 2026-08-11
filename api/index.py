@@ -6025,6 +6025,11 @@ def api_task_resend(task_id):
         return jsonify({"error": "المهمة غير موجودة"}), 404
     if not t.get("assigned_employee_id"):
         return jsonify({"error": "المهمة مش مُسندة لحد"}), 400
+    # refresh the display name from the sheet (older assigns stored just the id)
+    nm = _sheet_emp(t.get("assigned_employee_id")).get("name", "")
+    if nm and t.get("assignee_name") != nm:
+        t["assignee_name"] = nm
+        save_client_tasks(get_client_tasks(cid), cid)
     sent = bool(send_task_to_employee(t, cid))
     return jsonify({"ok": True, "telegram_sent": sent})
 
@@ -6913,9 +6918,14 @@ def _task_card_text(t, cid):
     st = t.get("status", "")
     st_ar = {"Assigned": "مُسندة", "In Progress": "جاري العمل",
              "Awaiting AM Review": "بانتظار المراجعة", "Completed": "مكتملة"}.get(st, st)
+    # resolve a real display name (assignee_name may be blank or just the id)
+    name = (t.get("assignee_name") or "").strip()
+    eid = str(t.get("assigned_employee_id") or "")
+    if not name or name == eid:
+        name = _sheet_emp(eid).get("name", name) or eid
     lines = [
         "📋 <b>مهمة</b>",
-        f"👤 {t.get('assignee_name','')}",
+        f"👤 {name}",
         f"🏢 {_client_name(cid)}",
         f"📝 <b>{t.get('title','')}</b>",
     ]
