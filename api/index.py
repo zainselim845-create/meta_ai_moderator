@@ -336,6 +336,8 @@ def sync_from_supabase():
                         cache["hr_sheet"] = parsed
                     elif k == "meta_ai_tasks_note_pending" and isinstance(parsed, dict):
                         cache["tasks_note_pending"] = parsed
+                    elif k == "meta_ai_reminders_date":
+                        cache["reminders_sent_date"] = parsed
                     elif k == "meta_ai_active_account_id":
                         cache["active_account_id"] = parsed
                     elif k == "meta_ai_client_folders" and isinstance(parsed, dict):
@@ -5022,12 +5024,16 @@ def process_scheduled_cron():
 def _emp_chat(emp_id):
     return str((_sheet_emp(emp_id) or {}).get("telegram_id", "")).replace(".0", "").strip()
 
-def _send_due_task_reminders():
-    """Daily: DM every employee the tasks that are on their turn today (assigned to
-    them and still active, due today or overdue). Works for both bot and web users."""
-    from datetime import date as _date
+def _send_due_task_reminders(force=False):
+    """Daily 9 AM: DM every employee the tasks on their turn today. Sends at most ONCE
+    per day (dedup across instances via a persisted date). Works for bot + web users."""
     _tz = float(os.environ.get("TZ_OFFSET_HOURS", "3"))
     today = (datetime.now(timezone.utc) + timedelta(hours=_tz)).date().isoformat()
+    # once-per-day guard (unless forced) — prevents double sends from retries/instances
+    if not force and str(cache.get("reminders_sent_date") or "") == today:
+        return 0
+    cache["reminders_sent_date"] = today
+    push_setting("meta_ai_reminders_date", today)
     active = {"Assigned", "In Progress", "Awaiting AM Review"}
     by_emp = {}
     for t in _all_tasks_db():
