@@ -6083,15 +6083,21 @@ def api_employees_onboard():
         tg = str(e.get("telegram_id") or "").replace(".0", "").strip()
         name = e.get("name") or eid
         job = (e.get("job") or "").strip().lower()
-        # Account managers in the sheet become account_manager role; everyone else employee.
-        role = "account_manager" if ("account manager" in job or eid.startswith("AM-")) else "employee"
+        # Role by job: account managers → account_manager; everyone else (designers,
+        # writers, editors, content…) → employee (sees ONLY their own tasks/attendance).
+        is_am = ("account manager" in job or "أكونت" in job or "الحسابات" in job or eid.startswith("AM-"))
+        role = "account_manager" if is_am else "employee"
         username = eid
         password = secrets.token_urlsafe(6)
         rec = USERS_DB.get(username) or {}
+        # AMs see all clients by default so their board isn't empty (admin can narrow later).
+        assigned = rec.get("assigned_clients", [])
+        if is_am and not assigned:
+            assigned = [c.get("id") for c in AGENCY_CLIENTS_STORE if c.get("id")]
         rec.update({
             "username": username, "password": hash_password(password), "role": role,
             "email": e.get("email", ""), "employee_id": eid, "name": name,
-            "assigned_clients": rec.get("assigned_clients", []),
+            "assigned_clients": assigned,
             "created_at": rec.get("created_at") or datetime.now(timezone.utc).isoformat(),
         })
         USERS_DB[username] = rec
