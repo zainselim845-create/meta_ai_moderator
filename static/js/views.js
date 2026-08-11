@@ -472,21 +472,49 @@ function renderScheduledPosts() {
         el.innerHTML = '<div class="p-4 text-center text-xs text-slate-500">لا توجد منشورات مجدولة بعد 📅</div>';
         return;
     }
-    el.innerHTML = scheduledPosts.map(p => `
-        <div class="p-3 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between gap-3 text-xs mb-2">
-            <div class="space-y-1 flex-1">
-                <div class="flex items-center gap-2">
-                    <span class="font-bold text-blue-600">${esc(p.typeLabel || p.media_type || p.target || 'منشور مجدول')}</span>
-                    <span class="px-2 py-0.5 rounded-md font-bold ${p.status && (p.status.includes('تم') || p.status === 'published') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${esc(p.status || 'pending')}</span>
-                    <span class="text-slate-400 font-mono">(${esc(p.date || '')} ${esc(p.time || '')})</span>
+    el.innerHTML = scheduledPosts.map(p => {
+        var media = p.media_url || (p.media_urls && p.media_urls[0]) || p.drive_link || '';
+        var isVideo = (p.media_type === 'video') || /\.(mp4|mov|webm)(\?|$)/i.test(media);
+        var preview = media
+          ? (isVideo
+              ? '<a href="' + esc(media) + '" target="_blank" class="flex items-center justify-center w-24 h-24 rounded-lg bg-slate-900 text-white text-2xl shrink-0">▶️</a>'
+              : '<a href="' + esc(media) + '" target="_blank"><img src="' + esc(media) + '" class="w-24 h-24 rounded-lg object-cover border border-slate-200 shrink-0" loading="lazy" onerror="this.outerHTML=\'<div class=&quot;w-24 h-24 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs&quot;>🖼️</div>\'"></a>')
+          : '<div class="w-24 h-24 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 text-xs shrink-0">لا ميديا</div>';
+        var done = p.status && (String(p.status).includes('تم') || p.status === 'published');
+        return `
+        <div class="p-3 border border-slate-200 rounded-xl bg-white flex gap-3 text-xs mb-2">
+            ${preview}
+            <div class="space-y-2 flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-bold text-blue-600">${esc(p.typeLabel || p.target || 'منشور')}</span>
+                    <span class="px-2 py-0.5 rounded-md font-bold ${done ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${esc(done ? 'منشور ✓' : 'مجدول')}</span>
+                    ${p.from_task ? '<span class="text-[10px] text-slate-400 font-mono">' + esc(p.from_task) + '</span>' : ''}
                 </div>
-                <p class="text-slate-800 font-medium">${esc(p.caption)}</p>
-                ${p.media_url || p.drive_link ? `<span class="text-slate-500 text-xs block truncate">الميديا: ${esc(p.media_url || p.drive_link)}</span>` : ''}
+                <p class="text-slate-800 font-medium line-clamp-2">${esc(p.caption)}</p>
+                <div class="flex items-center gap-1 flex-wrap">
+                    <input type="date" id="sp-date-${esc(p.id)}" value="${esc(p.date || '')}" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md">
+                    <input type="time" id="sp-time-${esc(p.id)}" value="${esc(p.time || '10:00')}" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md">
+                    <button onclick="reschedulePost('${esc(p.id)}')" class="text-[11px] bg-blue-600 text-white font-bold px-2 py-1 rounded-md">💾 حفظ الموعد</button>
+                    <button onclick="deleteScheduledPost('${esc(p.id)}')" class="text-[11px] text-red-600 border border-red-200 px-2 py-1 rounded-md">حذف</button>
+                </div>
             </div>
-            <button onclick="deleteScheduledPost('${esc(p.id)}')" class="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
     if (window.lucide) lucide.createIcons();
+}
+
+async function reschedulePost(id) {
+    var d = (document.getElementById('sp-date-' + id) || {}).value || '';
+    var t = (document.getElementById('sp-time-' + id) || {}).value || '10:00';
+    if (!d) { showToast('اختر تاريخ النشر', 'error'); return; }
+    try {
+        var res = await fetch('/api/scheduler/' + encodeURIComponent(id) + '/reschedule', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: d, time: t })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) { showToast('اتحفظ موعد النشر ✅'); loadScheduledPosts(); }
+        else showToast(data.error || 'تعذّر الحفظ', 'error');
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
 async function deleteScheduledPost(id) {
