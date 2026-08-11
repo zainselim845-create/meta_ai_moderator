@@ -3027,6 +3027,7 @@ PUBLIC_PATHS = {
     '/api/telegram/attendance/diag',
     '/api/telegram/attendance/setup',
     '/api/drive/diag',
+    '/api/drive/diag-nested',
     '/api/telegram/bots',
     '/api/telegram/attendance/welcome',
     '/api/telegram/tasks',
@@ -7035,6 +7036,51 @@ def _diag_ok():
     if _cs and request.headers.get("X-Diag-Key", "") == _cs:
         return True
     return ("uid" in session) and is_admin()
+
+
+@app.route("/api/drive/diag-nested", methods=["GET"])
+def drive_diag_nested():
+    """Verify the folder hierarchy end-to-end: parent → month subfolder → file inside,
+    plus resumable-session init. Auth: admin OR X-Diag-Key."""
+    if not _diag_ok():
+        return jsonify({"error": "Unauthorized"}), 401
+    import urllib.request as _u
+    out = {"parent": False, "child": False, "file_in_child": False, "resumable_session": False, "cleanup": False}
+    token = get_google_oauth_access_token()
+    if not token:
+        return jsonify({**out, "hint": "no token"})
+    def _mkfolder(name, parent=None):
+        meta = {"name": name, "mimeType": "application/vnd.google-apps.folder"}
+        if parent: meta["parents"] = [parent]
+        r = _u.Request("https://www.googleapis.com/drive/v3/files?fields=id",
+                       data=json.dumps(meta).encode(), headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        return json.loads(_u.urlopen(r, timeout=15).read()).get("id")
+    pid = cid = None
+    try:
+        pid = _mkfolder("Domya — HEALTHCHECK"); out["parent"] = bool(pid)
+        cid = _mkfolder("2026-08", pid); out["child"] = bool(cid)
+        # upload a file into the child
+        link = drive_upload_bytes("nested_test.txt", b"ok", "text/plain", parent_id=cid)
+        # confirm it's inside the child
+        lr = _u.Request(f"https://www.googleapis.com/drive/v3/files?q='{cid}'+in+parents&fields=files(id,name)",
+                        headers={"Authorization": f"Bearer {token}"})
+        files = json.loads(_u.urlopen(lr, timeout=15).read()).get("files", [])
+        out["file_in_child"] = any(f.get("name") == "nested_test.txt" for f in files)
+        # resumable session init returns a Location URL
+        sess = drive_resumable_session("resumable_test.bin", "application/octet-stream", parent_id=cid)
+        out["resumable_session"] = bool(sess)
+    except Exception as e:
+        out["error"] = str(e)[:150]
+    # cleanup: delete parent (removes children + files)
+    try:
+        if pid:
+            _u.urlopen(_u.Request(f"https://www.googleapis.com/drive/v3/files/{pid}",
+                       headers={"Authorization": f"Bearer {token}"}, method="DELETE"), timeout=15).read()
+            out["cleanup"] = True
+    except Exception as e:
+        out["cleanup_err"] = str(e)[:150]
+    out["ready"] = out["parent"] and out["child"] and out["file_in_child"] and out["resumable_session"]
+    return jsonify(out)
 
 
 @app.route("/api/telegram/attendance/welcome", methods=["POST"])
