@@ -624,8 +624,10 @@ async function renderCompanyEmployees() {
   const tabsOf = {};
   users.forEach(u => { if (u.employee_id) tabsOf[u.employee_id] = u.allowed_tabs || []; });
   const TAB_LABELS = { tasks:'المهام', plan:'بناء البلان', hr:'الموظفين والحضور', scheduler:'الجدولة', crm:'العملاء', inbox:'الإنبوكس', analytics:'التحليلات', rules:'القواعد', kb:'المعرفة', mode:'وضع الرد', settings:'الإعدادات', logs:'السجلات', accounts:'الحسابات', myportal:'بوابتي' };
+  const inferRole = (job) => /account\s*manager|أكونت|الحسابات|مدير حسابات/i.test(job || '') ? 'account_manager' : 'employee';
   box.innerHTML = emps.map(e => {
-    const cur = roleOf[e.employee_id] || 'employee';
+    // portal role if they have an account; otherwise infer from their sheet job
+    const cur = roleOf[e.employee_id] || inferRole(e.role);
     const curTabs = new Set(tabsOf[e.employee_id] || []);
     const tabChecks = Object.keys(TAB_LABELS).map(k =>
       `<label class="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 cursor-pointer text-[11px]">
