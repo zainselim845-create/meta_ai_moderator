@@ -16,7 +16,7 @@
   </script>
   <script src="https://unpkg.com/lucide@latest">
   </script>
-  <link href="/static/css/styles.css?v=7.17" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.18" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -1338,6 +1338,27 @@
     </div>
     <!-- Task & Operations Management Engine View -->
     <div class="view hidden space-y-6" id="v-tasks">
+      <!-- Plan Builder: content team creates a plan, picks client + AM, sends it -->
+      <div class="bg-gradient-to-br from-violet-50 to-blue-50 border border-violet-200 rounded-2xl p-6 shadow-sm space-y-3">
+        <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">📝 <span>بناء بلان جديد وإرساله للأكونت مانيجر</span></h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">العميل</label>
+            <select id="pb-client" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white"></select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">الأكونت مانيجر</label>
+            <select id="pb-am" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white"></select>
+          </div>
+        </div>
+        <textarea id="pb-text" rows="6" placeholder="اكتب البلان — كل بوست يبدأ برقم:&#10;1)&#10;- تاج لاين: عنوان البوست&#10;- التخيل: فكرة الجرافيك&#10;الكابشن هنا...&#10;&#10;2) ..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"></textarea>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="createPlan()" class="btn-primary text-xs py-2 px-5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold">🚀 إنشاء وإرسال للأكونت مانيجر</button>
+          <button onclick="loadPlanBuilder()" class="text-xs py-2 px-3 rounded-xl border border-slate-200 text-slate-600">تحديث القوائم</button>
+        </div>
+        <div id="pb-result" class="hidden text-[12px] bg-white border border-emerald-200 rounded-xl p-3"></div>
+      </div>
+
       <!-- Section 1: Top Bar & Quick Ingest -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
@@ -1389,14 +1410,7 @@
             <span>حالة وتوفر فريق العمل</span>
           </h3>
           <div id="employees-status-list" class="space-y-2 text-xs divide-y divide-slate-100 max-h-48 overflow-y-auto">
-            <div class="pt-2 flex items-center justify-between text-slate-700">
-              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> 🟢 مصمم الجرافيك</span>
-              <span class="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono">متاح (Free)</span>
-            </div>
-            <div class="pt-2 flex items-center justify-between text-slate-700">
-              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> 🟢 كاتب المحتوى</span>
-              <span class="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono">متاح (Free)</span>
-            </div>
+            <div class="pt-2 text-slate-400 text-center">جاري التحميل...</div>
           </div>
         </div>
       </div>
@@ -1497,15 +1511,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.17">
+  <script src="/static/js/app.js?v=7.18">
   </script>
-  <script src="/static/js/inbox.js?v=7.17">
+  <script src="/static/js/inbox.js?v=7.18">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.17">
+  <script src="/static/js/chatwoot_free.js?v=7.18">
   </script>
-  <script src="/static/js/views.js?v=7.17">
+  <script src="/static/js/views.js?v=7.18">
   </script>
-  <script src="/static/js/clients.js?v=7.17">
+  <script src="/static/js/clients.js?v=7.18">
   </script>
  
   <!-- Modal: Add New Connected Account -->

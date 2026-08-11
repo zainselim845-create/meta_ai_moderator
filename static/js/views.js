@@ -973,7 +973,24 @@ async function loadKb() {
 var tasksList = [];
 var employeesList = [];
 
+function renderEmployeesStatus() {
+    var box = document.getElementById('employees-status-list');
+    if (!box) return;
+    var emps = employeesList || [];
+    if (!emps.length) { box.innerHTML = '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون</div>'; return; }
+    // an employee is "busy" if they have a task In Progress
+    var busy = {};
+    (tasksList || []).forEach(function(t){ if (t.status === 'In Progress' && t.assigned_employee_id) busy[t.assigned_employee_id] = true; });
+    box.innerHTML = emps.map(function(e){
+        var isBusy = busy[e.employee_id];
+        return '<div class="pt-2 flex items-center justify-between text-slate-700">' +
+            '<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full ' + (isBusy?'bg-amber-500':'bg-emerald-500') + '"></span> ' + esc(e.name || e.employee_id) + '<span class="text-[10px] text-slate-400">' + esc(e.role||'') + '</span></span>' +
+            '<span class="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono">' + (isBusy?'مشغول':'متاح') + '</span></div>';
+    }).join('');
+}
+
 async function loadTasksEngine() {
+    if (typeof loadPlanBuilder === 'function') loadPlanBuilder();
     try {
         var rTasks = await fetch('/api/tasks');
         var rEmps = await fetch('/api/tasks/employees');
@@ -984,6 +1001,7 @@ async function loadTasksEngine() {
         employeesList = (dataEmps && dataEmps.employees) ? dataEmps.employees : [];
 
         renderTasksBoard();
+        renderEmployeesStatus();
         loadTaskMonthlyReport();
         loadAMWorkspace();
     } catch(e) {
@@ -1401,6 +1419,50 @@ async function updateTaskStatusAction(taskId, newStatus, empId, notes) {
     } catch(e) {
         showToast('خطأ في الاتصال بالخادم', 'error');
     }
+}
+
+async function loadPlanBuilder() {
+    var cSel = document.getElementById('pb-client');
+    var mSel = document.getElementById('pb-am');
+    if (!cSel || !mSel) return;
+    try {
+        var cd = await (await fetch('/api/clients')).json();
+        var clients = Array.isArray(cd) ? cd : (cd.clients || []);
+        cSel.innerHTML = clients.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('') || '<option value="">لا يوجد عملاء</option>';
+    } catch(e){}
+    try {
+        var md = await (await fetch('/api/managers')).json();
+        var ms = md.managers || [];
+        mSel.innerHTML = '<option value="">— بدون —</option>' + ms.map(function(m){ return '<option value="' + esc(m.employee_id) + '">' + esc(m.name) + '</option>'; }).join('');
+    } catch(e){}
+}
+
+async function createPlan() {
+    var client_id = (document.getElementById('pb-client')||{}).value || '';
+    var am = (document.getElementById('pb-am')||{}).value || '';
+    var txt = ((document.getElementById('pb-text')||{}).value || '').trim();
+    if (!client_id) { showToast('اختر العميل', 'error'); return; }
+    if (!txt) { showToast('اكتب البلان', 'error'); return; }
+    showToast('جاري إنشاء البلان... ⏳');
+    try {
+        var res = await fetch('/api/plan/create', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client_id: client_id, am_employee_id: am, plan_text: txt })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+            var box = document.getElementById('pb-result');
+            if (box) {
+                box.classList.remove('hidden');
+                box.innerHTML = 'تم إنشاء <b>' + data.created + '</b> بوست وإرسالها للأكونت مانيجر ✅<br>' +
+                    '<div class="mt-2 flex items-center gap-2"><span class="text-slate-500">لينك المشاركة برا السيستم:</span>' +
+                    '<input value="' + esc(data.share_url) + '" readonly class="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-[11px]" onclick="this.select()">' +
+                    '<button onclick="navigator.clipboard.writeText(\'' + esc(data.share_url) + '\');showToast(\'اتنسخ ✅\')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">نسخ</button></div>';
+            }
+            document.getElementById('pb-text').value = '';
+            loadTasksEngine();
+        } else { showToast(data.error || 'تعذّر الإنشاء', 'error'); }
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
 async function ingestPlanAction(ev) {
