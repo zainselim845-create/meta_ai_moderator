@@ -1017,7 +1017,29 @@ function renderEmployeesStatus() {
     }).join('');
 }
 
+async function renderClientTabs() {
+    var box = document.getElementById('client-tabs');
+    if (!box) return;
+    var clients = [], activeId = '';
+    try { var cd = await (await fetch('/api/clients')).json(); clients = Array.isArray(cd) ? cd : (cd.clients || []); } catch(e){}
+    try { var me = await (await fetch('/api/me')).json(); activeId = me.active_client_id || ''; window._me = me; } catch(e){}
+    if (!clients.length) { box.innerHTML = '<span class="text-[11px] text-slate-400">لا يوجد عملاء</span>'; return; }
+    box.innerHTML = clients.map(function(c){
+        var on = c.id === activeId;
+        return '<button onclick="switchToClient(\'' + esc(c.id) + '\')" class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-lg transition ' +
+            (on ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">' + esc(c.name) + '</button>';
+    }).join('');
+    var nameEl = document.getElementById('tasks-client-name');
+    if (nameEl) { var c = clients.find(function(x){ return x.id === activeId; }); nameEl.textContent = c ? ('— ' + c.name) : ''; }
+}
+
+async function switchToClient(id) {
+    try { await fetch('/api/settings/active-client', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: id }) }); } catch(e){}
+    loadTasksEngine();
+}
+
 async function loadTasksEngine() {
+    renderClientTabs();
     try {
         var rTasks = await fetch('/api/tasks');
         var rEmps = await fetch('/api/tasks/employees');
@@ -1228,6 +1250,11 @@ function empOptionsHtml(selectedId) {
 function renderTasksBoard() {
     var board = document.getElementById('tasks-board-grid');
     if (!board) return;
+    var badge = document.getElementById('tasks-count-badge');
+    if (badge) {
+        var done = (tasksList || []).filter(function(t){ return t.status === 'Completed'; }).length;
+        badge.textContent = (tasksList || []).length + ' مهمة · ' + done + ' مكتملة';
+    }
 
     if (!tasksList || tasksList.length === 0) {
         board.innerHTML = '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 🚀</div>';

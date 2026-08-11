@@ -19,7 +19,7 @@
   <!-- Quill: open-source rich-text (Word-like) editor for the Plan builder -->
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <link href="/static/css/styles.css?v=7.35" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.36" rel="stylesheet"/>
   <style>
    /* Plan editor: each paragraph auto-directions by its own language (Arabic → RTL, English → LTR) */
    #pb-editor .ql-editor { direction: rtl; text-align: right; }
@@ -1352,10 +1352,16 @@
 
       <!-- Section 2: Tasks Board Grid -->
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
-          <i data-lucide="list-todo" class="w-5 h-5 text-blue-600"></i>
-          <span>جدول قائمة المهام المجدولة والحالية</span>
-        </h3>
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+            <i data-lucide="list-todo" class="w-5 h-5 text-blue-600"></i>
+            <span>مهام العميل</span>
+            <span id="tasks-client-name" class="text-xs font-normal text-blue-600"></span>
+          </h3>
+          <span id="tasks-count-badge" class="text-[11px] bg-slate-100 text-slate-600 font-mono px-2 py-1 rounded-lg"></span>
+        </div>
+        <!-- client tabs: click a client to see ONLY its tasks -->
+        <div id="client-tabs" class="flex gap-2 overflow-x-auto pb-1 border-b border-slate-100"></div>
         <div id="tasks-board-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">جاري تحميل المهام...</div>
         </div>
@@ -1435,15 +1441,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.35">
+  <script src="/static/js/app.js?v=7.36">
   </script>
-  <script src="/static/js/inbox.js?v=7.35">
+  <script src="/static/js/inbox.js?v=7.36">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.35">
+  <script src="/static/js/chatwoot_free.js?v=7.36">
   </script>
-  <script src="/static/js/views.js?v=7.35">
+  <script src="/static/js/views.js?v=7.36">
   </script>
-  <script src="/static/js/clients.js?v=7.35">
+  <script src="/static/js/clients.js?v=7.36">
   </script>
  
   <!-- Modal: Add New Connected Account -->
