@@ -325,6 +325,8 @@ def sync_from_supabase():
                         cache["client_strategies"] = parsed
                     elif k == "meta_ai_hr_sheet" and isinstance(parsed, dict):
                         cache["hr_sheet"] = parsed
+                    elif k == "meta_ai_tasks_note_pending" and isinstance(parsed, dict):
+                        cache["tasks_note_pending"] = parsed
                     elif k == "meta_ai_active_account_id":
                         cache["active_account_id"] = parsed
                     elif k == "meta_ai_client_folders" and isinstance(parsed, dict):
@@ -5029,6 +5031,27 @@ def get_client_tasks(_cid=None):
     all_tasks = cache.get("tasks") or []
     return [t for t in all_tasks if isinstance(t, dict) and (t.get("client_id") or _cid) == _cid]
 
+def _all_tasks_db():
+    """ALL tasks across every client from the race-safe mam_tasks table (fallback to
+    the legacy cache blob). Used by the readers that aren't client-scoped."""
+    try:
+        if SUPABASE_URL and SUPABASE_KEY:
+            rows = supa_select("mam_tasks", "select=*")
+            if rows:
+                out = []
+                for r in rows:
+                    d = r.get("data")
+                    if isinstance(d, dict):
+                        if r.get("task_id"):
+                            d.setdefault("task_id", r["task_id"])
+                            d["id"] = r["task_id"]
+                        d.setdefault("client_id", r.get("client_id"))
+                        out.append(d)
+                return out
+    except Exception as e:
+        print(f"[all tasks db] {e}")
+    return cache.get("tasks") or []
+
 def save_client_tasks(tasks_list, _cid=None):
     _cid = _cid or current_client_id()
     all_tasks = cache.get("tasks") or []
@@ -5058,6 +5081,36 @@ def save_client_tasks(tasks_list, _cid=None):
         rows_to_upsert = list(tasks_by_id.values())
         if rows_to_upsert:
             supa_upsert("mam_tasks", rows_to_upsert)
+
+def save_one_task(t, cid=None):
+    """Persist a SINGLE mutated task by id — the correct way to save after mutating a
+    task fetched via _find_task_any_client (which returns a fresh dict, not a cache ref).
+    Per-row upsert to mam_tasks (race-safe) + keeps the cache blob in sync."""
+    if not isinstance(t, dict):
+        return
+    cid = cid or t.get("client_id") or current_client_id()
+    t["client_id"] = cid
+    t_id = t.get("task_id") or t.get("id")
+    if not t_id:
+        return
+    # in-memory + blob fallback (replace-or-append this one task)
+    all_tasks = cache.get("tasks") or []
+    for i, x in enumerate(all_tasks):
+        if isinstance(x, dict) and str(x.get("task_id")) == str(t_id):
+            all_tasks[i] = t
+            break
+    else:
+        all_tasks.append(t)
+    cache["tasks"] = all_tasks
+    push_setting("meta_ai_tasks", all_tasks)
+    # authoritative race-safe per-row write
+    if SUPABASE_URL and SUPABASE_KEY:
+        supa_upsert("mam_tasks", [{
+            "task_id": str(t_id), "client_id": str(cid),
+            "status": str(t.get("status") or "Pending"),
+            "assigned_employee_id": str(t.get("assigned_employee_id") or t.get("assigned_to") or "") or None,
+            "data": t,
+        }])
 
 def get_client_task_logs(_cid=None):
     _cid = _cid or current_client_id()
@@ -5849,7 +5902,7 @@ def api_task_set_dates(task_id):
     # if no explicit deadline, default it to the publish date
     if not t.get("delivery_deadline") and t.get("publish_date"):
         t["delivery_deadline"] = t["publish_date"]
-    save_client_tasks(get_client_tasks(cid), cid)
+    save_one_task(t, cid)
     return jsonify({"ok": True, "task": t})
 
 
@@ -6001,7 +6054,7 @@ def api_task_add_reference(task_id):
     t.setdefault(key, [])
     if url not in t[key]:
         t[key].append(url)
-    save_client_tasks(get_client_tasks(cid), cid)
+    save_one_task(t, cid)
     return jsonify({"ok": True, "task": t})
 
 
@@ -6031,7 +6084,7 @@ def api_task_upload_asset(task_id):
     if link not in t["media_urls"]:
         t["media_urls"].append(link)
     t["media_type"] = "video" if mime.startswith("video") else "image"
-    save_client_tasks(get_client_tasks(cid), cid)
+    save_one_task(t, cid)
     return jsonify({"ok": True, "drive_link": link, "task": t})
 
 
@@ -6076,7 +6129,7 @@ def api_task_upload_complete(task_id):
     if link not in t["media_urls"]:
         t["media_urls"].append(link)
     t["media_type"] = "video" if str(mime).startswith("video") else "image"
-    save_client_tasks(get_client_tasks(cid), cid)
+    save_one_task(t, cid)
     return jsonify({"ok": True, "drive_link": link})
 
 
@@ -6503,8 +6556,8 @@ def api_my_tasks():
     uname = current_username()
     if is_manager() and not eid:
         return jsonify({"tasks": [], "note": "manager"}), 200
-    all_tasks = cache.get("tasks") or []
-    mine = [t for t in all_tasks if isinstance(t, dict) and (
+    all_tasks = _all_tasks_db()
+    mine = [t for t in all_tasks if isinstance(t, dict) and eid and (
         str(t.get("assigned_employee_id") or "") == eid or
         str(t.get("assignee_name") or "") == (current_user_rec().get("name") or uname))]
     mine.sort(key=lambda t: str(t.get("delivery_deadline") or t.get("publish_date") or ""))
@@ -6574,7 +6627,7 @@ def api_task_resend(task_id):
     nm = _sheet_emp(t.get("assigned_employee_id")).get("name", "")
     if nm and t.get("assignee_name") != nm:
         t["assignee_name"] = nm
-        save_client_tasks(get_client_tasks(cid), cid)
+        save_one_task(t, cid)
     sent = bool(send_task_to_employee(t, cid))
     return jsonify({"ok": True, "telegram_sent": sent})
 
@@ -6585,8 +6638,9 @@ def api_task_resend(task_id):
 #  Employees act on their OWN tasks; managers review. Telegram notifies each side.
 # ============================================================
 def _find_task_any_client(task_id):
-    """Return (task, cid) for a task id across all clients, or (None, None)."""
-    for t in (cache.get("tasks") or []):
+    """Return (task, cid) for a task id across all clients, or (None, None).
+    Reads the race-safe mam_tasks table (fallback to the cache blob)."""
+    for t in _all_tasks_db():
         if isinstance(t, dict) and str(t.get("task_id")) == str(task_id):
             return t, t.get("client_id")
     return None, None
@@ -6619,7 +6673,7 @@ def api_my_task_start(task_id):
     ts["is_running"] = True
     ts["last_start"] = t["started_at"]
     t["timer_state"] = ts
-    save_client_tasks(get_client_tasks(cid), cid)  # persist (t is a live ref inside cache)
+    save_one_task(t, cid)
     return jsonify({"ok": True, "task": t})
 
 
@@ -6659,7 +6713,7 @@ def api_my_task_submit(task_id):
     t["status"] = "Awaiting AM Review"
     t["notes"] = notes
     t["submitted_at"] = datetime.now(timezone.utc).isoformat()
-    save_client_tasks(get_client_tasks(cid), cid)
+    save_one_task(t, cid)
     mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
     # ping ONLY the client's account manager (it also shows in their web board).
     _notify_client_am(cid,
@@ -6748,7 +6802,7 @@ def api_task_review(task_id):
             send_telegram_bot_notification(cur_tg,
                 f"✅ <b>تم اعتماد مهمتك واتجدولت للنشر</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\n"
                 + (f"📝 {review_note}" if review_note else "شغل جميل 👏"))
-    save_client_tasks(get_client_tasks(cid), cid)
+    save_one_task(t, cid)
     return jsonify({"ok": True, "task": t, "scheduled": scheduled})
 
 
@@ -7620,33 +7674,42 @@ def _tasks_handle_callback(cbq):
                 ts["is_running"] = True
                 ts["last_start"] = t["started_at"]
                 t["timer_state"] = ts
-                save_client_tasks(get_client_tasks(cid), cid)
+                save_one_task(t, cid)
                 _tasks_answer(cb_id, "بدأت الشغل 🚀")
-        else:  # tb_ submit
+        else:  # tb_ submit → ask for a note to the account manager first
             if t.get("status") != "In Progress":
                 _tasks_answer(cb_id, "لازم تبدأ الشغل الأول")
             else:
-                ts = t.get("timer_state") or {}
-                if ts.get("is_running") and ts.get("last_start"):
-                    try:
-                        ts["elapsed_seconds"] = (ts.get("elapsed_seconds") or 0) + int(
-                            (datetime.now(timezone.utc) - datetime.fromisoformat(ts["last_start"])).total_seconds())
-                    except Exception:
-                        pass
-                ts["is_running"] = False
-                ts["last_start"] = None
-                t["timer_state"] = ts
-                t["status"] = "Awaiting AM Review"
-                t["notes"] = "تم التسليم من التليجرام"
-                t["submitted_at"] = datetime.now(timezone.utc).isoformat()
-                save_client_tasks(get_client_tasks(cid), cid)
-                _notify_client_am(cid, f"📤 <b>تسليم مهمة للمراجعة</b>\n📝 {t.get('title','')}\n👤 {t.get('assignee_name','')}\n🏢 {_client_name(cid)}")
-                _tasks_answer(cb_id, "اتسلّمت للمراجعة ✅")
-        # refresh the card in place
-        if message_id:
-            _tasks_edit(chat_id, message_id, _task_card_text(t, cid), inline=_task_card_buttons(t))
+                pend = cache.get("tasks_note_pending") or {}
+                pend[str(presser)] = tid
+                cache["tasks_note_pending"] = pend
+                push_setting("meta_ai_tasks_note_pending", pend)
+                _tasks_answer(cb_id, "اكتب ملاحظتك 📝")
+                _tasks_send(chat_id, f"📝 اكتب ملاحظتك للأكونت مانيجر عن «{t.get('title','')}» (أو ابعت <b>تم</b> من غير ملاحظة):")
         return
     _tasks_answer(cb_id)
+
+
+def _tasks_do_submit(t, cid, note):
+    """Stop the timer, mark Awaiting AM Review with the employee's note, notify the AM."""
+    ts = t.get("timer_state") or {}
+    if ts.get("is_running") and ts.get("last_start"):
+        try:
+            ts["elapsed_seconds"] = (ts.get("elapsed_seconds") or 0) + int(
+                (datetime.now(timezone.utc) - datetime.fromisoformat(ts["last_start"])).total_seconds())
+        except Exception:
+            pass
+    ts["is_running"] = False
+    ts["last_start"] = None
+    t["timer_state"] = ts
+    t["status"] = "Awaiting AM Review"
+    t["notes"] = note or "—"
+    t["submitted_at"] = datetime.now(timezone.utc).isoformat()
+    save_one_task(t, cid)
+    mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
+    _notify_client_am(cid,
+        f"📥 <b>مهمة جاهزة للمراجعة</b>\n👤 {t.get('assignee_name','')}\n📝 {t.get('title','')}\n"
+        f"🏢 {_client_name(cid)}\n⏱️ {mins} دقيقة\n📝 ملاحظات: {note or '—'}")
 
 
 @app.route("/api/telegram/tasks", methods=["POST"])
@@ -7663,6 +7726,20 @@ def telegram_tasks_webhook():
         chat_id = str((msg.get("chat") or {}).get("id", ""))
         text = (msg.get("text") or "").strip()
         tg_id = str((msg.get("from") or {}).get("id", ""))
+        # If the employee owes a submit-note, treat this message as the note.
+        pend = cache.get("tasks_note_pending") or {}
+        if tg_id in pend and text and text != "/start":
+            tid = pend.pop(tg_id)
+            cache["tasks_note_pending"] = pend
+            push_setting("meta_ai_tasks_note_pending", pend)
+            t, cid = _find_task_any_client(tid)
+            if t and t.get("status") == "In Progress":
+                note = "" if text in ("تم", "خلاص", "لا", "skip", "-") else text
+                _tasks_do_submit(t, cid, note)
+                _tasks_send(chat_id, "✅ اتسلّمت للأكونت مانيجر للمراجعة. شكراً!")
+            else:
+                _tasks_send(chat_id, "المهمة مش في مرحلة التسليم.")
+            return jsonify({"ok": True})
         if text == "/start":
             emp = _tasks_presser_emp(tg_id)
             nm = emp.get("name", "") if emp else ""
