@@ -2985,6 +2985,14 @@ def assigned_client_ids():
 def can_see_client(cid):
     return is_admin() or (cid in assigned_client_ids())
 
+def _hx(s):
+    """HTML-escape a value for safe interpolation into server-rendered HTML."""
+    import html as _html
+    return _html.escape(str(s if s is not None else ""), quote=True)
+
+def _is_real_client(cid):
+    return any(str(c.get("id")) == str(cid) for c in AGENCY_CLIENTS_STORE)
+
 def require_admin(f):
     @wraps(f)
     def _w(*a, **k):
@@ -5559,8 +5567,8 @@ def api_plan_create():
     client_id = (data.get("client_id") or "").strip()
     am_id = (data.get("am_employee_id") or "").strip()
     plan_text = (data.get("plan_text") or "").strip()
-    if not client_id:
-        return jsonify({"error": "اختر العميل"}), 400
+    if not client_id or not _is_real_client(client_id):
+        return jsonify({"error": "اختر عميلاً صحيحاً"}), 400
     if not plan_text:
         return jsonify({"error": "اكتب البلان"}), 400
 
@@ -5637,23 +5645,23 @@ def share_plan_view(client_id):
     cards = []
     for t in tasks:
         imgs = "".join(
-            f'<a href="{u}" target="_blank"><img src="{u}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;margin:2px"></a>'
-            for u in (t.get("media_urls") or [])[:6])
-        cap = (t.get("caption") or t.get("description") or "").replace("\n", "<br>")
-        pub = t.get("publish_date") or "—"
+            f'<a href="{_hx(u)}" target="_blank"><img src="{_hx(u)}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;margin:2px"></a>'
+            for u in (t.get("media_urls") or [])[:6] if str(u).startswith(("http://", "https://")))
+        cap = _hx(t.get("caption") or t.get("description") or "").replace("\n", "<br>")
+        pub = _hx(t.get("publish_date") or "—")
         cards.append(
             f'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:10px 0">'
-            f'<div style="font-weight:800;font-size:15px;color:#0f172a">{t.get("title","")}</div>'
+            f'<div style="font-weight:800;font-size:15px;color:#0f172a">{_hx(t.get("title",""))}</div>'
             f'<div style="color:#475569;font-size:13px;margin:6px 0;line-height:1.7">{cap}</div>'
             f'<div style="color:#2563eb;font-size:12px;font-weight:700">📅 النشر: {pub}</div>'
             f'<div style="margin-top:6px">{imgs}</div></div>')
     body = "".join(cards) or "<p style='text-align:center;color:#94a3b8'>لا توجد بوستات بعد</p>"
     return (f'<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>بلان {cname}</title></head>'
+            f'<title>بلان {_hx(cname)}</title></head>'
             f'<body style="font-family:system-ui,sans-serif;background:#f8fafc;margin:0;padding:16px">'
             f'<div style="max-width:640px;margin:0 auto">'
-            f'<h2 style="color:#0f172a">📋 بلان المحتوى — {cname}</h2>'
+            f'<h2 style="color:#0f172a">📋 بلان المحتوى — {_hx(cname)}</h2>'
             f'<p style="color:#64748b;font-size:13px">عدد البوستات: {len(tasks)}</p>{body}'
             f'<p style="text-align:center;color:#cbd5e1;font-size:11px;margin-top:20px">Domya Meta Suite</p>'
             f'</div></body></html>')
@@ -5666,6 +5674,8 @@ def api_task_add_reference(task_id):
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
+    if not can_see_client(cid):
+        return jsonify({"error": "غير مصرح"}), 403
     data = request.get_json() or {}
     url = (data.get("url") or "").strip()
     if not url:
@@ -5688,6 +5698,9 @@ def api_task_upload_asset(task_id):
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
+    # the assignee (employee) OR a manager/admin on this client may upload
+    if not (can_see_client(cid) or str(t.get("assigned_employee_id") or "") == _my_employee_id()):
+        return jsonify({"error": "غير مصرح"}), 403
     up = request.files.get("file") if request.files else None
     if not up or not up.filename:
         return jsonify({"error": "لم يتم اختيار ملف"}), 400
@@ -5832,7 +5845,7 @@ def api_tasks_monthly_report():
             stats[eid]["durations"].append(secs / 60.0)
         note = (t.get("notes") or t.get("note") or "").strip()
         if note and note not in (".", "-"):
-            stats[eid]["notes"].append(f"<b>{t.get('task_id')}:</b> {note}")
+            stats[eid]["notes"].append(f"<b>{_hx(t.get('task_id'))}:</b> {_hx(note)}")
 
     report_data = []
     for eid, s in stats.items():
