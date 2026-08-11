@@ -551,6 +551,34 @@ async function addEmployeeAndInvite(invite) {
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
+// ---- Company employees roster (sheet) with delete ----
+async function renderCompanyEmployees() {
+  const box = document.getElementById('company-emps');
+  if (!box) return;
+  let emps = [];
+  try { const d = await (await fetch('/api/tasks/employees')).json(); emps = d.employees || []; } catch(e){}
+  if (!emps.length) { box.innerHTML = '<div class="text-[11px] text-slate-400">لا يوجد موظفون</div>'; return; }
+  box.innerHTML = emps.map(e => `
+    <div class="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-3 py-1.5">
+      <div class="text-xs">
+        <span class="font-bold text-slate-900">${esc(e.name||e.employee_id)}</span>
+        <span class="text-[11px] text-slate-500">${esc(e.role||'')}</span>
+        ${e.telegram_id?'<span class="text-[10px] text-emerald-600">• تليجرام ✓</span>':'<span class="text-[10px] text-amber-500">• بدون تليجرام</span>'}
+      </div>
+      <button onclick="deleteCompanyEmployee('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">حذف</button>
+    </div>`).join('');
+}
+
+async function deleteCompanyEmployee(empId, name) {
+  if (!confirm('حذف الموظف ' + (name||empId) + ' من القائمة نهائياً؟')) return;
+  try {
+    const r = await fetch('/api/employees/' + encodeURIComponent(empId), { method: 'DELETE' });
+    const d = await r.json();
+    if (r.ok && d.ok) { showToast('تم حذف الموظف 🗑️'); renderCompanyEmployees(); }
+    else showToast(d.error || 'تعذّر الحذف', 'error');
+  } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
 // ---- Team & Access management (admin only) ----
 async function loadTeam() {
   const panel = document.getElementById('team-panel');
@@ -569,6 +597,7 @@ async function loadTeam() {
       <input type="checkbox" class="nm-client-cb" value="${esc(c.id)}"> ${esc(c.name)}
     </label>`).join('') || '<span class="text-slate-400">لا يوجد عملاء</span>';
   renderMembers();
+  renderCompanyEmployees();
   if (window.lucide) lucide.createIcons();
 }
 

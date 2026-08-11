@@ -16,7 +16,7 @@
   </script>
   <script src="https://unpkg.com/lucide@latest">
   </script>
-  <link href="/static/css/styles.css?v=7.13" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.14" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -818,8 +818,17 @@
        <div id="ne-result" class="hidden text-[11px] bg-white border border-slate-200 rounded-lg p-2"></div>
       </div>
 
-      <!-- Members list -->
+      <!-- Members list (portal users) -->
       <div id="members-list" class="space-y-2"></div>
+
+      <!-- Company employees roster (from the sheet) with delete -->
+      <div class="border-t border-slate-200 pt-3 mt-2">
+       <div class="flex items-center justify-between mb-2">
+        <h4 class="font-bold text-sm text-slate-900">👥 موظفو الشركة</h4>
+        <button onclick="renderCompanyEmployees()" class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 text-slate-600">تحديث</button>
+       </div>
+       <div id="company-emps" class="space-y-1.5"></div>
+      </div>
      </div>
 
      <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
@@ -1488,15 +1497,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.13">
+  <script src="/static/js/app.js?v=7.14">
   </script>
-  <script src="/static/js/inbox.js?v=7.13">
+  <script src="/static/js/inbox.js?v=7.14">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.13">
+  <script src="/static/js/chatwoot_free.js?v=7.14">
   </script>
-  <script src="/static/js/views.js?v=7.13">
+  <script src="/static/js/views.js?v=7.14">
   </script>
-  <script src="/static/js/clients.js?v=7.13">
+  <script src="/static/js/clients.js?v=7.14">
   </script>
  
   <!-- Modal: Add New Connected Account -->
