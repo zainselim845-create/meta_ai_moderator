@@ -3015,6 +3015,8 @@ PUBLIC_PATHS = {
     '/api/drive/diag',
     '/api/telegram/bots',
     '/api/telegram/attendance/welcome',
+    '/api/telegram/tasks',
+    '/api/telegram/tasks/setup',
     '/api/hr/cleanup',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
@@ -5954,19 +5956,8 @@ def api_tasks_assign(task_id):
     t["assigned_at"] = datetime.now(timezone.utc).isoformat()
     save_client_tasks(tasks, _cid)
 
-    sent = False
-    if tg:
-        cname = next((c.get("name") for c in AGENCY_CLIENTS_STORE if c.get("id") == _cid), _cid)
-        msg = (
-            "📋 <b>مهمة جديدة مُسندة ليك</b>\n\n"
-            f"👤 {emp_name}\n"
-            f"🏢 العميل: {cname}\n"
-            f"📝 {t.get('title','')}\n"
-            f"📅 معاد النزول: {t.get('publish_date','-')}\n"
-            f"⏰ معاد التسليم: {t.get('delivery_deadline','-')}\n\n"
-            "افتح البوابة عشان تبدأ الشغل 🚀"
-        )
-        sent = bool(send_telegram_bot_notification(tg, msg))
+    # Send an INTERACTIVE task card (start/submit buttons) — same actions as the website.
+    sent = bool(send_task_to_employee(t, _cid)) if tg else False
     return jsonify({"ok": True, "task": t, "telegram_sent": sent})
 
 
@@ -6809,3 +6800,258 @@ def telegram_attendance_diag():
         "current_webhook": wh.get("url", ""),
         "cron_secret_set": bool(os.environ.get("CRON_SECRET", "")),
     })
+
+
+# ============================================================
+#  Interactive Tasks Telegram Bot (@tasks01_bot)
+#  Employees act on their tasks from Telegram with buttons — the
+#  same actions as the website (start / submit). Managers/owner
+#  can delete an employee from the roster. Mirrors the web lifecycle.
+# ============================================================
+import urllib.request as _tq
+
+def _tasks_bot_token():
+    return os.environ.get("TELEGRAM_TASKS_BOT_TOKEN", "")
+
+def _tasks_api(method, payload):
+    tok = _tasks_bot_token()
+    if not tok:
+        return {}
+    try:
+        req = _tq.Request(f"https://api.telegram.org/bot{tok}/{method}",
+                          data=json.dumps(payload).encode("utf-8"),
+                          headers={"Content-Type": "application/json"})
+        return json.loads(_tq.urlopen(req, timeout=12).read())
+    except Exception as e:
+        print(f"[tasks api {method}] {e}")
+        return {}
+
+def _tasks_send(chat_id, text, inline=None):
+    p = {"chat_id": str(chat_id), "text": text, "parse_mode": "HTML"}
+    if inline is not None:
+        p["reply_markup"] = {"inline_keyboard": inline}
+    return _tasks_api("sendMessage", p).get("ok", False)
+
+def _tasks_edit(chat_id, message_id, text, inline=None):
+    p = {"chat_id": str(chat_id), "message_id": message_id, "text": text, "parse_mode": "HTML"}
+    if inline is not None:
+        p["reply_markup"] = {"inline_keyboard": inline}
+    return _tasks_api("editMessageText", p).get("ok", False)
+
+def _tasks_answer(cb_id, text=""):
+    _tasks_api("answerCallbackQuery", {"callback_query_id": cb_id, "text": text})
+
+def _task_card_text(t, cid):
+    st = t.get("status", "")
+    st_ar = {"Assigned": "مُسندة", "In Progress": "جاري العمل",
+             "Awaiting AM Review": "بانتظار المراجعة", "Completed": "مكتملة"}.get(st, st)
+    lines = [
+        "📋 <b>مهمة</b>",
+        f"👤 {t.get('assignee_name','')}",
+        f"🏢 {_client_name(cid)}",
+        f"📝 <b>{t.get('title','')}</b>",
+    ]
+    if t.get("description"):
+        lines.append(f"{t.get('description')[:200]}")
+    lines.append(f"📅 النشر: {t.get('publish_date','-')}  |  ⏰ التسليم: {t.get('delivery_deadline','-')}")
+    lines.append(f"📌 الحالة: <b>{st_ar}</b>")
+    return "\n".join(lines)
+
+def _task_card_buttons(t):
+    tid = t.get("task_id")
+    st = t.get("status", "")
+    rows = []
+    if st == "Assigned":
+        rows.append([{"text": "🚀 بدء العمل", "callback_data": f"ts_{tid}"}])
+    elif st == "In Progress":
+        rows.append([{"text": "✅ تسليم المهمة للمراجعة", "callback_data": f"tb_{tid}"}])
+    elif st == "Awaiting AM Review":
+        rows.append([{"text": "⏳ بانتظار مراجعة المدير", "callback_data": "noop"}])
+    elif st == "Completed":
+        rows.append([{"text": "✔️ مكتملة", "callback_data": "noop"}])
+    if t.get("drive_link"):
+        rows.append([{"text": "📁 ملف Google Drive", "url": t.get("drive_link")}])
+    return rows
+
+def send_task_to_employee(t, cid):
+    """Send an interactive task card to the assigned employee's Telegram."""
+    tg = _emp_chat(t.get("assigned_employee_id"))
+    if not tg:
+        return False
+    return _tasks_send(tg, _task_card_text(t, cid), inline=_task_card_buttons(t))
+
+def _tasks_presser_emp(tg_id):
+    """Map a Telegram presser to their employee record (fresh)."""
+    tg = str(tg_id).replace(".0", "").strip()
+    cfg = hr_config()
+    for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
+        if str(e.get("telegram_id", "")).replace(".0", "").strip() == tg:
+            return e
+    return {}
+
+def _tasks_handle_callback(cbq):
+    data = str(cbq.get("data", ""))
+    cb_id = cbq.get("id")
+    presser = str((cbq.get("from") or {}).get("id", "")).strip()
+    msg = cbq.get("message") or {}
+    chat_id = str((msg.get("chat") or {}).get("id", ""))
+    message_id = msg.get("message_id")
+
+    if data == "noop":
+        _tasks_answer(cb_id)
+        return
+
+    # ---- delete employee (managers/owner only) ----
+    if data.startswith("ed_"):
+        allowed = {str(_owner_chat()).strip()}
+        allowed |= {x.strip() for x in os.environ.get("OWNER_APPROVERS", "").split(",") if x.strip()}
+        if presser not in allowed:
+            _tasks_answer(cb_id, "غير مصرح لك")
+            return
+        emp_id = data[3:]
+        ok = _delete_sheet_employee(emp_id)
+        _tasks_answer(cb_id, "تم حذف الموظف" if ok else "تعذّر الحذف")
+        if ok and message_id:
+            _tasks_edit(chat_id, message_id, f"🗑️ تم حذف الموظف <code>{emp_id}</code> من القائمة.")
+        return
+
+    # ---- task actions (start / submit) ----
+    if data.startswith("ts_") or data.startswith("tb_"):
+        tid = data[3:]
+        t, cid = _find_task_any_client(tid)
+        if not t:
+            _tasks_answer(cb_id, "المهمة غير موجودة")
+            return
+        # only the assignee may act
+        assignee_tg = _emp_chat(t.get("assigned_employee_id"))
+        if presser != str(assignee_tg).strip():
+            _tasks_answer(cb_id, "دي مش مهمتك")
+            return
+        if data.startswith("ts_"):
+            if t.get("status") != "Assigned":
+                _tasks_answer(cb_id, "المهمة مش في مرحلة البدء")
+            else:
+                t["status"] = "In Progress"
+                t["started_at"] = datetime.now(timezone.utc).isoformat()
+                ts = t.get("timer_state") or {"is_running": False, "elapsed_seconds": 0, "last_start": None}
+                ts["is_running"] = True
+                ts["last_start"] = t["started_at"]
+                t["timer_state"] = ts
+                save_client_tasks(get_client_tasks(cid), cid)
+                _tasks_answer(cb_id, "بدأت الشغل 🚀")
+        else:  # tb_ submit
+            if t.get("status") != "In Progress":
+                _tasks_answer(cb_id, "لازم تبدأ الشغل الأول")
+            else:
+                ts = t.get("timer_state") or {}
+                if ts.get("is_running") and ts.get("last_start"):
+                    try:
+                        ts["elapsed_seconds"] = (ts.get("elapsed_seconds") or 0) + int(
+                            (datetime.now(timezone.utc) - datetime.fromisoformat(ts["last_start"])).total_seconds())
+                    except Exception:
+                        pass
+                ts["is_running"] = False
+                ts["last_start"] = None
+                t["timer_state"] = ts
+                t["status"] = "Awaiting AM Review"
+                t["notes"] = "تم التسليم من التليجرام"
+                t["submitted_at"] = datetime.now(timezone.utc).isoformat()
+                save_client_tasks(get_client_tasks(cid), cid)
+                _notify_client_am(cid, f"📤 <b>تسليم مهمة للمراجعة</b>\n📝 {t.get('title','')}\n👤 {t.get('assignee_name','')}\n🏢 {_client_name(cid)}")
+                _tasks_answer(cb_id, "اتسلّمت للمراجعة ✅")
+        # refresh the card in place
+        if message_id:
+            _tasks_edit(chat_id, message_id, _task_card_text(t, cid), inline=_task_card_buttons(t))
+        return
+    _tasks_answer(cb_id)
+
+
+@app.route("/api/telegram/tasks", methods=["POST"])
+def telegram_tasks_webhook():
+    secret = os.environ.get("TELEGRAM_TASKS_WEBHOOK_SECRET", "")
+    if not secret or request.headers.get("X-Telegram-Bot-Api-Secret-Token", "") != secret:
+        return jsonify({"ok": False}), 401
+    try:
+        update = request.get_json(force=True, silent=True) or {}
+        if update.get("callback_query"):
+            _tasks_handle_callback(update["callback_query"])
+            return jsonify({"ok": True})
+        msg = update.get("message") or {}
+        chat_id = str((msg.get("chat") or {}).get("id", ""))
+        text = (msg.get("text") or "").strip()
+        tg_id = str((msg.get("from") or {}).get("id", ""))
+        if text == "/start":
+            emp = _tasks_presser_emp(tg_id)
+            nm = emp.get("name", "") if emp else ""
+            _tasks_send(chat_id, f"👋 أهلاً {nm}! ده بوت المهام. هتوصلك مهامك هنا وتقدر تبدأها وتسلّمها بالأزرار.\n\nافتح البوابة: {os.environ.get('PORTAL_URL','https://metaaimoderator.vercel.app')}")
+        return jsonify({"ok": True})
+    except Exception as e:
+        print(f"[tasks webhook] {e}")
+        return jsonify({"ok": True})
+
+
+def _delete_sheet_employee(emp_id):
+    """Delete an employee row from the employees sheet by employee_id (column A),
+    and drop any manually-added copy. Returns True if a row was removed."""
+    cfg = hr_config()
+    sid, gid = cfg["sheet_id"], cfg["employees_gid"]
+    token = get_google_oauth_access_token()
+    header, rows = _sheets_get_all(sid, gid)
+    removed = False
+    if token and header:
+        idx = {h: i for i, h in enumerate(header)}
+        ei = idx.get("employee_id", 0)
+        targets = [i + 1 for i, row in enumerate(rows)
+                   if ei < len(row) and str(row[ei]).strip() == str(emp_id).strip()]
+        if targets:
+            body = [{"deleteDimension": {"range": {"sheetId": int(gid), "dimension": "ROWS",
+                     "startIndex": r, "endIndex": r + 1}}} for r in sorted(targets, reverse=True)]
+            try:
+                req = urllib.request.Request(
+                    f"https://sheets.googleapis.com/v4/spreadsheets/{sid}:batchUpdate",
+                    data=json.dumps({"requests": body}).encode("utf-8"),
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+                urllib.request.urlopen(req, timeout=20).read()
+                removed = True
+            except Exception as e:
+                print(f"[delete emp] {e}")
+    # drop manual copy in Supabase-backed store
+    try:
+        emps = [e for e in get_client_employees(current_client_id())
+                if str(e.get("employee_id")) != str(emp_id)]
+        save_client_employees(emps, current_client_id())
+    except Exception:
+        pass
+    return removed
+
+
+@app.route("/api/employees/<emp_id>", methods=["DELETE"])
+@require_manager
+def api_delete_employee(emp_id):
+    """Remove an employee from the roster (sheet + manual)."""
+    ok = _delete_sheet_employee(emp_id)
+    return jsonify({"ok": ok, "removed": emp_id})
+
+
+@app.route("/api/telegram/tasks/setup", methods=["POST"])
+def telegram_tasks_setup():
+    """Register (or delete) the tasks bot webhook. Auth: admin OR X-Diag-Key header."""
+    if not _diag_ok():
+        return jsonify({"error": "Unauthorized"}), 401
+    tok = _tasks_bot_token()
+    if not tok:
+        return jsonify({"error": "tasks bot token not set"}), 400
+    if request.args.get("action") == "delete":
+        r = _tq.urlopen(f"https://api.telegram.org/bot{tok}/deleteWebhook", timeout=12).read()
+        return jsonify({"ok": True, "action": "deleted", "result": json.loads(r)})
+    base = os.environ.get("PORTAL_URL", "https://metaaimoderator.vercel.app").rstrip("/")
+    hook = f"{base}/api/telegram/tasks"
+    payload = {"url": hook, "allowed_updates": ["message", "callback_query"]}
+    sec = os.environ.get("TELEGRAM_TASKS_WEBHOOK_SECRET", "")
+    if sec:
+        payload["secret_token"] = sec
+    req = _tq.Request(f"https://api.telegram.org/bot{tok}/setWebhook",
+                      data=json.dumps(payload).encode("utf-8"),
+                      headers={"Content-Type": "application/json"})
+    res = json.loads(_tq.urlopen(req, timeout=12).read())
+    return jsonify({"ok": res.get("ok", False), "webhook": hook, "result": res})
