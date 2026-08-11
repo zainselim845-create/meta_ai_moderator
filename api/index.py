@@ -3086,6 +3086,8 @@ def global_api_guard():
     p = request.path
     if not p.startswith('/api/'):
         return
+    # near-real-time scheduled publishing, driven by organic traffic (throttled 60s)
+    _maybe_process_due()
     if p in PUBLIC_PATHS:
         return
     if request.method == 'OPTIONS':
@@ -4754,6 +4756,26 @@ def _local_to_utc_iso(date_s, time_s):
     except Exception:
         return None
 
+_LAST_DUE_RUN = [0.0]
+def _maybe_process_due():
+    """Opportunistic near-real-time publishing: driven by organic traffic (page loads,
+    Telegram webhooks) so posts go out close to their time WITHOUT needing a paid
+    minute-level cron. Throttled to once/60s and never blocks on errors."""
+    try:
+        now = time.time()
+        if now - _LAST_DUE_RUN[0] < 60:
+            return
+        _LAST_DUE_RUN[0] = now
+        # only do work if something is actually due (cheap check)
+        posts = cache.get("scheduled_posts")
+        if not isinstance(posts, list):
+            return
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if any(p.get("status") == "pending" and p.get("scheduled_at") and p["scheduled_at"] <= now_iso for p in posts):
+            _process_due_posts()
+    except Exception as e:
+        print(f"[maybe due] {e}")
+
 def _process_due_posts():
     """Publish every pending post whose UTC time has arrived. Safe to call often
     (from the cron AND opportunistically when the user opens the scheduler)."""
@@ -5706,6 +5728,7 @@ def api_tasks_ingest_plan():
 @require_manager
 def api_task_set_dates(task_id):
     """AM sets a task's start date (البدء), publish date (النزول) and internal deadline."""
+    sync_from_supabase()
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
@@ -6109,7 +6132,7 @@ def api_tasks_send_monthly_report():
     rows_html = ""
     for r in report_rows:
         notes_html = f"<ul>{''.join([f'<li>{n}</li>' for n in r['notes']])}</ul>" if r['notes'] else "<i>No notes</i>"
-        rows_html += f"<tr><td style='padding:8px;border:1px solid #e2e8f0;'>{r['employee']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['assigned']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['started']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completed']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completion_rate']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['avg_duration']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{notes_html}</td></tr>"
+        rows_html += f"<tr><td style='padding:8px;border:1px solid #e2e8f0;'>{_hx(r['employee'])}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['assigned']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['started']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completed']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completion_rate']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['avg_duration']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{notes_html}</td></tr>"
 
     generated_at = datetime.now(timezone.utc).strftime("%d/%m/%Y - %I:%M %p UTC")
     html_content = f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>body{{font-family:Arial,sans-serif;background:#f8fafc;padding:20px;color:#1e293b;}}table{{border-collapse:collapse;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;}}th{{background:#2563eb;color:white;padding:10px;text-align:right;}}td{{padding:8px;border:1px solid #e2e8f0;}}</style></head><body><div style="max-width:700px;margin:0 auto;background:#ffffff;padding:25px;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.05);"><h2 style="color:#2563eb;margin-top:0;text-align:center;">📊 تقرير أداء وساعات عمل الفريق - {month_str}</h2><p style="font-size:14px;color:#64748b;text-align:center;">تاريخ التقرير: <strong>{month_str}</strong> | وقت التقديم: {generated_at}</p><table><thead><tr><th>الموظف</th><th>المكتسبة</th><th>جاري العمل</th><th>المكتملة</th><th>معدل الإنجاز</th><th>متوسط الوقت</th><th>الملاحظات</th></tr></thead><tbody>{rows_html if rows_html else "<tr><td colspan='7' style='text-align:center;padding:15px;'>لا توجد مهام مسجلة لهذا الشهر بعد</td></tr>"}</tbody></table><p style="font-size:12px;color:#94a3b8;margin-top:25px;text-align:center;">تم إصدار هذا التقرير تلقائياً من منصة Domya Meta AI Task & Operations Engine 🚀</p></div></body></html>"""
@@ -6883,6 +6906,10 @@ def _att_handle_location(emp, chat_id, loc):
         _att_send(chat_id, "✅ سجّلت حضورك وانصرافك النهاردة خلاص. شكراً!", keyboard=_att_menu())
         return
     if not has_in:
+        # re-check right before writing to avoid a duplicate row from a near-simultaneous update
+        if any(str(r.get("checkin_time", "")).strip() not in ("", "0") for r in _att_today_records(emp.get("employee_id"), today)):
+            _att_send(chat_id, "✅ حضورك مسجّل بالفعل النهاردة.", keyboard=_att_menu())
+            return
         status = "متأخر" if now_t >= ATT_LATE_AFTER else "حاضر"
         ok = _sheets_append(cfg["sheet_id"], cfg["attendance_gid"],
             ["employee_id", "date", "name", "checkin_time", "checkout_time", "hours", "latitude", "longitude", "distance", "status"],
@@ -7439,6 +7466,7 @@ def _tasks_presser_emp(tg_id):
     return {}
 
 def _tasks_handle_callback(cbq):
+    sync_from_supabase()  # read latest tasks before mutating (warm-instance staleness)
     data = str(cbq.get("data", ""))
     cb_id = cbq.get("id")
     presser = str((cbq.get("from") or {}).get("id", "")).strip()
