@@ -476,17 +476,32 @@ async function loadMyPortal() {
       if (/Completed|مكتمل/i.test(s)) return `<span class="text-[11px] text-emerald-600 font-bold">✅ مكتملة</span>`;
       return '';
     };
+    const refThumbs = (t) => {
+      const imgs = (t.media_urls||[]);
+      if (!imgs.length) return '';
+      return `<div class="flex gap-1 flex-wrap mt-1">${imgs.slice(0,4).map(u=>`<a href="${esc(u)}" target="_blank"><img src="${esc(u)}" class="w-11 h-11 rounded-lg object-cover border border-slate-200" onerror="this.style.display='none'"></a>`).join('')}</div>`;
+    };
+    const canWork = (t) => /Assigned|In Progress/i.test(t.status||'');
     if (box) box.innerHTML = tasks.length ? tasks.map(t => `
-      <div class="border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <div class="font-bold text-sm text-slate-900">${esc(t.title||t.task_id||'')}</div>
-          <div class="text-[11px] text-slate-500">📅 نزول: ${esc(t.publish_date||'-')} · ⏰ تسليم: ${esc(t.delivery_deadline||'-')}</div>
-          ${t.review_note ? `<div class="text-[11px] text-amber-700 mt-0.5">📝 ملاحظة المراجعة: ${esc(t.review_note)}</div>` : ''}
+      <div class="border border-slate-200 rounded-xl p-3 space-y-2">
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+          <div class="flex-1 min-w-[160px]">
+            <div class="font-bold text-sm text-slate-900">${esc(t.title||t.task_id||'')}</div>
+            <div class="text-[11px] text-slate-500">📅 نزول: ${esc(t.publish_date||'-')} · ⏰ تسليم: ${esc(t.delivery_deadline||'-')}</div>
+            ${t.caption ? `<div class="text-[11px] text-slate-600 mt-1 whitespace-pre-line line-clamp-3">${esc(t.caption)}</div>` : ''}
+            ${t.review_note ? `<div class="text-[11px] text-amber-700 mt-0.5">📝 ملاحظة المراجعة: ${esc(t.review_note)}</div>` : ''}
+            ${refThumbs(t)}
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <span class="text-[11px] px-2 py-0.5 rounded-full ${/(Completed|مكتمل)/.test(t.status||'')?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${esc(t.status||'')}</span>
+            ${actionBtns(t)}
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <span class="text-[11px] px-2 py-0.5 rounded-full ${/(Completed|مكتمل)/.test(t.status||'')?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${esc(t.status||'')}</span>
-          ${actionBtns(t)}
-        </div>
+        ${canWork(t) ? `<div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2">
+          <label class="cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-3 rounded-lg border border-sky-200">📤 ارفع شغلك (فيديو/تصميم)
+            <input type="file" accept="image/*,video/*" class="hidden" onchange="uploadMyTaskAsset('${esc(t.task_id)}', this)"></label>
+          ${t.drive_link ? `<a href="${esc(t.drive_link)}" target="_blank" class="text-[11px] text-emerald-700 font-bold">📁 ملفك على Drive</a>` : '<span class="text-[10px] text-slate-400">الملف بيترفع على Drive تلقائياً</span>'}
+        </div>` : (t.drive_link ? `<a href="${esc(t.drive_link)}" target="_blank" class="text-[11px] text-emerald-700 font-bold">📁 ملفك على Drive</a>` : '')}
       </div>`).join('') : '<div class="p-4 text-center text-xs text-slate-400">مفيش مهام مسندة ليك حالياً</div>';
   } catch(e) {}
   // My attendance
@@ -674,6 +689,21 @@ async function deleteCompanyEmployee(empId, name) {
     if (r.ok && d.ok) { showToast('تم حذف الموظف 🗑️'); renderCompanyEmployees(); }
     else showToast(d.error || 'تعذّر الحذف', 'error');
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
+// Employee uploads their work (video/graphic) from the portal — auto to Drive.
+async function uploadMyTaskAsset(taskId, input) {
+  const file = (input && input.files && input.files[0]) ? input.files[0] : null;
+  if (!file) return;
+  showToast('جاري رفع شغلك على Google Drive... ⏳');
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const r = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (r.ok && d.ok) { showToast('اترفع شغلك على Drive ✅'); if (typeof loadMyPortal === 'function') loadMyPortal(); }
+    else showToast(d.error || 'تعذّر الرفع', 'error');
+  } catch(e) { showToast('خطأ في الرفع', 'error'); }
+  if (input) input.value = '';
 }
 
 // ---- Team & Access management (admin only) ----
