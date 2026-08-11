@@ -567,18 +567,53 @@ async function addEmployeeAndInvite(invite) {
 async function renderCompanyEmployees() {
   const box = document.getElementById('company-emps');
   if (!box) return;
-  let emps = [];
+  let emps = [], users = [];
   try { const d = await (await fetch('/api/tasks/employees')).json(); emps = d.employees || []; } catch(e){}
+  try { const d = await (await fetch('/api/users')).json(); users = d.users || []; } catch(e){}
+  const roleOf = {};
+  users.forEach(u => { if (u.employee_id) roleOf[u.employee_id] = u.role; });
   if (!emps.length) { box.innerHTML = '<div class="text-[11px] text-slate-400">لا يوجد موظفون</div>'; return; }
-  box.innerHTML = emps.map(e => `
-    <div class="flex items-center justify-between gap-2 border border-slate-200 rounded-lg px-3 py-1.5">
-      <div class="text-xs">
+  const roleOpts = (cur) => ['employee','account_manager','admin'].map(r =>
+    `<option value="${r}" ${cur===r?'selected':''}>${r==='admin'?'مدير':r==='account_manager'?'أكونت مانيجر':'موظف'}</option>`).join('');
+  box.innerHTML = emps.map(e => {
+    const cur = roleOf[e.employee_id] || 'employee';
+    return `<div class="border border-slate-200 rounded-lg px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
+      <div class="text-xs min-w-[130px]">
         <span class="font-bold text-slate-900">${esc(e.name||e.employee_id)}</span>
-        <span class="text-[11px] text-slate-500">${esc(e.role||'')}</span>
-        ${e.telegram_id?'<span class="text-[10px] text-emerald-600">• تليجرام ✓</span>':'<span class="text-[10px] text-amber-500">• بدون تليجرام</span>'}
+        <span class="block text-[10px] text-slate-500">${esc(e.role||'')} ${e.telegram_id?'· تليجرام ✓':'· بدون تليجرام'}</span>
       </div>
-      <button onclick="deleteCompanyEmployee('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">حذف</button>
-    </div>`).join('');
+      <div class="flex items-center gap-1 flex-wrap">
+        <select onchange="setEmployeeRole('${esc(e.employee_id)}',this.value)" class="text-[11px] px-2 py-1 border border-slate-200 rounded-lg bg-white">${roleOpts(cur)}</select>
+        <button onclick="sendEmployeeCreds('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">📤 إرسال بياناته</button>
+        <button onclick="deleteCompanyEmployee('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function setEmployeeRole(empId, role) {
+  try {
+    const r = await fetch('/api/employees/' + encodeURIComponent(empId) + '/role', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ role: role })
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) showToast('اتحفظت الصلاحية ✅');
+    else showToast(d.error || 'تعذّر الحفظ', 'error');
+  } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
+async function sendEmployeeCreds(empId, name) {
+  if (!confirm('هيتبعت لـ ' + (name||empId) + ' لينك الدخول + اليوزر + الباسورد على تليجرام. تمام؟')) return;
+  try {
+    const r = await fetch('/api/employees/onboard', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ employee_ids: [empId] })
+    });
+    const d = await r.json();
+    const row = (d.results||[])[0] || {};
+    if (row.telegram_sent) showToast('اتبعت بياناته على تليجرام ✅');
+    else if (row.has_telegram === false) showToast('الموظف مالوش تليجرام في الشيت', 'error');
+    else showToast('اتعمل الأكونت بس الرسالة موصلتش (يعمل Start للبوت)', 'error');
+  } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
 async function deleteCompanyEmployee(empId, name) {
