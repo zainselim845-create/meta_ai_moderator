@@ -478,7 +478,7 @@ function renderScheduledPosts() {
         var preview = media
           ? (isVideo
               ? '<a href="' + esc(media) + '" target="_blank" class="flex items-center justify-center w-24 h-24 rounded-lg bg-slate-900 text-white text-2xl shrink-0">▶️</a>'
-              : '<a href="' + esc(media) + '" target="_blank"><img src="' + esc(media) + '" class="w-24 h-24 rounded-lg object-cover border border-slate-200 shrink-0" loading="lazy" onerror="this.outerHTML=\'<div class=&quot;w-24 h-24 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs&quot;>🖼️</div>\'"></a>')
+              : '<a href="' + esc(media) + '" target="_blank"><img src="' + esc(driveThumb(media)) + '" class="w-24 h-24 rounded-lg object-cover border border-slate-200 shrink-0" loading="lazy" onerror="this.outerHTML=\'<div class=&quot;w-24 h-24 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs&quot;>🖼️</div>\'"></a>')
           : '<div class="w-24 h-24 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 text-xs shrink-0">لا ميديا</div>';
         var done = p.status && (String(p.status).includes('تم') || p.status === 'published');
         return `
@@ -1187,6 +1187,14 @@ function fmtDate(d) {
     d = (d || '').toString().trim();
     return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : '—';
 }
+// Google Drive direct links don't render in <img>; convert to the thumbnail endpoint
+// (works for anyone-with-link files). Non-Drive URLs pass through unchanged.
+function driveThumb(u) {
+    u = (u || '').toString();
+    if (!/drive\.google\.com|googleusercontent\.com/.test(u)) return u;
+    var m = u.match(/\/file\/d\/([^/]+)/) || u.match(/[?&]id=([^&]+)/) || u.match(/thumbnail\?id=([^&]+)/);
+    return m ? ('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w600') : u;
+}
 // value for <input type=date> — only a valid YYYY-MM-DD, else empty
 function isoDate(d) {
     d = (d || '').toString().trim();
@@ -1238,7 +1246,7 @@ function renderTasksBoard() {
         // reference images pulled from the plan (media_urls) shown as thumbnails
         var refs = (t.media_urls && t.media_urls.length) ? t.media_urls : [];
         var refsHtml = refs.length ? '<div class="flex gap-1 flex-wrap">' + refs.slice(0, 4).map(function(u) {
-            return '<a href="' + esc(u) + '" target="_blank" class="block w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-50"><img src="' + esc(u) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
+            return '<a href="' + esc(u) + '" target="_blank" class="block w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-50"><img src="' + esc(driveThumb(u)) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
         }).join('') + (refs.length > 4 ? '<span class="text-[10px] text-slate-400 self-center">+' + (refs.length - 4) + '</span>' : '') + '</div>' : '';
 
         var links = (t.reference_links && t.reference_links.length) ?
@@ -1471,6 +1479,31 @@ async function loadPlanBuilder() {
         var ms = md.managers || [];
         mSel.innerHTML = '<option value="">— بدون —</option>' + ms.map(function(m){ return '<option value="' + esc(m.employee_id) + '">' + esc(m.name) + '</option>'; }).join('');
     } catch(e){}
+}
+
+async function uploadPlanImage(input) {
+    var files = input && input.files ? Array.from(input.files) : [];
+    if (!files.length) return;
+    var client_id = (document.getElementById('pb-client') || {}).value || '';
+    showToast('جاري رفع الصورة على Drive... ⏳');
+    for (var i = 0; i < files.length; i++) {
+        var fd = new FormData();
+        fd.append('file', files[i]);
+        if (client_id) fd.append('client_id', client_id);
+        try {
+            var res = await fetch('/api/plan/upload-image', { method: 'POST', body: fd });
+            var data = await res.json();
+            if (res.ok && data.ok && data.url) {
+                // insert the link on its own line in the editor (parser picks it up as a reference)
+                if (_planQuill) {
+                    var len = _planQuill.getLength();
+                    _planQuill.insertText(len - 1, '\n' + data.url + '\n');
+                }
+                showToast('اترفعت الصورة واتحطت في البلان ✅');
+            } else { showToast(data.error || 'تعذّر رفع الصورة', 'error'); }
+        } catch(e) { showToast('خطأ في رفع الصورة', 'error'); }
+    }
+    if (input) input.value = '';
 }
 
 async function createPlan() {

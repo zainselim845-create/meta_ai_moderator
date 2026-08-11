@@ -19,7 +19,7 @@
   <!-- Quill: open-source rich-text (Word-like) editor for the Plan builder -->
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <link href="/static/css/styles.css?v=7.31" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.32" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -1260,9 +1260,13 @@
           </div>
         </div>
         <div>
-          <label class="block text-[11px] font-bold text-slate-600 mb-1">محتوى البلان</label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-[11px] font-bold text-slate-600">محتوى البلان</label>
+            <label class="cursor-pointer text-[11px] bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-bold px-2 py-1 rounded-lg">🖼️ ارفع صورة مرجع
+              <input type="file" accept="image/*" multiple class="hidden" onchange="uploadPlanImage(this)"></label>
+          </div>
           <div id="pb-editor" style="min-height:260px;background:#fff" class="rounded-b-xl"></div>
-          <p class="text-[10px] text-slate-400 mt-1">تلميح: ابدأ كل بوست برقم (1) 2) 3)…) وحط "تاج لاين:" للعنوان و"التخيل:" لفكرة الجرافيك.</p>
+          <p class="text-[10px] text-slate-400 mt-1">تلميح: ابدأ كل بوست برقم (1) 2) 3)…) وحط "تاج لاين:" للعنوان و"التخيل:" لفكرة الجرافيك. الصور اللي ترفعها بتتحط كمرجع للبوست.</p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <button onclick="createPlan()" class="btn-primary text-sm py-2.5 px-6 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold">🚀 إنشاء وإرسال للأكونت مانيجر</button>
@@ -1425,15 +1429,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.31">
+  <script src="/static/js/app.js?v=7.32">
   </script>
-  <script src="/static/js/inbox.js?v=7.31">
+  <script src="/static/js/inbox.js?v=7.32">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.31">
+  <script src="/static/js/chatwoot_free.js?v=7.32">
   </script>
-  <script src="/static/js/views.js?v=7.31">
+  <script src="/static/js/views.js?v=7.32">
   </script>
-  <script src="/static/js/clients.js?v=7.31">
+  <script src="/static/js/clients.js?v=7.32">
   </script>
  
   <!-- Modal: Add New Connected Account -->

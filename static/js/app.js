@@ -479,10 +479,16 @@ async function loadMyPortal() {
       if (/Completed|مكتمل/i.test(s)) return `<span class="text-[11px] text-emerald-600 font-bold">✅ مكتملة</span>`;
       return '';
     };
+    const driveThumb = (u) => {
+      u = (u || '').toString();
+      if (!/drive\.google\.com|googleusercontent\.com/.test(u)) return u;
+      const m = u.match(/\/file\/d\/([^/]+)/) || u.match(/[?&]id=([^&]+)/) || u.match(/thumbnail\?id=([^&]+)/);
+      return m ? ('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w600') : u;
+    };
     const refThumbs = (t) => {
       const imgs = (t.media_urls||[]);
       if (!imgs.length) return '';
-      return `<div class="flex gap-1 flex-wrap mt-1">${imgs.slice(0,4).map(u=>`<a href="${esc(u)}" target="_blank"><img src="${esc(u)}" class="w-11 h-11 rounded-lg object-cover border border-slate-200" onerror="this.style.display='none'"></a>`).join('')}</div>`;
+      return `<div class="flex gap-1 flex-wrap mt-1">${imgs.slice(0,4).map(u=>`<a href="${esc(u)}" target="_blank"><img src="${esc(driveThumb(u))}" class="w-11 h-11 rounded-lg object-cover border border-slate-200" onerror="this.style.display='none'"></a>`).join('')}</div>`;
     };
     const canWork = (t) => /Assigned|In Progress/i.test(t.status||'');
     if (box) box.innerHTML = tasks.length ? tasks.map(t => `
