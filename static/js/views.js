@@ -1142,6 +1142,28 @@ function fmtDate(d) {
     d = (d || '').toString().trim();
     return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : '—';
 }
+// value for <input type=date> — only a valid YYYY-MM-DD, else empty
+function isoDate(d) {
+    d = (d || '').toString().trim();
+    return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : '';
+}
+// AM sets start / publish / deadline for a task
+async function saveTaskDates(taskId) {
+    var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+    var body = {
+        scheduled_start_date: g('d-start-' + taskId),
+        publish_date: g('d-pub-' + taskId),
+        delivery_deadline: g('d-dl-' + taskId)
+    };
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/dates', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) { showToast('اتحفظت المواعيد ✅'); loadTasksEngine(); }
+        else showToast(data.error || 'تعذّر الحفظ', 'error');
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
 function empOptionsHtml(selectedId) {
     return (employeesList || []).map(function(e) {
         var sel = (String(e.employee_id) === String(selectedId)) ? ' selected' : '';
@@ -1191,9 +1213,14 @@ function renderTasksBoard() {
                 '<p class="text-xs text-slate-600 mt-1 line-clamp-2">' + esc(t.description || '') + '</p>' +
             '</div>' +
             (refsHtml || links ? '<div class="space-y-1">' + refsHtml + links + '</div>' : '') +
-            '<div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-[11px] space-y-1">' +
-                '<div class="flex justify-between text-blue-700 font-bold"><span>📅 النشر:</span><span>' + esc(fmtDate(t.publish_date || t.scheduled_start_date)) + '</span></div>' +
-                '<div class="flex justify-between text-amber-700 font-bold"><span>⏰ التسليم الداخلي:</span><span>' + esc(fmtDate(t.delivery_deadline || t.scheduled_start_date)) + '</span></div>' +
+            '<div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-[11px] space-y-1.5">' +
+                '<div class="flex items-center justify-between gap-1"><span class="text-blue-700 font-bold whitespace-nowrap">🚀 البدء:</span>' +
+                    '<input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(isoDate(t.scheduled_start_date)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md"></div>' +
+                '<div class="flex items-center justify-between gap-1"><span class="text-emerald-700 font-bold whitespace-nowrap">📅 النزول:</span>' +
+                    '<input type="date" id="d-pub-' + esc(t.task_id) + '" value="' + esc(isoDate(t.publish_date)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md"></div>' +
+                '<div class="flex items-center justify-between gap-1"><span class="text-amber-700 font-bold whitespace-nowrap">⏰ التسليم:</span>' +
+                    '<input type="date" id="d-dl-' + esc(t.task_id) + '" value="' + esc(isoDate(t.delivery_deadline)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md"></div>' +
+                '<button onclick="saveTaskDates(\'' + esc(t.task_id) + '\')" class="w-full mt-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[11px] py-1 rounded-lg">💾 حفظ المواعيد</button>' +
                 '<div class="flex justify-between text-slate-600 font-bold border-t border-slate-100 pt-1"><span>👤 المسؤول:</span><span>' + (assignee ? esc(assignee) : '<span class="text-slate-400">غير معيّن</span>') + '</span></div>' +
             '</div>';
 
