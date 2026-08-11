@@ -1361,14 +1361,11 @@ async function uploadTaskAsset(taskId, input) {
     var file = (input && input.files && input.files[0]) ? input.files[0] : null;
     if (!file) return;
     showToast('جاري الرفع على Google Drive... ⏳');
-    var fd = new FormData();
-    fd.append('file', file);
     try {
-        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload', { method: 'POST', body: fd });
-        var data = await res.json();
-        if (res.ok && data.ok) { showToast('اترفع على Drive واتربط بالتاسك ✅'); loadTasksEngine(); }
-        else showToast(data.error || 'تعذّر الرفع', 'error');
-    } catch(e) { showToast('خطأ في الرفع', 'error'); }
+        await driveUploadFile(taskId, file);  // shared: direct for large, server for small
+        showToast('اترفع على Drive واتربط بالتاسك ✅');
+        loadTasksEngine();
+    } catch(e) { showToast('تعذّر الرفع: ' + (e.message || ''), 'error'); }
     if (input) input.value = '';
 }
 

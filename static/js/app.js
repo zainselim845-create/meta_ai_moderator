@@ -691,18 +691,42 @@ async function deleteCompanyEmployee(empId, name) {
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
+// Direct browser→Drive resumable upload — for large files, bypasses the server body
+// limit and lands in the client's Drive folder. Falls back to server for small files.
+async function driveUploadFile(taskId, file) {
+  if (file.size > 4 * 1024 * 1024) {
+    const s = await (await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: file.name, mime: file.type || 'application/octet-stream' })
+    })).json();
+    if (!s.ok || !s.upload_url) throw new Error(s.error || 'تعذّر بدء الرفع');
+    const put = await fetch(s.upload_url, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+    if (!put.ok) throw new Error('فشل الرفع للـ Drive (' + put.status + ')');
+    const meta = await put.json();
+    const c = await (await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-complete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: meta.id, mime: file.type || '' })
+    })).json();
+    if (!c.ok) throw new Error(c.error || 'تعذّر إنهاء الرفع');
+    return c.drive_link;
+  }
+  const fd = new FormData(); fd.append('file', file);
+  const r = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload', { method: 'POST', body: fd });
+  const d = await r.json();
+  if (!(r.ok && d.ok)) throw new Error(d.error || 'تعذّر الرفع');
+  return d.drive_link;
+}
+
 // Employee uploads their work (video/graphic) from the portal — auto to Drive.
 async function uploadMyTaskAsset(taskId, input) {
   const file = (input && input.files && input.files[0]) ? input.files[0] : null;
   if (!file) return;
   showToast('جاري رفع شغلك على Google Drive... ⏳');
-  const fd = new FormData(); fd.append('file', file);
   try {
-    const r = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload', { method: 'POST', body: fd });
-    const d = await r.json();
-    if (r.ok && d.ok) { showToast('اترفع شغلك على Drive ✅'); if (typeof loadMyPortal === 'function') loadMyPortal(); }
-    else showToast(d.error || 'تعذّر الرفع', 'error');
-  } catch(e) { showToast('خطأ في الرفع', 'error'); }
+    await driveUploadFile(taskId, file);
+    showToast('اترفع شغلك على Drive ✅');
+    if (typeof loadMyPortal === 'function') loadMyPortal();
+  } catch(e) { showToast('تعذّر الرفع: ' + (e.message || ''), 'error'); }
   if (input) input.value = '';
 }
 
