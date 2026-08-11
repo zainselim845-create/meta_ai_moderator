@@ -3017,6 +3017,7 @@ PUBLIC_PATHS = {
     '/api/telegram/attendance/welcome',
     '/api/telegram/tasks',
     '/api/telegram/tasks/setup',
+    '/api/employees/clear-demo',
     '/api/hr/cleanup',
     '/api/oauth/pending_pages',
     '/api/oauth/attach_page',
@@ -5271,10 +5272,11 @@ def api_tasks_employees():
             })
     except Exception as _e:
         print(f"[tasks employees from sheet] {_e}")
-    # Merge any manually-added employees not present in the sheet
+    # Merge manually-added employees not present in the sheet — but ONLY real ones
+    # (must have a telegram_id). This drops the old demo/role-name seed rows.
     seen = {str(x["employee_id"]) for x in emps if x.get("employee_id")}
     for e in get_client_employees(_cid):
-        if str(e.get("employee_id")) not in seen:
+        if str(e.get("employee_id")) not in seen and str(e.get("telegram_id") or "").strip():
             emps.append(e)
     return jsonify({"success": True, "employees": emps})
 
@@ -5616,75 +5618,59 @@ def api_tasks_monthly_report():
     _cid = current_client_id()
     month_str = request.args.get("month") or datetime.now(timezone.utc).strftime("%Y-%m")
     
-    # Build the roster from the REAL company sheet (same source as task assignment),
-    # merged with any manually-added employees — so the report reflects real people.
-    active_emps = []
-    _seen = set()
+    # Roster keyed by employee_id: the REAL company sheet, plus manually-added
+    # employees that have a telegram_id (real). Demo/role-name rows without a
+    # telegram_id are excluded so the dashboard shows only real people.
+    roster = {}
     try:
         cfg = hr_config()
         for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
+            eid = str(e.get("employee_id") or "").strip()
             nm = (e.get("name") or "").strip()
-            if nm and nm not in _seen:
-                _seen.add(nm)
-                active_emps.append({"name": nm, "role": e.get("job") or "Employee"})
+            if eid and nm:
+                roster[eid] = {"name": nm, "role": e.get("job") or "Employee"}
     except Exception as _e:
         print(f"[monthly report roster] {_e}")
     for e in get_client_employees(_cid):
+        eid = str(e.get("employee_id") or "").strip()
         nm = (e.get("name") or "").strip()
-        if nm and nm not in _seen:
-            _seen.add(nm)
-            active_emps.append({"name": nm, "role": e.get("role", "Employee")})
-    logs = get_client_task_logs(_cid)
+        if eid and nm and eid not in roster and str(e.get("telegram_id") or "").strip():
+            roster[eid] = {"name": nm, "role": e.get("role", "Employee")}
 
-    stats = {}
-    for emp in active_emps:
-        name = emp.get("name", "Unknown")
-        stats[name] = {
-            "name": name,
-            "role": emp.get("role", "Employee"),
-            "assigned": 0,
-            "started": 0,
-            "completed": 0,
-            "durations": [],
-            "notes": []
-        }
+    stats = {eid: {"name": r["name"], "role": r["role"], "assigned": 0,
+                   "started": 0, "completed": 0, "durations": [], "notes": []}
+             for eid, r in roster.items()}
 
-    for log in logs:
-        emp_name = log.get("employee_name")
-        if not emp_name or emp_name not in stats:
+    # Count directly from the TASKS (source of truth) — works for web AND bot actions.
+    for t in get_client_tasks(_cid):
+        eid = str(t.get("assigned_employee_id") or "").strip()
+        if not eid or eid not in stats:
             continue
-        status = log.get("status")
-        if status == "Assigned":
-            stats[emp_name]["assigned"] += 1
-        elif status == "In Progress":
-            stats[emp_name]["started"] += 1
-        elif status in ("Completed", "Awaiting AM Review"):
-            stats[emp_name]["completed"] += 1
-            if log.get("notes") and log["notes"] not in (".", "-"):
-                stats[emp_name]["notes"].append(f"<b>Task {log.get('task_id')}:</b> {log['notes']}")
-            
-            st = parse_flexible_date_str(log.get("start_time"))
-            et = parse_flexible_date_str(log.get("end_time"))
-            if st and et:
-                diff_min = int((et - st).total_seconds() / 60)
-                if 0 < diff_min < 1440:
-                    stats[emp_name]["durations"].append(diff_min)
+        st = t.get("status", "")
+        if st in ("Assigned", "In Progress", "Awaiting AM Review", "Completed"):
+            stats[eid]["assigned"] += 1
+        if st in ("In Progress", "Awaiting AM Review", "Completed"):
+            stats[eid]["started"] += 1
+        if st == "Completed":
+            stats[eid]["completed"] += 1
+        secs = (t.get("timer_state") or {}).get("elapsed_seconds") or 0
+        if secs and secs > 0:
+            stats[eid]["durations"].append(secs / 60.0)
+        note = (t.get("notes") or t.get("note") or "").strip()
+        if note and note not in (".", "-"):
+            stats[eid]["notes"].append(f"<b>{t.get('task_id')}:</b> {note}")
 
     report_data = []
-    for emp_name, s in stats.items():
+    for eid, s in stats.items():
         avg_dur = f"{int(sum(s['durations'])/len(s['durations']))} min" if s["durations"] else "-"
         rate = f"{int((s['completed'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
         report_data.append({
-            "employee": emp_name,
-            "role": s["role"],
-            "assigned": s["assigned"],
-            "started": s["started"],
-            "completed": s["completed"],
-            "completion_rate": rate,
-            "avg_duration": avg_dur,
-            "notes": s["notes"]
+            "employee": s["name"], "role": s["role"],
+            "assigned": s["assigned"], "started": s["started"], "completed": s["completed"],
+            "completion_rate": rate, "avg_duration": avg_dur, "notes": s["notes"],
         })
-
+    # sort: most active first
+    report_data.sort(key=lambda r: (r["completed"], r["assigned"]), reverse=True)
     return jsonify({"success": True, "month": month_str, "report": report_data})
 
 
@@ -7109,6 +7095,19 @@ def api_delete_employee(emp_id):
     """Remove an employee from the roster (sheet + manual)."""
     ok = _delete_sheet_employee(emp_id)
     return jsonify({"ok": ok, "removed": emp_id})
+
+
+@app.route("/api/employees/clear-demo", methods=["POST"])
+def api_clear_demo_employees():
+    """Purge manually-stored demo employees (role-name rows with no telegram_id).
+    Auth: admin session OR X-Diag-Key header."""
+    if not _diag_ok():
+        return jsonify({"error": "Unauthorized"}), 401
+    cid = current_client_id()
+    before = get_client_employees(cid)
+    kept = [e for e in before if str(e.get("telegram_id") or "").strip()]
+    save_client_employees(kept, cid)
+    return jsonify({"ok": True, "removed": len(before) - len(kept), "kept": len(kept)})
 
 
 @app.route("/api/telegram/tasks/setup", methods=["POST"])
