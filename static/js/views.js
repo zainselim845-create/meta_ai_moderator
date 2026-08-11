@@ -1198,6 +1198,7 @@ async function saveTaskDates(taskId) {
     var body = {
         scheduled_start_date: g('d-start-' + taskId),
         publish_date: g('d-pub-' + taskId),
+        publish_time: g('d-time-' + taskId) || '10:00',
         delivery_deadline: g('d-dl-' + taskId)
     };
     try {
@@ -1262,7 +1263,8 @@ function renderTasksBoard() {
                 '<div class="flex items-center justify-between gap-1"><span class="text-blue-700 font-bold whitespace-nowrap">🚀 البدء:</span>' +
                     '<input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(isoDate(t.scheduled_start_date)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md"></div>' +
                 '<div class="flex items-center justify-between gap-1"><span class="text-emerald-700 font-bold whitespace-nowrap">📅 النزول:</span>' +
-                    '<input type="date" id="d-pub-' + esc(t.task_id) + '" value="' + esc(isoDate(t.publish_date)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md"></div>' +
+                    '<span class="flex gap-1"><input type="date" id="d-pub-' + esc(t.task_id) + '" value="' + esc(isoDate(t.publish_date)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md">' +
+                    '<input type="time" id="d-time-' + esc(t.task_id) + '" value="' + esc(t.publish_time || '10:00') + '" class="text-[11px] px-1 py-0.5 border border-slate-200 rounded-md"></span></div>' +
                 '<div class="flex items-center justify-between gap-1"><span class="text-amber-700 font-bold whitespace-nowrap">⏰ التسليم:</span>' +
                     '<input type="date" id="d-dl-' + esc(t.task_id) + '" value="' + esc(isoDate(t.delivery_deadline)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md"></div>' +
                 '<button onclick="saveTaskDates(\'' + esc(t.task_id) + '\')" class="w-full mt-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[11px] py-1 rounded-lg">💾 حفظ المواعيد</button>' +
