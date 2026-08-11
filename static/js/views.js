@@ -1430,7 +1430,9 @@ async function loadPlanBuilder() {
         });
     }
     try {
-        var cd = await (await fetch('/api/clients')).json();
+        // dedicated endpoint returns ALL clients for plan-builders (content team isn't
+        // assigned to clients, so /api/clients would return empty for them)
+        var cd = await (await fetch('/api/plan/clients')).json();
         var clients = Array.isArray(cd) ? cd : (cd.clients || []);
         cSel.innerHTML = clients.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('') || '<option value="">لا يوجد عملاء</option>';
     } catch(e){}
