@@ -19,7 +19,7 @@
   <!-- Quill: open-source rich-text (Word-like) editor for the Plan builder -->
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <link href="/static/css/styles.css?v=7.19" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.20" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -1445,16 +1445,16 @@
         </div>
       </div>
 
-      <!-- Section 1.5: Account Manager Multi-Client Columns Board -->
-      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+      <!-- Section 1.5: Account Manager Multi-Client Columns Board (collapsible) -->
+      <details class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <summary class="font-bold text-base text-slate-900 flex items-center gap-2 cursor-pointer select-none">
           <i data-lucide="layout-grid" class="w-5 h-5 text-blue-600"></i>
-          <span>لوحة أعمدة العملاء ومدير الحسابات (Account Manager Multi-Client Board)</span>
-        </h3>
-        <div id="am-workspace-columns" class="flex gap-4 overflow-x-auto pb-4 pt-1">
+          <span>لوحة أعمدة العملاء (اضغط للفتح)</span>
+        </summary>
+        <div id="am-workspace-columns" class="flex gap-4 overflow-x-auto pb-4 pt-4">
           <div class="p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl w-full">جاري تحميل لوحة أعمدة العملاء...</div>
         </div>
-      </div>
+      </details>
 
       <!-- Section 2: Tasks Board Grid -->
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
@@ -1541,15 +1541,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.19">
+  <script src="/static/js/app.js?v=7.20">
   </script>
-  <script src="/static/js/inbox.js?v=7.19">
+  <script src="/static/js/inbox.js?v=7.20">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.19">
+  <script src="/static/js/chatwoot_free.js?v=7.20">
   </script>
-  <script src="/static/js/views.js?v=7.19">
+  <script src="/static/js/views.js?v=7.20">
   </script>
-  <script src="/static/js/clients.js?v=7.19">
+  <script src="/static/js/clients.js?v=7.20">
   </script>
  
   <!-- Modal: Add New Connected Account -->
