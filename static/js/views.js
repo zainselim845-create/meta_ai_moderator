@@ -1001,19 +1001,22 @@ async function loadKb() {
 var tasksList = [];
 var employeesList = [];
 
-function renderEmployeesStatus() {
+async function renderEmployeesStatus() {
     var box = document.getElementById('employees-status-list');
     if (!box) return;
     var emps = employeesList || [];
     if (!emps.length) { box.innerHTML = '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون</div>'; return; }
-    // an employee is "busy" if they have a task In Progress
-    var busy = {};
-    (tasksList || []).forEach(function(t){ if (t.status === 'In Progress' && t.assigned_employee_id) busy[t.assigned_employee_id] = true; });
+    // real workload across ALL clients (active tasks per employee)
+    var load = {}, inprog = {};
+    try { var d = await (await fetch('/api/employees/workload')).json(); load = d.workload || {}; inprog = d.in_progress || {}; } catch(e){}
     box.innerHTML = emps.map(function(e){
-        var isBusy = busy[e.employee_id];
+        var n = load[e.employee_id] || 0;
+        var working = (inprog[e.employee_id] || 0) > 0;
+        var dot = n === 0 ? 'bg-emerald-500' : (working ? 'bg-amber-500' : 'bg-blue-500');
+        var label = n === 0 ? 'متاح' : (n + ' مهمة' + (working ? ' · شغّال' : ''));
         return '<div class="pt-2 flex items-center justify-between text-slate-700">' +
-            '<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full ' + (isBusy?'bg-amber-500':'bg-emerald-500') + '"></span> ' + esc(e.name || e.employee_id) + '<span class="text-[10px] text-slate-400">' + esc(e.role||'') + '</span></span>' +
-            '<span class="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono">' + (isBusy?'مشغول':'متاح') + '</span></div>';
+            '<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full ' + dot + '"></span> ' + esc(e.name || e.employee_id) + ' <span class="text-[10px] text-slate-400">' + esc(e.role||'') + '</span></span>' +
+            '<span class="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-mono ' + (n===0?'text-emerald-700':'text-slate-700') + '">' + label + '</span></div>';
     }).join('');
 }
 
