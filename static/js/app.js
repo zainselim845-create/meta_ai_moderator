@@ -272,10 +272,9 @@ async function handleLogin(e) {
       }
     }
   } catch(err) {
-    localStorage.setItem('domya_auth', 'true');
-    const overlay = document.getElementById('login-modal-overlay');
-    if (overlay) overlay.style.display = 'none';
-    showToast('تم تسجيل الدخول (وضع تجريبي)');
+    // Never grant access on a network error — show it and keep the login up.
+    if (errEl) { errEl.textContent = 'تعذّر الاتصال بالخادم، حاول تاني'; errEl.classList.remove('hidden'); }
+    else showToast('تعذّر الاتصال بالخادم', 'error');
   }
 }
 
@@ -430,6 +429,10 @@ async function applyRoleUI() {
   // permissions tab: admin only
   const permNav = document.getElementById('nav-permissions');
   if (permNav) permNav.classList.toggle('hidden', !me.is_admin);
+  // plan tab: admin, managers, or anyone granted the 'plan' tab
+  const planNav = document.getElementById('nav-plan');
+  const canPlan = me.is_admin || me.is_manager || (me.allowed_tabs||[]).includes('plan');
+  if (planNav) planNav.classList.toggle('hidden', !canPlan);
 
   const navKey = (b) => { let id = (b.id||'').replace('nav-',''); return id === 'chatwoot' ? 'accounts' : id; };
   const tabs = me.allowed_tabs || [];
