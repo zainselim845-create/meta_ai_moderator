@@ -766,21 +766,26 @@ async function loadTeam() {
 async function renderMembers() {
   const list = document.getElementById('members-list');
   if (!list) return;
-  let users = [];
+  let users = [], empNames = {};
   try { const d = await (await fetch('/api/users')).json(); users = d.users || []; } catch(e){}
+  try { const d = await (await fetch('/api/tasks/employees')).json(); (d.employees||[]).forEach(e => { if (e.employee_id) empNames[e.employee_id] = e.name; }); } catch(e){}
   const clients = window._teamClients || [];
   const nameOf = id => (clients.find(c => c.id === id)||{}).name || id;
+  const roleLabel = r => r==='admin' ? 'مدير' : r==='account_manager' ? 'أكونت مانيجر' : 'موظف';
+  const displayName = u => empNames[u.employee_id] || empNames[u.username] || u.username;
   list.innerHTML = users.map(u => {
     const assigned = (u.assigned_clients||[]).map(nameOf);
     const chips = clients.map(c => {
       const on = (u.assigned_clients||[]).includes(c.id);
       return `<button onclick="toggleAssign('${esc(u.username)}','${esc(c.id)}',${!on})" class="text-[11px] px-2 py-0.5 rounded-full border ${on?'bg-blue-600 text-white border-blue-600':'bg-white text-slate-600 border-slate-200'}">${esc(c.name)}</button>`;
     }).join(' ');
+    const nm = displayName(u);
     return `<div class="border border-slate-200 rounded-xl p-3 flex flex-col gap-2">
       <div class="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <span class="font-bold text-sm text-slate-900">${esc(u.username)}</span>
-          <span class="text-[11px] px-2 py-0.5 rounded-full ${u.role==='admin'?'bg-purple-100 text-purple-700':'bg-slate-100 text-slate-600'} mr-1">${u.role==='admin'?'مدير':'أكونت مانيجر'}</span>
+          <span class="font-bold text-sm text-slate-900">${esc(nm)}</span>
+          ${nm !== u.username ? `<span class="text-[10px] text-slate-400 font-mono">(${esc(u.username)})</span>` : ''}
+          <span class="text-[11px] px-2 py-0.5 rounded-full ${u.role==='admin'?'bg-purple-100 text-purple-700':u.role==='account_manager'?'bg-blue-100 text-blue-700':'bg-slate-100 text-slate-600'} mr-1">${roleLabel(u.role)}</span>
           <span class="text-[11px] text-slate-400">${esc(u.email||'')}</span>
         </div>
         <div class="flex items-center gap-1">

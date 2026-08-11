@@ -1523,7 +1523,10 @@ async function createPlan() {
             var box = document.getElementById('pb-result');
             if (box) {
                 box.classList.remove('hidden');
-                box.innerHTML = 'تم إنشاء <b>' + data.created + '</b> بوست وإرسالها للأكونت مانيجر ✅<br>' +
+                var amMsg = data.am_notified ? ('واتبعت للأكونت مانيجر <b>' + esc(data.am_name || '') + '</b> على التليجرام ✅')
+                    : (data.am_has_telegram === false ? ('⚠️ الأكونت مانيجر <b>' + esc(data.am_name || '') + '</b> مالوش تليجرام في الشيت')
+                    : ('⚠️ اتعمل البلان بس الرسالة موصلتش لـ <b>' + esc(data.am_name || '') + '</b> (لازم يعمل Start لبوت المهام)'));
+                box.innerHTML = 'تم إنشاء <b>' + data.created + '</b> بوست، ' + amMsg + '<br>' +
                     '<div class="mt-2 flex items-center gap-2"><span class="text-slate-500">لينك المشاركة برا السيستم:</span>' +
                     '<input value="' + esc(data.share_url) + '" readonly class="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-[11px]" onclick="this.select()">' +
                     '<button onclick="navigator.clipboard.writeText(\'' + esc(data.share_url) + '\');showToast(\'اتنسخ ✅\')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">نسخ</button></div>';
