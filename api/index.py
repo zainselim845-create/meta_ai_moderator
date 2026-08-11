@@ -4971,7 +4971,7 @@ def _send_due_task_reminders():
     today = (datetime.now(timezone.utc) + timedelta(hours=_tz)).date().isoformat()
     active = {"Assigned", "In Progress", "Awaiting AM Review"}
     by_emp = {}
-    for t in (cache.get("tasks") or []):
+    for t in _all_tasks_db():
         if not isinstance(t, dict):
             continue
         eid = str(t.get("assigned_employee_id") or "").strip()
