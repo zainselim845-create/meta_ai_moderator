@@ -1225,10 +1225,14 @@ function renderTasksBoard() {
             '</div>';
 
         if (t.drive_link) {
-            html += '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs py-1.5 px-3 rounded-xl border border-emerald-200 transition">📁 ملف Google Drive</a>';
-        } else {
-            html += '<button onclick="promptLinkDrive(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-bold py-1.5 px-3 rounded-xl border border-slate-200 transition">+ ربط ملف Google Drive</button>';
+            html += '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs py-1.5 px-3 rounded-xl border border-emerald-200 transition">📁 الملف على Google Drive</a>';
         }
+        // upload straight to Drive (no manual link needed) + add reference
+        html += '<div class="grid grid-cols-2 gap-1">' +
+            '<label class="text-center cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 rounded-lg border border-sky-200">📤 رفع للـ Drive' +
+                '<input type="file" accept="image/*,video/*" class="hidden" onchange="uploadTaskAsset(\'' + esc(t.task_id) + '\', this)"></label>' +
+            '<button onclick="addTaskReference(\'' + esc(t.task_id) + '\')" class="bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 rounded-lg border border-violet-200">➕ ريفرانس</button>' +
+        '</div>';
 
         if (t.review_note) {
             html += '<div class="bg-purple-50 p-2 rounded-xl text-[11px] text-purple-700 border border-purple-100">📝 ملاحظة المراجعة: ' + esc(t.review_note) + '</div>';
@@ -1333,6 +1337,34 @@ async function assignTaskFromBoard(taskId) {
             showToast(data.telegram_sent ? 'اتسند واتبعت للموظف على التليجرام ✅' : 'اتسند ✅ (الموظف مالوش تليجرام أو معملش Start للبوت)');
             loadTasksEngine();
         } else { showToast(data.error || 'تعذّر الإسناد', 'error'); }
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
+async function uploadTaskAsset(taskId, input) {
+    var file = (input && input.files && input.files[0]) ? input.files[0] : null;
+    if (!file) return;
+    showToast('جاري الرفع على Google Drive... ⏳');
+    var fd = new FormData();
+    fd.append('file', file);
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload', { method: 'POST', body: fd });
+        var data = await res.json();
+        if (res.ok && data.ok) { showToast('اترفع على Drive واتربط بالتاسك ✅'); loadTasksEngine(); }
+        else showToast(data.error || 'تعذّر الرفع', 'error');
+    } catch(e) { showToast('خطأ في الرفع', 'error'); }
+    if (input) input.value = '';
+}
+
+async function addTaskReference(taskId) {
+    var url = prompt('الصق رابط الريفرانس (صورة / Drive / أي لينك):');
+    if (!url) return;
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/references', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url.trim() })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) { showToast('اتضاف الريفرانس ✅'); loadTasksEngine(); }
+        else showToast(data.error || 'تعذّر الإضافة', 'error');
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
