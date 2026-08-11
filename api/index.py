@@ -185,6 +185,42 @@ def supa_headers():
         "Prefer": "resolution=merge-duplicates"
     }
 
+def supa_upsert(table_name, rows):
+    if not (SUPABASE_URL and SUPABASE_KEY) or not rows:
+        return False
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{table_name}"
+        r = requests.post(url, headers=supa_headers(), timeout=5)
+        return r.status_code in (200, 201, 204)
+    except Exception as e:
+        print(f"[supa_upsert] Error upserting to {table_name}: {e}")
+        return False
+
+def supa_select(table_name, query_params=""):
+    if not (SUPABASE_URL and SUPABASE_KEY):
+        return None
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{table_name}?{query_params}"
+        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        r = requests.get(url, headers=headers, timeout=5)
+        if r.status_code == 200:
+            return r.json()
+    except Exception as e:
+        print(f"[supa_select] Error fetching {table_name}: {e}")
+    return None
+
+def supa_delete(table_name, query_params=""):
+    if not (SUPABASE_URL and SUPABASE_KEY):
+        return False
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{table_name}?{query_params}"
+        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        r = requests.delete(url, headers=headers, timeout=5)
+        return r.status_code in (200, 204)
+    except Exception as e:
+        print(f"[supa_delete] Error deleting from {table_name}: {e}")
+        return False
+
 def verify_signature(payload_bytes, signature_header):
     if not APP_SECRET:
         return False
@@ -4776,6 +4812,39 @@ def _maybe_process_due():
     except Exception as e:
         print(f"[maybe due] {e}")
 
+def save_scheduled_post(post):
+    if not isinstance(post, dict):
+        return
+    p_id = post.get("id")
+    if not p_id:
+        return
+    c_id = post.get("client_id") or current_client_id()
+    st = post.get("status") or "pending"
+    sched_at = post.get("scheduled_at") or ""
+    supa_upsert("mam_scheduled_posts", [{
+        "id": str(p_id),
+        "client_id": str(c_id),
+        "status": str(st),
+        "scheduled_at": str(sched_at),
+        "data": post
+    }])
+
+def get_client_scheduled_posts(_cid=None):
+    _cid = _cid or current_client_id()
+    db_rows = supa_select("mam_scheduled_posts", f"client_id=eq.{_cid}&select=*")
+    if db_rows is not None and len(db_rows) > 0:
+        posts = []
+        for r in db_rows:
+            d = r.get("data")
+            if isinstance(d, dict):
+                d.setdefault("client_id", _cid)
+                if r.get("id"):
+                    d["id"] = r.get("id")
+                posts.append(d)
+        return posts
+    posts = cache.get("scheduled_posts") or IN_MEMORY_POSTS
+    return [p for p in posts if isinstance(p, dict) and (p.get("client_id") or _cid) == _cid]
+
 def _process_due_posts():
     """Publish every pending post whose UTC time has arrived. Safe to call often
     (from the cron AND opportunistically when the user opens the scheduler)."""
@@ -4795,6 +4864,7 @@ def _process_due_posts():
         post["status"] = "published" if ok else "failed"
         post["result"] = detail
         post["published_at"] = now_utc
+        save_scheduled_post(post)
         published.append({"id": post.get("id"), "ok": ok, "detail": detail})
     if published:
         cache["scheduled_posts"] = posts
@@ -4828,6 +4898,7 @@ def api_scheduler():
         }
         IN_MEMORY_POSTS.insert(0, post)
         push_setting("meta_ai_scheduled_posts", IN_MEMORY_POSTS)
+        save_scheduled_post(post)
         return jsonify({"success": True, "post": post})
     # Opportunistically publish anything already due, then return this client's posts.
     try:
@@ -4835,7 +4906,7 @@ def api_scheduler():
     except Exception as _e:
         print(f"[Scheduler opportunistic] {_e}")
     _cid = current_client_id()
-    mine = [p for p in IN_MEMORY_POSTS if (p.get("client_id") or _cid) == _cid]
+    mine = get_client_scheduled_posts(_cid)
     return jsonify({"success": True, "scheduled_posts": mine})
 
 
@@ -4846,6 +4917,7 @@ def api_scheduler_delete(post_id):
     before = len(IN_MEMORY_POSTS)
     IN_MEMORY_POSTS = [p for p in IN_MEMORY_POSTS if str(p.get("id")) != str(post_id)]
     push_setting("meta_ai_scheduled_posts", IN_MEMORY_POSTS)
+    supa_delete("mam_scheduled_posts", f"id=eq.{post_id}")
     return jsonify({"success": before != len(IN_MEMORY_POSTS)})
 
 
@@ -4943,6 +5015,17 @@ def save_client_employees(emp_list, _cid=None):
 
 def get_client_tasks(_cid=None):
     _cid = _cid or current_client_id()
+    db_rows = supa_select("mam_tasks", f"client_id=eq.{_cid}&select=*")
+    if db_rows is not None and len(db_rows) > 0:
+        tasks = []
+        for r in db_rows:
+            d = r.get("data")
+            if isinstance(d, dict):
+                d.setdefault("client_id", _cid)
+                if r.get("task_id"):
+                    d["id"] = r.get("task_id")
+                tasks.append(d)
+        return tasks
     all_tasks = cache.get("tasks") or []
     return [t for t in all_tasks if isinstance(t, dict) and (t.get("client_id") or _cid) == _cid]
 
@@ -4950,9 +5033,31 @@ def save_client_tasks(tasks_list, _cid=None):
     _cid = _cid or current_client_id()
     all_tasks = cache.get("tasks") or []
     other_tasks = [t for t in all_tasks if isinstance(t, dict) and t.get("client_id") and t.get("client_id") != _cid]
-    updated = other_tasks + tasks_list
+    updated = other_tasks + (tasks_list or [])
     cache["tasks"] = updated
     push_setting("meta_ai_tasks", updated)
+
+    if SUPABASE_URL and SUPABASE_KEY and tasks_list:
+        tasks_by_id = {}
+        for t in tasks_list:
+            if not isinstance(t, dict):
+                continue
+            t_id = t.get("id") or t.get("task_id")
+            if not t_id:
+                continue
+            t["client_id"] = _cid
+            st = t.get("status") or "Pending"
+            emp_id = t.get("assigned_to") or t.get("assigned_employee_id") or t.get("employee_id")
+            tasks_by_id[str(t_id)] = {
+                "task_id": str(t_id),
+                "client_id": str(_cid),
+                "status": str(st),
+                "assigned_employee_id": str(emp_id) if emp_id else None,
+                "data": t
+            }
+        rows_to_upsert = list(tasks_by_id.values())
+        if rows_to_upsert:
+            supa_upsert("mam_tasks", rows_to_upsert)
 
 def get_client_task_logs(_cid=None):
     _cid = _cid or current_client_id()
@@ -6634,6 +6739,7 @@ def api_task_review(task_id):
             posts.insert(0, post)
             cache["scheduled_posts"] = posts
             push_setting("meta_ai_scheduled_posts", posts)
+            save_scheduled_post(post)
             t["scheduled_post_id"] = post["id"]
             scheduled = post
         except Exception as _e:
