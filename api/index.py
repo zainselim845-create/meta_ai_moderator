@@ -10,6 +10,25 @@ def auth_guard(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Role decorators defined EARLY so endpoints above their helper definitions can use
+# them. is_admin()/is_manager()/jsonify are resolved at request time, so forward
+# references are fine. (Re-defined later too — identical behaviour.)
+def require_admin(f):
+    @wraps(f)
+    def _w(*a, **k):
+        if not is_admin():
+            return jsonify({"error": "صلاحيات المدير مطلوبة"}), 403
+        return f(*a, **k)
+    return _w
+
+def require_manager(f):
+    @wraps(f)
+    def _w(*a, **k):
+        if not is_manager():
+            return jsonify({"error": "صلاحيات المدير أو مدير الحسابات مطلوبة"}), 403
+        return f(*a, **k)
+    return _w
+
 import json
 import re
 import unicodedata
@@ -1943,6 +1962,7 @@ def api_get_kb():
     return jsonify({"kb": client_kb, "total": len(client_kb), "active_client_id": cid})
 
 @app.route("/api/kb", methods=["POST"])
+@require_manager
 def api_kb_add():
     cid = current_client_id()
     data = request.get_json() or {}
@@ -1983,6 +2003,7 @@ def api_kb_add():
     return jsonify({"ok": True, "id": new_id})
 
 @app.route("/api/kb/<int:item_id>", methods=["DELETE"])
+@require_manager
 def api_kb_delete(item_id):
     kb = [item for item in get_kb_data() if item.get("id") != item_id]
     cache["kb"] = kb
@@ -2008,6 +2029,7 @@ def api_rules_get():
     return jsonify(client_rules)
 
 @app.route("/api/rules", methods=["POST"])
+@require_manager
 def api_rules_add():
     data = request.get_json() or {}
     rules = get_rules_data()
@@ -2029,6 +2051,7 @@ def api_rules_add():
     return jsonify({"ok": True})
 
 @app.route("/api/rules/<int:rule_id>", methods=["DELETE"])
+@require_manager
 def api_rules_delete(rule_id):
     rules = [r for r in get_rules_data() if r.get("id") != rule_id]
     cache["rules"] = rules
@@ -2040,6 +2063,7 @@ def api_prompt_get():
     return jsonify({"prompt": get_client_prompt(current_client_id())})
 
 @app.route("/api/prompt", methods=["POST", "PUT"])
+@require_manager
 def api_prompt_save():
     data = request.get_json() or {}
     new_prompt = data.get("prompt", "")
@@ -2062,6 +2086,7 @@ def api_settings_get():
     })
 
 @app.route("/api/settings", methods=["POST"])
+@require_manager
 def api_settings_save():
     data = request.get_json() or {}
     cid = current_client_id()
@@ -2553,6 +2578,7 @@ def api_accounts_rebuild():
     return jsonify({"ok": True, "rebuilt": rebuilt, "total": len(ACCOUNTS_STORE)})
 
 @app.route("/api/accounts", methods=["POST"])
+@require_admin
 def api_accounts_add():
     data = request.get_json() or {}
     acc_id = str(data.get("page_id") or data.get("id") or int(time.time()))
@@ -2581,6 +2607,7 @@ def api_accounts_select():
     return jsonify({"ok": True, "active_id": acc_id})
 
 @app.route("/api/accounts/<acc_id>", methods=["DELETE"])
+@require_admin
 def api_accounts_delete(acc_id):
     global ACCOUNTS_STORE
     ACCOUNTS_STORE = [a for a in ACCOUNTS_STORE if str(a["id"]) != str(acc_id)]
@@ -3687,6 +3714,7 @@ def api_clients_get():
     return jsonify(pool)
 
 @app.route("/api/clients", methods=["POST"])
+@require_manager
 def api_clients_add():
     data = request.get_json() or {}
     name = data.get("name", "").strip()
@@ -3743,6 +3771,7 @@ def api_clients_add():
     return jsonify({"ok": True, "client": new_client, "id": cid, "needs_connect": not (page_id and token)})
 
 @app.route("/api/clients/<cid>", methods=["PUT"])
+@require_manager
 def api_clients_update(cid):
     data = request.get_json() or {}
     client = next((c for c in AGENCY_CLIENTS_STORE if c["id"] == cid), None)
@@ -3755,6 +3784,7 @@ def api_clients_update(cid):
     return jsonify({"ok": True, "client": client})
 
 @app.route("/api/clients/<cid>/archive", methods=["POST"])
+@require_manager
 def api_clients_archive(cid):
     client = next((c for c in AGENCY_CLIENTS_STORE if c["id"] == cid), None)
     if not client:
@@ -3764,6 +3794,7 @@ def api_clients_archive(cid):
     return jsonify({"ok": True})
 
 @app.route("/api/clients/<cid>/restore", methods=["POST"])
+@require_manager
 def api_clients_restore(cid):
     client = next((c for c in AGENCY_CLIENTS_STORE if c["id"] == cid), None)
     if not client:
