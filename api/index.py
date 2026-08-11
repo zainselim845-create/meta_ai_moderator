@@ -269,6 +269,8 @@ def sync_from_supabase():
                         cache["client_strategies"] = parsed
                     elif k == "meta_ai_client_folders" and isinstance(parsed, dict):
                         cache["client_folders"] = parsed
+                    elif k == "meta_ai_client_month_folders" and isinstance(parsed, dict):
+                        cache["client_month_folders"] = parsed
                     elif k == "meta_ai_plan_shares" and isinstance(parsed, dict):
                         cache["plan_shares"] = parsed
         except Exception as e:
@@ -5038,6 +5040,42 @@ def client_drive_folder_id(cid):
         print(f"[client folder] {e}")
         return None
 
+def client_month_folder_id(cid, month=None):
+    """Get-or-create a monthly subfolder (YYYY-MM) inside the client's Drive folder,
+    so data is organised: Client / 2026-08 / files. A new folder appears each month."""
+    parent = client_drive_folder_id(cid)
+    if not parent:
+        return None
+    if not month:
+        try:
+            month = _cairo_now().strftime("%Y-%m")
+        except Exception:
+            month = datetime.now(timezone.utc).strftime("%Y-%m")
+    key = f"{cid}:{month}"
+    mf = cache.get("client_month_folders") or {}
+    if mf.get(key):
+        return mf[key]
+    token = get_google_oauth_access_token()
+    if not token:
+        return parent
+    try:
+        meta = {"name": month, "mimeType": "application/vnd.google-apps.folder", "parents": [parent]}
+        req = urllib.request.Request(
+            "https://www.googleapis.com/drive/v3/files?fields=id",
+            data=json.dumps(meta).encode("utf-8"),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        fid = json.loads(urllib.request.urlopen(req, timeout=15).read()).get("id")
+        if not fid:
+            return parent
+        _drive_set_anyone_reader(token, fid)
+        mf[key] = fid
+        cache["client_month_folders"] = mf
+        push_setting("meta_ai_client_month_folders", mf)
+        return fid
+    except Exception as e:
+        print(f"[client month folder] {e}")
+        return parent
+
 def drive_resumable_session(name, mime, parent_id=None):
     """Start a resumable upload session; returns the session URL the browser PUTs to
     (no OAuth token is exposed to the browser)."""
@@ -5432,7 +5470,7 @@ def api_tasks():
     return jsonify({"success": True, "tasks": tasks})
 
 
-def _docx_to_text(file_bytes, upload_images=True):
+def _docx_to_text(file_bytes, upload_images=True, parent_id=None):
     """Extract readable text from a .docx (a zip of XML) with no external libs.
     Each Word paragraph becomes its own line. Embedded images are uploaded to
     Drive and their link is injected inline where the image appears, so it gets
@@ -5471,7 +5509,7 @@ def _docx_to_text(file_bytes, upload_images=True):
                     ext = (path.rsplit(".", 1)[-1] or "png").lower()
                     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
                             "gif": "image/gif", "webp": "image/webp"}.get(ext, "image/png")
-                    url = drive_upload_bytes(f"plan_ref_{rid}.{ext}", raw, mime) or ""
+                    url = drive_upload_bytes(f"plan_ref_{rid}.{ext}", raw, mime, parent_id=parent_id) or ""
                     uploaded += 1
                 except Exception as e:
                     print(f"[docx img {rid}] {e}")
@@ -5513,12 +5551,13 @@ def _after_colon(s):
 def api_tasks_ingest_plan():
     _cid = current_client_id()
     plan_text = ""
+    _pfolder = client_month_folder_id(_cid)  # embedded plan images → client/month folder
     # 1) uploaded .docx file (multipart) — the main flow
     up = request.files.get("file") if request.files else None
     if up and up.filename:
         raw = up.read()
         if up.filename.lower().endswith(".docx"):
-            plan_text = _docx_to_text(raw)
+            plan_text = _docx_to_text(raw, parent_id=_pfolder)
         else:
             plan_text = raw.decode("utf-8", "ignore")
     # 2) or a Google Drive .docx link
@@ -5531,7 +5570,7 @@ def api_tasks_ingest_plan():
             try:
                 r = requests.get(f"https://drive.google.com/uc?export=download&id={fid}", timeout=20)
                 if r.status_code == 200:
-                    plan_text = _docx_to_text(r.content) if r.content[:2] == b"PK" else r.text
+                    plan_text = _docx_to_text(r.content, parent_id=_pfolder) if r.content[:2] == b"PK" else r.text
             except Exception as e:
                 print(f"[plan drive fetch] {e}")
     # 3) or raw pasted text
@@ -5799,7 +5838,7 @@ def api_task_upload_asset(task_id):
     mime = up.mimetype or "application/octet-stream"
     safe = re.sub(r"[^\w.\-]+", "_", up.filename)[:80]
     name = f"{task_id}_{safe}"
-    link = drive_upload_bytes(name, raw, mime, parent_id=client_drive_folder_id(cid))
+    link = drive_upload_bytes(name, raw, mime, parent_id=client_month_folder_id(cid))
     if not link:
         return jsonify({"error": "تعذّر الرفع على Drive"}), 500
     t["drive_link"] = link
@@ -5824,7 +5863,7 @@ def api_task_upload_session(task_id):
     data = request.get_json() or {}
     fname = re.sub(r"[^\w.\-]+", "_", (data.get("filename") or "asset"))[:80]
     mime = (data.get("mime") or "application/octet-stream")
-    session_url = drive_resumable_session(f"{task_id}_{fname}", mime, parent_id=client_drive_folder_id(cid))
+    session_url = drive_resumable_session(f"{task_id}_{fname}", mime, parent_id=client_month_folder_id(cid))
     if not session_url:
         return jsonify({"error": "تعذّر بدء الرفع"}), 500
     return jsonify({"ok": True, "upload_url": session_url})
