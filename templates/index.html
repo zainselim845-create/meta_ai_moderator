@@ -16,7 +16,10 @@
   </script>
   <script src="https://unpkg.com/lucide@latest">
   </script>
-  <link href="/static/css/styles.css?v=7.18" rel="stylesheet"/>
+  <!-- Quill: open-source rich-text (Word-like) editor for the Plan builder -->
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+  <link href="/static/css/styles.css?v=7.19" rel="stylesheet"/>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -121,6 +124,14 @@
      <span class="flex-1 text-right">
       إدارة المهام
      </span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-plan" onclick="go('plan',this)">
+     <i class="w-4 h-4" data-lucide="pen-line"></i>
+     <span class="flex-1 text-right">بناء البلان</span>
+    </button>
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-permissions" onclick="go('permissions',this)">
+     <i class="w-4 h-4" data-lucide="shield-check"></i>
+     <span class="flex-1 text-right">الصلاحيات</span>
     </button>
     <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-hr" onclick="go('hr',this)">
      <i class="w-4 h-4 text-blue-600" data-lucide="user-check"></i>
@@ -1337,28 +1348,47 @@
      </div>
     </div>
     <!-- Task & Operations Management Engine View -->
-    <div class="view hidden space-y-6" id="v-tasks">
-      <!-- Plan Builder: content team creates a plan, picks client + AM, sends it -->
-      <div class="bg-gradient-to-br from-violet-50 to-blue-50 border border-violet-200 rounded-2xl p-6 shadow-sm space-y-3">
-        <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">📝 <span>بناء بلان جديد وإرساله للأكونت مانيجر</span></h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+    <!-- ============ PERMISSIONS TAB (team roles + send credentials) ============ -->
+    <div class="view hidden space-y-6" id="v-permissions">
+      <div class="flex items-center gap-2">
+        <i data-lucide="shield-check" class="w-5 h-5 text-blue-600"></i>
+        <h3 class="font-bold text-lg text-slate-900">الصلاحيات وإدارة الفريق</h3>
+      </div>
+      <div id="permissions-mount"></div>
+    </div>
+
+    <!-- ============ PLAN BUILDER TAB (own tab, Word-like editor) ============ -->
+    <div class="view hidden space-y-6" id="v-plan">
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div class="flex items-center gap-2">
+          <i data-lucide="pen-line" class="w-5 h-5 text-violet-600"></i>
+          <h3 class="font-bold text-lg text-slate-900">بناء بلان جديد</h3>
+        </div>
+        <p class="text-xs text-slate-500">اكتب البلان بالتنسيق اللي تحبه، اختر العميل والأكونت مانيجر، وابعته — وهتاخد لينك تعرضه لأي حد برا السيستم.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label class="block text-[11px] font-bold text-slate-600 mb-1">العميل</label>
-            <select id="pb-client" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white"></select>
+            <select id="pb-client" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"></select>
           </div>
           <div>
             <label class="block text-[11px] font-bold text-slate-600 mb-1">الأكونت مانيجر</label>
-            <select id="pb-am" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white"></select>
+            <select id="pb-am" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"></select>
           </div>
         </div>
-        <textarea id="pb-text" rows="6" placeholder="اكتب البلان — كل بوست يبدأ برقم:&#10;1)&#10;- تاج لاين: عنوان البوست&#10;- التخيل: فكرة الجرافيك&#10;الكابشن هنا...&#10;&#10;2) ..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"></textarea>
-        <div class="flex items-center gap-2 flex-wrap">
-          <button onclick="createPlan()" class="btn-primary text-xs py-2 px-5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold">🚀 إنشاء وإرسال للأكونت مانيجر</button>
-          <button onclick="loadPlanBuilder()" class="text-xs py-2 px-3 rounded-xl border border-slate-200 text-slate-600">تحديث القوائم</button>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 mb-1">محتوى البلان</label>
+          <div id="pb-editor" style="min-height:260px;background:#fff" class="rounded-b-xl"></div>
+          <p class="text-[10px] text-slate-400 mt-1">تلميح: ابدأ كل بوست برقم (1) 2) 3)…) وحط "تاج لاين:" للعنوان و"التخيل:" لفكرة الجرافيك.</p>
         </div>
-        <div id="pb-result" class="hidden text-[12px] bg-white border border-emerald-200 rounded-xl p-3"></div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="createPlan()" class="btn-primary text-sm py-2.5 px-6 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold">🚀 إنشاء وإرسال للأكونت مانيجر</button>
+          <button onclick="loadPlanBuilder()" class="text-xs py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600">تحديث القوائم</button>
+        </div>
+        <div id="pb-result" class="hidden text-[13px] bg-emerald-50 border border-emerald-200 rounded-xl p-4"></div>
       </div>
+    </div>
 
+    <div class="view hidden space-y-6" id="v-tasks">
       <!-- Section 1: Top Bar & Quick Ingest -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
@@ -1511,15 +1541,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.18">
+  <script src="/static/js/app.js?v=7.19">
   </script>
-  <script src="/static/js/inbox.js?v=7.18">
+  <script src="/static/js/inbox.js?v=7.19">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.18">
+  <script src="/static/js/chatwoot_free.js?v=7.19">
   </script>
-  <script src="/static/js/views.js?v=7.18">
+  <script src="/static/js/views.js?v=7.19">
   </script>
-  <script src="/static/js/clients.js?v=7.18">
+  <script src="/static/js/clients.js?v=7.19">
   </script>
  
   <!-- Modal: Add New Connected Account -->

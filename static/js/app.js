@@ -86,7 +86,8 @@ function go(id, el) {
     const paneIds = [
       'v-inbox', 'v-dash', 'v-help', 'v-rules', 'v-automation', 'v-kb',
       'v-crm', 'v-settings', 'v-logs', 'v-scheduler', 'v-chatwoot', 'v-accounts',
-      'v-analytics', 'v-mode', 'v-chat', 'v-tasks', 'v-hr', 'v-myportal'
+      'v-analytics', 'v-mode', 'v-chat', 'v-tasks', 'v-hr', 'v-myportal',
+      'v-plan', 'v-permissions'
     ];
     
     paneIds.forEach(pid => {
@@ -127,12 +128,20 @@ function go(id, el) {
     if (cleanId === 'analytics' && typeof loadAnalytics === 'function') loadAnalytics();
     if (cleanId === 'logs' && typeof loadLogs === 'function') loadLogs();
     if (cleanId === 'settings' && typeof loadSettings === 'function') loadSettings();
-    if (cleanId === 'settings' && typeof loadTeam === 'function') loadTeam();
     if (cleanId === 'mode' && typeof loadReplyModes === 'function') loadReplyModes();
     if (cleanId === 'scheduler' && typeof loadScheduledPosts === 'function') loadScheduledPosts();
     if (cleanId === 'hr' && typeof loadHR === 'function') loadHR();
     if (cleanId === 'myportal' && typeof loadMyPortal === 'function') loadMyPortal();
     if (cleanId === 'tasks' && typeof loadTasksEngine === 'function') loadTasksEngine();
+    if (cleanId === 'plan' && typeof loadPlanBuilder === 'function') loadPlanBuilder();
+    if (cleanId === 'permissions') {
+      // relocate the team panel (built once in settings) into the permissions tab
+      var tp = document.getElementById('team-panel');
+      var mount = document.getElementById('permissions-mount');
+      if (tp && mount && tp.parentNode !== mount) mount.appendChild(tp);
+      if (tp) tp.classList.remove('hidden');
+      if (typeof loadTeam === 'function') loadTeam();
+    }
 
     initLucideIcons();
   } catch (e) {
@@ -411,6 +420,9 @@ async function applyRoleUI() {
   const isEmp = me.role === 'employee';
   const portalNav = document.getElementById('nav-myportal');
   if (portalNav) portalNav.classList.toggle('hidden', !isEmp);
+  // permissions tab: admin only
+  const permNav = document.getElementById('nav-permissions');
+  if (permNav) permNav.classList.toggle('hidden', !me.is_admin);
   if (isEmp) {
     // hide every other nav button, show only my portal, and open it
     document.querySelectorAll('#sidebar .nb').forEach(b => {

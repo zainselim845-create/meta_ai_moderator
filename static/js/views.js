@@ -990,7 +990,6 @@ function renderEmployeesStatus() {
 }
 
 async function loadTasksEngine() {
-    if (typeof loadPlanBuilder === 'function') loadPlanBuilder();
     try {
         var rTasks = await fetch('/api/tasks');
         var rEmps = await fetch('/api/tasks/employees');
@@ -1421,10 +1420,18 @@ async function updateTaskStatusAction(taskId, newStatus, empId, notes) {
     }
 }
 
+var _planQuill = null;
 async function loadPlanBuilder() {
     var cSel = document.getElementById('pb-client');
     var mSel = document.getElementById('pb-am');
     if (!cSel || !mSel) return;
+    // init the open-source rich-text (Word-like) editor once
+    if (window.Quill && !_planQuill && document.getElementById('pb-editor')) {
+        _planQuill = new Quill('#pb-editor', {
+            theme: 'snow', placeholder: '1)\n- تاج لاين: عنوان البوست\n- التخيل: فكرة الجرافيك\nالكابشن هنا...\n\n2) ...',
+            modules: { toolbar: [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], [{ header: [1, 2, false] }], ['link', 'clean']] }
+        });
+    }
     try {
         var cd = await (await fetch('/api/clients')).json();
         var clients = Array.isArray(cd) ? cd : (cd.clients || []);
@@ -1440,7 +1447,7 @@ async function loadPlanBuilder() {
 async function createPlan() {
     var client_id = (document.getElementById('pb-client')||{}).value || '';
     var am = (document.getElementById('pb-am')||{}).value || '';
-    var txt = ((document.getElementById('pb-text')||{}).value || '').trim();
+    var txt = _planQuill ? _planQuill.getText().trim() : (((document.getElementById('pb-text')||{}).value) || '').trim();
     if (!client_id) { showToast('اختر العميل', 'error'); return; }
     if (!txt) { showToast('اكتب البلان', 'error'); return; }
     showToast('جاري إنشاء البلان... ⏳');
@@ -1459,7 +1466,7 @@ async function createPlan() {
                     '<input value="' + esc(data.share_url) + '" readonly class="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-[11px]" onclick="this.select()">' +
                     '<button onclick="navigator.clipboard.writeText(\'' + esc(data.share_url) + '\');showToast(\'اتنسخ ✅\')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">نسخ</button></div>';
             }
-            document.getElementById('pb-text').value = '';
+            if (_planQuill) _planQuill.setText('');
             loadTasksEngine();
         } else { showToast(data.error || 'تعذّر الإنشاء', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
