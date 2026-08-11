@@ -19,7 +19,7 @@
   <!-- Quill: open-source rich-text (Word-like) editor for the Plan builder -->
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <link href="/static/css/styles.css?v=7.36" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.37" rel="stylesheet"/>
   <style>
    /* Plan editor: each paragraph auto-directions by its own language (Arabic → RTL, English → LTR) */
    #pb-editor .ql-editor { direction: rtl; text-align: right; }
@@ -1339,8 +1339,8 @@
         </div>
       </div>
 
-      <!-- Section 1.5: Account Manager Multi-Client Columns Board (collapsible) -->
-      <details class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+      <!-- Section 1.5: legacy multi-client columns board — replaced by client tabs -->
+      <details class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hidden">
         <summary class="font-bold text-base text-slate-900 flex items-center gap-2 cursor-pointer select-none">
           <i data-lucide="layout-grid" class="w-5 h-5 text-blue-600"></i>
           <span>لوحة أعمدة العملاء (اضغط للفتح)</span>
@@ -1441,15 +1441,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.36">
+  <script src="/static/js/app.js?v=7.37">
   </script>
-  <script src="/static/js/inbox.js?v=7.36">
+  <script src="/static/js/inbox.js?v=7.37">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.36">
+  <script src="/static/js/chatwoot_free.js?v=7.37">
   </script>
-  <script src="/static/js/views.js?v=7.36">
+  <script src="/static/js/views.js?v=7.37">
   </script>
-  <script src="/static/js/clients.js?v=7.36">
+  <script src="/static/js/clients.js?v=7.37">
   </script>
  
   <!-- Modal: Add New Connected Account -->

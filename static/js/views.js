@@ -1052,7 +1052,7 @@ async function loadTasksEngine() {
         renderTasksBoard();
         renderEmployeesStatus();
         loadTaskMonthlyReport();
-        loadAMWorkspace();
+        // old multi-client columns board replaced by client tabs — no longer loaded
     } catch(e) {
         console.error("Tasks Load Error:", e);
     }
