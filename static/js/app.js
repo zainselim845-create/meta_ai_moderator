@@ -74,6 +74,13 @@ function closeMobileSidebar() {
 function go(id, el) {
   try {
     let cleanId = (id || '').replace('v-', '');
+    // Hard block: a restricted user can ONLY open their allowed tabs.
+    const _me = window._me;
+    if (_me && !_me.is_admin && (_me.allowed_tabs||[]).length) {
+      const allow = new Set(_me.allowed_tabs); allow.add('myportal');
+      const canon = cleanId === 'chatwoot' ? 'accounts' : cleanId;
+      if (!allow.has(canon)) { return; }
+    }
     // Canonical aliases
     if (cleanId === 'clients') cleanId = 'crm';
     if (cleanId === 'prompt') cleanId = 'settings';
@@ -419,16 +426,31 @@ async function applyRoleUI() {
   try { me = await (await fetch('/api/me')).json(); } catch(e) { return; }
   const isEmp = me.role === 'employee';
   const portalNav = document.getElementById('nav-myportal');
-  if (portalNav) portalNav.classList.toggle('hidden', !isEmp);
+  if (portalNav) portalNav.classList.toggle('hidden', !isEmp && !(me.allowed_tabs||[]).includes('myportal'));
   // permissions tab: admin only
   const permNav = document.getElementById('nav-permissions');
   if (permNav) permNav.classList.toggle('hidden', !me.is_admin);
+
+  const navKey = (b) => { let id = (b.id||'').replace('nav-',''); return id === 'chatwoot' ? 'accounts' : id; };
+  const tabs = me.allowed_tabs || [];
+
+  if (!me.is_admin && tabs.length) {
+    // ADMIN-CHOSEN tabs: show only the checked ones (myportal always available)
+    const allow = new Set(tabs); allow.add('myportal');
+    document.querySelectorAll('#sidebar .nb').forEach(b => {
+      b.classList.toggle('hidden', !allow.has(navKey(b)));
+    });
+    if (isEmp) ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.add('hidden'); });
+    if (typeof go === 'function') go(tabs[0]);
+    window._me = me;
+    return;
+  }
+
   if (isEmp) {
-    // hide every other nav button, show only my portal, and open it
+    // default employee lock: only my portal
     document.querySelectorAll('#sidebar .nb').forEach(b => {
       if (b.id !== 'nav-myportal') b.classList.add('hidden');
     });
-    // hide header client switcher + add-account (agency-only controls)
     ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.add('hidden'); });
     if (typeof go === 'function') go('myportal');
   }
@@ -575,20 +597,48 @@ async function renderCompanyEmployees() {
   if (!emps.length) { box.innerHTML = '<div class="text-[11px] text-slate-400">لا يوجد موظفون</div>'; return; }
   const roleOpts = (cur) => ['employee','account_manager','admin'].map(r =>
     `<option value="${r}" ${cur===r?'selected':''}>${r==='admin'?'مدير':r==='account_manager'?'أكونت مانيجر':'موظف'}</option>`).join('');
+  const tabsOf = {};
+  users.forEach(u => { if (u.employee_id) tabsOf[u.employee_id] = u.allowed_tabs || []; });
+  const TAB_LABELS = { tasks:'المهام', plan:'بناء البلان', hr:'الموظفين والحضور', scheduler:'الجدولة', crm:'العملاء', inbox:'الإنبوكس', analytics:'التحليلات', rules:'القواعد', kb:'المعرفة', mode:'وضع الرد', settings:'الإعدادات', logs:'السجلات', accounts:'الحسابات', myportal:'بوابتي' };
   box.innerHTML = emps.map(e => {
     const cur = roleOf[e.employee_id] || 'employee';
-    return `<div class="border border-slate-200 rounded-lg px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
-      <div class="text-xs min-w-[130px]">
-        <span class="font-bold text-slate-900">${esc(e.name||e.employee_id)}</span>
-        <span class="block text-[10px] text-slate-500">${esc(e.role||'')} ${e.telegram_id?'· تليجرام ✓':'· بدون تليجرام'}</span>
+    const curTabs = new Set(tabsOf[e.employee_id] || []);
+    const tabChecks = Object.keys(TAB_LABELS).map(k =>
+      `<label class="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 cursor-pointer text-[11px]">
+        <input type="checkbox" class="tabcb-${esc(e.employee_id)}" value="${k}" ${curTabs.has(k)?'checked':''}> ${TAB_LABELS[k]}</label>`).join(' ');
+    return `<div class="border border-slate-200 rounded-lg px-3 py-2 space-y-2">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div class="text-xs min-w-[130px]">
+          <span class="font-bold text-slate-900">${esc(e.name||e.employee_id)}</span>
+          <span class="block text-[10px] text-slate-500">${esc(e.role||'')} ${e.telegram_id?'· تليجرام ✓':'· بدون تليجرام'}</span>
+        </div>
+        <div class="flex items-center gap-1 flex-wrap">
+          <select onchange="setEmployeeRole('${esc(e.employee_id)}',this.value)" class="text-[11px] px-2 py-1 border border-slate-200 rounded-lg bg-white">${roleOpts(cur)}</select>
+          <button onclick="document.getElementById('tabs-${esc(e.employee_id)}').classList.toggle('hidden')" class="text-[11px] px-2 py-1 rounded-lg border border-violet-200 text-violet-700">🎛️ التبويبات</button>
+          <button onclick="sendEmployeeCreds('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">📤 إرسال بياناته</button>
+          <button onclick="deleteCompanyEmployee('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">حذف</button>
+        </div>
       </div>
-      <div class="flex items-center gap-1 flex-wrap">
-        <select onchange="setEmployeeRole('${esc(e.employee_id)}',this.value)" class="text-[11px] px-2 py-1 border border-slate-200 rounded-lg bg-white">${roleOpts(cur)}</select>
-        <button onclick="sendEmployeeCreds('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">📤 إرسال بياناته</button>
-        <button onclick="deleteCompanyEmployee('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">حذف</button>
+      <div id="tabs-${esc(e.employee_id)}" class="hidden bg-slate-50 border border-slate-100 rounded-lg p-2 space-y-2">
+        <div class="text-[10px] text-slate-500">اختر التبويبات اللي هيشوفها بس (لو مفيش أي اختيار = الافتراضي حسب صلاحيته):</div>
+        <div class="flex flex-wrap gap-1">${tabChecks}</div>
+        <button onclick="saveEmployeeTabs('${esc(e.employee_id)}')" class="text-[11px] px-3 py-1 rounded-lg bg-violet-600 text-white font-bold">💾 حفظ التبويبات</button>
       </div>
     </div>`;
   }).join('');
+}
+
+async function saveEmployeeTabs(empId) {
+  const cbs = document.querySelectorAll('.tabcb-' + empId);
+  const tabs = Array.from(cbs).filter(c => c.checked).map(c => c.value);
+  try {
+    const r = await fetch('/api/employees/' + encodeURIComponent(empId) + '/tabs', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ tabs: tabs })
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) showToast('اتحفظت التبويبات ✅ (هتطبق لما يعمل لوجين)');
+    else showToast(d.error || 'تعذّر الحفظ', 'error');
+  } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
 async function setEmployeeRole(empId, role) {
