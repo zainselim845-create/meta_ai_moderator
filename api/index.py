@@ -190,8 +190,17 @@ def supa_upsert(table_name, rows):
         return False
     try:
         url = f"{SUPABASE_URL}/rest/v1/{table_name}"
-        r = requests.post(url, headers=supa_headers(), timeout=5)
-        return r.status_code in (200, 201, 204)
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates,return=minimal",
+        }
+        r = requests.post(url, headers=headers, json=rows, timeout=8)
+        ok = r.status_code in (200, 201, 204)
+        if not ok:
+            print(f"[supa_upsert] {table_name} -> {r.status_code}: {r.text[:200]}")
+        return ok
     except Exception as e:
         print(f"[supa_upsert] Error upserting to {table_name}: {e}")
         return False
@@ -5016,41 +5025,50 @@ def save_client_employees(emp_list, _cid=None):
     push_setting("meta_ai_employees", updated)
 
 def get_client_tasks(_cid=None):
+    """MERGE mam_tasks (authoritative, race-safe) with any legacy blob tasks not yet
+    migrated — so nothing is lost during the transition to per-row storage."""
     _cid = _cid or current_client_id()
+    tasks, seen = [], set()
     db_rows = supa_select("mam_tasks", f"client_id=eq.{_cid}&select=*")
-    if db_rows is not None and len(db_rows) > 0:
-        tasks = []
+    if db_rows:
         for r in db_rows:
             d = r.get("data")
             if isinstance(d, dict):
                 d.setdefault("client_id", _cid)
-                if r.get("task_id"):
-                    d["id"] = r.get("task_id")
+                tid = r.get("task_id") or d.get("task_id")
+                if tid:
+                    d.setdefault("task_id", tid)
+                    d["id"] = tid
+                    seen.add(str(tid))
                 tasks.append(d)
-        return tasks
-    all_tasks = cache.get("tasks") or []
-    return [t for t in all_tasks if isinstance(t, dict) and (t.get("client_id") or _cid) == _cid]
+    for t in (cache.get("tasks") or []):
+        if isinstance(t, dict) and (t.get("client_id") or _cid) == _cid and str(t.get("task_id")) not in seen:
+            tasks.append(t)
+    return tasks
 
 def _all_tasks_db():
-    """ALL tasks across every client from the race-safe mam_tasks table (fallback to
-    the legacy cache blob). Used by the readers that aren't client-scoped."""
+    """ALL tasks across every client — mam_tasks (authoritative) MERGED with any legacy
+    blob tasks not yet migrated. Used by readers that aren't client-scoped."""
+    out, seen = [], set()
     try:
         if SUPABASE_URL and SUPABASE_KEY:
             rows = supa_select("mam_tasks", "select=*")
-            if rows:
-                out = []
-                for r in rows:
-                    d = r.get("data")
-                    if isinstance(d, dict):
-                        if r.get("task_id"):
-                            d.setdefault("task_id", r["task_id"])
-                            d["id"] = r["task_id"]
-                        d.setdefault("client_id", r.get("client_id"))
-                        out.append(d)
-                return out
+            for r in (rows or []):
+                d = r.get("data")
+                if isinstance(d, dict):
+                    tid = r.get("task_id") or d.get("task_id")
+                    if tid:
+                        d.setdefault("task_id", tid)
+                        d["id"] = tid
+                        seen.add(str(tid))
+                    d.setdefault("client_id", r.get("client_id"))
+                    out.append(d)
     except Exception as e:
         print(f"[all tasks db] {e}")
-    return cache.get("tasks") or []
+    for t in (cache.get("tasks") or []):
+        if isinstance(t, dict) and str(t.get("task_id")) not in seen:
+            out.append(t)
+    return out
 
 def save_client_tasks(tasks_list, _cid=None):
     _cid = _cid or current_client_id()
