@@ -1243,7 +1243,8 @@ function renderTasksBoard() {
                 '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">إسناد 🎯</button></div>';
         }
         if (st === 'Assigned' || st === 'In Progress') {
-            html += '<span class="text-[11px] text-slate-400 text-center">في يد الموظف — يعمل عليها من بوابته / بوت التليجرام</span>';
+            html += '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="w-full bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[11px] py-1 rounded-lg">📤 إرسال/إعادة إرسال للتليجرام</button>' +
+                '<span class="text-[10px] text-slate-400 text-center">في يد الموظف — يشتغل من بوابته / بوت التليجرام</span>';
         }
         if (st === 'Awaiting AM Review') {
             html += '<div class="grid grid-cols-2 gap-1">' +
@@ -1320,7 +1321,29 @@ async function assignTaskFromBoard(taskId) {
     var sel = document.getElementById('emp-select-' + taskId);
     var empId = sel ? sel.value : '';
     if (!empId) return;
-    await updateTaskStatusAction(taskId, 'Assigned', empId);
+    // Use the /assign endpoint — it sets the real assignee name AND sends the
+    // interactive task card (start/submit buttons) to the employee on Telegram.
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/assign', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employee_id: empId })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+            showToast(data.telegram_sent ? 'اتسند واتبعت للموظف على التليجرام ✅' : 'اتسند ✅ (الموظف مالوش تليجرام أو معملش Start للبوت)');
+            loadTasksEngine();
+        } else { showToast(data.error || 'تعذّر الإسناد', 'error'); }
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+
+async function resendTaskCard(taskId) {
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/resend', { method: 'POST' });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+            showToast(data.telegram_sent ? 'اتبعت الكارت للموظف على التليجرام ✅' : 'الموظف مالوش تليجرام أو معملش Start لبوت المهام', data.telegram_sent ? 'success' : 'error');
+        } else { showToast(data.error || 'تعذّر الإرسال', 'error'); }
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
 async function promptCompleteTask(taskId) {
