@@ -5877,9 +5877,8 @@ def api_tasks():
 
 def _docx_to_text(file_bytes, upload_images=True, parent_id=None):
     """Extract readable text from a .docx (a zip of XML) with no external libs.
-    Each Word paragraph becomes its own line. Embedded images are uploaded to
-    Drive and their link is injected inline where the image appears, so it gets
-    attached to the same task/line."""
+    Preserves table cells, rows, and paragraphs. Embedded images are uploaded to
+    Drive and their link is injected inline where the image appears."""
     import zipfile, io as _io
     try:
         zf = zipfile.ZipFile(_io.BytesIO(file_bytes))
@@ -5887,7 +5886,6 @@ def _docx_to_text(file_bytes, upload_images=True, parent_id=None):
     except Exception as e:
         print(f"[docx parse] {e}")
         return ""
-    # map relationship ids -> media path (word/_rels/document.xml.rels)
     rid_target = {}
     try:
         rels = zf.read("word/_rels/document.xml.rels").decode("utf-8", "ignore")
@@ -5895,13 +5893,13 @@ def _docx_to_text(file_bytes, upload_images=True, parent_id=None):
             rid_target[m.group(1)] = m.group(2)
     except Exception:
         pass
-    # mark each embedded image at its position with the rId
     xml = re.sub(r'<a:blip[^>]*r:embed="([^"]+)"', r' [[DOCXIMG:\1]] <a:blip', xml)
+    xml = re.sub(r"</w:tr>", "\n", xml)
+    xml = re.sub(r"</w:tc>", "\t", xml)
     xml = re.sub(r"</w:p>", "\n", xml)
     xml = re.sub(r"<w:tab[^>]*/>", "\t", xml)
     text = re.sub(r"<[^>]+>", "", xml)
     text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&#39;", "'").replace("&quot;", '"')
-    # resolve image markers -> uploaded Drive links (dedup, capped)
     if upload_images:
         cache, uploaded = {}, 0
         for rid in set(re.findall(r"\[\[DOCXIMG:([^\]]+)\]\]", text)):
@@ -5925,27 +5923,228 @@ def _docx_to_text(file_bytes, upload_images=True, parent_id=None):
     lines = [l.strip() for l in text.splitlines()]
     return "\n".join(l for l in lines if l)
 
-def _parse_plan_posts(plan_text):
-    """Split a content plan into POSTS. Understands numbered blocks (1) 2) 3)…),
-    each grouping a tagline + visual idea + caption + repeated footer. Falls back
-    to one-post-per-line for simple/pipe-delimited plans."""
-    lines = [l.strip() for l in plan_text.splitlines() if l.strip()]
-    # numbered post markers like "1)" "2)" possibly with content after
-    marker_idx = [i for i, l in enumerate(lines) if re.match(r'^\d{1,3}\s*\)', l)]
-    posts = []
-    if len(marker_idx) >= 2:
-        bounds = marker_idx + [len(lines)]
-        for b in range(len(marker_idx)):
-            block = lines[marker_idx[b]:bounds[b + 1]]
-            head = re.match(r'^\d{1,3}\s*\)\s*(.*)$', block[0])
-            rest = block[1:]
-            if head and head.group(1).strip():
-                rest = [head.group(1).strip()] + rest
-            if rest:
-                posts.append(rest)
+def _parse_plan_with_ai(plan_text):
+    """Uses Groq LLaMA-3.3 or OpenRouter to intelligently parse marketing plans of any structure."""
+    if not plan_text or len(plan_text.strip()) < 15:
+        return []
+    
+    prompt = (
+        "You are an expert Social Media & Marketing Content Plan Parser. "
+        "Extract all individual posts/content pieces from the given content plan text into a structured JSON object. "
+        "Return ONLY a JSON object with a single key 'posts' containing an array of post objects.\n"
+        "Each post object MUST have these exact fields:\n"
+        "- title: (string) Short hook, headline, or tagline (maximum 100 characters)\n"
+        "- caption: (string) The full text, caption, or script. Preserve ALL details, emojis, and points without truncating.\n"
+        "- visual_idea: (string) Visual idea, design brief, or motion graphic concept if mentioned, otherwise empty string.\n"
+        "- post_type: (string) One of: 'post', 'reel', 'carousel', 'story', 'motion'\n"
+        "- publish_date: (string) Format 'YYYY-MM-DD' if found, otherwise empty string ''\n"
+        "- publish_time: (string) Format 'HH:MM' (default '10:00')\n"
+        "- delivery_deadline: (string) Format 'YYYY-MM-DD' if found, otherwise empty string ''\n"
+        "- media_urls: (array of strings) Any URLs or links mentioned in this post\n\n"
+        "Respond ONLY with valid JSON."
+    )
+
+    if GROQ_API_KEY:
+        try:
+            res = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": plan_text[:12000]}
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.1
+                },
+                timeout=18
+            )
+            if res.status_code == 200:
+                data = res.json()
+                content = data["choices"][0]["message"]["content"]
+                parsed = json.loads(content)
+                posts = parsed.get("posts") or parsed.get("data") or []
+                if isinstance(posts, list) and len(posts) > 0:
+                    return posts
+        except Exception as e:
+            print(f"[AI Plan Parse Groq Error] {e}")
+
+    if OPENROUTER_API_KEY:
+        try:
+            res = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "meta-llama/llama-3.3-70b-instruct:free",
+                    "messages": [
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": plan_text[:12000]}
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.1
+                },
+                timeout=18
+            )
+            if res.status_code == 200:
+                data = res.json()
+                content = data["choices"][0]["message"]["content"]
+                parsed = json.loads(content)
+                posts = parsed.get("posts") or parsed.get("data") or []
+                if isinstance(posts, list) and len(posts) > 0:
+                    return posts
+        except Exception as e:
+            print(f"[AI Plan Parse OpenRouter Error] {e}")
+
+    return []
+
+def _universal_heuristic_plan_parser(plan_text):
+    """Splits arbitrary marketing plan text into discrete posts and extracts all metadata without fragmentation."""
+    lines = [l.rstrip() for l in plan_text.splitlines()]
+    
+    marker_indices = []
+    header_patterns = [
+        r'^\s*(?:\d{1,3}[\.\)\-\]]|\(\d{1,3}\)|[٠-٩]{1,3}[\.\)\-\]])\s*',
+        r'^\s*(?:بوست|البوست|منشور|المنشور|المحتوى|فيديو|الفيديو|ريلز|الريلز|post|content|reel|video)\s*(?:#?\d+|الأول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر)', 
+        r'^\s*(?:---+|===+|\*\*\*+|___+)\s*$', 
+    ]
+    for i, line in enumerate(lines):
+        line_s = line.strip()
+        if not line_s:
+            continue
+        for pat in header_patterns:
+            if re.match(pat, line_s, re.I):
+                marker_indices.append(i)
+                break
+                
+    blocks = []
+    if len(marker_indices) >= 2:
+        bounds = marker_indices + [len(lines)]
+        for b in range(len(marker_indices)):
+            block_lines = lines[marker_indices[b]:bounds[b+1]]
+            block_text = "\n".join(block_lines).strip()
+            if block_text:
+                blocks.append(block_text)
     else:
-        posts = [[l] for l in lines if len(l) >= 3 and not l.startswith("#")]
-    return posts
+        double_nl_blocks = [b.strip() for b in re.split(r'\n\s*\n\s*\n?', plan_text) if b.strip()]
+        if len(double_nl_blocks) >= 2:
+            blocks = double_nl_blocks
+        else:
+            pipe_blocks = [l.strip() for l in lines if '|' in l and not re.match(r'^[|\s\-:]+$', l)]
+            if len(pipe_blocks) >= 2:
+                blocks = pipe_blocks
+            else:
+                blocks = [plan_text.strip()] if plan_text.strip() else []
+
+    results = []
+    url_re = re.compile(r'https?://[^\s|]+')
+    
+    for block_text in blocks:
+        b_lines = [l.strip() for l in block_text.splitlines() if l.strip()]
+        if not b_lines:
+            continue
+            
+        title = ""
+        visual = ""
+        caption_lines = []
+        post_type = "post"
+        pub_date = ""
+        pub_time = "10:00"
+        dl_date = ""
+        urls = url_re.findall(block_text)
+        
+        if len(b_lines) == 1 and '|' in b_lines[0]:
+            parts = [p.strip() for p in b_lines[0].split('|') if p.strip()]
+            if parts:
+                title = parts[0]
+                desc = parts[1] if len(parts) > 1 else title
+                pt = parts[2].lower() if len(parts) > 2 else "post"
+                results.append({
+                    "title": title[:140],
+                    "caption": desc,
+                    "visual_idea": "",
+                    "post_type": "reel" if any(k in pt for k in ["reel", "ريلز", "فيديو"]) else "post",
+                    "publish_date": "",
+                    "publish_time": "10:00",
+                    "delivery_deadline": "",
+                    "media_urls": urls
+                })
+                continue
+
+        for ln in b_lines:
+            ln_clean = url_re.sub('', ln).strip()
+            if not ln_clean:
+                continue
+                
+            norm = ln_clean.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").lower()
+            
+            if re.match(r'^(?:عنوان|الهوك|هوك|الـ\s*هوك|الـ\s*hook|تاج\s*لاين|تاجلاين|tag\s*line|title|hook|headline|موضوع\s*البوست|فكرة\s*البوست)[:：\s]', ln_clean, re.I):
+                title = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+            elif re.match(r'^(?:التخيل|تخيل|فكرة\s*التصميم|فكرة\s*الفيديو|التصميم|الموشن|visual|design|الرؤية\s*البصرية)[:：\s]', ln_clean, re.I):
+                visual = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+            elif re.match(r'^(?:النوع|نوع\s*المحتوى|نوع\s*البوست|type|format)[:：\s]', ln_clean, re.I):
+                val = re.split(r'[:：]', ln_clean, 1)[-1].strip().lower()
+                if any(k in val for k in ["ريلز", "reel", "فيديو", "video", "تيك توك", "tiktok"]):
+                    post_type = "reel"
+                elif any(k in val for k in ["كاروسيل", "carousel", "سلايدر", "slides"]):
+                    post_type = "carousel"
+                elif any(k in val for k in ["ستوري", "story"]):
+                    post_type = "story"
+                elif any(k in val for k in ["موشن", "motion"]):
+                    post_type = "motion"
+            elif re.match(r'^(?:تاريخ\s*النزول|تاريخ\s*النشر|النزول|publish\s*date|date)[:：\s]', ln_clean, re.I):
+                val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+                dm = re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', val)
+                if dm: pub_date = dm.group(0)
+                tm = re.search(r'\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm|ص|م))?', val)
+                if tm: pub_time = tm.group(0)
+            elif re.match(r'^(?:تاريخ\s*التسليم|موعد\s*التسليم|التسليم|deadline)[:：\s]', ln_clean, re.I):
+                val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+                dm = re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', val)
+                if dm: dl_date = dm.group(0)
+            elif re.match(r'^(?:الكابشن|كابشن|النص|الاسكريبت|اسكريبت|المحتوى|caption|script|content)[:：\s]', ln_clean, re.I):
+                body_part = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+                if body_part:
+                    caption_lines.append(body_part)
+            else:
+                cleaned_line = re.sub(r'^(?:\d{1,3}[\.\)\-\]]|\(\d{1,3}\)|[٠-٩]{1,3}[\.\)\-\]]|بوست\s*#?\d+[:\s]*|البوست\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر)[:\s]*|Post\s*#?\d+[:\s]*)', '', ln_clean, flags=re.I).strip()
+                if cleaned_line and not re.match(r'^(?:---+|===+|\*\*\*+|___+)$', cleaned_line):
+                    if not any(cleaned_line.startswith(p) for p in ['📍', '☎', '📞', '🏢', '(013)', '(+2)']):
+                        if re.match(r'^(?:الـ?\s*tov|tov|tone|نبرة\s*الصوت)[:：\s]', cleaned_line, re.I):
+                            tov_val = re.split(r'[:：]', cleaned_line, 1)[-1].strip()
+                            if tov_val:
+                                caption_lines.append(tov_val)
+                        else:
+                            caption_lines.append(cleaned_line)
+
+        if not title and caption_lines:
+            title = caption_lines[0][:100].lstrip("-•*✅✍️ ").strip()
+        if not title:
+            title = "منشور جديد"
+            
+        full_caption = "\n".join(caption_lines).strip()
+        results.append({
+            "title": title[:140],
+            "caption": full_caption or title,
+            "visual_idea": visual,
+            "post_type": post_type,
+            "publish_date": pub_date,
+            "publish_time": pub_time,
+            "delivery_deadline": dl_date,
+            "media_urls": urls
+        })
+    return results
+
+def _universal_extract_plan_posts(plan_text):
+    """Combines AI LLM extraction with universal heuristic fallback for 100% precision."""
+    if not plan_text or not plan_text.strip():
+        return []
+    # 1. Try AI extraction
+    ai_posts = _parse_plan_with_ai(plan_text)
+    if ai_posts and len(ai_posts) > 0:
+        return ai_posts
+    # 2. Fall back to universal heuristic parser
+    return _universal_heuristic_plan_parser(plan_text)
 
 def _after_colon(s):
     return re.split(r'[:：]', s, 1)[-1].strip()
@@ -5956,8 +6155,9 @@ def _after_colon(s):
 def api_tasks_ingest_plan():
     _cid = current_client_id()
     plan_text = ""
-    _pfolder = client_month_folder_id(_cid)  # embedded plan images → client/month folder
-    # 1) uploaded .docx file (multipart) — the main flow
+    _pfolder = client_month_folder_id(_cid)
+    
+    # 1) uploaded .docx file
     up = request.files.get("file") if request.files else None
     if up and up.filename:
         raw = up.read()
@@ -5996,36 +6196,20 @@ def api_tasks_ingest_plan():
 
     created_count = 0
     counter = max_num + 1
-    _url_re = re.compile(r'https?://[^\s|]+')
-    posts = _parse_plan_posts(plan_text)
+    extracted_posts = _universal_extract_plan_posts(plan_text)
 
-    for block in posts:
-        tagline, visual = "", ""
-        caption_lines, image_urls, ref_links = [], [], []
-        for ln in block:
-            for u in _url_re.findall(ln):
-                low = u.lower()
-                (image_urls if ("drive.google" in low or low.split("?")[0].endswith((".jpg", ".jpeg", ".png", ".webp", ".gif"))) else ref_links).append(u)
-            ln_nourl = _url_re.sub("", ln).strip()
-            norm = ln_nourl.replace("أ", "ا").replace("إ", "ا")
-            if not ln_nourl:
-                continue
-            if ("تاج لاين" in norm) or ("تاجلاين" in norm) or ("tag line" in norm.lower()):
-                tagline = _after_colon(ln_nourl)
-            elif ("التخيل" in norm) or ("تخيل" in norm) or ("الموشن" in norm) or ("التصميم" in norm):
-                visual = _after_colon(ln_nourl)
-            elif ln_nourl[0] in ("📍", "☎", "📞", "🏢") or ln_nourl.startswith(("Banha", "El Sheikh", "(013)", "(+2)")):
-                continue  # repeated footer (address / phone) — keep out of the caption
-            else:
-                caption_lines.append(ln_nourl)
-        # support simple "title | desc | type" one-liners too
-        if len(block) == 1 and "|" in block[0] and not tagline:
-            parts = [p.strip() for p in block[0].split("|") if p.strip()]
-            tagline = parts[0]
-            if len(parts) > 1:
-                caption_lines = [parts[1]]
-        title = (tagline or (caption_lines[0] if caption_lines else "مهمة")).lstrip("-•*✅✍️ ").strip()[:140]
-        caption = "\n".join(caption_lines).strip()
+    for p in extracted_posts:
+        title = (p.get("title") or "منشور جديد").lstrip("-•*✅✍️ ").strip()[:140]
+        caption = (p.get("caption") or title).strip()
+        visual = (p.get("visual_idea") or "").strip()
+        p_type = (p.get("post_type") or "post").lower()
+        pub_date = (p.get("publish_date") or "").strip()
+        pub_time = (p.get("publish_time") or "10:00").strip()
+        dl_date = (p.get("delivery_deadline") or "").strip()
+        media_urls = p.get("media_urls") or []
+        
+        ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower()]
+        image_urls = [u for u in media_urls if u not in ref_links]
 
         new_task = {
             "task_id": f"TASK-{counter:04d}",
@@ -6034,16 +6218,16 @@ def api_tasks_ingest_plan():
             "description": caption or title,
             "caption": caption,
             "status": "Pending AM Approval",
-            # dates left EMPTY on purpose — the account manager sets البدء/النزول from the board
             "scheduled_start_date": "",
-            "publish_date": "",
-            "delivery_deadline": "",
+            "publish_date": pub_date,
+            "publish_time": pub_time,
+            "delivery_deadline": dl_date,
             "am_id": "EMP-001",
             "assigned_employee_id": "",
             "assignee_name": "",
             "media_urls": image_urls,
             "reference_links": ref_links,
-            "content_data": {"post_type": "post", "tag_line": tagline or title, "visual_idea": visual, "reference_images": image_urls},
+            "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls},
             "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
             "created_at": datetime.now(timezone.utc).isoformat()
         }
@@ -6154,34 +6338,30 @@ def api_plan_create():
         if m:
             max_num = max(max_num, int(m.group(1)))
     counter = max_num + 1
-    _url_re = re.compile(r'https?://[^\s|]+')
     created = 0
-    for block in _parse_plan_posts(plan_text):
-        tagline, visual, cap, imgs, refs = "", "", [], [], []
-        for ln in block:
-            for u in _url_re.findall(ln):
-                (imgs if ("drive.google" in u.lower() or u.lower().split("?")[0].endswith((".jpg", ".jpeg", ".png", ".webp", ".gif"))) else refs).append(u)
-            c = _url_re.sub("", ln).strip()
-            norm = c.replace("أ", "ا").replace("إ", "ا")
-            if not c:
-                continue
-            if "تاج لاين" in norm or "تاجلاين" in norm or "tag line" in norm.lower():
-                tagline = _after_colon(c)
-            elif "التخيل" in norm or "تخيل" in norm or "الموشن" in norm or "التصميم" in norm:
-                visual = _after_colon(c)
-            elif c[0] in ("📍", "☎", "📞", "🏢") or c.startswith(("Banha", "El Sheikh", "(013)", "(+2)")):
-                continue
-            else:
-                cap.append(c)
-        title = (tagline or (cap[0] if cap else "مهمة")).lstrip("-•*✅✍️ ").strip()[:140]
+    extracted_posts = _universal_extract_plan_posts(plan_text)
+    for p in extracted_posts:
+        title = (p.get("title") or "منشور جديد").lstrip("-•*✅✍️ ").strip()[:140]
+        caption = (p.get("caption") or title).strip()
+        visual = (p.get("visual_idea") or "").strip()
+        p_type = (p.get("post_type") or "post").lower()
+        pub_date = (p.get("publish_date") or "").strip()
+        pub_time = (p.get("publish_time") or "10:00").strip()
+        dl_date = (p.get("delivery_deadline") or "").strip()
+        media_urls = p.get("media_urls") or []
+        
+        ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower()]
+        image_urls = [u for u in media_urls if u not in ref_links]
+
         tasks.insert(0, {
             "task_id": f"TASK-{counter:04d}", "client_id": client_id, "title": title,
-            "description": "\n".join(cap).strip() or title, "caption": "\n".join(cap).strip(),
-            "status": "Pending AM Approval", "scheduled_start_date": "", "publish_date": "",
-            "delivery_deadline": "", "am_id": am_id or "EMP-001", "assigned_employee_id": "",
-            "assignee_name": "", "media_urls": imgs, "reference_links": refs,
-            "content_data": {"post_type": "post", "tag_line": tagline or title, "visual_idea": visual},
-            "graphic_data": {"idea": visual, "reference_images": imgs, "reference_links": refs},
+            "description": caption or title, "caption": caption,
+            "status": "Pending AM Approval", "scheduled_start_date": "", "publish_date": pub_date,
+            "publish_time": pub_time,
+            "delivery_deadline": dl_date, "am_id": am_id or "EMP-001", "assigned_employee_id": "",
+            "assignee_name": "", "media_urls": image_urls, "reference_links": ref_links,
+            "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls},
+            "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
             "created_by": current_username(), "created_at": datetime.now(timezone.utc).isoformat(),
         })
         counter += 1
