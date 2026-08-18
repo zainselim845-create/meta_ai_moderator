@@ -1457,21 +1457,21 @@ function renderTasksBoard() {
                 '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">إسناد 🎯</button></div>';
         }
         if (st === 'Assigned' || st === 'In Progress') {
-            html += '<div class="grid grid-cols-2 gap-1">' +
-                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-[11px] py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition">↩️ سحب المهمة</button>' +
+            html += '<div class="grid grid-cols-2 gap-1.5 pt-1">' +
+                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-2 rounded-lg shadow-sm flex items-center justify-center gap-1 transition">↩️ سحب المهمة</button>' +
                 '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[11px] py-1.5 px-2 rounded-lg flex items-center justify-center gap-1">📤 إرسال للتليجرام</button>' +
                 '</div>' +
-                '<div class="flex gap-1 pt-1"><select id="reassign-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1 border border-slate-200 rounded-lg flex-1"><option value="">تحويل لموظف آخر...</option>' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
-                '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-2.5 py-1 rounded-lg whitespace-nowrap">تحويل 🔄</button></div>';
+                '<div class="flex gap-1 pt-1"><select id="reassign-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">تحويل لموظف آخر...</option>' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
+                '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap">تحويل 🔄</button></div>';
         }
         if (st === 'Awaiting AM Review') {
-            html += '<div class="grid grid-cols-2 gap-1">' +
+            html += '<div class="grid grid-cols-2 gap-1 pt-1">' +
                 '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs py-1.5 rounded-lg">↩️ رجّع للتعديل</button>' +
                 '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-lg">✅ اعتماد + جدولة</button>' +
                 '</div>' +
-                '<div class="flex gap-1"><select id="fwd-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">مرّرها للي بعده...</option>' + empOptionsHtml('') + '</select>' +
+                '<div class="flex gap-1 pt-1"><select id="fwd-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">مرّرها للي بعده...</option>' + empOptionsHtml('') + '</select>' +
                 '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">مرّر ➡️</button></div>' +
-                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-[11px] py-1 rounded-lg mt-0.5">↩️ سحب المهمة من الموظف</button>';
+                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 rounded-lg shadow-sm mt-1">↩️ سحب المهمة من الموظف</button>';
         }
         if (st === 'Completed') {
             html += '<span class="text-xs font-bold text-emerald-600 block text-center">✓ مكتملة' + (t.scheduled_post_id ? ' ومجدولة للنشر 🗓️' : '') + '</span>';
@@ -1897,3 +1897,8 @@ async function runSystemDiagnostics() {
         box.innerHTML = '<div class="p-4 bg-red-50 text-red-700 text-xs rounded-xl col-span-full border border-red-200">خطأ في الاتصال بالخادم أثناء الفحص</div>';
     }
 }
+
+window.recallTaskAction = recallTaskAction;
+window.reassignTaskFromBoard = reassignTaskFromBoard;
+window.assignTaskFromBoard = assignTaskFromBoard;
+window.runSystemDiagnostics = runSystemDiagnostics;
