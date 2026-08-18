@@ -1801,7 +1801,7 @@ async function loadTaskMonthlyReport() {
                 '<td class="p-3 font-mono font-bold text-emerald-600">' + r.completed + '</td>' +
                 '<td class="p-3 font-mono font-bold text-blue-600">' + r.completion_rate + '</td>' +
                 '<td class="p-3 font-mono">' + r.avg_duration + '</td>' +
-                '<td class="p-3 text-xs text-slate-700">' + (r.notes && r.notes.length ? r.notes.join('<br>') : '-') + '</td>' +
+                '<td class="p-3 text-xs text-slate-700">' + (r.notes && r.notes.length ? r.notes.map(esc).join('<br>') : '-') + '</td>' +
             '</tr>';
         }).join('');
     } catch(e) { console.error(e); }

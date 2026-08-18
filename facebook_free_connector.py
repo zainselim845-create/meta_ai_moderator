@@ -123,8 +123,13 @@ class FacebookFreeConnector:
             "message": {"text": text},
             "messaging_type": "RESPONSE"
         }
-        res = requests.post(url, json=payload).json()
-        return res
+        try:
+            r = requests.post(url, json=payload, timeout=15)
+            if r.status_code != 200:
+                print(f"[Graph Send Error] {r.status_code}: {r.text[:200]}")
+            return r.json()
+        except Exception as e:
+            return {"error": str(e)}
 
     @classmethod
     def replyToComment(cls, comment_id, message, token):
@@ -133,8 +138,13 @@ class FacebookFreeConnector:
         """
         url = f"https://graph.facebook.com/v21.0/{comment_id}/comments?access_token={token}"
         payload = {"message": message}
-        res = requests.post(url, json=payload).json()
-        return res
+        try:
+            r = requests.post(url, json=payload, timeout=15)
+            if r.status_code != 200:
+                print(f"[Graph Comment Error] {r.status_code}: {r.text[:200]}")
+            return r.json()
+        except Exception as e:
+            return {"error": str(e)}
 
     @classmethod
     def getConnectorStatus(cls):

@@ -434,8 +434,7 @@ def generate_embedding(text):
 
 def search_kb(query, client_id=None):
     cid = client_id or current_client_id()
-    items = get_kb_data()
-    if not items or not query or not str(query).strip():
+    if not query or not str(query).strip():
         return ""
         
     # 1. Try vector RAG on Supabase if possible
@@ -462,6 +461,9 @@ def search_kb(query, client_id=None):
             print(f"[Vector Search Error] {e}")
 
     # 2. Fallback to keyword search
+    items = get_kb_data()
+    if not items:
+        return ""
     client_items = [i for i in items if (i.get("client_id") or "client_default") == cid]
     words = [w for w in re.split(r'\s+', str(query).lower()) if len(w) >= 2]
     scored = []
@@ -5953,7 +5955,7 @@ def _parse_plan_with_ai(plan_text):
                     "model": "llama-3.3-70b-versatile",
                     "messages": [
                         {"role": "system", "content": prompt},
-                        {"role": "user", "content": plan_text[:12000]}
+                        {"role": "user", "content": plan_text[:80000]}
                     ],
                     "response_format": {"type": "json_object"},
                     "temperature": 0.1
@@ -5979,7 +5981,7 @@ def _parse_plan_with_ai(plan_text):
                     "model": "meta-llama/llama-3.3-70b-instruct:free",
                     "messages": [
                         {"role": "system", "content": prompt},
-                        {"role": "user", "content": plan_text[:12000]}
+                        {"role": "user", "content": plan_text[:80000]}
                     ],
                     "response_format": {"type": "json_object"},
                     "temperature": 0.1
@@ -6095,13 +6097,17 @@ def _universal_heuristic_plan_parser(plan_text):
             elif re.match(r'^(?:تاريخ\s*النزول|تاريخ\s*النشر|النزول|publish\s*date|date)[:：\s]', ln_clean, re.I):
                 val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
                 dm = re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', val)
-                if dm: pub_date = dm.group(0)
+                if dm:
+                    parsed_d = parse_flexible_date_str(dm.group(0))
+                    pub_date = parsed_d.strftime("%Y-%m-%d") if parsed_d else dm.group(0)
                 tm = re.search(r'\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm|ص|م))?', val)
                 if tm: pub_time = tm.group(0)
             elif re.match(r'^(?:تاريخ\s*التسليم|موعد\s*التسليم|التسليم|deadline)[:：\s]', ln_clean, re.I):
                 val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
                 dm = re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', val)
-                if dm: dl_date = dm.group(0)
+                if dm:
+                    parsed_d = parse_flexible_date_str(dm.group(0))
+                    dl_date = parsed_d.strftime("%Y-%m-%d") if parsed_d else dm.group(0)
             elif re.match(r'^(?:الكابشن|كابشن|النص|الاسكريبت|اسكريبت|المحتوى|caption|script|content)[:：\s]', ln_clean, re.I):
                 body_part = re.split(r'[:：]', ln_clean, 1)[-1].strip()
                 if body_part:
@@ -6527,7 +6533,16 @@ def api_task_upload_complete(task_id):
 @app.route("/api/tasks/<task_id>/status", methods=["PUT", "POST"])
 @auth_guard
 def api_tasks_update_status(task_id):
-    _cid = current_client_id()
+    sync_from_supabase()
+    target_task, cid = _find_task_any_client(task_id)
+    if not target_task:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+        
+    my_eid = _my_employee_id()
+    is_assigned = bool(my_eid and str(target_task.get("assigned_employee_id")) == my_eid)
+    if not (is_manager() or can_see_client(cid) or is_assigned):
+        return jsonify({"error": "غير مصرح لك بتعديل هذه المهمة"}), 403
+
     data = request.get_json() or {}
     new_status = data.get("status")
     emp_id = data.get("employee_id") or data.get("assigned_employee_id")
@@ -6536,17 +6551,15 @@ def api_tasks_update_status(task_id):
     if not new_status:
         return jsonify({"error": "الحالة الجديدة مطلوبة"}), 400
 
-    tasks = get_client_tasks(_cid)
-    target_task = next((t for t in tasks if str(t.get("task_id")) == str(task_id)), None)
-    if not target_task:
-        return jsonify({"error": "المهمة غير موجودة"}), 404
-
-    logs = get_client_task_logs(_cid)
+    tasks = get_client_tasks(cid)
+    t_idx = next((i for i, t in enumerate(tasks) if str(t.get("task_id")) == str(task_id)), None)
+    if t_idx is not None:
+        target_task = tasks[t_idx]
+    
     now_formatted = datetime.now(timezone.utc).strftime("%d/%m/%Y - %I:%M %p")
-
     target_task["status"] = new_status
-    if emp_id:
-        emps = get_client_employees(_cid)
+    if emp_id and is_manager():
+        emps = get_client_employees(cid)
         emp_obj = next((e for e in emps if str(e.get("employee_id")) == str(emp_id)), None)
         target_task["assigned_employee_id"] = emp_id
         if emp_obj:
@@ -6555,30 +6568,7 @@ def api_tasks_update_status(task_id):
     if notes:
         target_task["note"] = notes
 
-    log_entry = next((l for l in logs if str(l.get("task_id")) == str(task_id) and l.get("status") in ("In Progress", "Assigned")), None)
-    if not log_entry:
-        log_entry = {
-            "log_id": f"LOG-{task_id}-{int(time.time()*1000)}",
-            "client_id": _cid,
-            "task_id": task_id,
-            "title": target_task.get("title", ""),
-            "employee_name": target_task.get("assignee_name", "Unassigned"),
-            "status": new_status,
-            "start_time": now_formatted if new_status == "In Progress" else "",
-            "end_time": now_formatted if new_status in ("Completed", "Awaiting AM Review") else "",
-            "notes": notes
-        }
-        logs.insert(0, log_entry)
-    else:
-        log_entry["status"] = new_status
-        if notes: log_entry["notes"] = notes
-        if new_status == "In Progress" and not log_entry.get("start_time"):
-            log_entry["start_time"] = now_formatted
-        if new_status in ("Completed", "Awaiting AM Review"):
-            log_entry["end_time"] = now_formatted
-
-    save_client_tasks(tasks, _cid)
-    save_client_task_logs(logs, _cid)
+    save_one_task(target_task, cid)
     return jsonify({"success": True, "task": target_task})
 
 

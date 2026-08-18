@@ -204,7 +204,7 @@ function renderInboxList(){
         const isClient = t.customer_type === 'client' || (t.lead_badge && t.lead_badge.includes('مشترك'));
         const typeBadge = isClient ? '<span class="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px]">✨ عميل حالي</span>' : '';
         return `
-        <div class="thread-item ${activeInboxItem && activeInboxItem.id === t.id ? 'active' : ''}" onclick="selectThread('${t.id}')">
+        <div class="thread-item ${activeInboxItem && activeInboxItem.id === t.id ? 'active' : ''}" onclick="selectThread('${esc(t.id)}')">
             <div class="thread-avatar">
                 ${t.avatar_url ? `<img src="${esc(t.avatar_url)}" class="w-full h-full object-cover rounded-full">` : esc((sName||'U')[0])}
             </div>
@@ -222,13 +222,6 @@ function renderInboxList(){
         </div>
         `;
     }).join('');
-}
-
-function setInboxFilter(filter, btn){
-    currentInboxFilter = filter;
-    document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderInboxList();
 }
 
 
