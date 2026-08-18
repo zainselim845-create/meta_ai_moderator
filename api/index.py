@@ -4151,10 +4151,13 @@ def unified_response_headers(resp):
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     
-    if request.path.startswith("/api/"):
+    # HTML dashboard and all API endpoints must NEVER be cached by browser or CDN
+    if request.path == "/" or request.path.startswith("/api/"):
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
         resp.headers["Pragma"] = "no-cache"
         resp.headers["Expires"] = "0"
+    elif request.path.startswith("/static/"):
+        resp.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
     return resp
 
 
@@ -4547,12 +4550,6 @@ def api_oauth_url_v8():
     resp = make_response(jsonify({"oauth_url": url, "state": state}))
     resp.set_cookie('fb_oauth_state', state, httponly=True, secure=True, max_age=600)
     return resp
-
-@app.after_request
-def add_cache_headers(response):
-    if request.path.startswith('/api/kb') or request.path.startswith('/api/prompt'):
-        response.headers['Cache-Control'] = 'public, s-maxage=300, stale-while-revalidate=600'
-    return response
 
 
 # 
