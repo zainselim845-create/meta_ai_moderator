@@ -19,7 +19,7 @@
   <!-- Quill: open-source rich-text (Word-like) editor for the Plan builder -->
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <link href="/static/css/styles.css?v=7.39" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=7.41" rel="stylesheet"/>
   <style>
    /* Plan editor: each paragraph auto-directions by its own language (Arabic → RTL, English → LTR) */
    #pb-editor .ql-editor { direction: rtl; text-align: right; }
@@ -30,10 +30,10 @@
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
   </div>
-  <aside class="fixed right-0 top-0 w-60 h-screen bg-white border-l border-slate-200 z-40 flex flex-col transition-transform duration-200" id="sidebar">
+  <aside class="fixed right-0 top-0 w-64 md:w-60 h-screen bg-white border-l border-slate-200 z-40 flex flex-col transition-transform duration-200 shadow-sm" id="sidebar">
    <div class="p-4 border-b border-slate-200 flex items-center justify-between">
     <div class="flex items-center gap-3">
-     <div class="w-8 h-8 rounded-xl bg-blue-600 text-white font-bold text-base flex items-center justify-center shadow-sm">
+     <div class="w-8 h-8 rounded-xl bg-blue-600 text-white font-bold text-base flex items-center justify-center shadow-sm flex-shrink-0">
       D
      </div>
      <div>
@@ -45,6 +45,9 @@
       </span>
      </div>
     </div>
+    <button class="md:hidden text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition" onclick="closeMobileSidebar()" title="إغلاق القائمة">
+     <i class="w-5 h-5" data-lucide="x"></i>
+    </button>
    </div>
    <nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
     <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-myportal" onclick="go('myportal',this)">
@@ -169,20 +172,20 @@
    </div>
   </aside>
   <div class="mr-0 md:mr-60 flex flex-col min-h-screen">
-   <header class="bg-white border-b border-slate-200 h-16 px-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-    <div class="flex items-center gap-3">
-     <button class="md:hidden text-slate-600 p-1.5 rounded-lg hover:bg-slate-100" onclick="toggleMobileSidebar()">
+   <header class="bg-white border-b border-slate-200 min-h-[56px] md:h-16 px-3 sm:px-4 py-2 flex items-center justify-between sticky top-0 z-20 shadow-sm gap-2">
+    <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+     <button class="md:hidden text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 flex-shrink-0" onclick="toggleMobileSidebar()" title="فتح القائمة">
       <i class="w-5 h-5" data-lucide="menu">
       </i>
      </button>
-     <div class="flex items-center gap-2 flex-wrap">
-       <h2 class="text-sm font-bold text-slate-900 hidden sm:block">
+     <div class="flex items-center gap-2 flex-wrap min-w-0">
+       <h2 class="text-sm font-bold text-slate-900 hidden md:block">
         Domya Meta Suite
        </h2>
-       <div class="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 shadow-inner">
-        <i class="w-4 h-4 text-blue-600" data-lucide="layers"></i>
-        <select class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer" id="header-account-select" onchange="switchActiveClient(this.value)">
-         <option value="">🌐 جميع العملاء (الكل)</option>
+       <div class="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-inner max-w-[150px] sm:max-w-[220px] truncate">
+        <i class="w-3.5 h-3.5 text-blue-600 flex-shrink-0" data-lucide="layers"></i>
+        <select class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer truncate w-full" id="header-account-select" onchange="switchActiveClient(this.value)">
+         <option value="">🌐 جميع العملاء</option>
         </select>
        </div>
        <span class="bg-slate-100 text-slate-600 text-[11px] px-2.5 py-0.5 rounded-2xl font-bold hidden lg:inline border border-slate-200" id="bot-status-badge">
@@ -190,12 +193,13 @@
        </span>
       </div>
      </div>
-     <div class="flex items-center gap-2">
-      <button class="btn-primary text-xs px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 bg-blue-600 text-white font-bold hover:bg-blue-700 transition" onclick="openAddAccountModal()">
-       <i class="w-4 h-4" data-lucide="plus-circle"></i>
-       <span>+ إضافة عميل</span>
+     <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+      <button class="btn-primary text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl shadow-sm flex items-center gap-1 bg-blue-600 text-white font-bold hover:bg-blue-700 transition whitespace-nowrap" onclick="openAddAccountModal()">
+       <i class="w-3.5 h-3.5" data-lucide="plus-circle"></i>
+       <span class="hidden sm:inline">+ إضافة عميل</span>
+       <span class="sm:hidden">+ عميل</span>
       </button>
-      <a href="/api/oauth/start" class="btn-ghost text-xs px-3 py-2 rounded-xl border border-slate-200 flex items-center gap-1 hover:bg-slate-50 transition">
+      <a href="/api/oauth/start" class="btn-ghost text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-slate-200 flex items-center gap-1 hover:bg-slate-50 transition whitespace-nowrap">
        <i class="w-3.5 h-3.5 text-blue-600" data-lucide="log-in"></i>
        <span class="hidden sm:inline">ربط فيسبوك</span>
       </a>
@@ -720,6 +724,48 @@
       </div>
       <div id="onboard-result" class="hidden text-[11px] bg-slate-50 border border-slate-200 rounded-lg p-2"></div>
 
+      <!-- Onboard selection modal: choose employees + what the message contains -->
+      <div id="onboard-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+       <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 space-y-4">
+        <div class="flex items-center justify-between">
+         <h3 class="font-bold text-sm text-slate-900">إرسال بيانات الدخول</h3>
+         <button onclick="closeOnboardModal()" class="text-slate-400 hover:text-slate-700 text-lg leading-none">✕</button>
+        </div>
+
+        <div>
+         <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-bold text-slate-700">اختر الموظفين</span>
+          <span class="text-[11px]">
+           <button onclick="toggleAllOnboard(true)" class="text-blue-600">تحديد الكل</button> /
+           <button onclick="toggleAllOnboard(false)" class="text-slate-500">إلغاء</button>
+          </span>
+         </div>
+         <div id="onboard-emp-list" class="border border-slate-200 rounded-lg p-2 max-h-56 overflow-y-auto"></div>
+        </div>
+
+        <div>
+         <span class="text-xs font-bold text-slate-700">محتوى الرسالة</span>
+         <div class="flex flex-col gap-1 mt-1 text-xs">
+          <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-link" checked/> 🔗 لينك البوابة</label>
+          <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-username" checked/> 👤 اسم المستخدم</label>
+          <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-password" checked/> 🔑 كلمة المرور</label>
+         </div>
+        </div>
+
+        <div>
+         <label class="text-xs font-bold text-slate-700">رسالة مخصّصة (اختياري)</label>
+         <textarea id="onboard-note" rows="2" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="لو سبتها فاضية هتتبعت الرسالة الافتراضية"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-2">
+         <button onclick="closeOnboardModal()" class="text-xs py-2 px-4 rounded-lg border border-slate-200 text-slate-600">إلغاء</button>
+         <button onclick="confirmOnboard()" class="text-xs py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1">
+          <i class="w-3.5 h-3.5" data-lucide="send"></i> إرسال
+         </button>
+        </div>
+       </div>
+      </div>
+
       <!-- Add a new company employee (linked to the Telegram bot) -->
       <div class="border border-blue-200 bg-blue-50 rounded-xl p-4 space-y-3">
        <div class="text-xs text-blue-800 font-bold flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="user-plus"></i> إضافة موظف جديد للفريق (مربوط ببوت التليجرام)</div>
@@ -791,6 +837,25 @@
         </i>
         اختبار البرومبت
        </button>
+      </div>
+     </div>
+
+     <!-- System Health & Cloud Diagnostics Card -->
+     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+        <i class="w-5 h-5 text-emerald-600" data-lucide="activity"></i>
+        <span>🩺 تشخيص وصحة النظام والاتصال السحابي (Cloud Diagnostics)</span>
+       </h3>
+       <button onclick="runSystemDiagnostics()" class="btn-primary text-xs px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1.5 transition">
+        <i class="w-3.5 h-3.5" data-lucide="refresh-cw"></i>
+        <span>فحص الاتصال والخدمات الآن</span>
+       </button>
+      </div>
+      <div id="diagnostics-results-box" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+       <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 text-center col-span-full">
+        اضغط على زر "فحص الاتصال والخدمات الآن" لفحص حالة Supabase، ومفاتيح الذكاء الاصطناعي، وMeta API، وبوت التيليجرام مباشرة.
+       </div>
       </div>
      </div>
     </div>
@@ -1285,15 +1350,15 @@
     <div class="view hidden space-y-6" id="v-tasks">
       <!-- Section 1: Top Bar & Quick Ingest -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-          <div class="flex items-center justify-between">
-            <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+        <div class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
               <i data-lucide="check-square" class="w-5 h-5 text-blue-600"></i>
               <span>إدارة وتفريغ مهام الفريق والعمليات (Plan → Tasks Engine)</span>
             </h3>
-            <button onclick="sendMonthlyReportAction()" class="btn-primary text-xs px-4 py-2 rounded-xl flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition">
+            <button onclick="sendMonthlyReportAction()" class="btn-primary text-xs px-3.5 py-2 rounded-xl flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition whitespace-nowrap">
               <i data-lucide="mail" class="w-4 h-4"></i>
-              <span>إرسال التقرير الشهري للإيميل 📧</span>
+              <span>إرسال التقرير الشهري 📧</span>
             </button>
           </div>
           <div>
@@ -1313,15 +1378,15 @@
               <input id="plan-ingest-drive" type="url" placeholder="https://drive.google.com/file/d/..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
             </div>
           </div>
-          <div class="flex gap-2">
-            <button onclick="ingestPlanAction(event)" class="btn-primary text-xs py-2 px-6 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition">
+          <div class="flex flex-wrap gap-2">
+            <button onclick="ingestPlanAction(event)" class="btn-primary text-xs py-2 px-4 sm:px-6 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition">
               🚀 تفريغ وتقسيم الخطة لمهام
             </button>
-            <button onclick="loadTasksEngine()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200 flex items-center gap-1">
+            <button onclick="loadTasksEngine()" class="btn-ghost text-xs py-2 px-3 sm:px-4 rounded-xl border border-slate-200 flex items-center gap-1">
               <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
               تحديث
             </button>
-            <button onclick="clearAllTasks()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1">
+            <button onclick="clearAllTasks()" class="btn-ghost text-xs py-2 px-3 sm:px-4 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
               مسح كل التاسكات الديمو
             </button>
@@ -1351,26 +1416,26 @@
       </details>
 
       <!-- Section 2: Tasks Board Grid -->
-      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
         <div class="flex items-center justify-between flex-wrap gap-2">
-          <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+          <h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
             <i data-lucide="list-todo" class="w-5 h-5 text-blue-600"></i>
             <span>مهام العميل</span>
             <span id="tasks-client-name" class="text-xs font-normal text-blue-600"></span>
           </h3>
-          <span id="tasks-count-badge" class="text-[11px] bg-slate-100 text-slate-600 font-mono px-2 py-1 rounded-lg"></span>
+          <span id="tasks-count-badge" class="text-[11px] bg-slate-100 text-slate-600 font-mono px-2.5 py-1 rounded-lg font-bold"></span>
         </div>
         <!-- client tabs: click a client to see ONLY its tasks -->
-        <div id="client-tabs" class="flex gap-2 overflow-x-auto pb-1 border-b border-slate-100"></div>
+        <div id="client-tabs" class="flex gap-2 overflow-x-auto pb-2 border-b border-slate-100"></div>
         <div id="tasks-board-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">جاري تحميل المهام...</div>
         </div>
       </div>
 
       <!-- Section 3: Monthly Performance Report Table -->
-      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <div class="flex items-center justify-between">
-          <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
             <i data-lucide="bar-chart-2" class="w-5 h-5 text-emerald-600"></i>
             <span>تقرير أداء وساعات عمل الفريق الشهرية (Monthly Performance Log)</span>
           </h3>
@@ -1438,15 +1503,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=7.39">
+  <script src="/static/js/app.js?v=7.41">
   </script>
-  <script src="/static/js/inbox.js?v=7.39">
+  <script src="/static/js/inbox.js?v=7.41">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=7.39">
+  <script src="/static/js/chatwoot_free.js?v=7.41">
   </script>
-  <script src="/static/js/views.js?v=7.39">
+  <script src="/static/js/views.js?v=7.41">
   </script>
-  <script src="/static/js/clients.js?v=7.39">
+  <script src="/static/js/clients.js?v=7.41">
   </script>
  
   <!-- Modal: Add New Connected Account -->

@@ -267,3 +267,142 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* =========================================================
+   Responsive Design System for All Screen Sizes
+   ========================================================= */
+
+/* Mobile Sidebar & Drawer (Screens < 768px) */
+#sidebar {
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+@media (max-width: 767px) {
+  #sidebar {
+    transform: translateX(100%);
+    box-shadow: -8px 0 25px rgba(0, 0, 0, 0.15);
+    width: 280px !important;
+  }
+  #sidebar.open {
+    transform: translateX(0) !important;
+  }
+  #mobile-overlay {
+    transition: opacity 0.25s ease-in-out;
+    opacity: 0;
+    pointer-events: none;
+  }
+  #mobile-overlay.open {
+    display: block !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+
+@media (min-width: 768px) {
+  #sidebar {
+    transform: translateX(0) !important;
+  }
+  #mobile-overlay {
+    display: none !important;
+  }
+}
+
+/* Mobile & Tablet Specific Layout Tweaks */
+@media (max-width: 640px) {
+  body {
+    font-size: 13px;
+  }
+
+  main {
+    padding: 12px 10px 32px 10px !important;
+  }
+
+  /* Compact header on mobile */
+  header {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  /* Single-column grid collapse */
+  .grid-cols-1, #tasks-board-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Modals fit small screens with nice scrolling */
+  #acc-modal > div, #onboard-modal > div, .modal-box {
+    width: 95% !important;
+    max-width: 95vw !important;
+    max-height: 88vh !important;
+    padding: 16px !important;
+    margin: 8px auto !important;
+  }
+
+  /* Task cards on phone */
+  .task-card-inner {
+    padding: 12px !important;
+  }
+
+  /* Mobile toast position */
+  #toast {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 12px !important;
+    width: auto !important;
+    justify-content: center;
+  }
+}
+
+/* Responsive Inbox for Mobile & Tablet */
+@media (max-width: 1023px) {
+  #v-inbox {
+    height: auto !important;
+    min-height: calc(100vh - 100px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    overflow: visible !important;
+  }
+  #inbox-threads {
+    max-height: 380px !important;
+  }
+  #chat-messages {
+    min-height: 480px !important;
+    height: 520px !important;
+  }
+  #crm-sidebar {
+    max-height: 280px !important;
+  }
+}
+
+/* Tablets (641px - 1024px) */
+@media (min-width: 641px) and (max-width: 1024px) {
+  #tasks-board-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  main {
+    padding: 16px !important;
+  }
+}
+
+/* Extra Large Desktops (1440px+) */
+@media (min-width: 1440px) {
+  #tasks-board-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Responsive Table Wrappers */
+.table-responsive, .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Horizontal Scrolling Tabs (Smooth on mobile touch) */
+#client-tabs {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+#client-tabs::-webkit-scrollbar {
+  display: none;
+}

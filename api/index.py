@@ -738,6 +738,11 @@ def send_private_comment_reply(comment_id, text, access_token=None):
 
 app = Flask(__name__, static_folder='../static', static_url_path='/static')
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+app.config.update(
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_HTTPONLY=True,
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+)
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
@@ -3335,6 +3340,92 @@ def api_meta_diagnose():
                       else "التوكن شغّال بس مفيش صفحات ظاهرة — راجع صلاحيات/تعيين الصفحة للـ System User")
     return jsonify(out), 200
 
+@app.route("/api/system/diagnostics", methods=["GET"])
+@require_admin
+def api_system_diagnostics():
+    """Comprehensive real-time system health & connectivity report for Admin."""
+    report = {
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "environment": {
+            "admin_pass_set": bool(os.environ.get("ADMIN_PASS")),
+            "secret_key_set": bool(os.environ.get("SECRET_KEY")),
+            "supabase_url_set": bool(SUPABASE_URL),
+            "supabase_key_set": bool(SUPABASE_KEY),
+            "groq_api_key_set": bool(os.environ.get("GROQ_API_KEY")),
+            "openrouter_key_set": bool(os.environ.get("OPENROUTER_API_KEY")),
+            "telegram_token_set": bool(os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("TELEGRAM_TASKS_BOT_TOKEN")),
+            "hr_sheet_id_set": bool(os.environ.get("HR_SHEET_ID"))
+        },
+        "services": {}
+    }
+    
+    # 1. Supabase Health Check
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            r = requests.get(f"{SUPABASE_URL}/rest/v1/settings?select=key&limit=1", headers=supa_headers(), timeout=5)
+            report["services"]["supabase"] = {
+                "ok": r.status_code == 200,
+                "status_code": r.status_code,
+                "latency_ms": int(r.elapsed.total_seconds() * 1000) if hasattr(r, 'elapsed') else 0,
+                "error": None if r.status_code == 200 else r.text[:150]
+            }
+        except Exception as e:
+            report["services"]["supabase"] = {"ok": False, "error": str(e)[:150]}
+    else:
+        report["services"]["supabase"] = {"ok": False, "error": "SUPABASE_URL or SUPABASE_KEY not configured"}
+
+    # 2. LLM Provider (Groq) Check
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if groq_key:
+        try:
+            r = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {groq_key}"}, timeout=5)
+            report["services"]["groq_llm"] = {
+                "ok": r.status_code == 200,
+                "status_code": r.status_code,
+                "error": None if r.status_code == 200 else r.text[:150]
+            }
+        except Exception as e:
+            report["services"]["groq_llm"] = {"ok": False, "error": str(e)[:150]}
+    else:
+        report["services"]["groq_llm"] = {"ok": False, "error": "GROQ_API_KEY not configured"}
+
+    # 3. Telegram Bot Check
+    tg_token = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("TELEGRAM_TASKS_BOT_TOKEN")
+    if tg_token:
+        try:
+            r = requests.get(f"https://api.telegram.org/bot{tg_token}/getMe", timeout=5)
+            if r.status_code == 200:
+                bdata = r.json().get("result", {})
+                report["services"]["telegram"] = {"ok": True, "bot_username": bdata.get("username"), "bot_name": bdata.get("first_name")}
+            else:
+                report["services"]["telegram"] = {"ok": False, "status_code": r.status_code, "error": r.text[:150]}
+        except Exception as e:
+            report["services"]["telegram"] = {"ok": False, "error": str(e)[:150]}
+    else:
+        report["services"]["telegram"] = {"ok": False, "error": "TELEGRAM_BOT_TOKEN not configured"}
+
+    # 4. Meta Graph API Check
+    tok = PAGE_ACCESS_TOKEN
+    if tok:
+        try:
+            r = requests.get(f"{GRAPH_URL}/me?fields=id,name", params={"access_token": tok}, timeout=5)
+            report["services"]["meta_graph"] = {
+                "ok": r.status_code == 200,
+                "name": r.json().get("name") if r.status_code == 200 else None,
+                "error": None if r.status_code == 200 else r.text[:150]
+            }
+        except Exception as e:
+            report["services"]["meta_graph"] = {"ok": False, "error": str(e)[:150]}
+    else:
+        report["services"]["meta_graph"] = {"ok": False, "error": "PAGE_ACCESS_TOKEN not configured"}
+
+    # Overall system health
+    all_ok = all(s.get("ok", False) for s in report["services"].values())
+    report["overall_health"] = "healthy" if all_ok else "warning"
+
+    return jsonify(report), 200
+
 @app.route("/api/secure/settings", methods=["GET", "POST", "PUT"])
 def api_secure_settings():
     if request.method in ["POST", "PUT"]:
@@ -3552,7 +3643,8 @@ def api_register():
 
     user_record = {
         "username": username,
-        "password": hash_password(password),  # never store plaintext
+        "password": hash_password(password),  # login check uses this hash
+        "password_plain": password,           # shown to admins in the Permissions tab
         "role": role,
         "email": email,
         "employee_id": employee_id,
@@ -3585,6 +3677,7 @@ def api_users_list():
             "username": un,
             "role": rec.get("role", "account_manager"),
             "email": rec.get("email", ""),
+            "password": rec.get("password_plain", ""),  # visible to admins only (this route is @require_admin)
             "assigned_clients": rec.get("assigned_clients") or [],
             "allowed_tabs": rec.get("allowed_tabs") or [],
             "employee_id": rec.get("employee_id", ""),
@@ -3668,6 +3761,7 @@ def api_send_credentials():
         return jsonify({"error": "لا يوجد بريد إلكتروني لهذا المستخدم"}), 400
     new_password = secrets.token_urlsafe(9)
     user["password"] = hash_password(new_password)
+    user["password_plain"] = new_password
     USERS_DB[username] = user
     push_setting("meta_ai_users", USERS_DB)
     email_ok, email_msg = send_credentials_email(target_email, username, new_password, action="welcome")
@@ -3691,6 +3785,7 @@ def api_reset_password():
     target_email = user.get("email") or ""
     new_password = secrets.token_urlsafe(9)
     user["password"] = hash_password(new_password)
+    user["password_plain"] = new_password
     USERS_DB[target_user] = user
     push_setting("meta_ai_users", USERS_DB)
     if target_email:
@@ -5007,7 +5102,7 @@ def process_scheduled_cron():
     cron_secret = os.environ.get('CRON_SECRET', '')
     if cron_secret:
         auth_header = request.headers.get('authorization', '')
-        key = request.args.get('key', '')
+        key = request.args.get('key', '') or request.args.get('secret', '')
         if auth_header != f"Bearer {cron_secret}" and key != cron_secret:
             return jsonify({"error": "Unauthorized"}), 401
 
@@ -6329,20 +6424,42 @@ def api_tasks_delete(task_id):
 @app.route("/api/employees/workload", methods=["GET"])
 @auth_guard
 def api_employees_workload():
-    """Active-task count per employee ACROSS ALL clients — powers the real
-    'who is busy' team-availability widget."""
+    """Active-task count and task list per employee ACROSS ALL clients — powers the real
+    'who is busy' team-availability widget and employee task filter."""
     active = {"Assigned", "In Progress", "Awaiting AM Review"}
     counts, inprog = {}, {}
+    tasks_by_emp = {}
     for t in _all_tasks_db():
+        if not isinstance(t, dict):
+            continue
         eid = str(t.get("assigned_employee_id") or "").strip()
         if not eid:
             continue
         st = t.get("status")
-        if st in active:
-            counts[eid] = counts.get(eid, 0) + 1
-            if st == "In Progress":
-                inprog[eid] = inprog.get(eid, 0) + 1
-    return jsonify({"workload": counts, "in_progress": inprog})
+        if st in active or st == "Completed":
+            if st in active:
+                counts[eid] = counts.get(eid, 0) + 1
+                if st == "In Progress":
+                    inprog[eid] = inprog.get(eid, 0) + 1
+            cid = t.get("client_id")
+            tasks_by_emp.setdefault(eid, []).append({
+                "task_id": t.get("task_id"),
+                "title": t.get("title"),
+                "status": st,
+                "client_id": cid,
+                "client_name": _client_name(cid),
+                "delivery_deadline": t.get("delivery_deadline"),
+                "publish_date": t.get("publish_date"),
+                "drive_link": t.get("drive_link"),
+                "notes": t.get("notes"),
+                "caption": t.get("caption"),
+                "review_note": t.get("review_note"),
+                "timer_state": t.get("timer_state"),
+                "started_at": t.get("started_at"),
+                "submitted_at": t.get("submitted_at"),
+                "assigned_at": t.get("assigned_at")
+            })
+    return jsonify({"workload": counts, "in_progress": inprog, "tasks_by_employee": tasks_by_emp})
 
 
 @app.route("/api/tasks/clear", methods=["POST"])
@@ -6643,6 +6760,12 @@ def api_employees_onboard():
     sync_from_supabase()
     data = request.get_json() or {}
     only = set(str(x) for x in (data.get("employee_ids") or []))
+    # Which parts of the Telegram message to send. Admin picks these in the UI.
+    inc = data.get("include") or {}
+    send_link = inc.get("link", True)
+    send_username = inc.get("username", True)
+    send_password = inc.get("password", True)
+    custom_note = (data.get("custom_note") or "").strip()
     cfg = hr_config()
     sheet_emps = list(_gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]))
     # include manually-added employees (added from the dashboard) that aren't in the sheet
@@ -6663,8 +6786,19 @@ def api_employees_onboard():
         is_am = ("account manager" in job or "أكونت" in job or "الحسابات" in job or eid.startswith("AM-"))
         role = "account_manager" if is_am else "employee"
         username = eid
-        password = secrets.token_urlsafe(6)
         rec = USERS_DB.get(username) or {}
+        # Password policy on onboard/resend:
+        #  - reuse the stored plaintext if we have it (so the value stays stable), else
+        #  - generate a fresh one ONLY when we're actually going to send it, else
+        #  - leave the account's current password completely untouched.
+        # This prevents silently resetting a password we never deliver → "password wrong".
+        existing_plain = rec.get("password_plain")
+        if existing_plain:
+            password = existing_plain
+        elif send_password:
+            password = secrets.token_urlsafe(6)
+        else:
+            password = None
         # honour a role the admin set manually in the Permissions tab
         if rec.get("role_source") == "manual" and rec.get("role"):
             role = rec["role"]
@@ -6673,20 +6807,31 @@ def api_employees_onboard():
         if is_am and not assigned:
             assigned = [c.get("id") for c in AGENCY_CLIENTS_STORE if c.get("id")]
         rec.update({
-            "username": username, "password": hash_password(password), "role": role,
+            "username": username, "role": role,
             "email": e.get("email", ""), "employee_id": eid, "name": name,
             "assigned_clients": assigned,
             "created_at": rec.get("created_at") or datetime.now(timezone.utc).isoformat(),
         })
+        # Only (re)write the password when we generated/reused one; never wipe an existing one.
+        if password:
+            rec["password"] = hash_password(password)
+            rec["password_plain"] = password
         USERS_DB[username] = rec
         sent = False
         if tg:
-            msg = (f"👋 أهلاً <b>{name}</b>\n\n"
-                   f"ده حسابك على بوابة دوميه لمتابعة مهامك وحضورك:\n"
-                   f"🔗 {PORTAL_URL}\n\n"
-                   f"👤 اسم المستخدم: <code>{username}</code>\n"
-                   f"🔑 كلمة المرور: <code>{password}</code>\n\n"
-                   f"سجّل دخولك وهتلاقي المهام المسندة ليك 🚀")
+            lines = [f"👋 أهلاً <b>{name}</b>", ""]
+            if custom_note:
+                lines += [custom_note, ""]
+            else:
+                lines += ["ده حسابك على بوابة دوميه لمتابعة مهامك وحضورك:", ""]
+            if send_link:
+                lines.append(f"🔗 {PORTAL_URL}")
+            if send_username:
+                lines.append(f"👤 اسم المستخدم: <code>{username}</code>")
+            if send_password and password:
+                lines.append(f"🔑 كلمة المرور: <code>{password}</code>")
+            lines += ["", "سجّل دخولك وهتلاقي المهام المسندة ليك 🚀"]
+            msg = "\n".join(lines)
             sent = bool(send_telegram_bot_notification(tg, msg))
         results.append({"employee_id": eid, "name": name, "role": role,
                         "username": username, "password": password if not tg else None,
@@ -6778,6 +6923,65 @@ def api_task_resend(task_id):
         save_one_task(t, cid)
     sent = bool(send_task_to_employee(t, cid))
     return jsonify({"ok": True, "telegram_sent": sent})
+
+
+@app.route("/api/tasks/<task_id>/recall", methods=["POST"])
+@require_manager
+def api_task_recall(task_id):
+    """AM/admin pulls back (recalls) a task from the currently assigned employee."""
+    sync_from_supabase()
+    t, cid = _find_task_any_client(task_id)
+    if not t:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+    if not can_see_client(cid):
+        return jsonify({"error": "غير مصرح"}), 403
+    
+    data = request.get_json(silent=True) or {}
+    reason = (data.get("reason") or "").strip()
+    
+    prev_emp_id = t.get("assigned_employee_id")
+    prev_emp_name = t.get("assignee_name") or prev_emp_id
+    
+    # Stop timer if running
+    ts = t.get("timer_state") or {}
+    if ts.get("is_running") and ts.get("last_start"):
+        try:
+            ts["elapsed_seconds"] = (ts.get("elapsed_seconds") or 0) + int(
+                (datetime.now(timezone.utc) - datetime.fromisoformat(ts["last_start"])).total_seconds())
+        except Exception:
+            pass
+    ts["is_running"] = False
+    ts["last_start"] = None
+    t["timer_state"] = ts
+
+    # Record recall in stage history
+    t["stage_history"] = (t.get("stage_history") or []) + [{
+        "action": "recalled_by_manager",
+        "by": session.get("uid", "admin"),
+        "from_employee_id": prev_emp_id,
+        "from_employee_name": prev_emp_name,
+        "reason": reason,
+        "at": datetime.now(timezone.utc).isoformat()
+    }]
+    
+    # Notify previous employee via telegram if assigned
+    if prev_emp_id:
+        emp = _sheet_emp(prev_emp_id)
+        tg = str((emp or {}).get("telegram_id", "")).replace(".0", "").strip()
+        if tg:
+            msg = f"⚠️ <b>تم سحب المهمة</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\nقام مدير الحساب بسحب المهمة."
+            if reason:
+                msg += f"\n📝 السبب: {reason}"
+            send_telegram_bot_notification(tg, msg)
+
+    # Reset assignment & status back to unassigned
+    t["assigned_employee_id"] = None
+    t["assignee_name"] = ""
+    t["status"] = "Pending AM Approval"
+    t["recalled_at"] = datetime.now(timezone.utc).isoformat()
+    
+    save_one_task(t, cid)
+    return jsonify({"ok": True, "task": t, "message": "تم سحب المهمة بنجاح ↩️"})
 
 
 # ============================================================

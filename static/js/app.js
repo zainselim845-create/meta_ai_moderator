@@ -558,13 +558,58 @@ async function reviewTask(id, approve) {
   } catch(e) { showToast('خطأ', 'error'); }
 }
 
-// Send each company employee their portal link + login via Telegram.
+// Copy any text to clipboard.
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); showToast('تم النسخ ✅'); }
+  catch(e){ showToast('تعذّر النسخ', 'error'); }
+}
+
+// Open the onboarding modal: pick which employees + what the Telegram message contains.
 async function onboardEmployees() {
-  if (!confirm('هيتبعت لكل موظف (له تليجرام في الشيت) لينك البوابة وبيانات دخوله. تكمل؟')) return;
+  const modal = document.getElementById('onboard-modal');
+  const listBox = document.getElementById('onboard-emp-list');
+  if (!modal || !listBox) return;
+  listBox.innerHTML = '<div class="text-xs text-slate-400 p-2">جارِ تحميل الموظفين...</div>';
+  modal.classList.remove('hidden');
+  let emps = [];
+  try { const d = await (await fetch('/api/tasks/employees')).json(); emps = d.employees || []; } catch(e){}
+  if (!emps.length) { listBox.innerHTML = '<div class="text-xs text-slate-400 p-2">لا يوجد موظفون في الشيت.</div>'; return; }
+  listBox.innerHTML = emps.map(e => {
+    const eid = String(e.employee_id||'').trim();
+    const tg = String(e.telegram_id||'').replace('.0','').trim();
+    return `<label class="flex items-center gap-2 text-xs py-1 ${tg?'':'opacity-60'}">
+      <input type="checkbox" class="onboard-emp-cb" value="${esc(eid)}" ${tg?'checked':''}/>
+      <span class="font-bold">${esc(e.name||eid)}</span>
+      <span class="text-slate-400 font-mono">(${esc(eid)})</span>
+      ${tg ? '<span class="text-emerald-600 text-[10px]">تيليجرام ✓</span>' : '<span class="text-amber-600 text-[10px]">بدون تيليجرام</span>'}
+    </label>`;
+  }).join('');
+}
+
+function toggleAllOnboard(on) {
+  document.querySelectorAll('.onboard-emp-cb').forEach(cb => { if (!cb.disabled) cb.checked = on; });
+}
+
+function closeOnboardModal() {
+  document.getElementById('onboard-modal')?.classList.add('hidden');
+}
+
+// Actually send, using the modal's selections.
+async function confirmOnboard() {
+  const ids = Array.from(document.querySelectorAll('.onboard-emp-cb:checked')).map(cb => cb.value);
+  if (!ids.length) { showToast('اختر موظفاً واحداً على الأقل', 'error'); return; }
+  const include = {
+    link: document.getElementById('onboard-inc-link')?.checked ?? true,
+    username: document.getElementById('onboard-inc-username')?.checked ?? true,
+    password: document.getElementById('onboard-inc-password')?.checked ?? true,
+  };
+  const custom_note = document.getElementById('onboard-note')?.value.trim() || '';
+  closeOnboardModal();
   const box = document.getElementById('onboard-result');
   if (box) { box.classList.remove('hidden'); box.textContent = 'جارِ الإرسال...'; }
   try {
-    const d = await (await fetch('/api/employees/onboard', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
+    const d = await (await fetch('/api/employees/onboard', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ employee_ids: ids, include, custom_note })})).json();
     const rows = d.results || [];
     const sent = rows.filter(r => r.telegram_sent).length;
     const noTg = rows.filter(r => !r.has_telegram);
@@ -792,6 +837,13 @@ async function renderMembers() {
           <button onclick="resendCreds('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 text-slate-600">إرسال بيانات جديدة</button>
           ${u.is_primary?'<span class="text-[10px] text-slate-400">المدير الرئيسي</span>':`<button onclick="deleteMember('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600">حذف</button>`}
         </div>
+      </div>
+      <div class="flex items-center gap-2 text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-mono w-fit">
+        <span class="text-slate-500">🔑 كلمة المرور:</span>
+        ${u.password
+          ? `<b class="text-slate-800 select-all">${esc(u.password)}</b>
+             <button onclick="copyText('${esc(u.password)}')" title="نسخ" class="text-slate-400 hover:text-slate-700">📋</button>`
+          : `<span class="text-slate-400">— (اضغط «إرسال بيانات جديدة» لتوليد كلمة مرور)</span>`}
       </div>
       ${u.role==='admin'?'<div class="text-[11px] text-slate-400">يرى كل العملاء</div>':`<div class="flex flex-wrap gap-1">${chips}</div>`}
     </div>`;
