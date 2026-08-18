@@ -4,8 +4,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Dead code archive — never commit instagrapi bridges again
-archive/
+# Dead code archive
+archive/dead_code/
 
 .agents/
 .user_uploaded/

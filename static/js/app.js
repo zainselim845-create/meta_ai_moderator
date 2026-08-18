@@ -1271,25 +1271,27 @@ async function saveScheduledPost() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // 1. Immediately restore the active tab from URL hash or localStorage
+  restoreActiveTab();
+
   checkAuth();
   if (typeof applyRoleUI === 'function') applyRoleUI();
   initLucideIcons();
+  
   // Set today's date as default for scheduler
   const dateInput = document.getElementById('post-date');
   if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+  
   // Populate the header account switcher from real connected accounts
   if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
   if (typeof loadDashboardStats === 'function') loadDashboardStats();
-
-  // Restore the active tab from URL hash or localStorage so refresh stays on the same tab
-  setTimeout(restoreActiveTab, 100);
 });
 
 function restoreActiveTab() {
   try {
     const hash = (window.location.hash || '').replace('#', '').trim();
-    const saved = hash || localStorage.getItem('active_tab');
-    if (saved && saved !== 'inbox') {
+    const saved = hash || localStorage.getItem('active_tab') || 'inbox';
+    if (saved) {
       go(saved);
     }
   } catch(e) {
@@ -1305,3 +1307,8 @@ window.addEventListener('hashchange', function() {
     }
   } catch(e){}
 });
+
+// Also trigger immediate tab restore if DOM is already parsed
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  restoreActiveTab();
+}

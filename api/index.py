@@ -6647,61 +6647,123 @@ def api_tasks_clear():
 @app.route("/api/tasks/monthly-report", methods=["GET"])
 @auth_guard
 def api_tasks_monthly_report():
+    sync_from_supabase()
     _cid = current_client_id()
     month_str = request.args.get("month") or datetime.now(timezone.utc).strftime("%Y-%m")
     
-    # Roster keyed by employee_id: the REAL company sheet, plus manually-added
-    # employees that have a telegram_id (real). Demo/role-name rows without a
-    # telegram_id are excluded so the dashboard shows only real people.
     roster = {}
+    name_to_eid = {}
     try:
         cfg = hr_config()
         for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
             eid = str(e.get("employee_id") or "").strip()
             nm = (e.get("name") or "").strip()
             if eid and nm:
-                roster[eid] = {"name": nm, "role": e.get("job") or "Employee"}
+                roster[eid] = {"name": nm, "role": e.get("job") or "فريق العمل"}
+                name_to_eid[nm] = eid
     except Exception as _e:
         print(f"[monthly report roster] {_e}")
+        
     for e in get_client_employees(_cid):
         eid = str(e.get("employee_id") or "").strip()
         nm = (e.get("name") or "").strip()
-        if eid and nm and eid not in roster and str(e.get("telegram_id") or "").strip():
-            roster[eid] = {"name": nm, "role": e.get("role", "Employee")}
+        if eid and nm:
+            if eid not in roster:
+                roster[eid] = {"name": nm, "role": e.get("role", "فريق العمل")}
+            name_to_eid[nm] = eid
 
-    stats = {eid: {"name": r["name"], "role": r["role"], "assigned": 0,
-                   "started": 0, "completed": 0, "durations": [], "notes": []}
-             for eid, r in roster.items()}
+    stats = {}
+    for eid, r in roster.items():
+        stats[eid] = {
+            "name": r["name"],
+            "role": r["role"],
+            "assigned": 0,
+            "started": 0,
+            "completed": 0,
+            "durations": [],
+            "notes": []
+        }
 
-    # Count directly from the TASKS (source of truth) — works for web AND bot actions.
-    for t in get_client_tasks(_cid):
+    tasks = get_client_tasks(_cid)
+    for t in tasks:
         eid = str(t.get("assigned_employee_id") or "").strip()
-        if not eid or eid not in stats:
+        nm = str(t.get("assignee_name") or "").strip()
+        
+        target_key = None
+        if eid and eid in stats:
+            target_key = eid
+        elif nm and nm in name_to_eid and name_to_eid[nm] in stats:
+            target_key = name_to_eid[nm]
+        elif eid:
+            target_key = eid
+            stats[target_key] = {
+                "name": nm or eid,
+                "role": "فريق العمل",
+                "assigned": 0,
+                "started": 0,
+                "completed": 0,
+                "durations": [],
+                "notes": []
+            }
+        elif nm:
+            target_key = nm
+            stats[target_key] = {
+                "name": nm,
+                "role": "فريق العمل",
+                "assigned": 0,
+                "started": 0,
+                "completed": 0,
+                "durations": [],
+                "notes": []
+            }
+
+        if not target_key:
             continue
+
         st = t.get("status", "")
         if st in ("Assigned", "In Progress", "Awaiting AM Review", "Completed"):
-            stats[eid]["assigned"] += 1
+            stats[target_key]["assigned"] += 1
         if st in ("In Progress", "Awaiting AM Review", "Completed"):
-            stats[eid]["started"] += 1
+            stats[target_key]["started"] += 1
         if st == "Completed":
-            stats[eid]["completed"] += 1
+            stats[target_key]["completed"] += 1
+
         secs = (t.get("timer_state") or {}).get("elapsed_seconds") or 0
+        if not secs:
+            secs = t.get("elapsed_seconds") or 0
         if secs and secs > 0:
-            stats[eid]["durations"].append(secs / 60.0)
-        note = (t.get("notes") or t.get("note") or "").strip()
+            stats[target_key]["durations"].append(secs / 60.0)
+
+        note = (t.get("notes") or t.get("note") or t.get("review_note") or "").strip()
         if note and note not in (".", "-"):
-            stats[eid]["notes"].append(f"<b>{_hx(t.get('task_id'))}:</b> {_hx(note)}")
+            tid = t.get("task_id", "")
+            stats[target_key]["notes"].append(f"<b>{_hx(tid)}:</b> {_hx(note)}")
 
     report_data = []
-    for eid, s in stats.items():
-        avg_dur = f"{int(sum(s['durations'])/len(s['durations']))} min" if s["durations"] else "-"
-        rate = f"{int((s['completed'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
-        report_data.append({
-            "employee": s["name"], "role": s["role"],
-            "assigned": s["assigned"], "started": s["started"], "completed": s["completed"],
-            "completion_rate": rate, "avg_duration": avg_dur, "notes": s["notes"],
-        })
-    # sort: most active first
+    for k, s in stats.items():
+        if s["assigned"] > 0 or k in roster:
+            durations = s["durations"]
+            if durations:
+                total_min = sum(durations)
+                if total_min >= 60:
+                    avg_dur = f"{total_min/60.0:.1f} ساعة ({int(total_min/len(durations))} د/مهمة)"
+                else:
+                    avg_dur = f"{int(total_min/len(durations))} دقيقة"
+            else:
+                avg_dur = "-"
+                
+            rate = f"{int((s['completed'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
+            report_data.append({
+                "employee": s["name"],
+                "role": s["role"],
+                "assigned": s["assigned"],
+                "started": s["started"],
+                "completed": s["completed"],
+                "completion_rate": rate,
+                "avg_duration": avg_dur,
+                "notes": s["notes"],
+            })
+
     report_data.sort(key=lambda r: (r["completed"], r["assigned"]), reverse=True)
     return jsonify({"success": True, "month": month_str, "report": report_data})
 

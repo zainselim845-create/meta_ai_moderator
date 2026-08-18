@@ -1,0 +1,8 @@
+{
+  "clients": {
+    "error": "Unauthorized"
+  },
+  "accounts": {
+    "error": "Unauthorized"
+  }
+}
