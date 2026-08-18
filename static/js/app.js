@@ -150,6 +150,16 @@ function go(id, el) {
       if (typeof loadTeam === 'function') loadTeam();
     }
 
+    // Persist active tab in URL hash & localStorage so refresh reopens the exact same tab
+    try {
+      if (history.replaceState) {
+        history.replaceState(null, null, '#' + cleanId);
+      } else {
+        window.location.hash = '#' + cleanId;
+      }
+      localStorage.setItem('active_tab', cleanId);
+    } catch(err){}
+
     initLucideIcons();
   } catch (e) {
     console.error('go() view switch error:', e);
@@ -1270,4 +1280,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // Populate the header account switcher from real connected accounts
   if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
   if (typeof loadDashboardStats === 'function') loadDashboardStats();
+
+  // Restore the active tab from URL hash or localStorage so refresh stays on the same tab
+  setTimeout(restoreActiveTab, 100);
+});
+
+function restoreActiveTab() {
+  try {
+    const hash = (window.location.hash || '').replace('#', '').trim();
+    const saved = hash || localStorage.getItem('active_tab');
+    if (saved && saved !== 'inbox') {
+      go(saved);
+    }
+  } catch(e) {
+    console.error('restoreActiveTab error:', e);
+  }
+}
+
+window.addEventListener('hashchange', function() {
+  try {
+    const hash = (window.location.hash || '').replace('#', '').trim();
+    if (hash) {
+      go(hash);
+    }
+  } catch(e){}
 });
