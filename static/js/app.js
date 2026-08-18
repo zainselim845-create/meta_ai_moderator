@@ -73,7 +73,10 @@ function closeMobileSidebar() {
 // 13 View Navigation Handler
 function go(id, el) {
   try {
-    let cleanId = (id || '').replace('v-', '');
+    var bootStyle = document.getElementById('tab-instant-boot');
+    if (bootStyle) bootStyle.remove();
+
+    let cleanId = (id || '').replace('v-', '').replace('#', '').split('?')[0].split(':')[0].trim();
     // Hard block: a restricted user can ONLY open their allowed tabs.
     const _me = window._me;
     if (_me && !_me.is_admin && (_me.allowed_tabs||[]).length) {
@@ -989,16 +992,28 @@ async function populateAccountSwitcher() {
     const hdr = document.getElementById('header-account-select');
     if (hdr) hdr.innerHTML = opts || '<option value="">لا يوجد عملاء</option>';
 
-    // No "all clients" view — always keep a single client active. If none is
-    // selected yet, default to the first client so the inbox is never mixed.
-    if (!window.activeClientId && list.length) {
-      const first = list[0].id;
-      if (hdr) hdr.value = first;
-      if (dd) dd.value = first;
-      switchActiveClient(first);
+    // Preserve saved active client across reloads
+    const savedClient = localStorage.getItem('active_client_id');
+    let targetClient = null;
+    if (savedClient && list.some(c => c.id === savedClient)) {
+      targetClient = savedClient;
+    } else if (list.length) {
+      targetClient = list[0].id;
     }
 
-    updateHeaderBadge(window.activeClientId);
+    if (targetClient) {
+      window.activeClientId = targetClient;
+      if (hdr) hdr.value = targetClient;
+      if (dd) dd.value = targetClient;
+      updateHeaderBadge(targetClient);
+      fetch('/api/clients/switch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({client_id: targetClient})
+      }).catch(e => {});
+    } else {
+      updateHeaderBadge(null);
+    }
   } catch(e) {}
 }
 

@@ -19,13 +19,32 @@
   <!-- Quill: open-source rich-text (Word-like) editor for the Plan builder -->
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <link href="/static/css/styles.css?v=8.30" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=8.40" rel="stylesheet"/>
   <style>
    /* Plan editor: each paragraph auto-directions by its own language (Arabic → RTL, English → LTR) */
    #pb-editor .ql-editor { direction: rtl; text-align: right; }
    #pb-editor .ql-editor p, #pb-editor .ql-editor li,
    #pb-editor .ql-editor h1, #pb-editor .ql-editor h2 { unicode-bidi: plaintext; }
   </style>
+  <script>
+    (function() {
+      try {
+        var raw = (window.location.hash || '').replace('#', '').split('?')[0].split(':')[0].trim();
+        var tab = raw || localStorage.getItem('active_tab') || 'inbox';
+        if (tab === 'clients') tab = 'crm';
+        if (tab === 'accounts' || tab === 'chatwoot') tab = 'accounts';
+        if (tab === 'automation' || tab === 'rules') tab = 'rules';
+        if (tab === 'prompt') tab = 'settings';
+        if (tab === 'schedule') tab = 'scheduler';
+        
+        var targetPane = 'v-' + tab;
+        var style = document.createElement('style');
+        style.id = 'tab-instant-boot';
+        style.textContent = '.view { display: none !important; } #' + targetPane + ' { display: flex !important; }';
+        document.head.appendChild(style);
+      } catch(e){}
+    })();
+   </script>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -54,7 +73,7 @@
      <i class="w-4 h-4 text-blue-600" data-lucide="user"></i>
      <span class="flex-1 text-right">بوابتي (مهامي وحضوري)</span>
     </button>
-    <button class="nb on w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-inbox" onclick="go('inbox',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-inbox" onclick="go('inbox',this)">
      <i class="w-4 h-4 text-blue-600" data-lucide="message-square">
      </i>
      <span class="flex-1 text-right">
@@ -231,7 +250,7 @@
      </div>
     </div>
 
-    <div class="view show flex-1 grid grid-cols-1 xl:grid-cols-[340px_1fr_320px] lg:grid-cols-[300px_1fr] gap-4 overflow-hidden h-[calc(100vh-112px)]" id="v-inbox">
+    <div class="view flex-1 grid grid-cols-1 xl:grid-cols-[340px_1fr_320px] lg:grid-cols-[300px_1fr] gap-4 overflow-hidden h-[calc(100vh-112px)]" id="v-inbox">
      <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
       <div class="p-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
@@ -1503,15 +1522,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=8.30">
+  <script src="/static/js/app.js?v=8.40">
   </script>
-  <script src="/static/js/inbox.js?v=8.30">
+  <script src="/static/js/inbox.js?v=8.40">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=8.30">
+  <script src="/static/js/chatwoot_free.js?v=8.40">
   </script>
-  <script src="/static/js/views.js?v=8.30">
+  <script src="/static/js/views.js?v=8.40">
   </script>
-  <script src="/static/js/clients.js?v=8.30">
+  <script src="/static/js/clients.js?v=8.40">
   </script>
  
   <!-- Modal: Add New Connected Account -->
