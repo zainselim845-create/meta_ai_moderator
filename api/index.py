@@ -6035,32 +6035,62 @@ def _universal_heuristic_plan_parser(plan_text):
         if len(data_rows) >= 2:
             table_results = []
             url_re_t = re.compile(r'https?://[^\s|]+')
+            type_kws = {'بوست': 'post', 'post': 'post', 'ريلز': 'reel', 'reel': 'reel', 'فيديو': 'reel', 'video': 'reel',
+                        'كاروسيل': 'carousel', 'carousel': 'carousel', 'ستوري': 'story', 'story': 'story', 'موشن': 'motion', 'motion': 'motion'}
             for row in data_rows:
                 cells = [c.strip() for c in row.split('\t') if c.strip()]
                 if not cells:
                     continue
                 row_lower = row.lower()
-                if any(kw in row_lower for kw in ['عنوان', 'title', 'النوع', 'type']) and len(cells) <= 3:
+                if any(kw in row_lower for kw in ['عنوان', 'title', 'النوع', 'type', 'الـ hook', 'كابشن']) and len(cells) <= 3:
                     continue
-                title = cells[0][:140]
-                caption = ' | '.join(cells[1:]) if len(cells) > 1 else title
-                full_row = '\t'.join(cells)
+                
                 post_type = "post"
-                for k, v in [("ريلز", "reel"), ("reel", "reel"), ("فيديو", "reel"), ("video", "reel"),
-                             ("كاروسيل", "carousel"), ("carousel", "carousel"), ("ستوري", "story"), ("story", "story"),
-                             ("موشن", "motion"), ("motion", "motion")]:
-                    if k in full_row.lower():
-                        post_type = v
-                        break
+                visual = ""
+                title = ""
+                captions = []
                 pub_date = ""
-                dm = re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', full_row)
-                if dm:
-                    pub_date = dm.group(0)
-                urls = url_re_t.findall(full_row)
+                urls = url_re_t.findall(row)
+
+                for c in cells:
+                    c_clean = url_re_t.sub('', c).strip()
+                    if not c_clean: continue
+                    c_low = c_clean.lower()
+
+                    if c_low in type_kws:
+                        post_type = type_kws[c_low]
+                        continue
+
+                    dm = re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', c_clean)
+                    if dm and len(c_clean) < 25:
+                        parsed_d = parse_flexible_date_str(dm.group(0))
+                        pub_date = parsed_d.strftime("%Y-%m-%d") if parsed_d else dm.group(0)
+                        continue
+
+                    if any(c_low.startswith(p) for p in ['صورة ', 'تصميم ', 'شخص ', 'زوج ', 'فيديو ', 'هنعمل ', 'مشهد ', 'فكرة التصميم', 'فكرة الفيديو', 'visual:', 'design:']):
+                        visual = c_clean
+                        continue
+
+                    if not title and len(c_clean) < 120 and '\n' not in c_clean and not c_low.startswith('slide'):
+                        title = c_clean
+                    else:
+                        captions.append(c_clean)
+
+                if not title and captions:
+                    title = captions[0][:100].lstrip("-•*✅✍️ ").strip()
+                if not title:
+                    title = "منشور جديد"
+
+                full_caption = "\n".join(captions) if captions else title
                 table_results.append({
-                    "title": title, "caption": caption, "visual_idea": "",
-                    "post_type": post_type, "publish_date": pub_date,
-                    "publish_time": "10:00", "delivery_deadline": "", "media_urls": urls
+                    "title": title[:140],
+                    "caption": full_caption,
+                    "visual_idea": visual,
+                    "post_type": post_type,
+                    "publish_date": pub_date,
+                    "publish_time": "10:00",
+                    "delivery_deadline": "",
+                    "media_urls": urls
                 })
             if len(table_results) >= 2:
                 return table_results
@@ -6215,48 +6245,150 @@ def _universal_heuristic_plan_parser(plan_text):
         })
     return results
 
+def _consolidate_and_merge_post_fragments(posts):
+    """Merges fragmented entries where type, visual idea, title, and caption were accidentally split across rows/lines."""
+    if not posts or len(posts) <= 1:
+        return posts
+
+    type_keywords = {'بوست': 'post', 'النوع': 'post', 'post': 'post', 'ريلز': 'reel', 'reel': 'reel', 
+                     'كاروسيل': 'carousel', 'carousel': 'carousel', 'ستوري': 'story', 'story': 'story', 
+                     'موشن': 'motion', 'motion': 'motion', 'فيديو': 'reel', 'video': 'reel'}
+
+    def is_just_type(text):
+        t = (text or '').strip().lower()
+        return t in type_keywords or (len(t) < 15 and any(k == t for k in type_keywords))
+
+    def is_visual_idea(text):
+        t = (text or '').strip().lower()
+        prefixes = ['صورة ', 'تصميم ', 'شخص ', 'زوج ', 'فيديو ', 'هنعمل ', 'مشهد ', 'فكرة التصميم', 'فكرة الفيديو', 'visual:', 'design:']
+        return any(t.startswith(p) for p in prefixes) or 'فكرة التصميم' in t
+
+    merged = []
+    current = None
+
+    for p in posts:
+        title = (p.get('title') or '').strip()
+        caption = (p.get('caption') or '').strip()
+        vis = (p.get('visual_idea') or '').strip()
+        pt = (p.get('post_type') or 'post').lower()
+
+        # If this item is solely a type tag like 'بوست' or 'كاروسيل'
+        if is_just_type(title) and (not caption or is_just_type(caption) or caption == title):
+            detected_pt = type_keywords.get(title.lower(), 'post')
+            if current:
+                current['post_type'] = detected_pt
+            else:
+                current = {'title': '', 'caption': '', 'visual_idea': '', 'post_type': detected_pt, 'publish_date': '', 'publish_time': '10:00', 'delivery_deadline': '', 'media_urls': []}
+            continue
+
+        # If this item is solely a visual idea / design description
+        if is_visual_idea(title) or is_visual_idea(caption) or (vis and not title and not caption):
+            visual_text = vis or (caption if is_visual_idea(caption) else title)
+            if current and not current.get('visual_idea'):
+                current['visual_idea'] = visual_text
+            else:
+                if current and (current.get('title') or current.get('caption')):
+                    merged.append(current)
+                current = {'title': '', 'caption': '', 'visual_idea': visual_text, 'post_type': pt, 'publish_date': '', 'publish_time': '10:00', 'delivery_deadline': '', 'media_urls': []}
+            continue
+
+        # If current post exists with a title but empty/identical caption, and this item looks like the body/caption:
+        if current and current.get('title') and (not current.get('caption') or current['caption'] == current['title']):
+            current['caption'] = caption or title
+            if p.get('publish_date') and not current.get('publish_date'):
+                current['publish_date'] = p['publish_date']
+            if p.get('delivery_deadline') and not current.get('delivery_deadline'):
+                current['delivery_deadline'] = p['delivery_deadline']
+            if p.get('media_urls'):
+                current.setdefault('media_urls', []).extend(p['media_urls'])
+            merged.append(current)
+            current = None
+            continue
+
+        # If current post has title & caption, save it
+        if current and (current.get('title') or current.get('caption')):
+            merged.append(current)
+            current = None
+
+        # Start new post from p
+        if not current:
+            current = {
+                'title': title,
+                'caption': caption if caption != title else '',
+                'visual_idea': vis,
+                'post_type': pt,
+                'publish_date': p.get('publish_date', ''),
+                'publish_time': p.get('publish_time', '10:00'),
+                'delivery_deadline': p.get('delivery_deadline', ''),
+                'media_urls': p.get('media_urls', [])
+            }
+        else:
+            if not current.get('title'): current['title'] = title
+            if not current.get('caption'): current['caption'] = caption
+            if vis and not current.get('visual_idea'): current['visual_idea'] = vis
+
+    if current and (current.get('title') or current.get('caption') or current.get('visual_idea')):
+        merged.append(current)
+
+    # Normalize final titles and captions
+    cleaned_final = []
+    for m in merged:
+        if not m['title'] and m['caption']:
+            m['title'] = m['caption'][:100].lstrip("-•*✅✍️ ").strip()
+        if not m['caption'] and m['title']:
+            m['caption'] = m['title']
+        if m['title'] and not is_just_type(m['title']):
+            cleaned_final.append(m)
+
+    return cleaned_final if cleaned_final else posts
+
 def _universal_extract_plan_posts(plan_text):
-    """Combines AI LLM extraction with universal heuristic fallback and intelligent retry for 100% precision."""
+    """Combines AI LLM extraction with universal heuristic fallback and intelligent fragment consolidation."""
     if not plan_text or not plan_text.strip():
         return []
 
     text_len = len(plan_text.strip())
     line_count = len([l for l in plan_text.splitlines() if l.strip()])
+    raw_posts = []
 
     # 1. Try AI extraction (primary)
     ai_posts = _parse_plan_with_ai(plan_text)
     if ai_posts and len(ai_posts) >= 2:
-        return ai_posts
+        raw_posts = ai_posts
 
     # 2. Try heuristic parser
-    heuristic_posts = _universal_heuristic_plan_parser(plan_text)
-    if heuristic_posts and len(heuristic_posts) >= 2:
-        return heuristic_posts
+    if not raw_posts:
+        heuristic_posts = _universal_heuristic_plan_parser(plan_text)
+        if heuristic_posts and len(heuristic_posts) >= 2:
+            raw_posts = heuristic_posts
 
     # 3. If both returned 0 or 1 posts, but plan text is long enough to likely contain multiple posts,
     #    do a forced AI retry with an aggressive Arabic splitting prompt
-    likely_multi = (text_len > 200 and line_count >= 4) or text_len > 500 or '\t' in plan_text
-    if likely_multi:
-        print(f"[Plan Parser] AI returned {len(ai_posts or [])} posts, heuristic returned {len(heuristic_posts or [])} posts from {text_len} chars / {line_count} lines — retrying with aggressive split prompt")
-        retry_posts = _parse_plan_with_ai(plan_text, retry_split=True)
-        if retry_posts and len(retry_posts) >= 2:
-            return retry_posts
-        # If retry also returned 1, at least use the best single post we have
-        if retry_posts and len(retry_posts) == 1 and not ai_posts:
-            ai_posts = retry_posts
+    if not raw_posts:
+        likely_multi = (text_len > 200 and line_count >= 4) or text_len > 500 or '\t' in plan_text
+        if likely_multi:
+            print(f"[Plan Parser] AI returned {len(ai_posts or [])} posts from {text_len} chars — retrying with aggressive split prompt")
+            retry_posts = _parse_plan_with_ai(plan_text, retry_split=True)
+            if retry_posts and len(retry_posts) >= 2:
+                raw_posts = retry_posts
+            elif retry_posts and len(retry_posts) == 1 and not ai_posts:
+                raw_posts = retry_posts
 
-    # 4. Return whichever found something, preferring AI
-    if ai_posts and len(ai_posts) > 0:
-        return ai_posts
-    if heuristic_posts and len(heuristic_posts) > 0:
-        return heuristic_posts
+    if not raw_posts:
+        if ai_posts and len(ai_posts) > 0:
+            raw_posts = ai_posts
+        elif heuristic_posts and len(heuristic_posts) > 0:
+            raw_posts = heuristic_posts
+        else:
+            raw_posts = [{"title": plan_text.split('\n')[0][:100].strip() or "منشور جديد",
+                          "caption": plan_text.strip(),
+                          "visual_idea": "", "post_type": "post",
+                          "publish_date": "", "publish_time": "10:00",
+                          "delivery_deadline": "", "media_urls": []}]
 
-    # 5. Absolute fallback: wrap entire plan as single task so nothing is lost
-    return [{"title": plan_text.split('\n')[0][:100].strip() or "محتوى جديد",
-             "caption": plan_text.strip(),
-             "visual_idea": "", "post_type": "post",
-             "publish_date": "", "publish_time": "10:00",
-             "delivery_deadline": "", "media_urls": []}]
+    # 4. Consolidate and merge any fragmented fields (Type, Visual Idea, Hook, Caption) into unified posts
+    final_posts = _consolidate_and_merge_post_fragments(raw_posts)
+    return final_posts
 
 def _after_colon(s):
     return re.split(r'[:：]', s, 1)[-1].strip()
