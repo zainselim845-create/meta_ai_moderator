@@ -5925,85 +5925,144 @@ def _docx_to_text(file_bytes, upload_images=True, parent_id=None):
     lines = [l.strip() for l in text.splitlines()]
     return "\n".join(l for l in lines if l)
 
-def _parse_plan_with_ai(plan_text):
-    """Uses Groq LLaMA-3.3 or OpenRouter to intelligently parse marketing plans of any structure."""
+def _parse_plan_with_ai(plan_text, retry_split=False):
+    """Uses Groq LLaMA-3.3 or OpenRouter to intelligently parse marketing plans of ANY structure.
+    If retry_split=True, uses a more more aggressive prompt specifically designed to force splitting."""
     if not plan_text or len(plan_text.strip()) < 15:
         return []
-    
-    prompt = (
-        "You are an expert Social Media & Marketing Content Plan Parser. "
-        "Extract all individual posts/content pieces from the given content plan text into a structured JSON object. "
-        "Return ONLY a JSON object with a single key 'posts' containing an array of post objects.\n"
-        "Each post object MUST have these exact fields:\n"
-        "- title: (string) Short hook, headline, or tagline (maximum 100 characters)\n"
-        "- caption: (string) The full text, caption, or script. Preserve ALL details, emojis, and points without truncating.\n"
-        "- visual_idea: (string) Visual idea, design brief, or motion graphic concept if mentioned, otherwise empty string.\n"
-        "- post_type: (string) One of: 'post', 'reel', 'carousel', 'story', 'motion'\n"
-        "- publish_date: (string) Format 'YYYY-MM-DD' if found, otherwise empty string ''\n"
-        "- publish_time: (string) Format 'HH:MM' (default '10:00')\n"
-        "- delivery_deadline: (string) Format 'YYYY-MM-DD' if found, otherwise empty string ''\n"
-        "- media_urls: (array of strings) Any URLs or links mentioned in this post\n\n"
-        "Respond ONLY with valid JSON."
-    )
 
+    if retry_split:
+        prompt = (
+            "أنت خبير في تحليل خطط المحتوى والسوشيال ميديا (Content Plan Parser).\n"
+            "المستخدم رفع ملف خطة محتوى وأنت لازم تقسمها لبوستات / مهام منفصلة.\n\n"
+            "⚠️ مهم جداً: هذا الملف فيه أكثر من بوست/محتوى واحد لكن محاولة سابقة فشلت في تقسيمه.\n"
+            "ابحث بعناية عن كل قطعة محتوى منفصلة. قد يكون الملف:\n"
+            "- جدول (table) فيه كل صف = بوست مستقل\n"
+            "- نص متواصل لكن كل فقرة = بوست مستقل\n"
+            "- أقسام مفصولة بخطوط أو أرقام\n"
+            "- خليط من ريلز وبوستات وستوريز\n"
+            "- مكتوب بأي لغة (عربي/إنجليزي/مختلط)\n\n"
+            "قسّم النص لأكبر عدد ممكن من البوستات المنفصلة. كل قطعة محتوى لها موضوع مختلف = بوست مستقل.\n\n"
+            "أرجع JSON فقط بالشكل:\n"
+            '{\"posts\": [{\"title\": \"...\", \"caption\": \"...\", \"visual_idea\": \"...\", \"post_type\": \"post|reel|carousel|story|motion\", \"publish_date\": \"YYYY-MM-DD or empty\", \"publish_time\": \"HH:MM default 10:00\", \"delivery_deadline\": \"YYYY-MM-DD or empty\", \"media_urls\": []}]}\n\n'
+            "لا تكتب أي شيء غير JSON. لا تدمج بوستات مختلفة في بوست واحد."
+        )
+    else:
+        prompt = (
+            "You are an expert Social Media & Marketing Content Plan Parser.\n"
+            "Your job is to extract ALL individual posts/content pieces from the given content plan.\n\n"
+            "CRITICAL RULES:\n"
+            "1. Each separate piece of content (post, reel, story, video, carousel, motion graphic) = ONE separate entry.\n"
+            "2. If the plan is a TABLE, each row with content is a separate post.\n"
+            "3. If the plan has sections separated by numbers, bullets, lines, or headers, each section is a separate post.\n"
+            "4. NEVER merge multiple posts into one. ALWAYS split them.\n"
+            "5. Content can be in Arabic, English, or mixed. Handle all languages.\n"
+            "6. Look for patterns like: numbered items, table rows, separated paragraphs, 'Post 1/بوست 1', dates followed by content.\n"
+            "7. If there are tab-separated columns (like from a table), parse each complete row as one post.\n"
+            "8. Preserve the FULL caption/text of each post — do NOT summarize or truncate.\n\n"
+            "Return ONLY a JSON object with key 'posts' containing an array. Each post object has:\n"
+            "- title: (string) Short headline/hook, max 100 chars. Extract from the content.\n"
+            "- caption: (string) The FULL text/caption/script. Keep ALL details, emojis, bullet points.\n"
+            "- visual_idea: (string) Design/visual brief if mentioned, else empty string.\n"
+            "- post_type: (string) One of: 'post', 'reel', 'carousel', 'story', 'motion'\n"
+            "- publish_date: (string) 'YYYY-MM-DD' if found, else ''\n"
+            "- publish_time: (string) 'HH:MM' (default '10:00')\n"
+            "- delivery_deadline: (string) 'YYYY-MM-DD' if found, else ''\n"
+            "- media_urls: (array) Any URLs/links in this post\n\n"
+            "Respond ONLY with valid JSON. No markdown, no explanation."
+        )
+
+    def _try_api(api_url, api_key, model, timeout_s):
+        try:
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            body = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": plan_text[:80000]}
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.05 if retry_split else 0.1
+            }
+            res = requests.post(api_url, headers=headers, json=body, timeout=timeout_s)
+            if res.status_code == 200:
+                data = res.json()
+                content = data["choices"][0]["message"]["content"]
+                # Clean potential markdown wrappers
+                content = content.strip()
+                if content.startswith("```"):
+                    content = re.sub(r'^```(?:json)?\s*', '', content)
+                    content = re.sub(r'\s*```\s*$', '', content)
+                parsed = json.loads(content)
+                posts = parsed.get("posts") or parsed.get("data") or parsed.get("tasks") or parsed.get("items") or []
+                if isinstance(posts, list) and len(posts) > 0:
+                    return posts
+            else:
+                print(f"[AI Plan Parse] {model} status={res.status_code} body={res.text[:200]}")
+        except json.JSONDecodeError as je:
+            print(f"[AI Plan Parse JSON Error] {model}: {je}")
+        except Exception as e:
+            print(f"[AI Plan Parse Error] {model}: {e}")
+        return []
+
+    # Try Groq first (fastest)
     if GROQ_API_KEY:
-        try:
-            res = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-                json={
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": [
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": plan_text[:80000]}
-                    ],
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0.1
-                },
-                timeout=18
-            )
-            if res.status_code == 200:
-                data = res.json()
-                content = data["choices"][0]["message"]["content"]
-                parsed = json.loads(content)
-                posts = parsed.get("posts") or parsed.get("data") or []
-                if isinstance(posts, list) and len(posts) > 0:
-                    return posts
-        except Exception as e:
-            print(f"[AI Plan Parse Groq Error] {e}")
+        posts = _try_api("https://api.groq.com/openai/v1/chat/completions", GROQ_API_KEY, "llama-3.3-70b-versatile", 30)
+        if posts:
+            return posts
 
+    # Fallback to OpenRouter
     if OPENROUTER_API_KEY:
-        try:
-            res = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
-                json={
-                    "model": "meta-llama/llama-3.3-70b-instruct:free",
-                    "messages": [
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": plan_text[:80000]}
-                    ],
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0.1
-                },
-                timeout=18
-            )
-            if res.status_code == 200:
-                data = res.json()
-                content = data["choices"][0]["message"]["content"]
-                parsed = json.loads(content)
-                posts = parsed.get("posts") or parsed.get("data") or []
-                if isinstance(posts, list) and len(posts) > 0:
-                    return posts
-        except Exception as e:
-            print(f"[AI Plan Parse OpenRouter Error] {e}")
+        posts = _try_api("https://openrouter.ai/api/v1/chat/completions", OPENROUTER_API_KEY, "meta-llama/llama-3.3-70b-instruct:free", 30)
+        if posts:
+            return posts
 
     return []
 
 def _universal_heuristic_plan_parser(plan_text):
     """Splits arbitrary marketing plan text into discrete posts and extracts all metadata without fragmentation."""
     lines = [l.rstrip() for l in plan_text.splitlines()]
-    
+
+    # ---- Pre-check: if text looks like a table (tab-separated rows), split by rows ----
+    tab_lines = [l for l in lines if l.strip() and '\t' in l]
+    if len(tab_lines) >= 3:
+        # Likely a table export from docx. First row might be header.
+        header_row = tab_lines[0].lower()
+        is_header = any(kw in header_row for kw in ['عنوان', 'title', 'النوع', 'type', 'كابشن', 'caption', 'التاريخ', 'date', 'المحتوى', 'content', 'بوست', 'post', 'الوصف', 'description'])
+        data_rows = tab_lines[1:] if is_header else tab_lines
+        if len(data_rows) >= 2:
+            table_results = []
+            url_re_t = re.compile(r'https?://[^\s|]+')
+            for row in data_rows:
+                cells = [c.strip() for c in row.split('\t') if c.strip()]
+                if not cells:
+                    continue
+                row_lower = row.lower()
+                if any(kw in row_lower for kw in ['عنوان', 'title', 'النوع', 'type']) and len(cells) <= 3:
+                    continue
+                title = cells[0][:140]
+                caption = ' | '.join(cells[1:]) if len(cells) > 1 else title
+                full_row = '\t'.join(cells)
+                post_type = "post"
+                for k, v in [("ريلز", "reel"), ("reel", "reel"), ("فيديو", "reel"), ("video", "reel"),
+                             ("كاروسيل", "carousel"), ("carousel", "carousel"), ("ستوري", "story"), ("story", "story"),
+                             ("موشن", "motion"), ("motion", "motion")]:
+                    if k in full_row.lower():
+                        post_type = v
+                        break
+                pub_date = ""
+                dm = re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', full_row)
+                if dm:
+                    pub_date = dm.group(0)
+                urls = url_re_t.findall(full_row)
+                table_results.append({
+                    "title": title, "caption": caption, "visual_idea": "",
+                    "post_type": post_type, "publish_date": pub_date,
+                    "publish_time": "10:00", "delivery_deadline": "", "media_urls": urls
+                })
+            if len(table_results) >= 2:
+                return table_results
+
     marker_indices = []
     header_patterns = [
         r'^\s*(?:\d{1,3}[\.\)\-\]]|\(\d{1,3}\)|[٠-٩]{1,3}[\.\)\-\]])\s*',
@@ -6142,15 +6201,47 @@ def _universal_heuristic_plan_parser(plan_text):
     return results
 
 def _universal_extract_plan_posts(plan_text):
-    """Combines AI LLM extraction with universal heuristic fallback for 100% precision."""
+    """Combines AI LLM extraction with universal heuristic fallback and intelligent retry for 100% precision."""
     if not plan_text or not plan_text.strip():
         return []
-    # 1. Try AI extraction
+
+    text_len = len(plan_text.strip())
+    line_count = len([l for l in plan_text.splitlines() if l.strip()])
+
+    # 1. Try AI extraction (primary)
     ai_posts = _parse_plan_with_ai(plan_text)
+    if ai_posts and len(ai_posts) >= 2:
+        return ai_posts
+
+    # 2. Try heuristic parser
+    heuristic_posts = _universal_heuristic_plan_parser(plan_text)
+    if heuristic_posts and len(heuristic_posts) >= 2:
+        return heuristic_posts
+
+    # 3. If both returned 0 or 1 posts, but plan text is long enough to likely contain multiple posts,
+    #    do a forced AI retry with an aggressive Arabic splitting prompt
+    likely_multi = (text_len > 200 and line_count >= 4) or text_len > 500 or '\t' in plan_text
+    if likely_multi:
+        print(f"[Plan Parser] AI returned {len(ai_posts or [])} posts, heuristic returned {len(heuristic_posts or [])} posts from {text_len} chars / {line_count} lines — retrying with aggressive split prompt")
+        retry_posts = _parse_plan_with_ai(plan_text, retry_split=True)
+        if retry_posts and len(retry_posts) >= 2:
+            return retry_posts
+        # If retry also returned 1, at least use the best single post we have
+        if retry_posts and len(retry_posts) == 1 and not ai_posts:
+            ai_posts = retry_posts
+
+    # 4. Return whichever found something, preferring AI
     if ai_posts and len(ai_posts) > 0:
         return ai_posts
-    # 2. Fall back to universal heuristic parser
-    return _universal_heuristic_plan_parser(plan_text)
+    if heuristic_posts and len(heuristic_posts) > 0:
+        return heuristic_posts
+
+    # 5. Absolute fallback: wrap entire plan as single task so nothing is lost
+    return [{"title": plan_text.split('\n')[0][:100].strip() or "محتوى جديد",
+             "caption": plan_text.strip(),
+             "visual_idea": "", "post_type": "post",
+             "publish_date": "", "publish_time": "10:00",
+             "delivery_deadline": "", "media_urls": []}]
 
 def _after_colon(s):
     return re.split(r'[:：]', s, 1)[-1].strip()
