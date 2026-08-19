@@ -551,13 +551,20 @@ async function startMyTask(id) {
   } catch(e) { showToast('خطأ', 'error'); }
 }
 async function submitMyTask(id) {
-  const notes = prompt('اكتب ملاحظاتك عن الشغل اللي خلصته (اختياري):') || '';
+  const notes = prompt('اكتب ملاحظات التسليم ورابط Google Drive للملف (مثال: https://drive.google.com/...):') || '';
+  if (notes === null) return;
   try {
-    const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/submit`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({notes})});
+    const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/submit`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({notes: notes.trim()})
+    });
     const d = await r.json();
     if (!r.ok) { showToast(d.error||'تعذّر التسليم', 'error'); return; }
-    showToast('تم التسليم للمراجعة ✅'); loadMyPortal();
-  } catch(e) { showToast('خطأ', 'error'); }
+    showToast('تم التسليم للمراجعة بنجاح ✅');
+    loadMyPortal();
+    if (typeof loadTasksEngine === 'function') loadTasksEngine();
+  } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
 // Manager reviews a submitted task (approve → Completed, reject → back to employee).

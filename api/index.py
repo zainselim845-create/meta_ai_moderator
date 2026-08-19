@@ -7276,6 +7276,7 @@ def api_my_task_submit(task_id):
     eid = _my_employee_id()
     data = request.get_json() or {}
     notes = (data.get("notes") or "").strip()
+    drive_link = (data.get("drive_link") or data.get("link") or "").strip()
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
@@ -7294,13 +7295,48 @@ def api_my_task_submit(task_id):
     t["status"] = "Awaiting AM Review"
     t["notes"] = notes
     t["submitted_at"] = datetime.now(timezone.utc).isoformat()
+    
+    # Auto-detect Google Drive / Media links from notes or payload
+    if not drive_link and notes:
+        url_match = re.search(r'https?://[^\s]+', notes)
+        if url_match:
+            drive_link = url_match.group(0).rstrip('.,;:)')
+    if drive_link:
+        t["drive_link"] = drive_link
+        t.setdefault("media_urls", [])
+        if drive_link not in t["media_urls"]:
+            t["media_urls"].append(drive_link)
+
     save_one_task(t, cid)
     mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
     # ping ONLY the client's account manager (it also shows in their web board).
     _notify_client_am(cid,
         f"📥 <b>مهمة جاهزة للمراجعة</b>\n👤 {t.get('assignee_name','')}\n📝 {t.get('title','')}\n"
-        f"🏢 {_client_name(cid)}\n⏱️ الوقت: {mins} دقيقة\n📝 ملاحظات: {notes or '—'}")
-    return jsonify({"ok": True, "task": t, "minutes": mins})
+        f"🏢 {_client_name(cid)}\n⏱️ الوقت: {mins} دقيقة\n📝 ملاحظات: {notes or '—'}\n" +
+        (f"🔗 رابط الدرايف: {drive_link}" if drive_link else ""))
+    return jsonify({"ok": True, "task": t, "minutes": mins, "drive_link": drive_link})
+
+
+@app.route("/api/tasks/<task_id>/drive-link", methods=["POST", "PUT"])
+@auth_guard
+def api_tasks_set_drive_link(task_id):
+    sync_from_supabase()
+    data = request.get_json() or {}
+    link = (data.get("drive_link") or data.get("link") or "").strip()
+    if not link:
+        return jsonify({"error": "رابط الدرايف مطلوب"}), 400
+    t, cid = _find_task_any_client(task_id)
+    if not t:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+    if not (is_manager() or can_see_client(cid) or str(t.get("assigned_employee_id")) == str(_my_employee_id())):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    t["drive_link"] = link
+    t.setdefault("media_urls", [])
+    if link not in t["media_urls"]:
+        t["media_urls"].append(link)
+    save_one_task(t, cid)
+    return jsonify({"ok": True, "success": True, "task": t, "drive_link": link})
 
 
 @app.route("/api/tasks/<task_id>/review", methods=["POST"])
@@ -8289,11 +8325,26 @@ def _tasks_do_submit(t, cid, note):
     t["status"] = "Awaiting AM Review"
     t["notes"] = note or "—"
     t["submitted_at"] = datetime.now(timezone.utc).isoformat()
+    
+    # Auto-extract Google Drive link or media url from note text
+    drive_link = ""
+    if note:
+        url_match = re.search(r'https?://[^\s]+', note)
+        if url_match:
+            drive_link = url_match.group(0).rstrip('.,;:)')
+            t["drive_link"] = drive_link
+            t.setdefault("media_urls", [])
+            if drive_link not in t["media_urls"]:
+                t["media_urls"].append(drive_link)
+    elif t.get("drive_link"):
+        drive_link = t.get("drive_link")
+
     save_one_task(t, cid)
     mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
     _notify_client_am(cid,
         f"📥 <b>مهمة جاهزة للمراجعة</b>\n👤 {t.get('assignee_name','')}\n📝 {t.get('title','')}\n"
-        f"🏢 {_client_name(cid)}\n⏱️ {mins} دقيقة\n📝 ملاحظات: {note or '—'}")
+        f"🏢 {_client_name(cid)}\n⏱️ {mins} دقيقة\n📝 ملاحظات: {note or '—'}\n" +
+        (f"🔗 رابط الدرايف: {drive_link}" if drive_link else ""))
 
 
 @app.route("/api/telegram/tasks", methods=["POST"])

@@ -1368,39 +1368,69 @@ function renderTasksBoard() {
         var assignee = t.assignee_name || (t.assigned_employee_id ? t.assigned_employee_id : '');
 
         // Detailed Deliverables / Submissions Box (ما أضافه وسلّمه الموظف)
-        var hasNotes = !!(t.notes || t.note);
-        var hasDrive = !!t.drive_link;
+        var rawNotes = (t.notes || t.note || t.delivery_notes || t.deliverables || '').trim();
+        var driveLink = (t.drive_link || t.google_drive_url || t.attachment_url || t.submission_link || '').trim();
+        if (!driveLink && t.media_urls && t.media_urls.length) {
+            driveLink = (t.media_urls.find(function(u){ return u && (u.includes('drive.google.com') || u.includes('docs.google.com') || u.startsWith('http')); }) || '').trim();
+        }
+        if (!driveLink && rawNotes) {
+            var urlMatch = rawNotes.match(/https?:\/\/[^\s]+/i);
+            if (urlMatch) {
+                driveLink = urlMatch[0].replace(/[.,;:)\]]+$/, '');
+            }
+        }
+
         var isTimerRunning = !!(t.timer_state && t.timer_state.is_running);
         var elapsedSecs = t.timer_state ? (t.timer_state.elapsed_seconds || 0) : 0;
         var elapsedMins = Math.round(elapsedSecs / 60);
 
         var deliverablesBox = '';
-        if (hasNotes || hasDrive || isTimerRunning || elapsedMins > 0 || t.submitted_at || t.started_at) {
+        if (rawNotes || driveLink || isTimerRunning || elapsedMins > 0 || t.submitted_at || t.started_at || st === 'Awaiting AM Review') {
             var timerTag = isTimerRunning ?
                 '<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1">🟢 العداد يعمل الآن</span>' :
                 (elapsedMins > 0 ? '<span class="bg-slate-100 text-slate-700 text-[10px] font-mono px-2 py-0.5 rounded-md">⏱️ ' + elapsedMins + ' دقيقة عمل</span>' : '');
 
-            deliverablesBox = '<div class="bg-indigo-50/80 border border-indigo-100 rounded-xl p-3 space-y-2 text-xs">' +
-                '<div class="flex items-center justify-between text-indigo-900 font-bold border-b border-indigo-100/60 pb-1.5">' +
+            deliverablesBox = '<div class="bg-indigo-50/90 border border-indigo-200/80 rounded-xl p-3 space-y-2.5 text-xs shadow-xs">' +
+                '<div class="flex items-center justify-between text-indigo-900 font-bold border-b border-indigo-100 pb-1.5">' +
                     '<span class="flex items-center gap-1">📦 <span>مخرجات وتسليمات الموظف' + (assignee ? ' (' + esc(assignee) + ')' : '') + ':</span></span>' +
                     timerTag +
                 '</div>';
 
-            if (hasNotes) {
-                deliverablesBox += '<div class="bg-white border border-indigo-100 rounded-lg p-2 text-slate-700">' +
-                    '<span class="text-indigo-800 font-bold block text-[11px] mb-1">📝 ملاحظات الموظف المرفقة:</span>' +
-                    '<div class="whitespace-pre-line text-xs leading-relaxed">' + esc(t.notes || t.note) + '</div>' +
+            if (driveLink) {
+                deliverablesBox += '<div class="space-y-1">' +
+                    '<a href="' + esc(driveLink) + '" target="_blank" class="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 px-3 rounded-lg shadow-sm transition">' +
+                        '<span>📁 فتح ومعاينة الملف المسلّم (Google Drive) ↗</span>' +
+                    '</a>' +
+                    '<div class="flex items-center justify-between text-[10px] text-slate-500 px-1">' +
+                        '<span class="truncate max-w-[200px] text-slate-400 font-mono">' + esc(driveLink) + '</span>' +
+                        '<button onclick="promptSetDriveLink(\'' + esc(t.task_id) + '\',\'' + esc(driveLink) + '\')" class="text-blue-600 hover:underline font-bold">✏️ تعديل الرابط</button>' +
+                    '</div>' +
+                '</div>';
+            } else {
+                deliverablesBox += '<div class="bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-center justify-between gap-2">' +
+                    '<span class="text-amber-800 text-[11px]">🔗 رابط درايف: <span class="text-slate-400">لم يُرفق</span></span>' +
+                    '<button onclick="promptSetDriveLink(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] px-2.5 py-1 rounded-md shadow-xs whitespace-nowrap">➕ إضافة رابط Drive</button>' +
                 '</div>';
             }
 
-            if (hasDrive) {
-                deliverablesBox += '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 px-3 rounded-lg shadow-sm transition">' +
-                    '📁 فتح ومعاينة الملف المسلّم (Google Drive) ↗' +
-                '</a>';
+            if (rawNotes) {
+                var notesFormatted = esc(rawNotes).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-600 underline font-bold break-all">$1</a>');
+                deliverablesBox += '<div class="bg-white border border-indigo-100 rounded-lg p-2 text-slate-700">' +
+                    '<div class="flex items-center justify-between mb-1">' +
+                        '<span class="text-indigo-800 font-bold text-[11px]">📝 ملاحظات الموظف المرفقة:</span>' +
+                        '<button onclick="promptSetTaskNotes(\'' + esc(t.task_id) + '\',\'' + esc(rawNotes) + '\')" class="text-blue-600 hover:underline text-[10px]">✏️ تعديل</button>' +
+                    '</div>' +
+                    '<div class="whitespace-pre-line text-xs leading-relaxed">' + notesFormatted + '</div>' +
+                '</div>';
+            } else {
+                deliverablesBox += '<div class="flex items-center justify-between text-[11px] text-slate-500 bg-white/70 border border-indigo-50 rounded-lg p-1.5 px-2">' +
+                    '<span>📝 الملاحظات: <span class="text-slate-400">لا توجد ملاحظات نصية</span></span>' +
+                    '<button onclick="promptSetTaskNotes(\'' + esc(t.task_id) + '\')" class="text-blue-600 hover:underline text-[10px] font-bold">➕ كتابة ملاحظة</button>' +
+                '</div>';
             }
 
             if (t.started_at || t.submitted_at) {
-                deliverablesBox += '<div class="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">' +
+                deliverablesBox += '<div class="flex items-center justify-between text-[10px] text-slate-500 pt-0.5 border-t border-indigo-100/60">' +
                     (t.started_at ? '<span>🚀 بدأ: ' + esc(new Date(t.started_at).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})) + '</span>' : '<span></span>') +
                     (t.submitted_at ? '<span>✅ سلّم: ' + esc(new Date(t.submitted_at).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})) + '</span>' : '') +
                 '</div>';
@@ -1898,6 +1928,57 @@ async function runSystemDiagnostics() {
     }
 }
 
+async function promptSetDriveLink(taskId, currentLink) {
+    var val = prompt("أدخل رابط Google Drive لمخرجات وتسليمات هذه المهمة:", currentLink || "");
+    if (val === null) return;
+    var trimmed = val.trim();
+    if (!trimmed) {
+        showToast("لم يتم إدخال رابط", "error");
+        return;
+    }
+    try {
+        showToast("جاري حفظ رابط الدرايف... ⏳");
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ drive_link: trimmed })
+        });
+        var data = await res.json();
+        if (res.ok && (data.ok || data.success)) {
+            showToast("تم حفظ رابط جوجل درايف بنجاح 🎉");
+            loadTasksEngine();
+        } else {
+            showToast(data.error || "تعذر حفظ الرابط", "error");
+        }
+    } catch(e) {
+        showToast("خطأ في الاتصال بالخادم", "error");
+    }
+}
+
+async function promptSetTaskNotes(taskId, currentNotes) {
+    var val = prompt("أدخل ملاحظات الموظف / تفاصيل المخرجات للمهمة:", currentNotes || "");
+    if (val === null) return;
+    try {
+        showToast("جاري حفظ الملاحظات... ⏳");
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'Awaiting AM Review', notes: val.trim() })
+        });
+        var data = await res.json();
+        if (res.ok && data.success) {
+            showToast("تم حفظ الملاحظات بنجاح 📝");
+            loadTasksEngine();
+        } else {
+            showToast(data.error || "تعذر حفظ الملاحظات", "error");
+        }
+    } catch(e) {
+        showToast("خطأ في الاتصال بالخادم", "error");
+    }
+}
+
+window.promptSetDriveLink = promptSetDriveLink;
+window.promptSetTaskNotes = promptSetTaskNotes;
 window.recallTaskAction = recallTaskAction;
 window.reassignTaskFromBoard = reassignTaskFromBoard;
 window.assignTaskFromBoard = assignTaskFromBoard;
