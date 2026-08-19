@@ -1297,6 +1297,26 @@ function empOptionsHtml(selectedId) {
     }).join('');
 }
 
+var selectedAMFilter = null;
+var selectedAMName = '';
+
+function toggleAMFilter(amId, amName) {
+    if (selectedAMFilter === amId) {
+        selectedAMFilter = null;
+        selectedAMName = '';
+    } else {
+        selectedAMFilter = amId;
+        selectedAMName = amName;
+    }
+    renderTasksBoard();
+}
+
+function clearAMFilter() {
+    selectedAMFilter = null;
+    selectedAMName = '';
+    renderTasksBoard();
+}
+
 function renderTasksBoard() {
     var board = document.getElementById('tasks-board-grid');
     if (!board) return;
@@ -1304,15 +1324,56 @@ function renderTasksBoard() {
     
     var allTasks = tasksList || [];
     var displayTasks = allTasks;
+
+    if (selectedAMFilter) {
+        displayTasks = displayTasks.filter(function(t) {
+            return String(t.am_id || '').trim() === String(selectedAMFilter).trim() ||
+                   String(t.am_name || '').trim() === String(selectedAMName).trim();
+        });
+    }
+
     if (selectedEmployeeFilter) {
-        displayTasks = allTasks.filter(function(t) {
+        displayTasks = displayTasks.filter(function(t) {
             return String(t.assigned_employee_id || '').trim() === String(selectedEmployeeFilter).trim();
         });
     }
 
     if (badge) {
         var done = displayTasks.filter(function(t){ return t.status === 'Completed'; }).length;
-        badge.textContent = displayTasks.length + ' مهمة · ' + done + ' مكتملة' + (selectedEmployeeFilter ? ' (' + esc(selectedEmployeeName) + ')' : '');
+        badge.textContent = displayTasks.length + ' مهمة · ' + done + ' مكتملة' + 
+            (selectedAMFilter ? ' (AM: ' + esc(selectedAMName) + ')' : '') +
+            (selectedEmployeeFilter ? ' (' + esc(selectedEmployeeName) + ')' : '');
+    }
+
+    // Build distinct AM list for Manager overview
+    var amMap = {};
+    allTasks.forEach(function(t) {
+        var amId = (t.am_id || 'unassigned').trim();
+        var amName = (t.am_name || (amId === 'EMP-001' ? 'أكونت مانيجر' : amId)).trim();
+        if (!amMap[amId]) amMap[amId] = { id: amId, name: amName, count: 0 };
+        amMap[amId].count++;
+    });
+    var amList = Object.values(amMap);
+
+    var amBarHtml = '';
+    if (amList.length > 1 || (window._me && (window._me.is_admin || window._me.role === 'admin' || window._me.role === 'manager'))) {
+        amBarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex items-center justify-between flex-wrap gap-2 shadow-xs mb-1">' +
+            '<div class="flex items-center gap-2 flex-wrap">' +
+                '<span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">👔 فلترة حسب مدير الحساب (AM):</span>' +
+                '<button type="button" onclick="clearAMFilter()" class="text-xs px-3 py-1 rounded-xl font-bold transition ' +
+                    (!selectedAMFilter ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+                    'الكل (' + allTasks.length + ')' +
+                '</button>' +
+                amList.map(function(am) {
+                    var isSel = selectedAMFilter === am.id;
+                    return '<button type="button" onclick="toggleAMFilter(\'' + esc(am.id) + '\', \'' + esc(am.name) + '\')" class="text-xs px-3 py-1 rounded-xl font-bold transition ' +
+                        (isSel ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+                        '👔 ' + esc(am.name) + ' <span class="text-[10px] opacity-80 font-mono">(' + am.count + ')</span>' +
+                    '</button>';
+                }).join('') +
+            '</div>' +
+            (selectedAMFilter ? '<button type="button" onclick="clearAMFilter()" class="text-[11px] text-indigo-700 font-bold hover:underline">إلغاء فلترة AM ✕</button>' : '') +
+        '</div>';
     }
 
     var filterBannerHtml = '';
@@ -1339,14 +1400,18 @@ function renderTasksBoard() {
         '</div>';
     }
 
+    var topBanners = amBarHtml + filterBannerHtml;
+
     if (!displayTasks || displayTasks.length === 0) {
-        board.innerHTML = filterBannerHtml + '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' +
-            (selectedEmployeeFilter ? 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> في هذا العميل حالياً 🎯' : 'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 🚀') +
+        board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' +
+            (selectedEmployeeFilter ? 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> في هذا العميل حالياً 🎯' : 
+             selectedAMFilter ? 'لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b> في هذا العميل 🎯' :
+             'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 🚀') +
             '</div>';
         return;
     }
 
-    board.innerHTML = filterBannerHtml + displayTasks.map(function(t) {
+    board.innerHTML = topBanners + displayTasks.map(function(t) {
         var st = t.status || 'Pending AM Approval';
         var statusBadgeClass = st === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
                                st === 'In Progress' ? 'bg-blue-100 text-blue-800' :
@@ -1354,6 +1419,10 @@ function renderTasksBoard() {
                                st === 'Assigned' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800';
         var stLabel = st === 'Completed' ? 'مكتملة' : st === 'In Progress' ? 'جاري العمل' :
                       st === 'Awaiting AM Review' ? 'بانتظار مراجعتك' : st === 'Assigned' ? 'مُسندة' : 'بانتظار الإسناد';
+
+        var amTag = '<div class="flex items-center gap-1 text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md font-bold">' +
+            '<span>👔 AM:</span> <span class="text-indigo-900">' + esc(t.am_name || t.am_id || 'عام') + '</span>' +
+        '</div>';
 
         // reference images pulled from the plan (media_urls) shown as thumbnails
         var refs = (t.media_urls && t.media_urls.length) ? t.media_urls : [];
@@ -1440,8 +1509,11 @@ function renderTasksBoard() {
         }
 
         var html = '<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
-            '<div class="flex items-center justify-between gap-2">' +
-                '<span class="font-mono font-bold text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
+            '<div class="flex items-center justify-between gap-2 flex-wrap">' +
+                '<div class="flex items-center gap-1.5 flex-wrap">' +
+                    '<span class="font-mono font-bold text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
+                    amTag +
+                '</div>' +
                 '<div class="flex items-center gap-1">' +
                     '<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ' + statusBadgeClass + '">' + esc(stLabel) + '</span>' +
                     '<button onclick="deleteTaskAction(\'' + esc(t.task_id) + '\')" title="حذف المهمة" class="text-slate-300 hover:text-red-500 text-xs px-1">✕</button>' +

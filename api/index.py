@@ -5873,8 +5873,26 @@ def api_tasks():
         save_client_tasks(tasks, _cid)
         return jsonify({"success": True, "task": new_task})
 
+    if not is_admin() and not can_see_client(_cid):
+        return jsonify({"success": True, "tasks": [], "is_admin": False, "am_id": _my_employee_id()})
+
     tasks = get_client_tasks(_cid)
-    return jsonify({"success": True, "tasks": tasks})
+    cfg = hr_config()
+    emp_map = {}
+    try:
+        for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
+            eid = str(e.get("employee_id") or "").strip()
+            nm = (e.get("name") or "").strip()
+            if eid and nm: emp_map[eid] = nm
+    except Exception:
+        pass
+
+    for t in tasks:
+        am_id = str(t.get("am_id") or "").strip()
+        if am_id and not t.get("am_name"):
+            t["am_name"] = emp_map.get(am_id) or am_id
+
+    return jsonify({"success": True, "tasks": tasks, "is_admin": is_admin(), "am_id": _my_employee_id()})
 
 
 def _docx_to_text(file_bytes, upload_images=False, parent_id=None):
@@ -6254,6 +6272,8 @@ def _consolidate_and_merge_post_fragments(posts):
                      'كاروسيل': 'carousel', 'carousel': 'carousel', 'ستوري': 'story', 'story': 'story', 
                      'موشن': 'motion', 'motion': 'motion', 'فيديو': 'reel', 'video': 'reel'}
 
+    dummy_titles = {'منشور جديد', 'بوست', 'post', 'new post', ''}
+
     def is_just_type(text):
         t = (text or '').strip().lower()
         return t in type_keywords or (len(t) < 15 and any(k == t for k in type_keywords))
@@ -6263,80 +6283,108 @@ def _consolidate_and_merge_post_fragments(posts):
         prefixes = ['صورة ', 'تصميم ', 'شخص ', 'زوج ', 'فيديو ', 'هنعمل ', 'مشهد ', 'فكرة التصميم', 'فكرة الفيديو', 'visual:', 'design:']
         return any(t.startswith(p) for p in prefixes) or 'فكرة التصميم' in t
 
-    merged = []
-    current = None
-
+    # Step 1: Remove empty / dummy entries
+    filtered = []
     for p in posts:
-        title = (p.get('title') or '').strip()
-        caption = (p.get('caption') or '').strip()
-        vis = (p.get('visual_idea') or '').strip()
+        t = (p.get('title') or '').strip()
+        c = (p.get('caption') or '').strip()
+        v = (p.get('visual_idea') or '').strip()
+        if (t in dummy_titles or not t) and (c in dummy_titles or not c) and not v:
+            continue
+        filtered.append(p)
+
+    # Step 2: Merge adjacent Title-only and Caption-only fragments
+    merged = []
+    skip_next = False
+    for idx, p in enumerate(filtered):
+        if skip_next:
+            skip_next = False
+            continue
+
+        t = (p.get('title') or '').strip()
+        c = (p.get('caption') or '').strip()
+        v = (p.get('visual_idea') or '').strip()
         pt = (p.get('post_type') or 'post').lower()
 
         # If this item is solely a type tag like 'بوست' or 'كاروسيل'
-        if is_just_type(title) and (not caption or is_just_type(caption) or caption == title):
-            detected_pt = type_keywords.get(title.lower(), 'post')
-            if current:
-                current['post_type'] = detected_pt
-            else:
-                current = {'title': '', 'caption': '', 'visual_idea': '', 'post_type': detected_pt, 'publish_date': '', 'publish_time': '10:00', 'delivery_deadline': '', 'media_urls': []}
+        if is_just_type(t) and (not c or is_just_type(c) or c == t):
+            detected_pt = type_keywords.get(t.lower(), 'post')
+            if merged:
+                merged[-1]['post_type'] = detected_pt
             continue
 
-        # If this item is solely a visual idea / design description
-        if is_visual_idea(title) or is_visual_idea(caption) or (vis and not title and not caption):
-            visual_text = vis or (caption if is_visual_idea(caption) else title)
-            if current and not current.get('visual_idea'):
-                current['visual_idea'] = visual_text
-            else:
-                if current and (current.get('title') or current.get('caption')):
-                    merged.append(current)
-                current = {'title': '', 'caption': '', 'visual_idea': visual_text, 'post_type': pt, 'publish_date': '', 'publish_time': '10:00', 'delivery_deadline': '', 'media_urls': []}
+        # If this item is solely a visual idea
+        if (is_visual_idea(t) or is_visual_idea(c) or (v and not t and not c)) and not (t and c and t != c):
+            vis_text = v or (c if is_visual_idea(c) else t)
+            if merged and not merged[-1].get('visual_idea'):
+                merged[-1]['visual_idea'] = vis_text
+            elif idx + 1 < len(filtered):
+                nxt = filtered[idx + 1]
+                nxt['visual_idea'] = vis_text
             continue
 
-        # If current post exists with a title but empty/identical caption, and this item looks like the body/caption:
-        if current and current.get('title') and (not current.get('caption') or current['caption'] == current['title']):
-            current['caption'] = caption or title
-            if p.get('publish_date') and not current.get('publish_date'):
-                current['publish_date'] = p['publish_date']
-            if p.get('delivery_deadline') and not current.get('delivery_deadline'):
-                current['delivery_deadline'] = p['delivery_deadline']
-            if p.get('media_urls'):
-                current.setdefault('media_urls', []).extend(p['media_urls'])
-            merged.append(current)
-            current = None
-            continue
+        # Case A: Title is dummy, but Caption has the real Hook/Title
+        if t in dummy_titles and c not in dummy_titles:
+            if idx + 1 < len(filtered):
+                nxt = filtered[idx + 1]
+                nxt_t = (nxt.get('title') or '').strip()
+                nxt_c = (nxt.get('caption') or '').strip()
+                if nxt_c in dummy_titles and nxt_t not in dummy_titles:
+                    merged.append({
+                        'title': c,
+                        'caption': nxt_t,
+                        'visual_idea': v or nxt.get('visual_idea', ''),
+                        'post_type': 'carousel' if 'slide' in c.lower() or 'slide' in nxt_t.lower() else pt,
+                        'publish_date': p.get('publish_date') or nxt.get('publish_date', ''),
+                        'publish_time': p.get('publish_time', '10:00'),
+                        'delivery_deadline': p.get('delivery_deadline', ''),
+                        'media_urls': (p.get('media_urls') or []) + (nxt.get('media_urls') or [])
+                    })
+                    skip_next = True
+                    continue
+            t = c
+            c = ''
 
-        # If current post has title & caption, save it
-        if current and (current.get('title') or current.get('caption')):
-            merged.append(current)
-            current = None
+        # Case B: Caption is dummy, but Title has text
+        elif c in dummy_titles and t not in dummy_titles:
+            if idx + 1 < len(filtered):
+                nxt = filtered[idx + 1]
+                nxt_t = (nxt.get('title') or '').strip()
+                nxt_c = (nxt.get('caption') or '').strip()
+                if nxt_t in dummy_titles and nxt_c not in dummy_titles:
+                    merged.append({
+                        'title': t,
+                        'caption': nxt_c,
+                        'visual_idea': v or nxt.get('visual_idea', ''),
+                        'post_type': pt,
+                        'publish_date': p.get('publish_date') or nxt.get('publish_date', ''),
+                        'publish_time': p.get('publish_time', '10:00'),
+                        'delivery_deadline': p.get('delivery_deadline', ''),
+                        'media_urls': (p.get('media_urls') or []) + (nxt.get('media_urls') or [])
+                    })
+                    skip_next = True
+                    continue
 
-        # Start new post from p
-        if not current:
-            current = {
-                'title': title,
-                'caption': caption if caption != title else '',
-                'visual_idea': vis,
-                'post_type': pt,
-                'publish_date': p.get('publish_date', ''),
-                'publish_time': p.get('publish_time', '10:00'),
-                'delivery_deadline': p.get('delivery_deadline', ''),
-                'media_urls': p.get('media_urls', [])
-            }
-        else:
-            if not current.get('title'): current['title'] = title
-            if not current.get('caption'): current['caption'] = caption
-            if vis and not current.get('visual_idea'): current['visual_idea'] = vis
+        merged.append({
+            'title': t if t not in dummy_titles else (c[:80] if c else 'منشور جديد'),
+            'caption': c if c not in dummy_titles else (t if t not in dummy_titles else ''),
+            'visual_idea': v,
+            'post_type': pt,
+            'publish_date': p.get('publish_date', ''),
+            'publish_time': p.get('publish_time', '10:00'),
+            'delivery_deadline': p.get('delivery_deadline', ''),
+            'media_urls': p.get('media_urls', [])
+        })
 
-    if current and (current.get('title') or current.get('caption') or current.get('visual_idea')):
-        merged.append(current)
-
-    # Normalize final titles and captions
+    # Step 3: Final validation & clean up
     cleaned_final = []
     for m in merged:
-        if not m['title'] and m['caption']:
-            m['title'] = m['caption'][:100].lstrip("-•*✅✍️ ").strip()
-        if not m['caption'] and m['title']:
+        if m['title'] in dummy_titles and m['caption'] in dummy_titles:
+            continue
+        if not m['caption']:
             m['caption'] = m['title']
+        if not m['title']:
+            m['title'] = m['caption'][:100].lstrip("-•*✅✍️ ").strip()
         if m['title'] and not is_just_type(m['title']):
             cleaned_final.append(m)
 
@@ -6473,7 +6521,8 @@ def api_tasks_ingest_plan():
                 "publish_date": pub_date,
                 "publish_time": pub_time,
                 "delivery_deadline": dl_date,
-                "am_id": "EMP-001",
+                "am_id": _my_employee_id() or "EMP-001",
+                "am_name": current_user_rec().get("name") or current_username(),
                 "assigned_employee_id": "",
                 "assignee_name": "",
                 "media_urls": image_urls,
@@ -6879,10 +6928,12 @@ def api_employees_workload():
 
 
 @app.route("/api/tasks/clear", methods=["POST"])
-@require_admin
+@require_manager
 def api_tasks_clear():
     """Delete all tasks for the current client (used to wipe demo/seed tasks)."""
     _cid = current_client_id()
+    if not can_see_client(_cid):
+        return jsonify({"error": "غير مصرح لك بمسح مهام هذا العميل", "success": False}), 403
     sync_from_supabase()  # refresh first so other clients' tasks aren't lost from the blob
     removed = len(get_client_tasks(_cid))
     if SUPABASE_URL and SUPABASE_KEY:
