@@ -1254,6 +1254,68 @@ async function promptLinkDrive(taskId) {
     }
 }
 
+// show a date only if it's a real YYYY-MM-DD, otherwise a clean placeholder
+function fmtDate(d) {
+    d = (d || '').toString().trim();
+    return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : '—';
+}
+// Google Drive direct links don't render in <img>; convert to the thumbnail endpoint
+function driveThumb(u) {
+    u = (u || '').toString();
+    if (!/drive\.google\.com|googleusercontent\.com/.test(u)) return u;
+    var m = u.match(/\/file\/d\/([^/]+)/) || u.match(/[?&]id=([^&]+)/) || u.match(/thumbnail\?id=([^&]+)/);
+    return m ? ('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w600') : u;
+}
+// value for <input type=date> — only a valid YYYY-MM-DD, else empty
+function isoDate(d) {
+    d = (d || '').toString().trim();
+    return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : '';
+}
+// AM sets start / publish / deadline for a task
+async function saveTaskDates(taskId) {
+    var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+    var body = {
+        scheduled_start_date: g('d-start-' + taskId),
+        publish_date: g('d-pub-' + taskId),
+        publish_time: g('t-pub-' + taskId) || '10:00',
+        delivery_deadline: g('d-dead-' + taskId)
+    };
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/dates', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) { showToast('اتحفظت المواعيد ✅'); loadTasksEngine(); }
+        else showToast(data.error || 'تعذّر الحفظ', 'error');
+    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+}
+function empOptionsHtml(selectedId) {
+    return (employeesList || []).map(function(e) {
+        var sel = (String(e.employee_id) === String(selectedId)) ? ' selected' : '';
+        return '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(e.name) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
+    }).join('');
+}
+
+var selectedAMFilter = null;
+var selectedAMName = '';
+
+function toggleAMFilter(amId, amName) {
+    if (selectedAMFilter === amId) {
+        selectedAMFilter = null;
+        selectedAMName = '';
+    } else {
+        selectedAMFilter = amId;
+        selectedAMName = amName;
+    }
+    renderTasksBoard();
+}
+
+function clearAMFilter() {
+    selectedAMFilter = null;
+    selectedAMName = '';
+    renderTasksBoard();
+}
+
 function renderTaskCard(t) {
     var st = t.status || 'Pending AM Approval';
     var statusBadgeClass = st === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
