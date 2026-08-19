@@ -1849,29 +1849,48 @@ async function extractTextFromDocxClient(file) {
         var contents = await zip.loadAsync(file);
         var xmlFile = contents.file("word/document.xml");
         if (!xmlFile) return null;
-        var xml = await xmlFile.async("text");
+        var xmlStr = await xmlFile.async("text");
         
-        var otherXmls = [];
-        contents.forEach(function(relativePath, zipEntry){
-            if (relativePath.startsWith("word/") && relativePath.endsWith(".xml") && relativePath !== "word/document.xml" && !relativePath.startsWith("word/_rels/")) {
-                otherXmls.push(zipEntry);
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(xmlStr, "application/xml");
+        
+        // 1. Check for tables (<w:tbl>)
+        var tables = doc.getElementsByTagName("w:tbl");
+        var extractedRows = [];
+        
+        if (tables && tables.length > 0) {
+            for (var t = 0; t < tables.length; t++) {
+                var rows = tables[t].getElementsByTagName("w:tr");
+                for (var r = 0; r < rows.length; r++) {
+                    var cells = rows[r].getElementsByTagName("w:tc");
+                    var cellTexts = [];
+                    for (var c = 0; c < cells.length; c++) {
+                        var pars = cells[c].getElementsByTagName("w:p");
+                        var cellParTexts = [];
+                        for (var p = 0; p < pars.length; p++) {
+                            var pText = (pars[p].textContent || '').trim();
+                            if (pText) cellParTexts.push(pText);
+                        }
+                        cellTexts.push(cellParTexts.join(" "));
+                    }
+                    var rowLine = cellTexts.filter(function(x){ return x.length > 0; }).join("\t").trim();
+                    if (rowLine) extractedRows.push(rowLine);
+                }
             }
-        });
-        for (var i = 0; i < otherXmls.length; i++) {
-            try {
-                var extra = await otherXmls[i].async("text");
-                if (extra) xml += "\n" + extra;
-            } catch(e){}
         }
-
-        xml = xml.replace(/<\/w:tr>/g, "\n");
-        xml = xml.replace(/<\/w:tc>/g, "\t");
-        xml = xml.replace(/<\/w:p>/g, "\n");
-        xml = xml.replace(/<w:tab[^>]*\/>/g, "\t");
-        xml = xml.replace(/<w:br[^>]*\/>/g, "\n");
-        var text = xml.replace(/<[^>]+>/g, "");
-        text = text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"');
-        return text.trim();
+        
+        if (extractedRows.length >= 2) {
+            return extractedRows.join("\n\n---\n\n");
+        }
+        
+        // 2. Otherwise extract all paragraphs
+        var paras = doc.getElementsByTagName("w:p");
+        var paraTexts = [];
+        for (var i = 0; i < paras.length; i++) {
+            var txt = (paras[i].textContent || '').trim();
+            if (txt) paraTexts.push(txt);
+        }
+        return paraTexts.join("\n");
     } catch(e) {
         console.warn("Client docx parse warning:", e);
         return null;

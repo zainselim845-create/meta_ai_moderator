@@ -6042,6 +6042,69 @@ def _parse_plan_with_ai(plan_text, retry_split=False):
 
 def _universal_heuristic_plan_parser(plan_text):
     """Splits arbitrary marketing plan text into discrete posts and extracts all metadata without fragmentation."""
+    # ---- 0. Pre-check: if text has explicit '---' delimiters separating posts/rows ----
+    if '---' in plan_text:
+        dash_blocks = [b.strip() for b in re.split(r'\n\s*---\s*\n|(?<=\n)---(?=\n)', plan_text) if b.strip()]
+        if len(dash_blocks) >= 2:
+            dash_results = []
+            type_kws = {'بوست': 'post', 'post': 'post', 'ريلز': 'reel', 'reel': 'reel', 'فيديو': 'reel', 'video': 'reel',
+                        'كاروسيل': 'carousel', 'carousel': 'carousel', 'ستوري': 'story', 'story': 'story', 'موشن': 'motion', 'motion': 'motion'}
+            url_re_t = re.compile(r'https?://[^\s|]+')
+            for b in dash_blocks:
+                b_lines = [l.strip() for l in b.splitlines() if l.strip()]
+                if not b_lines: continue
+                full_b = "\n".join(b_lines)
+                b_urls = url_re_t.findall(full_b)
+                first_line = b_lines[0]
+                if '\t' in first_line:
+                    cells = [c.strip() for c in first_line.split('\t') if c.strip()]
+                    post_type = "post"
+                    visual = ""
+                    title = ""
+                    captions = []
+                    pub_date = ""
+                    for c in cells:
+                        c_clean = url_re_t.sub('', c).strip()
+                        if not c_clean: continue
+                        c_low = c_clean.lower()
+                        if c_low in type_kws:
+                            post_type = type_kws[c_low]
+                        elif any(c_low.startswith(p) for p in ['صورة ', 'تصميم ', 'شخص ', 'زوج ', 'فيديو ', 'هنعمل ', 'مشهد ', 'فكرة التصميم', 'visual:']):
+                            visual = c_clean
+                        elif re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', c_clean) and len(c_clean) < 25:
+                            pub_date = c_clean
+                        elif not title and len(c_clean) < 120:
+                            title = c_clean
+                        else:
+                            captions.append(c_clean)
+                    if not title and captions: title = captions[0][:100]
+                    full_caption = "\n".join(captions) if captions else title
+                    dash_results.append({
+                        "title": title[:140] or "منشور جديد",
+                        "caption": full_caption or title,
+                        "visual_idea": visual,
+                        "post_type": post_type,
+                        "publish_date": pub_date,
+                        "publish_time": "10:00",
+                        "delivery_deadline": "",
+                        "media_urls": b_urls
+                    })
+                else:
+                    title = b_lines[0][:140]
+                    caption = "\n".join(b_lines[1:]) if len(b_lines) > 1 else title
+                    dash_results.append({
+                        "title": title or "منشور جديد",
+                        "caption": caption or title,
+                        "visual_idea": "",
+                        "post_type": "post",
+                        "publish_date": "",
+                        "publish_time": "10:00",
+                        "delivery_deadline": "",
+                        "media_urls": b_urls
+                    })
+            if len(dash_results) >= 2:
+                return dash_results
+
     lines = [l.rstrip() for l in plan_text.splitlines()]
 
     # ---- 1. Pre-check: if text looks like a table (tab-separated rows), split by rows ----
@@ -6375,6 +6438,45 @@ def _consolidate_and_merge_post_fragments(posts):
             'delivery_deadline': p.get('delivery_deadline', ''),
             'media_urls': p.get('media_urls', [])
         })
+
+    # Step 2.5: Consolidate consecutive Hook / Headline + Body / Caption pairs
+    merged_pairs = []
+    i = 0
+    while i < len(merged):
+        curr = merged[i]
+        curr_t = (curr.get('title') or '').strip()
+        curr_c = (curr.get('caption') or '').strip()
+        curr_v = (curr.get('visual_idea') or '').strip()
+        curr_pt = (curr.get('post_type') or 'post').lower()
+
+        if i + 1 < len(merged):
+            nxt = merged[i + 1]
+            nxt_t = (nxt.get('title') or '').strip()
+            nxt_c = (nxt.get('caption') or '').strip()
+            nxt_v = (nxt.get('visual_idea') or '').strip()
+
+            is_hook_title = len(curr_t) < 95
+            is_nxt_body = len(nxt_t) >= 15 or len(nxt_c) >= 15 or 'Slide' in curr_t or 'slide' in curr_t.lower()
+
+            if (curr_t == curr_c or not curr_c or len(curr_c) < 95) and is_hook_title and is_nxt_body:
+                cap = nxt_c if len(nxt_c) > len(nxt_t) else nxt_t
+                merged_pairs.append({
+                    'title': curr_t,
+                    'caption': cap,
+                    'visual_idea': curr_v or nxt_v,
+                    'post_type': 'carousel' if 'slide' in curr_t.lower() or 'slide' in nxt_t.lower() else curr_pt,
+                    'publish_date': curr.get('publish_date') or nxt.get('publish_date', ''),
+                    'publish_time': curr.get('publish_time', '10:00'),
+                    'delivery_deadline': curr.get('delivery_deadline', ''),
+                    'media_urls': (curr.get('media_urls') or []) + (nxt.get('media_urls') or [])
+                })
+                i += 2
+                continue
+
+        merged_pairs.append(curr)
+        i += 1
+    
+    merged = merged_pairs
 
     # Step 3: Final validation & clean up
     cleaned_final = []
