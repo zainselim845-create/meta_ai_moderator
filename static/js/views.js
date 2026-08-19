@@ -1318,17 +1318,19 @@ function clearAMFilter() {
 }
 
 function renderTasksBoard() {
-    var board = document.getElementById('tasks-board-grid');
-    if (!board) return;
-    var allTasks = tasksList || [];
-    var displayTasks = allTasks.slice();
+    try {
+        var board = document.getElementById('tasks-board-grid');
+        if (!board) return;
+        var badge = document.getElementById('tasks-count-badge');
+        var allTasks = tasksList || [];
+        var displayTasks = allTasks.slice();
 
-    // Sort tasks in natural ascending order: TASK-0001 -> TASK-0010
-    displayTasks.sort(function(a, b) {
-        var numA = parseInt((String(a.task_id || '').match(/\d+/) || [999999])[0], 10);
-        var numB = parseInt((String(b.task_id || '').match(/\d+/) || [999999])[0], 10);
-        return numA - numB;
-    });
+        // Sort tasks in natural ascending order: TASK-0001 -> TASK-0010
+        displayTasks.sort(function(a, b) {
+            var numA = parseInt((String(a.task_id || '').match(/\d+/) || [999999])[0], 10);
+            var numB = parseInt((String(b.task_id || '').match(/\d+/) || [999999])[0], 10);
+            return numA - numB;
+        });
 
     if (selectedAMFilter) {
         displayTasks = displayTasks.filter(function(t) {
@@ -1601,6 +1603,11 @@ function renderTasksBoard() {
         html += '</div></div>';
         return html;
     }).join('');
+    } catch(err) {
+        console.error("renderTasksBoard error:", err);
+        var b = document.getElementById('tasks-board-grid');
+        if (b) b.innerHTML = '<div class="col-span-full p-6 text-center text-red-600 bg-red-50 border border-red-200 rounded-2xl text-xs font-bold">حدث خطأ أثناء عرض المهام: ' + esc(err.message || err) + '</div>';
+    }
 }
 
 async function clearAllTasks() {
