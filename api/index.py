@@ -6050,12 +6050,22 @@ def _universal_heuristic_plan_parser(plan_text):
             type_kws = {'بوست': 'post', 'post': 'post', 'ريلز': 'reel', 'reel': 'reel', 'فيديو': 'reel', 'video': 'reel',
                         'كاروسيل': 'carousel', 'carousel': 'carousel', 'ستوري': 'story', 'story': 'story', 'موشن': 'motion', 'motion': 'motion'}
             url_re_t = re.compile(r'https?://[^\s|]+')
+            
+            def is_tbl_hdr(text):
+                t = (text or '').lower()
+                return ('تاريخ النزول' in t and ('كابشن' in t or 'تاج لاين' in t or 'النوع' in t or 'ريفرنس' in t)) or \
+                       ('تاج لاين' in t and ('فكرة' in t or 'كابشن' in t)) or ('فكرة – ريفرنس' in t or 'فكرة - ريفرنس' in t)
+
             for b in dash_blocks:
                 b_lines = [l.strip() for l in b.splitlines() if l.strip()]
                 if not b_lines: continue
                 full_b = "\n".join(b_lines)
+                if is_tbl_hdr(full_b):
+                    continue
                 b_urls = url_re_t.findall(full_b)
                 first_line = b_lines[0]
+                if is_tbl_hdr(first_line):
+                    continue
                 if '\t' in first_line:
                     cells = [c.strip() for c in first_line.split('\t') if c.strip()]
                     post_type = "post"
@@ -6346,9 +6356,23 @@ def _consolidate_and_merge_post_fragments(posts):
         prefixes = ['صورة ', 'تصميم ', 'شخص ', 'زوج ', 'فيديو ', 'هنعمل ', 'مشهد ', 'فكرة التصميم', 'فكرة الفيديو', 'visual:', 'design:']
         return any(t.startswith(p) for p in prefixes) or 'فكرة التصميم' in t
 
-    # Step 1: Remove empty / dummy entries
+    def is_header_post(p):
+        t = (p.get('title') or '').lower()
+        c = (p.get('caption') or '').lower()
+        combined = t + ' ' + c
+        if 'تاريخ النزول' in combined and ('كابشن' in combined or 'تاج لاين' in combined or 'النوع' in combined or 'ريفرنس' in combined):
+            return True
+        if 'تاج لاين' in combined and ('فكرة' in combined or 'كابشن' in combined):
+            return True
+        if 'فكرة – ريفرنس' in combined or 'فكرة - ريفرنس' in combined:
+            return True
+        return False
+
+    # Step 1: Remove empty / dummy entries and table headers
     filtered = []
     for p in posts:
+        if is_header_post(p):
+            continue
         t = (p.get('title') or '').strip()
         c = (p.get('caption') or '').strip()
         v = (p.get('visual_idea') or '').strip()
