@@ -6617,6 +6617,14 @@ def api_tasks_ingest_plan():
         if not plan_text or len(plan_text.strip()) < 5:
             return jsonify({"error": "تعذر قراءة نص الخطة. يرجى التأكد من رفع ملف DOCX سليم أو لصق النص مباشرة.", "success": False}), 400
 
+        # 4) Extract actual file name / plan name passed from upload
+        req_json = request.get_json(silent=True) or {}
+        raw_file_name = (request.form.get("file_name") if request.form else "") or \
+                        (req_json.get("file_name") if isinstance(req_json, dict) else "") or \
+                        (up.filename if up and up.filename else "") or ""
+        
+        clean_file_title = re.sub(r'\.(docx|doc|txt|pdf)$', '', raw_file_name, flags=re.I).strip() if raw_file_name else "ملف الخطة"
+
         tasks = get_client_tasks(_cid)
         max_num = 0
         for t in tasks:
@@ -6648,6 +6656,8 @@ def api_tasks_ingest_plan():
             new_task = {
                 "task_id": f"TASK-{counter:04d}",
                 "client_id": _cid,
+                "file_name": raw_file_name or clean_file_title,
+                "plan_name": clean_file_title,
                 "title": title,
                 "description": caption or title,
                 "caption": caption,

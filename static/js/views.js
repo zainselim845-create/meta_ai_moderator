@@ -1254,67 +1254,152 @@ async function promptLinkDrive(taskId) {
     }
 }
 
-// show a date only if it's a real YYYY-MM-DD, otherwise a clean placeholder
-function fmtDate(d) {
-    d = (d || '').toString().trim();
-    return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : '—';
-}
-// Google Drive direct links don't render in <img>; convert to the thumbnail endpoint
-// (works for anyone-with-link files). Non-Drive URLs pass through unchanged.
-function driveThumb(u) {
-    u = (u || '').toString();
-    if (!/drive\.google\.com|googleusercontent\.com/.test(u)) return u;
-    var m = u.match(/\/file\/d\/([^/]+)/) || u.match(/[?&]id=([^&]+)/) || u.match(/thumbnail\?id=([^&]+)/);
-    return m ? ('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w600') : u;
-}
-// value for <input type=date> — only a valid YYYY-MM-DD, else empty
-function isoDate(d) {
-    d = (d || '').toString().trim();
-    return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : '';
-}
-// AM sets start / publish / deadline for a task
-async function saveTaskDates(taskId) {
-    var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
-    var body = {
-        scheduled_start_date: g('d-start-' + taskId),
-        publish_date: g('d-pub-' + taskId),
-        publish_time: g('d-time-' + taskId) || '10:00',
-        delivery_deadline: g('d-dl-' + taskId)
-    };
-    try {
-        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/dates', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-        });
-        var data = await res.json();
-        if (res.ok && data.ok) { showToast('اتحفظت المواعيد ✅'); loadTasksEngine(); }
-        else showToast(data.error || 'تعذّر الحفظ', 'error');
-    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
-}
-function empOptionsHtml(selectedId) {
-    return (employeesList || []).map(function(e) {
-        var sel = (String(e.employee_id) === String(selectedId)) ? ' selected' : '';
-        return '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(e.name) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
-    }).join('');
-}
+function renderTaskCard(t) {
+    var st = t.status || 'Pending AM Approval';
+    var statusBadgeClass = st === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
+                           st === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                           st === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' :
+                           st === 'Assigned' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800';
+    var stLabel = st === 'Completed' ? 'مكتملة' : st === 'In Progress' ? 'جاري العمل' :
+                  st === 'Awaiting AM Review' ? 'بانتظار مراجعتك' : st === 'Assigned' ? 'مُسندة' : 'بانتظار الإسناد';
 
-var selectedAMFilter = null;
-var selectedAMName = '';
+    var amTag = '<div class="flex items-center gap-1 text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md font-bold">' +
+        '<span>👔 AM:</span> <span class="text-indigo-900">' + esc(t.am_name || t.am_id || 'عام') + '</span>' +
+    '</div>';
 
-function toggleAMFilter(amId, amName) {
-    if (selectedAMFilter === amId) {
-        selectedAMFilter = null;
-        selectedAMName = '';
-    } else {
-        selectedAMFilter = amId;
-        selectedAMName = amName;
+    // reference images
+    var refs = (t.media_urls && t.media_urls.length) ? t.media_urls : [];
+    var refsHtml = refs.length ? '<div class="flex gap-1 flex-wrap">' + refs.slice(0, 4).map(function(u) {
+        return '<a href="' + esc(u) + '" target="_blank" class="block w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-50"><img src="' + esc(driveThumb(u)) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
+    }).join('') + (refs.length > 4 ? '<span class="text-[10px] text-slate-400 self-center">+' + (refs.length - 4) + '</span>' : '') + '</div>' : '';
+
+    var links = (t.reference_links && t.reference_links.length) ?
+        '<div class="text-[10px] text-slate-500">🔗 ' + t.reference_links.slice(0, 3).map(function(u) {
+            return '<a href="' + esc(u) + '" target="_blank" class="text-blue-600 underline">مرجع</a>'; }).join(' · ') + '</div>' : '';
+
+    // Detailed Deliverables Box
+    var rawNotes = (t.notes || t.note || t.delivery_notes || t.deliverables || '').trim();
+    var driveLink = (t.drive_link || t.google_drive_url || t.attachment_url || t.submission_link || '').trim();
+    if (!driveLink && t.media_urls && t.media_urls.length) {
+        driveLink = (t.media_urls.find(function(u){ return u && (u.includes('drive.google.com') || u.includes('docs.google.com') || u.startsWith('http')); }) || '').trim();
     }
-    renderTasksBoard();
-}
+    if (!driveLink && rawNotes) {
+        var urlMatch = rawNotes.match(/https?:\/\/[^\s]+/i);
+        if (urlMatch) {
+            driveLink = urlMatch[0].replace(/[.,;:)\]]+$/, '');
+        }
+    }
 
-function clearAMFilter() {
-    selectedAMFilter = null;
-    selectedAMName = '';
-    renderTasksBoard();
+    var isTimerRunning = !!(t.timer_state && t.timer_state.is_running);
+    var elapsedSecs = t.timer_state ? (t.timer_state.elapsed_seconds || 0) : 0;
+    var elapsedMins = Math.round(elapsedSecs / 60);
+
+    var deliverablesBox = '';
+    if (rawNotes || driveLink || isTimerRunning || elapsedMins > 0 || t.submitted_at || t.started_at || st === 'Awaiting AM Review') {
+        var timerTag = isTimerRunning ?
+            '<span class="bg-amber-500 text-white animate-pulse px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">⏱️ جاري العمل الآن</span>' :
+            (elapsedMins > 0 ? '<span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-mono font-bold text-[10px]">⏱️ ' + elapsedMins + ' دقيقة</span>' : '');
+
+        deliverablesBox = '<div class="bg-gradient-to-br from-indigo-50/70 to-purple-50/70 border border-indigo-200/80 rounded-xl p-2.5 text-xs space-y-1.5 shadow-xs">' +
+            '<div class="flex items-center justify-between font-bold text-[11px] text-indigo-900 border-b border-indigo-100 pb-1">' +
+                '<span class="flex items-center gap-1">📦 تسليمات وإنجاز الموظف:</span>' +
+                timerTag +
+            '</div>';
+
+        if (driveLink) {
+            deliverablesBox += '<div class="flex items-center gap-1.5">' +
+                '<a href="' + esc(driveLink) + '" target="_blank" class="flex-1 bg-white hover:bg-emerald-50 text-emerald-700 font-bold text-[11px] py-1.5 px-2.5 rounded-lg border border-emerald-300 transition flex items-center justify-center gap-1.5 shadow-xs">' +
+                    '<span>📁 فتح ملف التسليم (Drive) 🚀</span>' +
+                '</a>' +
+            '</div>';
+        }
+
+        if (rawNotes) {
+            deliverablesBox += '<div class="bg-white/90 p-2 rounded-lg border border-indigo-100 text-[11px] text-slate-800 space-y-0.5">' +
+                '<div class="font-bold text-[10px] text-indigo-700">ملاحظات ومخرجات الموظف:</div>' +
+                '<div class="whitespace-pre-wrap leading-relaxed">' + esc(rawNotes) + '</div>' +
+            '</div>';
+        }
+
+        deliverablesBox += '</div>';
+    }
+
+    var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
+        '<div class="flex items-center justify-between gap-1 flex-wrap">' +
+            '<div class="flex items-center gap-1.5">' +
+                '<span class="font-mono font-bold text-xs bg-slate-900 text-white px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
+                '<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ' + statusBadgeClass + '">' + stLabel + '</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-1.5">' +
+                amTag +
+                '<button onclick="deleteTaskAction(\'' + esc(t.task_id) + '\')" class="text-slate-300 hover:text-red-600 transition text-sm p-1">✕</button>' +
+            '</div>' +
+        '</div>' +
+        '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
+        '<div class="text-xs text-slate-600 whitespace-pre-wrap max-h-36 overflow-y-auto bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 leading-relaxed">' + esc(t.caption || t.description || '') + '</div>' +
+        refsHtml + links;
+
+    // Dates
+    var dStart = t.scheduled_start_date || '';
+    var dPub = t.publish_date || '';
+    var tPub = t.publish_time || '10:00';
+    var dDead = t.delivery_deadline || '';
+
+    html += '<div class="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200 text-xs space-y-2">' +
+        '<div class="grid grid-cols-2 gap-2">' +
+            '<div><label class="text-[10px] text-slate-500 font-bold block mb-0.5">🚀 البدء:</label><input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(dStart) + '" class="w-full text-[11px] px-1.5 py-1 border border-slate-200 rounded-lg bg-white"></div>' +
+            '<div><label class="text-[10px] text-blue-700 font-bold block mb-0.5">📅 النزول:</label><div class="flex gap-1"><input type="date" id="d-pub-' + esc(t.task_id) + '" value="' + esc(dPub) + '" class="w-full text-[11px] px-1.5 py-1 border border-blue-200 rounded-lg bg-white"><input type="time" id="t-pub-' + esc(t.task_id) + '" value="' + esc(tPub) + '" class="text-[11px] px-1 py-1 border border-blue-200 rounded-lg bg-white"></div></div>' +
+        '</div>' +
+        '<div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">' +
+            '<div class="flex-1"><label class="text-[10px] text-amber-700 font-bold block mb-0.5">⏰ التسليم:</label><input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="w-full text-[11px] px-1.5 py-1 border border-amber-200 rounded-lg bg-white"></div>' +
+            '<button onclick="saveTaskDates(\'' + esc(t.task_id) + '\')" class="self-end bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap">💾 حفظ</button>' +
+        '</div>' +
+    '</div>';
+
+    // Deliverables section
+    if (deliverablesBox) {
+        html += deliverablesBox;
+    }
+
+    // Upload & Reference
+    html += '<div class="grid grid-cols-2 gap-1">' +
+        '<label class="text-center cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 rounded-lg border border-sky-200">📤 رفع للـ Drive' +
+            '<input type="file" accept="image/*,video/*" class="hidden" onchange="uploadTaskAsset(\'' + esc(t.task_id) + '\', this)"></label>' +
+        '<button onclick="addTaskReference(\'' + esc(t.task_id) + '\')" class="bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 rounded-lg border border-violet-200">➕ ريفرانس</button>' +
+    '</div>';
+
+    if (t.review_note) {
+        html += '<div class="bg-purple-50 p-2 rounded-xl text-[11px] text-purple-700 border border-purple-100">📝 ملاحظة المراجعة السابقة: ' + esc(t.review_note) + '</div>';
+    }
+
+    // AM controls
+    html += '<div class="flex flex-col gap-1.5 pt-1 border-t border-slate-100">';
+    if (st === 'Pending AM Approval') {
+        html += '<div class="flex gap-1"><select id="emp-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1">' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
+            '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">إسناد 🎯</button></div>';
+    }
+    if (st === 'Assigned' || st === 'In Progress') {
+        html += '<div class="grid grid-cols-2 gap-1.5 pt-1">' +
+            '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-2 rounded-lg shadow-sm flex items-center justify-center gap-1 transition">↩️ سحب المهمة</button>' +
+            '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[11px] py-1.5 px-2 rounded-lg flex items-center justify-center gap-1">📤 إرسال للتليجرام</button>' +
+            '</div>' +
+            '<div class="flex gap-1 pt-1"><select id="reassign-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">تحويل لموظف آخر...</option>' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
+            '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap">تحويل 🔄</button></div>';
+    }
+    if (st === 'Awaiting AM Review') {
+        html += '<div class="grid grid-cols-2 gap-1 pt-1">' +
+            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs py-1.5 rounded-lg">↩️ رجّع للتعديل</button>' +
+            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-lg">✅ اعتماد + جدولة</button>' +
+            '</div>' +
+            '<div class="flex gap-1 pt-1"><select id="fwd-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">مرّرها للي بعده...</option>' + empOptionsHtml('') + '</select>' +
+            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">مرّر ➡️</button></div>' +
+            '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 rounded-lg shadow-sm mt-1">↩️ سحب المهمة من الموظف</button>';
+    }
+    if (st === 'Completed') {
+        html += '<span class="text-xs font-bold text-emerald-600 block text-center">✓ مكتملة' + (t.scheduled_post_id ? ' ومجدولة للنشر 🗓️' : '') + '</span>';
+    }
+    html += '</div></div>';
+    return html;
 }
 
 function renderTasksBoard() {
@@ -1332,277 +1417,143 @@ function renderTasksBoard() {
             return numA - numB;
         });
 
-    if (selectedAMFilter) {
-        displayTasks = displayTasks.filter(function(t) {
-            return String(t.am_id || '').trim() === String(selectedAMFilter).trim() ||
-                   String(t.am_name || '').trim() === String(selectedAMName).trim();
+        if (selectedAMFilter) {
+            displayTasks = displayTasks.filter(function(t) {
+                return String(t.am_id || '').trim() === String(selectedAMFilter).trim() ||
+                       String(t.am_name || '').trim() === String(selectedAMName).trim();
+            });
+        }
+
+        if (selectedEmployeeFilter) {
+            displayTasks = displayTasks.filter(function(t) {
+                return String(t.assigned_employee_id || '').trim() === String(selectedEmployeeFilter).trim();
+            });
+        }
+
+        if (badge) {
+            var done = displayTasks.filter(function(t){ return t.status === 'Completed'; }).length;
+            badge.textContent = displayTasks.length + ' مهمة مرتبة · ' + done + ' مكتملة' + 
+                (selectedAMFilter ? ' (AM: ' + esc(selectedAMName) + ')' : '') +
+                (selectedEmployeeFilter ? ' (' + esc(selectedEmployeeName) + ')' : '');
+        }
+
+        // Build distinct AM list for Manager overview
+        var amMap = {};
+        allTasks.forEach(function(t) {
+            var amId = (t.am_id || 'unassigned').trim();
+            var amName = (t.am_name || (amId === 'EMP-001' ? 'أكونت مانيجر' : amId)).trim();
+            if (!amMap[amId]) amMap[amId] = { id: amId, name: amName, count: 0 };
+            amMap[amId].count++;
         });
-    }
+        var amList = Object.values(amMap);
 
-    if (selectedEmployeeFilter) {
-        displayTasks = displayTasks.filter(function(t) {
-            return String(t.assigned_employee_id || '').trim() === String(selectedEmployeeFilter).trim();
-        });
-    }
+        var amBarHtml = '';
+        if (amList.length > 1 || (window._me && (window._me.is_admin || window._me.role === 'admin' || window._me.role === 'manager'))) {
+            amBarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex items-center justify-between flex-wrap gap-2 shadow-xs mb-1">' +
+                '<div class="flex items-center gap-2 flex-wrap">' +
+                    '<span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">👔 فلترة حسب مدير الحساب (AM):</span>' +
+                    '<button type="button" onclick="clearAMFilter()" class="text-xs px-3 py-1 rounded-xl font-bold transition ' +
+                        (!selectedAMFilter ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+                        'الكل (' + allTasks.length + ')' +
+                    '</button>' +
+                    amList.map(function(am) {
+                        var isSel = selectedAMFilter === am.id;
+                        return '<button type="button" onclick="toggleAMFilter(\'' + esc(am.id) + '\', \'' + esc(am.name) + '\')" class="text-xs px-3 py-1 rounded-xl font-bold transition ' +
+                            (isSel ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+                            '👔 ' + esc(am.name) + ' <span class="text-[10px] opacity-80 font-mono">(' + am.count + ')</span>' +
+                        '</button>';
+                    }).join('') +
+                '</div>' +
+                (selectedAMFilter ? '<button type="button" onclick="clearAMFilter()" class="text-[11px] text-indigo-700 font-bold hover:underline">إلغاء فلترة AM ✕</button>' : '') +
+            '</div>';
+        }
 
-    if (badge) {
-        var done = displayTasks.filter(function(t){ return t.status === 'Completed'; }).length;
-        badge.textContent = displayTasks.length + ' مهمة مرتبة · ' + done + ' مكتملة' + 
-            (selectedAMFilter ? ' (AM: ' + esc(selectedAMName) + ')' : '') +
-            (selectedEmployeeFilter ? ' (' + esc(selectedEmployeeName) + ')' : '');
-    }
+        var filterBannerHtml = '';
+        if (selectedEmployeeFilter) {
+            var empOtherTasks = (employeesWorkloadData && employeesWorkloadData[selectedEmployeeFilter]) || [];
+            var currentCid = (window._me && window._me.active_client_id) || '';
+            var otherClientsCount = empOtherTasks.filter(function(ot){ return ot.client_id !== currentCid; }).length;
 
-    // Build distinct AM list for Manager overview
-    var amMap = {};
-    allTasks.forEach(function(t) {
-        var amId = (t.am_id || 'unassigned').trim();
-        var amName = (t.am_name || (amId === 'EMP-001' ? 'أكونت مانيجر' : amId)).trim();
-        if (!amMap[amId]) amMap[amId] = { id: amId, name: amName, count: 0 };
-        amMap[amId].count++;
-    });
-    var amList = Object.values(amMap);
-
-    var amBarHtml = '';
-    if (amList.length > 1 || (window._me && (window._me.is_admin || window._me.role === 'admin' || window._me.role === 'manager'))) {
-        amBarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex items-center justify-between flex-wrap gap-2 shadow-xs mb-1">' +
-            '<div class="flex items-center gap-2 flex-wrap">' +
-                '<span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">👔 فلترة حسب مدير الحساب (AM):</span>' +
-                '<button type="button" onclick="clearAMFilter()" class="text-xs px-3 py-1 rounded-xl font-bold transition ' +
-                    (!selectedAMFilter ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                    'الكل (' + allTasks.length + ')' +
+            filterBannerHtml = '<div class="col-span-full bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 shadow-sm">' +
+                '<div class="flex items-center gap-3">' +
+                    '<div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm">👤</div>' +
+                    '<div>' +
+                        '<div class="font-bold text-sm text-blue-900 flex items-center gap-2">' +
+                            '<span>مهام الموظف: <b>' + esc(selectedEmployeeName) + '</b></span>' +
+                            '<span class="bg-blue-200 text-blue-800 text-[11px] font-mono px-2 py-0.5 rounded-full font-bold">' + displayTasks.length + ' مهمة هنا</span>' +
+                        '</div>' +
+                        '<p class="text-xs text-blue-700 mt-0.5">' + (displayTasks.length ? 'يتم الآن عرض المهام المسندة لهذا الموظف فقط في هذا العميل.' : 'لا توجد مهام مسندة لهذا الموظف في هذا العميل حالياً.') + 
+                        (otherClientsCount > 0 ? ' <span class="font-bold">(' + otherClientsCount + ' مهام إضافية له في عملاء آخرين)</span>' : '') + '</p>' +
+                    '</div>' +
+                '</div>' +
+                '<button type="button" onclick="clearEmployeeFilter()" class="text-xs bg-white hover:bg-blue-100 text-blue-800 font-bold border border-blue-300 px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5">' +
+                    '<span>عرض كل مهام الفريق ✕</span>' +
                 '</button>' +
-                amList.map(function(am) {
-                    var isSel = selectedAMFilter === am.id;
-                    return '<button type="button" onclick="toggleAMFilter(\'' + esc(am.id) + '\', \'' + esc(am.name) + '\')" class="text-xs px-3 py-1 rounded-xl font-bold transition ' +
-                        (isSel ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '👔 ' + esc(am.name) + ' <span class="text-[10px] opacity-80 font-mono">(' + am.count + ')</span>' +
-                    '</button>';
-                }).join('') +
-            '</div>' +
-            (selectedAMFilter ? '<button type="button" onclick="clearAMFilter()" class="text-[11px] text-indigo-700 font-bold hover:underline">إلغاء فلترة AM ✕</button>' : '') +
-        '</div>';
-    }
-
-    var filterBannerHtml = '';
-    if (selectedEmployeeFilter) {
-        var empOtherTasks = (employeesWorkloadData && employeesWorkloadData[selectedEmployeeFilter]) || [];
-        var currentCid = (window._me && window._me.active_client_id) || '';
-        var otherClientsCount = empOtherTasks.filter(function(ot){ return ot.client_id !== currentCid; }).length;
-
-        filterBannerHtml = '<div class="col-span-full bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 shadow-sm">' +
-            '<div class="flex items-center gap-3">' +
-                '<div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm">👤</div>' +
-                '<div>' +
-                    '<div class="font-bold text-sm text-blue-900 flex items-center gap-2">' +
-                        '<span>مهام الموظف: <b>' + esc(selectedEmployeeName) + '</b></span>' +
-                        '<span class="bg-blue-200 text-blue-800 text-[11px] font-mono px-2 py-0.5 rounded-full font-bold">' + displayTasks.length + ' مهمة هنا</span>' +
-                    '</div>' +
-                    '<p class="text-xs text-blue-700 mt-0.5">' + (displayTasks.length ? 'يتم الآن عرض المهام المسندة لهذا الموظف فقط في هذا العميل.' : 'لا توجد مهام مسندة لهذا الموظف في هذا العميل حالياً.') + 
-                    (otherClientsCount > 0 ? ' <span class="font-bold">(' + otherClientsCount + ' مهام إضافية له في عملاء آخرين)</span>' : '') + '</p>' +
-                '</div>' +
-            '</div>' +
-            '<button type="button" onclick="clearEmployeeFilter()" class="text-xs bg-white hover:bg-blue-100 text-blue-800 font-bold border border-blue-300 px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5">' +
-                '<span>عرض كل مهام الفريق ✕</span>' +
-            '</button>' +
-        '</div>';
-    }
-
-    var clientNameEl = document.getElementById('tasks-client-name');
-    var activeClientName = (clientNameEl ? clientNameEl.textContent.replace(/^—\s*/, '') : '') || 'العميل الحالي';
-    var clientBannerHtml = '<div class="col-span-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/90 rounded-2xl p-3.5 flex items-center justify-between flex-wrap gap-2 shadow-xs mb-1">' +
-        '<div class="flex items-center gap-2.5">' +
-            '<div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-xs">🏢</div>' +
-            '<div>' +
-                '<div class="font-bold text-sm text-blue-950 flex items-center gap-2">' +
-                    '<span>عمود ملف العميل: <b class="text-blue-700">' + esc(activeClientName) + '</b></span>' +
-                    '<span class="bg-blue-600 text-white text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">' + displayTasks.length + ' مهمة مرتبة بالتسلسل</span>' +
-                '</div>' +
-                '<p class="text-xs text-blue-700/90 mt-0.5">تم ترتيب المهام تصاعدياً بالتسلسل الصحيح من البوست الأول حتى الأخير 🎯</p>' +
-            '</div>' +
-        '</div>' +
-    '</div>';
-
-    var topBanners = amBarHtml + clientBannerHtml + filterBannerHtml;
-
-    if (!displayTasks || displayTasks.length === 0) {
-        board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' +
-            (selectedEmployeeFilter ? 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> في هذا العميل حالياً 🎯' : 
-             selectedAMFilter ? 'لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b> في هذا العميل 🎯' :
-             'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 🚀') +
             '</div>';
-        return;
-    }
-
-    board.innerHTML = topBanners + displayTasks.map(function(t) {
-        var st = t.status || 'Pending AM Approval';
-        var statusBadgeClass = st === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
-                               st === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                               st === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' :
-                               st === 'Assigned' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800';
-        var stLabel = st === 'Completed' ? 'مكتملة' : st === 'In Progress' ? 'جاري العمل' :
-                      st === 'Awaiting AM Review' ? 'بانتظار مراجعتك' : st === 'Assigned' ? 'مُسندة' : 'بانتظار الإسناد';
-
-        var amTag = '<div class="flex items-center gap-1 text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md font-bold">' +
-            '<span>👔 AM:</span> <span class="text-indigo-900">' + esc(t.am_name || t.am_id || 'عام') + '</span>' +
-        '</div>';
-
-        // reference images pulled from the plan (media_urls) shown as thumbnails
-        var refs = (t.media_urls && t.media_urls.length) ? t.media_urls : [];
-        var refsHtml = refs.length ? '<div class="flex gap-1 flex-wrap">' + refs.slice(0, 4).map(function(u) {
-            return '<a href="' + esc(u) + '" target="_blank" class="block w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-50"><img src="' + esc(driveThumb(u)) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
-        }).join('') + (refs.length > 4 ? '<span class="text-[10px] text-slate-400 self-center">+' + (refs.length - 4) + '</span>' : '') + '</div>' : '';
-
-        var links = (t.reference_links && t.reference_links.length) ?
-            '<div class="text-[10px] text-slate-500">🔗 ' + t.reference_links.slice(0, 3).map(function(u) {
-                return '<a href="' + esc(u) + '" target="_blank" class="text-blue-600 underline">مرجع</a>'; }).join(' · ') + '</div>' : '';
-
-        var assignee = t.assignee_name || (t.assigned_employee_id ? t.assigned_employee_id : '');
-
-        // Detailed Deliverables / Submissions Box (ما أضافه وسلّمه الموظف)
-        var rawNotes = (t.notes || t.note || t.delivery_notes || t.deliverables || '').trim();
-        var driveLink = (t.drive_link || t.google_drive_url || t.attachment_url || t.submission_link || '').trim();
-        if (!driveLink && t.media_urls && t.media_urls.length) {
-            driveLink = (t.media_urls.find(function(u){ return u && (u.includes('drive.google.com') || u.includes('docs.google.com') || u.startsWith('http')); }) || '').trim();
-        }
-        if (!driveLink && rawNotes) {
-            var urlMatch = rawNotes.match(/https?:\/\/[^\s]+/i);
-            if (urlMatch) {
-                driveLink = urlMatch[0].replace(/[.,;:)\]]+$/, '');
-            }
         }
 
-        var isTimerRunning = !!(t.timer_state && t.timer_state.is_running);
-        var elapsedSecs = t.timer_state ? (t.timer_state.elapsed_seconds || 0) : 0;
-        var elapsedMins = Math.round(elapsedSecs / 60);
+        var topBanners = amBarHtml + filterBannerHtml;
 
-        var deliverablesBox = '';
-        if (rawNotes || driveLink || isTimerRunning || elapsedMins > 0 || t.submitted_at || t.started_at || st === 'Awaiting AM Review') {
-            var timerTag = isTimerRunning ?
-                '<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1">🟢 العداد يعمل الآن</span>' :
-                (elapsedMins > 0 ? '<span class="bg-slate-100 text-slate-700 text-[10px] font-mono px-2 py-0.5 rounded-md">⏱️ ' + elapsedMins + ' دقيقة عمل</span>' : '');
-
-            deliverablesBox = '<div class="bg-indigo-50/90 border border-indigo-200/80 rounded-xl p-3 space-y-2.5 text-xs shadow-xs">' +
-                '<div class="flex items-center justify-between text-indigo-900 font-bold border-b border-indigo-100 pb-1.5">' +
-                    '<span class="flex items-center gap-1">📦 <span>مخرجات وتسليمات الموظف' + (assignee ? ' (' + esc(assignee) + ')' : '') + ':</span></span>' +
-                    timerTag +
+        if (!displayTasks || displayTasks.length === 0) {
+            board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' +
+                (selectedEmployeeFilter ? 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> في هذا العميل حالياً 🎯' : 
+                 selectedAMFilter ? 'لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b> في هذا العميل 🎯' :
+                 'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 🚀') +
                 '</div>';
+            return;
+        }
 
-            if (driveLink) {
-                deliverablesBox += '<div class="space-y-1">' +
-                    '<a href="' + esc(driveLink) + '" target="_blank" class="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 px-3 rounded-lg shadow-sm transition">' +
-                        '<span>📁 فتح ومعاينة الملف المسلّم (Google Drive) ↗</span>' +
-                    '</a>' +
-                    '<div class="flex items-center justify-between text-[10px] text-slate-500 px-1">' +
-                        '<span class="truncate max-w-[200px] text-slate-400 font-mono">' + esc(driveLink) + '</span>' +
-                        '<button onclick="promptSetDriveLink(\'' + esc(t.task_id) + '\',\'' + esc(driveLink) + '\')" class="text-blue-600 hover:underline font-bold">✏️ تعديل الرابط</button>' +
+        var clientNameEl = document.getElementById('tasks-client-name');
+        var activeClientName = (clientNameEl ? clientNameEl.textContent.replace(/^—\s*/, '').trim() : '') || 'العميل';
+
+        // Group tasks by file_name / plan_name
+        var fileGroups = {};
+        displayTasks.forEach(function(t) {
+            var fName = (t.file_name || t.plan_name || '').trim();
+            if (!fName || fName === 'خطة محتوى' || fName === 'ملف الخطة') {
+                fName = activeClientName;
+            }
+            if (!fileGroups[fName]) {
+                fileGroups[fName] = [];
+            }
+            fileGroups[fName].push(t);
+        });
+
+        var fileNames = Object.keys(fileGroups);
+
+        var columnsHtml = '<div class="col-span-full flex gap-6 overflow-x-auto pb-6 items-start w-full pt-1">';
+        fileNames.forEach(function(fName) {
+            var fTasks = fileGroups[fName];
+            fTasks.sort(function(a, b) {
+                var na = parseInt((String(a.task_id || '').match(/\d+/) || [999999])[0], 10);
+                var nb = parseInt((String(b.task_id || '').match(/\d+/) || [999999])[0], 10);
+                return na - nb;
+            });
+            var completedCount = fTasks.filter(function(t){ return t.status === 'Completed'; }).length;
+
+            columnsHtml += '<div class="w-88 sm:w-[420px] shrink-0 bg-slate-100/90 border border-slate-200/90 rounded-3xl p-4 shadow-sm space-y-3.5 flex flex-col">' +
+                '<div class="flex items-center justify-between border-b border-slate-200/90 pb-3 bg-white -m-4 mb-0 p-4 rounded-t-3xl shadow-xs">' +
+                    '<div class="flex items-center gap-2.5 min-w-0">' +
+                        '<div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">📄</div>' +
+                        '<div class="min-w-0">' +
+                            '<h4 class="font-bold text-sm text-slate-900 truncate" title="' + esc(fName) + '">ملف: ' + esc(fName) + '</h4>' +
+                            '<div class="flex items-center gap-1.5 text-xs mt-0.5">' +
+                                '<span class="text-blue-700 font-bold truncate">🏢 ' + esc(activeClientName) + '</span>' +
+                                '<span class="text-slate-300">·</span>' +
+                                '<span class="text-slate-500 font-mono text-[11px] whitespace-nowrap">' + completedCount + '/' + fTasks.length + ' منجز</span>' +
+                            '</div>' +
+                        '</div>' +
                     '</div>' +
-                '</div>';
-            } else {
-                deliverablesBox += '<div class="bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-center justify-between gap-2">' +
-                    '<span class="text-amber-800 text-[11px]">🔗 رابط درايف: <span class="text-slate-400">لم يُرفق</span></span>' +
-                    '<button onclick="promptSetDriveLink(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] px-2.5 py-1 rounded-md shadow-xs whitespace-nowrap">➕ إضافة رابط Drive</button>' +
-                '</div>';
-            }
-
-            if (rawNotes) {
-                var notesFormatted = esc(rawNotes).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-600 underline font-bold break-all">$1</a>');
-                deliverablesBox += '<div class="bg-white border border-indigo-100 rounded-lg p-2 text-slate-700">' +
-                    '<div class="flex items-center justify-between mb-1">' +
-                        '<span class="text-indigo-800 font-bold text-[11px]">📝 ملاحظات الموظف المرفقة:</span>' +
-                        '<button onclick="promptSetTaskNotes(\'' + esc(t.task_id) + '\',\'' + esc(rawNotes) + '\')" class="text-blue-600 hover:underline text-[10px]">✏️ تعديل</button>' +
-                    '</div>' +
-                    '<div class="whitespace-pre-line text-xs leading-relaxed">' + notesFormatted + '</div>' +
-                '</div>';
-            } else {
-                deliverablesBox += '<div class="flex items-center justify-between text-[11px] text-slate-500 bg-white/70 border border-indigo-50 rounded-lg p-1.5 px-2">' +
-                    '<span>📝 الملاحظات: <span class="text-slate-400">لا توجد ملاحظات نصية</span></span>' +
-                    '<button onclick="promptSetTaskNotes(\'' + esc(t.task_id) + '\')" class="text-blue-600 hover:underline text-[10px] font-bold">➕ كتابة ملاحظة</button>' +
-                '</div>';
-            }
-
-            if (t.started_at || t.submitted_at) {
-                deliverablesBox += '<div class="flex items-center justify-between text-[10px] text-slate-500 pt-0.5 border-t border-indigo-100/60">' +
-                    (t.started_at ? '<span>🚀 بدأ: ' + esc(new Date(t.started_at).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})) + '</span>' : '<span></span>') +
-                    (t.submitted_at ? '<span>✅ سلّم: ' + esc(new Date(t.submitted_at).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})) + '</span>' : '') +
-                '</div>';
-            }
-
-            deliverablesBox += '</div>';
-        }
-
-        var html = '<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
-            '<div class="flex items-center justify-between gap-2 flex-wrap">' +
-                '<div class="flex items-center gap-1.5 flex-wrap">' +
-                    '<span class="font-mono font-bold text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
-                    amTag +
+                    '<span class="bg-blue-600 text-white text-xs font-mono font-bold px-2.5 py-1 rounded-full shadow-xs shrink-0">' + fTasks.length + ' مهام</span>' +
                 '</div>' +
-                '<div class="flex items-center gap-1">' +
-                    '<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ' + statusBadgeClass + '">' + esc(stLabel) + '</span>' +
-                    '<button onclick="deleteTaskAction(\'' + esc(t.task_id) + '\')" title="حذف المهمة" class="text-slate-300 hover:text-red-500 text-xs px-1">✕</button>' +
+                '<div class="space-y-3.5 pt-1 max-h-[850px] overflow-y-auto pr-1">' +
+                    fTasks.map(renderTaskCard).join('') +
                 '</div>' +
-            '</div>' +
-            '<div>' +
-                '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
-                '<p class="text-xs text-slate-600 mt-1 line-clamp-2">' + esc(t.description || '') + '</p>' +
-            '</div>' +
-            (refsHtml || links ? '<div class="space-y-1">' + refsHtml + links + '</div>' : '') +
-            '<div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-[11px] space-y-1.5">' +
-                '<div class="flex items-center justify-between gap-1"><span class="text-blue-700 font-bold whitespace-nowrap">🚀 البدء:</span>' +
-                    '<input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(isoDate(t.scheduled_start_date)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md"></div>' +
-                '<div class="flex items-center justify-between gap-1"><span class="text-emerald-700 font-bold whitespace-nowrap">📅 النزول:</span>' +
-                    '<span class="flex gap-1"><input type="date" id="d-pub-' + esc(t.task_id) + '" value="' + esc(isoDate(t.publish_date)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md">' +
-                    '<input type="time" id="d-time-' + esc(t.task_id) + '" value="' + esc(t.publish_time || '10:00') + '" class="text-[11px] px-1 py-0.5 border border-slate-200 rounded-md"></span></div>' +
-                '<div class="flex items-center justify-between gap-1"><span class="text-amber-700 font-bold whitespace-nowrap">⏰ التسليم:</span>' +
-                    '<input type="date" id="d-dl-' + esc(t.task_id) + '" value="' + esc(isoDate(t.delivery_deadline)) + '" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md"></div>' +
-                '<button onclick="saveTaskDates(\'' + esc(t.task_id) + '\')" class="w-full mt-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[11px] py-1 rounded-lg">💾 حفظ المواعيد</button>' +
-                '<div class="flex justify-between text-slate-600 font-bold border-t border-slate-100 pt-1"><span>👤 المسؤول:</span><span>' + (assignee ? esc(assignee) : '<span class="text-slate-400">غير معيّن</span>') + '</span></div>' +
             '</div>';
+        });
+        columnsHtml += '</div>';
 
-        // Deliverables section (ما أضافه الموظف)
-        if (deliverablesBox) {
-            html += deliverablesBox;
-        }
-
-        // upload straight to Drive (no manual link needed) + add reference
-        html += '<div class="grid grid-cols-2 gap-1">' +
-            '<label class="text-center cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 rounded-lg border border-sky-200">📤 رفع للـ Drive' +
-                '<input type="file" accept="image/*,video/*" class="hidden" onchange="uploadTaskAsset(\'' + esc(t.task_id) + '\', this)"></label>' +
-            '<button onclick="addTaskReference(\'' + esc(t.task_id) + '\')" class="bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 rounded-lg border border-violet-200">➕ ريفرانس</button>' +
-        '</div>';
-
-        if (t.review_note) {
-            html += '<div class="bg-purple-50 p-2 rounded-xl text-[11px] text-purple-700 border border-purple-100">📝 ملاحظة المراجعة السابقة: ' + esc(t.review_note) + '</div>';
-        }
-
-        // ---- Account-Manager controls ----
-        html += '<div class="flex flex-col gap-1.5 pt-1 border-t border-slate-100">';
-        if (st === 'Pending AM Approval') {
-            html += '<div class="flex gap-1"><select id="emp-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1">' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
-                '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">إسناد 🎯</button></div>';
-        }
-        if (st === 'Assigned' || st === 'In Progress') {
-            html += '<div class="grid grid-cols-2 gap-1.5 pt-1">' +
-                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-2 rounded-lg shadow-sm flex items-center justify-center gap-1 transition">↩️ سحب المهمة</button>' +
-                '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[11px] py-1.5 px-2 rounded-lg flex items-center justify-center gap-1">📤 إرسال للتليجرام</button>' +
-                '</div>' +
-                '<div class="flex gap-1 pt-1"><select id="reassign-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">تحويل لموظف آخر...</option>' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
-                '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap">تحويل 🔄</button></div>';
-        }
-        if (st === 'Awaiting AM Review') {
-            html += '<div class="grid grid-cols-2 gap-1 pt-1">' +
-                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs py-1.5 rounded-lg">↩️ رجّع للتعديل</button>' +
-                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-lg">✅ اعتماد + جدولة</button>' +
-                '</div>' +
-                '<div class="flex gap-1 pt-1"><select id="fwd-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">مرّرها للي بعده...</option>' + empOptionsHtml('') + '</select>' +
-                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">مرّر ➡️</button></div>' +
-                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 rounded-lg shadow-sm mt-1">↩️ سحب المهمة من الموظف</button>';
-        }
-        if (st === 'Completed') {
-            html += '<span class="text-xs font-bold text-emerald-600 block text-center">✓ مكتملة' + (t.scheduled_post_id ? ' ومجدولة للنشر 🗓️' : '') + '</span>';
-        }
-        html += '</div></div>';
-        return html;
-    }).join('');
+        board.innerHTML = topBanners + columnsHtml;
     } catch(err) {
         console.error("renderTasksBoard error:", err);
         var b = document.getElementById('tasks-board-grid');
@@ -1935,6 +1886,7 @@ async function ingestPlanAction(ev) {
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
 
     var opts;
+    var fileName = file ? file.name : (drive ? 'ملف Google Drive' : 'خطة محتوى مباشرة');
     if (file) {
         showToast('جاري قراءة واستخراج نص الملف فورياً... ⏳');
         var clientText = await extractTextFromDocxClient(file);
@@ -1943,11 +1895,12 @@ async function ingestPlanAction(ev) {
             opts = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plan_text: clientText, drive_link: drive })
+                body: JSON.stringify({ plan_text: clientText, drive_link: drive, file_name: fileName })
             };
         } else if (file.size < 4 * 1024 * 1024) {
             var fd = new FormData();
             fd.append('file', file);
+            fd.append('file_name', fileName);
             if (drive) fd.append('drive_link', drive);
             opts = { method: 'POST', body: fd };
         } else {
@@ -1955,9 +1908,9 @@ async function ingestPlanAction(ev) {
             return;
         }
     } else if (drive) {
-        opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ drive_link: drive }) };
+        opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ drive_link: drive, file_name: fileName }) };
     } else {
-        opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_text: txt }) };
+        opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_text: txt, file_name: fileName }) };
     }
 
     showToast('جاري تفريغ الخطة وتقسيم المهام بالذكاء الاصطناعي... ⏳');
