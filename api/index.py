@@ -5689,8 +5689,12 @@ def api_am_workspace():
         cid = str(client.get("client_id") or client.get("id") or "")
         cname = client.get("name") or client.get("company") or f"العميل {cid}"
 
-        # Get client tasks
-        c_tasks = [t for t in all_tasks if isinstance(t, dict) and str(t.get("client_id") or "") == cid]
+        # Get client tasks (authoritative from mam_tasks and cache)
+        c_tasks = get_client_tasks(cid)
+        def _t_sort_key_am(t):
+            m = re.search(r'TASK-(\d+)', str(t.get("task_id") or ""))
+            return int(m.group(1)) if m else 999999
+        c_tasks.sort(key=_t_sort_key_am)
         
         # Project team assigned to THIS client (chosen by AM); no fake defaults.
         member_ids = [str(m) for m in (teams_dict.get(cid) or [])]
@@ -5886,6 +5890,11 @@ def api_tasks():
             if eid and nm: emp_map[eid] = nm
     except Exception:
         pass
+
+    def _t_sort_key(t):
+        m = re.search(r'TASK-(\d+)', str(t.get("task_id") or ""))
+        return int(m.group(1)) if m else 999999
+    tasks.sort(key=_t_sort_key)
 
     for t in tasks:
         am_id = str(t.get("am_id") or "").strip()
@@ -6657,10 +6666,14 @@ def api_tasks_ingest_plan():
                 "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
-            tasks.insert(0, new_task)
+            tasks.append(new_task)
             counter += 1
             created_count += 1
 
+        def _t_sort_key_ingest(t):
+            m = re.search(r'TASK-(\d+)', str(t.get("task_id") or ""))
+            return int(m.group(1)) if m else 999999
+        tasks.sort(key=_t_sort_key_ingest)
         save_client_tasks(tasks, _cid)
         return jsonify({"success": True, "ok": True, "ingested_count": created_count, "tasks": tasks})
     except Exception as e:

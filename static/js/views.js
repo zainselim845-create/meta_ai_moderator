@@ -1320,10 +1320,15 @@ function clearAMFilter() {
 function renderTasksBoard() {
     var board = document.getElementById('tasks-board-grid');
     if (!board) return;
-    var badge = document.getElementById('tasks-count-badge');
-    
     var allTasks = tasksList || [];
-    var displayTasks = allTasks;
+    var displayTasks = allTasks.slice();
+
+    // Sort tasks in natural ascending order: TASK-0001 -> TASK-0010
+    displayTasks.sort(function(a, b) {
+        var numA = parseInt((String(a.task_id || '').match(/\d+/) || [999999])[0], 10);
+        var numB = parseInt((String(b.task_id || '').match(/\d+/) || [999999])[0], 10);
+        return numA - numB;
+    });
 
     if (selectedAMFilter) {
         displayTasks = displayTasks.filter(function(t) {
@@ -1340,7 +1345,7 @@ function renderTasksBoard() {
 
     if (badge) {
         var done = displayTasks.filter(function(t){ return t.status === 'Completed'; }).length;
-        badge.textContent = displayTasks.length + ' مهمة · ' + done + ' مكتملة' + 
+        badge.textContent = displayTasks.length + ' مهمة مرتبة · ' + done + ' مكتملة' + 
             (selectedAMFilter ? ' (AM: ' + esc(selectedAMName) + ')' : '') +
             (selectedEmployeeFilter ? ' (' + esc(selectedEmployeeName) + ')' : '');
     }
@@ -1400,7 +1405,22 @@ function renderTasksBoard() {
         '</div>';
     }
 
-    var topBanners = amBarHtml + filterBannerHtml;
+    var clientNameEl = document.getElementById('tasks-client-name');
+    var activeClientName = (clientNameEl ? clientNameEl.textContent.replace(/^—\s*/, '') : '') || 'العميل الحالي';
+    var clientBannerHtml = '<div class="col-span-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/90 rounded-2xl p-3.5 flex items-center justify-between flex-wrap gap-2 shadow-xs mb-1">' +
+        '<div class="flex items-center gap-2.5">' +
+            '<div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-xs">🏢</div>' +
+            '<div>' +
+                '<div class="font-bold text-sm text-blue-950 flex items-center gap-2">' +
+                    '<span>عمود ملف العميل: <b class="text-blue-700">' + esc(activeClientName) + '</b></span>' +
+                    '<span class="bg-blue-600 text-white text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">' + displayTasks.length + ' مهمة مرتبة بالتسلسل</span>' +
+                '</div>' +
+                '<p class="text-xs text-blue-700/90 mt-0.5">تم ترتيب المهام تصاعدياً بالتسلسل الصحيح من البوست الأول حتى الأخير 🎯</p>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
+
+    var topBanners = amBarHtml + clientBannerHtml + filterBannerHtml;
 
     if (!displayTasks || displayTasks.length === 0) {
         board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' +
