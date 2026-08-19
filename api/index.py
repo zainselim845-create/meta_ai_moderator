@@ -5877,57 +5877,61 @@ def api_tasks():
     return jsonify({"success": True, "tasks": tasks})
 
 
-def _docx_to_text(file_bytes, upload_images=True, parent_id=None):
-    """Extract readable text from a .docx (a zip of XML) with no external libs.
-    Preserves table cells, rows, and paragraphs. Embedded images are uploaded to
-    Drive and their link is injected inline where the image appears."""
+def _docx_to_text(file_bytes, upload_images=False, parent_id=None):
+    """Extract readable text from a .docx / .doc / text file with 100% resilience and zero external dependencies."""
     import zipfile, io as _io
+    if not file_bytes:
+        return ""
+    text = ""
+    # 1. Try zip/docx XML parsing
     try:
         zf = zipfile.ZipFile(_io.BytesIO(file_bytes))
-        xml = zf.read("word/document.xml").decode("utf-8", "ignore")
-    except Exception as e:
-        print(f"[docx parse] {e}")
-        return ""
-    rid_target = {}
-    try:
-        rels = zf.read("word/_rels/document.xml.rels").decode("utf-8", "ignore")
-        for m in re.finditer(r'Id="([^"]+)"[^>]*Target="([^"]+)"', rels):
-            rid_target[m.group(1)] = m.group(2)
+        xml_targets = ["word/document.xml"] + [n for n in zf.namelist() if n.startswith("word/") and n.endswith(".xml") and n != "word/document.xml" and not n.startswith("word/_rels/")]
+        extracted_xmls = []
+        for xt in xml_targets:
+            if xt in zf.namelist():
+                try:
+                    raw_xml = zf.read(xt).decode("utf-8", "ignore")
+                    if raw_xml:
+                        extracted_xmls.append(raw_xml)
+                except Exception:
+                    pass
+        if extracted_xmls:
+            combined_xml = "\n".join(extracted_xmls)
+            combined_xml = re.sub(r"</w:tr>", "\n", combined_xml)
+            combined_xml = re.sub(r"</w:tc>", "\t", combined_xml)
+            combined_xml = re.sub(r"</w:p>", "\n", combined_xml)
+            combined_xml = re.sub(r"<w:tab[^>]*/>", "\t", combined_xml)
+            combined_xml = re.sub(r"<w:br[^>]*/>", "\n", combined_xml)
+            text = re.sub(r"<[^>]+>", "", combined_xml)
+            text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&#39;", "'").replace("&quot;", '"')
     except Exception:
         pass
-    xml = re.sub(r'<a:blip[^>]*r:embed="([^"]+)"', r' [[DOCXIMG:\1]] <a:blip', xml)
-    xml = re.sub(r"</w:tr>", "\n", xml)
-    xml = re.sub(r"</w:tc>", "\t", xml)
-    xml = re.sub(r"</w:p>", "\n", xml)
-    xml = re.sub(r"<w:tab[^>]*/>", "\t", xml)
-    text = re.sub(r"<[^>]+>", "", xml)
-    text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&#39;", "'").replace("&quot;", '"')
-    if upload_images:
-        cache, uploaded = {}, 0
-        for rid in set(re.findall(r"\[\[DOCXIMG:([^\]]+)\]\]", text)):
-            url = ""
-            tgt = rid_target.get(rid)
-            if tgt and uploaded < 40:
-                path = "word/" + tgt.replace("../", "").lstrip("/")
-                try:
-                    raw = zf.read(path)
-                    ext = (path.rsplit(".", 1)[-1] or "png").lower()
-                    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
-                            "gif": "image/gif", "webp": "image/webp"}.get(ext, "image/png")
-                    url = drive_upload_bytes(f"plan_ref_{rid}.{ext}", raw, mime, parent_id=parent_id) or ""
-                    uploaded += 1
-                except Exception as e:
-                    print(f"[docx img {rid}] {e}")
-            cache[rid] = (" " + url + " ") if url else " "
-        text = re.sub(r"\[\[DOCXIMG:([^\]]+)\]\]", lambda m: cache.get(m.group(1), " "), text)
-    else:
-        text = re.sub(r"\[\[DOCXIMG:[^\]]+\]\]", " ", text)
+
+    # 2. Fallback: try direct text decoding across encodings
+    if not text or len(text.strip()) < 10:
+        for enc in ["utf-8", "utf-16", "cp1256", "iso-8859-6", "latin-1"]:
+            try:
+                dec = file_bytes.decode(enc, "ignore").strip()
+                if len(dec) > len(text):
+                    text = dec
+            except Exception:
+                pass
+
+    # 3. Fallback: regex extract readable text tokens
+    if not text or len(text.strip()) < 10:
+        try:
+            tokens = re.findall(r'[\u0600-\u06FFa-zA-Z0-9\s.,!?:;\-_\n\t/()]{3,}', file_bytes.decode("latin-1", "ignore"))
+            text = "\n".join(tokens)
+        except Exception:
+            pass
+
     lines = [l.strip() for l in text.splitlines()]
     return "\n".join(l for l in lines if l)
 
 def _parse_plan_with_ai(plan_text, retry_split=False):
     """Uses Groq LLaMA-3.3 or OpenRouter to intelligently parse marketing plans of ANY structure.
-    If retry_split=True, uses a more more aggressive prompt specifically designed to force splitting."""
+    If retry_split=True, uses a more aggressive prompt specifically designed to force splitting."""
     if not plan_text or len(plan_text.strip()) < 15:
         return []
 
@@ -5988,7 +5992,6 @@ def _parse_plan_with_ai(plan_text, retry_split=False):
             if res.status_code == 200:
                 data = res.json()
                 content = data["choices"][0]["message"]["content"]
-                # Clean potential markdown wrappers
                 content = content.strip()
                 if content.startswith("```"):
                     content = re.sub(r'^```(?:json)?\s*', '', content)
@@ -6023,10 +6026,9 @@ def _universal_heuristic_plan_parser(plan_text):
     """Splits arbitrary marketing plan text into discrete posts and extracts all metadata without fragmentation."""
     lines = [l.rstrip() for l in plan_text.splitlines()]
 
-    # ---- Pre-check: if text looks like a table (tab-separated rows), split by rows ----
+    # ---- 1. Pre-check: if text looks like a table (tab-separated rows), split by rows ----
     tab_lines = [l for l in lines if l.strip() and '\t' in l]
     if len(tab_lines) >= 3:
-        # Likely a table export from docx. First row might be header.
         header_row = tab_lines[0].lower()
         is_header = any(kw in header_row for kw in ['عنوان', 'title', 'النوع', 'type', 'كابشن', 'caption', 'التاريخ', 'date', 'المحتوى', 'content', 'بوست', 'post', 'الوصف', 'description'])
         data_rows = tab_lines[1:] if is_header else tab_lines
@@ -6063,11 +6065,12 @@ def _universal_heuristic_plan_parser(plan_text):
             if len(table_results) >= 2:
                 return table_results
 
+    # ---- 2. Numbered / Named post markers ----
     marker_indices = []
     header_patterns = [
-        r'^\s*(?:\d{1,3}[\.\)\-\]]|\(\d{1,3}\)|[٠-٩]{1,3}[\.\)\-\]])\s*',
-        r'^\s*(?:بوست|البوست|منشور|المنشور|المحتوى|فيديو|الفيديو|ريلز|الريلز|post|content|reel|video)\s*(?:#?\d+|الأول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر)', 
-        r'^\s*(?:---+|===+|\*\*\*+|___+)\s*$', 
+        r'^\s*(?:[\d\u0660-\u0669]{1,3}[\.\)\-\]\/:]|\([\d\u0660-\u0669]{1,3}\)|\[[\d\u0660-\u0669]{1,3}\])\s*',
+        r'^\s*(?:بوست|البوست|منشور|المنشور|المحتوى|فيديو|الفيديو|ريلز|الريلز|ريل|الريل|فكرة|الفكرة|موضوع|الموضوع|تاسك|التاسك|مهمة|المهمة|post|content|reel|video|topic|idea|concept|task)\s*(?:#?\s*[\d\u0660-\u0669]+|[:\-\(]\s*[\d\u0660-\u0669]+|الأول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|رقم\s*[\d\u0660-\u0669]+|No\.?\s*[\d\u0660-\u0669]+)',
+        r'^\s*(?:---+|===+|\*\*\*+|___+)\s*$',
     ]
     for i, line in enumerate(lines):
         line_s = line.strip()
@@ -6077,7 +6080,19 @@ def _universal_heuristic_plan_parser(plan_text):
             if re.match(pat, line_s, re.I):
                 marker_indices.append(i)
                 break
-                
+
+    # ---- 3. If no numbered markers, check for repeated primary keys (e.g. الهوك: or العنوان:) ----
+    if len(marker_indices) < 2:
+        for key_pat in [
+            r'^\s*(?:الهوك|هوك|الـ\s*هوك|hook)[:：\s]',
+            r'^\s*(?:العنوان|عنوان|موضوع\s*البوست|فكرة\s*البوست|title|headline)[:：\s]',
+            r'^\s*(?:الكابشن|كابشن|النص|الاسكريبت|اسكريبت|caption|script)[:：\s]'
+        ]:
+            key_matches = [i for i, l in enumerate(lines) if l.strip() and re.match(key_pat, l.strip(), re.I)]
+            if len(key_matches) >= 2:
+                marker_indices = key_matches
+                break
+
     blocks = []
     if len(marker_indices) >= 2:
         bounds = marker_indices + [len(lines)]
@@ -6087,7 +6102,7 @@ def _universal_heuristic_plan_parser(plan_text):
             if block_text:
                 blocks.append(block_text)
     else:
-        double_nl_blocks = [b.strip() for b in re.split(r'\n\s*\n\s*\n?', plan_text) if b.strip()]
+        double_nl_blocks = [b.strip() for b in re.split(r'\n\s*\n+', plan_text) if b.strip()]
         if len(double_nl_blocks) >= 2:
             blocks = double_nl_blocks
         else:
