@@ -1423,11 +1423,23 @@ function renderTaskCard(t) {
         html += deliverablesBox;
     }
 
-    // Upload & Reference
-    html += '<div class="grid grid-cols-2 gap-1">' +
-        '<label class="text-center cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 rounded-lg border border-sky-200">📤 رفع للـ Drive' +
-            '<input type="file" accept="image/*,video/*" class="hidden" onchange="uploadTaskAsset(\'' + esc(t.task_id) + '\', this)"></label>' +
-        '<button onclick="addTaskReference(\'' + esc(t.task_id) + '\')" class="bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 rounded-lg border border-violet-200">➕ ريفرانس</button>' +
+    // Upload & Reference from device & link
+    html += '<div class="space-y-1.5 pt-1">' +
+        '<div class="grid grid-cols-2 gap-1.5">' +
+            '<label class="text-center cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-sky-200 shadow-xs flex items-center justify-center gap-1 transition">' +
+                '<span>📤 رفع للـ Drive</span>' +
+                '<input type="file" accept="image/*,video/*" class="hidden" onchange="uploadTaskAsset(\'' + esc(t.task_id) + '\', this)">' +
+            '</label>' +
+            '<label class="text-center cursor-pointer bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-violet-200 shadow-xs flex items-center justify-center gap-1 transition">' +
+                '<span>➕ ريفرانس من الجهاز</span>' +
+                '<input type="file" accept="image/*,video/*,.pdf,.doc,.docx" class="hidden" onchange="uploadTaskReferenceFile(\'' + esc(t.task_id) + '\', this)">' +
+            '</label>' +
+        '</div>' +
+        '<div class="text-center">' +
+            '<button type="button" onclick="promptAddLinkReference(\'' + esc(t.task_id) + '\')" class="text-[10px] text-violet-600 hover:text-violet-800 hover:underline font-bold transition">' +
+                '🔗 أو إضافة رابط ريفرانس خارجي' +
+            '</button>' +
+        '</div>' +
     '</div>';
 
     if (t.review_note) {
@@ -1752,17 +1764,53 @@ async function uploadTaskAsset(taskId, input) {
     if (input) input.value = '';
 }
 
-async function addTaskReference(taskId) {
-    var url = prompt('الصق رابط الريفرانس (صورة / Drive / أي لينك):');
+async function uploadTaskReferenceFile(taskId, input) {
+    var file = (input && input.files && input.files[0]) ? input.files[0] : null;
+    if (!file) return;
+    showToast('جاري رفع الريفرانس من الجهاز... ⏳');
+    try {
+        var fd = new FormData();
+        fd.append('file', file);
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/references', {
+            method: 'POST',
+            body: fd
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+            showToast('تمت إضافة الريفرانس من الجهاز بنجاح ✅');
+            loadTasksEngine();
+        } else {
+            showToast(data.error || 'تعذّرت إضافة الريفرانس', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في رفع الملف: ' + (e.message || ''), 'error');
+    }
+    if (input) input.value = '';
+}
+
+async function promptAddLinkReference(taskId) {
+    var url = prompt('الصق رابط الريفرانس (صورة / Google Drive / أي رابط):');
     if (!url) return;
     try {
         var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/references', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url.trim() })
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url.trim() })
         });
         var data = await res.json();
-        if (res.ok && data.ok) { showToast('اتضاف الريفرانس ✅'); loadTasksEngine(); }
-        else showToast(data.error || 'تعذّر الإضافة', 'error');
-    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+        if (res.ok && data.ok) {
+            showToast('تمت إضافة الرابط بنجاح ✅');
+            loadTasksEngine();
+        } else {
+            showToast(data.error || 'تعذّرت إضافة الرابط', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال', 'error');
+    }
+}
+
+async function addTaskReference(taskId) {
+    promptAddLinkReference(taskId);
 }
 
 async function resendTaskCard(taskId) {
@@ -1893,6 +1941,59 @@ async function extractTextFromDocxClient(file) {
         
         var parser = new DOMParser();
         var doc = parser.parseFromString(xmlStr, "application/xml");
+
+        // Map relationships (rId -> media/imageX.png)
+        var relsMap = {};
+        var relsFile = contents.file("word/_rels/document.xml.rels");
+        if (relsFile) {
+            try {
+                var relsXmlStr = await relsFile.async("text");
+                var relsDoc = parser.parseFromString(relsXmlStr, "application/xml");
+                var relEls = relsDoc.getElementsByTagName("Relationship");
+                for (var ri = 0; ri < relEls.length; ri++) {
+                    var rId = relEls[ri].getAttribute("Id");
+                    var target = relEls[ri].getAttribute("Target");
+                    if (rId && target) {
+                        relsMap[rId] = target.replace(/^word\//, '').replace(/^\//, '');
+                    }
+                }
+            } catch(re) { console.warn("Rels parse warning:", re); }
+        }
+
+        // Cache base64 data URIs for all images in the docx
+        var imgDataCache = {};
+        for (var rid in relsMap) {
+            var mediaPath = relsMap[rid];
+            var zf = contents.file("word/" + mediaPath) || contents.file(mediaPath);
+            if (zf) {
+                try {
+                    var b64 = await zf.async("base64");
+                    var ext = mediaPath.split('.').pop().toLowerCase();
+                    var mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+                    imgDataCache[rid] = "data:" + mime + ";base64," + b64;
+                } catch(ie) {}
+            }
+        }
+
+        // Helper to extract embedded images in an XML node
+        function getImagesInElement(elem) {
+            var imgUrls = [];
+            var blips = elem.getElementsByTagName("a:blip");
+            for (var bi = 0; bi < blips.length; bi++) {
+                var embedId = blips[bi].getAttribute("r:embed") || blips[bi].getAttribute("embed");
+                if (embedId && imgDataCache[embedId] && !imgUrls.includes(imgDataCache[embedId])) {
+                    imgUrls.push(imgDataCache[embedId]);
+                }
+            }
+            var vImages = elem.getElementsByTagName("v:imagedata");
+            for (var vi = 0; vi < vImages.length; vi++) {
+                var vId = vImages[vi].getAttribute("r:id") || vImages[vi].getAttribute("id");
+                if (vId && imgDataCache[vId] && !imgUrls.includes(imgDataCache[vId])) {
+                    imgUrls.push(imgDataCache[vId]);
+                }
+            }
+            return imgUrls;
+        }
         
         // 1. Check for tables (<w:tbl>)
         var tables = doc.getElementsByTagName("w:tbl");
@@ -1902,6 +2003,7 @@ async function extractTextFromDocxClient(file) {
             for (var t = 0; t < tables.length; t++) {
                 var rows = tables[t].getElementsByTagName("w:tr");
                 for (var r = 0; r < rows.length; r++) {
+                    var rowImages = getImagesInElement(rows[r]);
                     var cells = rows[r].getElementsByTagName("w:tc");
                     var cellTexts = [];
                     for (var c = 0; c < cells.length; c++) {
@@ -1912,6 +2014,9 @@ async function extractTextFromDocxClient(file) {
                             if (pText) cellParTexts.push(pText);
                         }
                         cellTexts.push(cellParTexts.join(" "));
+                    }
+                    if (rowImages.length > 0) {
+                        cellTexts.push(rowImages.join("\t"));
                     }
                     var rowLine = cellTexts.filter(function(x){ return x.length > 0; }).join("\t").trim();
                     if (rowLine) extractedRows.push(rowLine);
@@ -1927,8 +2032,10 @@ async function extractTextFromDocxClient(file) {
         var paras = doc.getElementsByTagName("w:p");
         var paraTexts = [];
         for (var i = 0; i < paras.length; i++) {
+            var pImgs = getImagesInElement(paras[i]);
             var txt = (paras[i].textContent || '').trim();
             if (txt) paraTexts.push(txt);
+            if (pImgs.length > 0) paraTexts.push(pImgs.join("\n"));
         }
         return paraTexts.join("\n");
     } catch(e) {

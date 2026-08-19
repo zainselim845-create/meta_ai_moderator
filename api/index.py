@@ -5923,8 +5923,41 @@ def _docx_to_text(file_bytes, upload_images=False, parent_id=None):
                         extracted_xmls.append(raw_xml)
                 except Exception:
                     pass
+        # Map relationships (rId -> media/imageX.png)
+        rels_map = {}
+        if "word/_rels/document.xml.rels" in zf.namelist():
+            try:
+                rels_xml = zf.read("word/_rels/document.xml.rels").decode("utf-8", "ignore")
+                for r_m in re.finditer(r'<Relationship[^>]+Id="([^"]+)"[^>]+Target="([^"]+)"', rels_xml):
+                    r_id, r_target = r_m.group(1), r_m.group(2)
+                    rels_map[r_id] = r_target.lstrip("/").replace("word/", "")
+            except Exception:
+                pass
+
+        # Pre-cache image data URIs
+        img_cache = {}
+        import base64
+        for rid, target in rels_map.items():
+            img_path = f"word/{target}" if not target.startswith("word/") else target
+            if img_path in zf.namelist():
+                try:
+                    img_bytes = zf.read(img_path)
+                    ext = target.split(".")[-1].lower()
+                    mime = "image/png" if ext == "png" else "image/jpeg"
+                    b64 = base64.b64encode(img_bytes).decode("utf-8")
+                    img_cache[rid] = f"data:{mime};base64,{b64}"
+                except Exception:
+                    pass
+
         if extracted_xmls:
             combined_xml = "\n".join(extracted_xmls)
+            
+            def _replace_blip(m):
+                rid = m.group(1)
+                return f"\t{img_cache[rid]}\t" if rid in img_cache else ""
+            combined_xml = re.sub(r'<a:blip[^>]+(?:r:embed|embed)="([^"]+)"[^>]*/>', _replace_blip, combined_xml)
+            combined_xml = re.sub(r'<v:imagedata[^>]+(?:r:id|id)="([^"]+)"[^>]*/>', _replace_blip, combined_xml)
+
             combined_xml = re.sub(r"</w:tr>", "\n", combined_xml)
             combined_xml = re.sub(r"</w:tc>", "\t", combined_xml)
             combined_xml = re.sub(r"</w:p>", "\n", combined_xml)
@@ -6058,7 +6091,7 @@ def _universal_heuristic_plan_parser(plan_text):
             dash_results = []
             type_kws = {'بوست': 'post', 'post': 'post', 'ريلز': 'reel', 'reel': 'reel', 'فيديو': 'reel', 'video': 'reel',
                         'كاروسيل': 'carousel', 'carousel': 'carousel', 'ستوري': 'story', 'story': 'story', 'موشن': 'motion', 'motion': 'motion'}
-            url_re_t = re.compile(r'https?://[^\s|]+')
+            url_re_t = re.compile(r'https?://[^\s|\t\n]+|data:image/[^;\s|\t\n]+;base64,[A-Za-z0-9+/=]+')
             
             def is_tbl_hdr(text):
                 t = (text or '').lower()
@@ -6882,18 +6915,42 @@ def share_plan_view(client_id):
 @app.route("/api/tasks/<task_id>/references", methods=["POST"])
 @require_manager
 def api_task_add_reference(task_id):
-    """AM adds a reference (image URL or link) to a task after receiving the plan."""
+    """AM adds a reference (file from local PC OR external URL link)."""
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
     if not can_see_client(cid):
         return jsonify({"error": "غير مصرح"}), 403
-    data = request.get_json() or {}
-    url = (data.get("url") or "").strip()
+
+    up = request.files.get("file") if request.files else None
+    if up and up.filename:
+        raw = up.read()
+        mime = up.mimetype or "application/octet-stream"
+        safe = re.sub(r"[^\w.\-]+", "_", up.filename)[:80]
+        name = f"ref_{task_id}_{safe}"
+        link = drive_upload_bytes(name, raw, mime, parent_id=client_month_folder_id(cid))
+        if not link:
+            if mime.startswith("image/"):
+                import base64
+                b64 = base64.b64encode(raw).decode("utf-8")
+                link = f"data:{mime};base64,{b64}"
+            else:
+                return jsonify({"error": "تعذّر الرفع على Drive"}), 500
+        
+        is_img = mime.startswith("image/") or any(safe.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"])
+        key = "media_urls" if is_img else "reference_links"
+        t.setdefault(key, [])
+        if link not in t[key]:
+            t[key].append(link)
+        save_one_task(t, cid)
+        return jsonify({"ok": True, "task": t, "url": link})
+
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or (request.form.get("url") if request.form else "") or "").strip()
     if not url:
-        return jsonify({"error": "أدخل رابط"}), 400
+        return jsonify({"error": "أدخل رابط أو اختر ملف من الجهاز"}), 400
     low = url.lower()
-    is_img = ("drive.google" in low) or low.split("?")[0].endswith((".jpg", ".jpeg", ".png", ".webp", ".gif"))
+    is_img = ("drive.google" in low) or low.split("?")[0].endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")) or url.startswith("data:image/")
     key = "media_urls" if is_img else "reference_links"
     t.setdefault(key, [])
     if url not in t[key]:
