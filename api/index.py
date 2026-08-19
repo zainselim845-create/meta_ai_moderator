@@ -6008,15 +6008,15 @@ def _parse_plan_with_ai(plan_text, retry_split=False):
             print(f"[AI Plan Parse Error] {model}: {e}")
         return []
 
-    # Try Groq first (fastest)
+    # Try Groq first (fastest, with 6s timeout)
     if GROQ_API_KEY:
-        posts = _try_api("https://api.groq.com/openai/v1/chat/completions", GROQ_API_KEY, "llama-3.3-70b-versatile", 30)
+        posts = _try_api("https://api.groq.com/openai/v1/chat/completions", GROQ_API_KEY, "llama-3.3-70b-versatile", 6 if not retry_split else 5)
         if posts:
             return posts
 
-    # Fallback to OpenRouter
+    # Fallback to OpenRouter (fast, with 6s timeout)
     if OPENROUTER_API_KEY:
-        posts = _try_api("https://openrouter.ai/api/v1/chat/completions", OPENROUTER_API_KEY, "meta-llama/llama-3.3-70b-instruct:free", 30)
+        posts = _try_api("https://openrouter.ai/api/v1/chat/completions", OPENROUTER_API_KEY, "meta-llama/llama-3.3-70b-instruct:free", 6 if not retry_split else 5)
         if posts:
             return posts
 
@@ -6265,90 +6265,101 @@ def _after_colon(s):
 @app.route("/api/tasks/ingest-plan", methods=["POST"])
 @auth_guard
 def api_tasks_ingest_plan():
-    _cid = current_client_id()
-    plan_text = ""
-    _pfolder = client_month_folder_id(_cid)
-    
-    # 1) uploaded .docx file
-    up = request.files.get("file") if request.files else None
-    if up and up.filename:
-        raw = up.read()
-        if up.filename.lower().endswith(".docx"):
-            plan_text = _docx_to_text(raw, parent_id=_pfolder)
-        else:
-            plan_text = raw.decode("utf-8", "ignore")
-    # 2) or a Google Drive .docx link
-    if not plan_text:
-        _link = (request.form.get("drive_link") or "").strip() if request.form else ""
-        if not _link:
-            _link = ((request.get_json(silent=True) or {}).get("drive_link") or "").strip()
-        fid = drive_file_id(_link) if _link else ""
-        if fid:
-            try:
-                r = requests.get(f"https://drive.google.com/uc?export=download&id={fid}", timeout=20)
-                if r.status_code == 200:
-                    plan_text = _docx_to_text(r.content, parent_id=_pfolder) if r.content[:2] == b"PK" else r.text
-            except Exception as e:
-                print(f"[plan drive fetch] {e}")
-    # 3) or raw pasted text
-    if not plan_text:
-        data = request.get_json(silent=True) or {}
-        plan_text = (data.get("plan_text") or (request.form.get("plan_text") if request.form else "") or "").strip()
-    if not plan_text:
-        return jsonify({"error": "ارفع ملف الخطة (DOCX) أو الصق نصها أو حط رابط Google Drive"}), 400
-
-    tasks = get_client_tasks(_cid)
-    max_num = 0
-    for t in tasks:
-        tid = str(t.get("task_id") or "")
-        m = re.search(r'TASK-(\d+)', tid)
-        if m:
-            num = int(m.group(1))
-            if num > max_num: max_num = num
-
-    created_count = 0
-    counter = max_num + 1
-    extracted_posts = _universal_extract_plan_posts(plan_text)
-
-    for p in extracted_posts:
-        title = (p.get("title") or "منشور جديد").lstrip("-•*✅✍️ ").strip()[:140]
-        caption = (p.get("caption") or title).strip()
-        visual = (p.get("visual_idea") or "").strip()
-        p_type = (p.get("post_type") or "post").lower()
-        pub_date = (p.get("publish_date") or "").strip()
-        pub_time = (p.get("publish_time") or "10:00").strip()
-        dl_date = (p.get("delivery_deadline") or "").strip()
-        media_urls = p.get("media_urls") or []
+    try:
+        sync_from_supabase()
+        _cid = current_client_id()
+        plan_text = ""
+        _pfolder = client_month_folder_id(_cid)
         
-        ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower()]
-        image_urls = [u for u in media_urls if u not in ref_links]
+        # 1) uploaded .docx / text file
+        up = request.files.get("file") if request.files else None
+        if up and up.filename:
+            raw = up.read()
+            if up.filename.lower().endswith(".docx"):
+                plan_text = _docx_to_text(raw, parent_id=_pfolder)
+            else:
+                plan_text = raw.decode("utf-8", "ignore")
+                
+        # 2) or a Google Drive .docx link
+        if not plan_text:
+            _link = (request.form.get("drive_link") or "").strip() if request.form else ""
+            if not _link:
+                _link = ((request.get_json(silent=True) or {}).get("drive_link") or "").strip()
+            fid = drive_file_id(_link) if _link else ""
+            if fid:
+                try:
+                    r = requests.get(f"https://drive.google.com/uc?export=download&id={fid}", timeout=10)
+                    if r.status_code == 200:
+                        plan_text = _docx_to_text(r.content, parent_id=_pfolder) if r.content[:2] == b"PK" else r.text
+                except Exception as e:
+                    print(f"[plan drive fetch] {e}")
+                    
+        # 3) or raw pasted text
+        if not plan_text:
+            data = request.get_json(silent=True) or {}
+            plan_text = (data.get("plan_text") or (request.form.get("plan_text") if request.form else "") or "").strip()
+            
+        if not plan_text or len(plan_text.strip()) < 5:
+            return jsonify({"error": "تعذر قراءة نص الخطة. يرجى التأكد من رفع ملف DOCX سليم أو لصق النص مباشرة.", "success": False}), 400
 
-        new_task = {
-            "task_id": f"TASK-{counter:04d}",
-            "client_id": _cid,
-            "title": title,
-            "description": caption or title,
-            "caption": caption,
-            "status": "Pending AM Approval",
-            "scheduled_start_date": "",
-            "publish_date": pub_date,
-            "publish_time": pub_time,
-            "delivery_deadline": dl_date,
-            "am_id": "EMP-001",
-            "assigned_employee_id": "",
-            "assignee_name": "",
-            "media_urls": image_urls,
-            "reference_links": ref_links,
-            "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls},
-            "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        tasks.insert(0, new_task)
-        counter += 1
-        created_count += 1
+        tasks = get_client_tasks(_cid)
+        max_num = 0
+        for t in tasks:
+            tid = str(t.get("task_id") or "")
+            m = re.search(r'TASK-(\d+)', tid)
+            if m:
+                num = int(m.group(1))
+                if num > max_num: max_num = num
 
-    save_client_tasks(tasks, _cid)
-    return jsonify({"success": True, "ingested_count": created_count, "tasks": tasks})
+        created_count = 0
+        counter = max_num + 1
+        extracted_posts = _universal_extract_plan_posts(plan_text)
+        if not extracted_posts:
+            extracted_posts = [{"title": "منشور جديد", "caption": plan_text[:500], "visual_idea": "", "post_type": "post", "publish_date": "", "publish_time": "10:00", "delivery_deadline": "", "media_urls": []}]
+
+        for p in extracted_posts:
+            title = (p.get("title") or "منشور جديد").lstrip("-•*✅✍️ ").strip()[:140]
+            caption = (p.get("caption") or title).strip()
+            visual = (p.get("visual_idea") or "").strip()
+            p_type = (p.get("post_type") or "post").lower()
+            pub_date = (p.get("publish_date") or "").strip()
+            pub_time = (p.get("publish_time") or "10:00").strip()
+            dl_date = (p.get("delivery_deadline") or "").strip()
+            media_urls = p.get("media_urls") or []
+            
+            ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower()]
+            image_urls = [u for u in media_urls if u not in ref_links]
+
+            new_task = {
+                "task_id": f"TASK-{counter:04d}",
+                "client_id": _cid,
+                "title": title,
+                "description": caption or title,
+                "caption": caption,
+                "status": "Pending AM Approval",
+                "scheduled_start_date": "",
+                "publish_date": pub_date,
+                "publish_time": pub_time,
+                "delivery_deadline": dl_date,
+                "am_id": "EMP-001",
+                "assigned_employee_id": "",
+                "assignee_name": "",
+                "media_urls": image_urls,
+                "reference_links": ref_links,
+                "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls},
+                "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            tasks.insert(0, new_task)
+            counter += 1
+            created_count += 1
+
+        save_client_tasks(tasks, _cid)
+        return jsonify({"success": True, "ok": True, "ingested_count": created_count, "tasks": tasks})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"حدث خطأ أثناء معالجة الخطة: {str(e)}", "success": False}), 500
 
 
 @app.route("/api/tasks/<task_id>/dates", methods=["POST"])

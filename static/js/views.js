@@ -1795,18 +1795,23 @@ async function ingestPlanAction(ev) {
     showToast('جاري تحليل الخطة وسحب الصور... قد يستغرق لحظات ⏳');
     try {
         var res = await fetch('/api/tasks/ingest-plan', opts);
-        var data = await res.json();
-        if (data.success) {
-            showToast('تم تفريغ وإنشاء ' + data.ingested_count + ' مهمة بنجاح 🎉');
+        var data;
+        try {
+            data = await res.json();
+        } catch(je) {
+            data = { error: 'تعذر قراءة رد الخادم (' + res.status + ')' };
+        }
+        if (res.ok && data.success) {
+            showToast('تم تفريغ وإنشاء ' + (data.ingested_count || 0) + ' مهمة بنجاح 🎉');
             if (el) el.value = '';
             if (fileEl) fileEl.value = '';
             if (driveEl) driveEl.value = '';
             loadTasksEngine();
         } else {
-            showToast(data.error || 'خطأ في معالجة الخطة', 'error');
+            showToast(data.error || 'خطأ في معالجة الخطة (' + res.status + ')', 'error');
         }
     } catch(e) {
-        showToast('خطأ في معالجة الخطة', 'error');
+        showToast('خطأ في الاتصال بالخادم: ' + (e.message || ''), 'error');
     }
 }
 
