@@ -1770,6 +1770,42 @@ async function createPlan() {
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
+async function extractTextFromDocxClient(file) {
+    try {
+        if (typeof JSZip === 'undefined') return null;
+        var zip = new JSZip();
+        var contents = await zip.loadAsync(file);
+        var xmlFile = contents.file("word/document.xml");
+        if (!xmlFile) return null;
+        var xml = await xmlFile.async("text");
+        
+        var otherXmls = [];
+        contents.forEach(function(relativePath, zipEntry){
+            if (relativePath.startsWith("word/") && relativePath.endsWith(".xml") && relativePath !== "word/document.xml" && !relativePath.startsWith("word/_rels/")) {
+                otherXmls.push(zipEntry);
+            }
+        });
+        for (var i = 0; i < otherXmls.length; i++) {
+            try {
+                var extra = await otherXmls[i].async("text");
+                if (extra) xml += "\n" + extra;
+            } catch(e){}
+        }
+
+        xml = xml.replace(/<\/w:tr>/g, "\n");
+        xml = xml.replace(/<\/w:tc>/g, "\t");
+        xml = xml.replace(/<\/w:p>/g, "\n");
+        xml = xml.replace(/<w:tab[^>]*\/>/g, "\t");
+        xml = xml.replace(/<w:br[^>]*\/>/g, "\n");
+        var text = xml.replace(/<[^>]+>/g, "");
+        text = text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+        return text.trim();
+    } catch(e) {
+        console.warn("Client docx parse warning:", e);
+        return null;
+    }
+}
+
 async function ingestPlanAction(ev) {
     if (ev) ev.preventDefault();
     var el = document.getElementById('plan-ingest-input');
@@ -1782,17 +1818,31 @@ async function ingestPlanAction(ev) {
 
     var opts;
     if (file) {
-        var fd = new FormData();
-        fd.append('file', file);
-        if (drive) fd.append('drive_link', drive);
-        opts = { method: 'POST', body: fd }; // let browser set multipart boundary
+        showToast('جاري قراءة واستخراج نص الملف فورياً... ⏳');
+        var clientText = await extractTextFromDocxClient(file);
+        if (clientText && clientText.length > 10) {
+            // Send pure extracted text payload (< 100KB) - 100% bypasses any 413 file size limit!
+            opts = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan_text: clientText, drive_link: drive })
+            };
+        } else if (file.size < 4 * 1024 * 1024) {
+            var fd = new FormData();
+            fd.append('file', file);
+            if (drive) fd.append('drive_link', drive);
+            opts = { method: 'POST', body: fd };
+        } else {
+            showToast('حجم الملف كبير جداً (> 4.5MB). يرجى نسخه ولصقه في المربع أو استخدام رابط Google Drive', 'error');
+            return;
+        }
     } else if (drive) {
         opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ drive_link: drive }) };
     } else {
         opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_text: txt }) };
     }
 
-    showToast('جاري تحليل الخطة وسحب الصور... قد يستغرق لحظات ⏳');
+    showToast('جاري تفريغ الخطة وتقسيم المهام بالذكاء الاصطناعي... ⏳');
     try {
         var res = await fetch('/api/tasks/ingest-plan', opts);
         var data;
