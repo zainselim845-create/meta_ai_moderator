@@ -3061,12 +3061,32 @@ def current_username():
     return session.get("uid") if has_request_context() else None
 
 def current_user_rec():
-    return USERS_DB.get(current_username() or "", {})
+    u = current_username()
+    if not u:
+        return {}
+    rec = USERS_DB.get(u)
+    if rec and isinstance(rec, dict):
+        return rec
+    # Fallback lookup by employee_id or case-insensitive key
+    u_str = str(u).strip().lower()
+    for k, v in USERS_DB.items():
+        if isinstance(v, dict):
+            if str(k).strip().lower() == u_str or str(v.get("employee_id") or "").strip().lower() == u_str:
+                return v
+    return {}
 
 def current_role():
+    # Database user record is AUTHORITATIVE over stale session cookie
+    u_rec = current_user_rec()
+    if u_rec and u_rec.get("role"):
+        db_role = u_rec.get("role")
+        if has_request_context() and session.get("role") != db_role:
+            session["role"] = db_role
+            session.modified = True
+        return db_role
     if has_request_context() and session.get("role"):
         return session.get("role")
-    return current_user_rec().get("role", "account_manager")
+    return "employee"
 
 def is_admin():
     return current_role() == "admin"
@@ -3840,16 +3860,21 @@ def api_logout():
 def api_me():
     if "uid" not in session:
         return jsonify({"logged_in": False}), 401
+    sync_from_supabase()
+    rec = current_user_rec()
+    role = current_role()
+    session["role"] = role
+    session.modified = True
     return jsonify({
         "logged_in": True,
         "username": session.get("uid"),
         "user_id": session.get("user_id"),
-        "role": current_role(),
+        "role": role,
         "is_admin": is_admin(),
         "is_manager": is_manager(),
-        "employee_id": current_user_rec().get("employee_id", ""),
-        "name": current_user_rec().get("name", ""),
-        "allowed_tabs": current_user_rec().get("allowed_tabs") or [],
+        "employee_id": rec.get("employee_id", ""),
+        "name": rec.get("name", ""),
+        "allowed_tabs": rec.get("allowed_tabs") or [],
         "assigned_clients": assigned_client_ids(),
         "active_client_id": current_client_id(),
         "supabase_connected": bool(SUPABASE_URL and SUPABASE_KEY),
@@ -9174,22 +9199,31 @@ def api_delete_employee(emp_id):
 def api_set_employee_role(emp_id):
     """Admin sets a company employee's PORTAL permission level. Marks it manual so
     onboarding won't override it from the job column."""
+    sync_from_supabase()
     data = request.get_json() or {}
     role = (data.get("role") or "").strip()
     if role not in ("admin", "account_manager", "employee"):
         return jsonify({"error": "صلاحية غير صحيحة"}), 400
     emp = _sheet_emp(emp_id)
     rec = USERS_DB.get(emp_id) or {}
+    target_key = emp_id
+    if not rec:
+        for k, v in USERS_DB.items():
+            if isinstance(v, dict) and str(v.get("employee_id")) == str(emp_id):
+                rec = v
+                target_key = k
+                break
     assigned = rec.get("assigned_clients", [])
     if role == "account_manager" and not assigned:
         assigned = [c.get("id") for c in AGENCY_CLIENTS_STORE if c.get("id")]
     rec.update({
-        "username": emp_id, "role": role, "role_source": "manual",
+        "username": rec.get("username") or emp_id, "role": role, "role_source": "manual",
         "employee_id": emp_id, "name": rec.get("name") or emp.get("name", emp_id),
         "email": rec.get("email") or emp.get("email", ""),
         "assigned_clients": assigned if role != "admin" else [],
         "created_at": rec.get("created_at") or datetime.now(timezone.utc).isoformat(),
     })
+    USERS_DB[target_key] = rec
     USERS_DB[emp_id] = rec
     push_setting("meta_ai_users", USERS_DB)
     return jsonify({"ok": True, "employee_id": emp_id, "role": role})
@@ -9203,19 +9237,28 @@ ALLOWED_TAB_IDS = {"inbox", "dash", "rules", "kb", "crm", "mode", "settings", "l
 def api_set_employee_tabs(emp_id):
     """Admin picks exactly which tabs this employee's account can see (checkbox list).
     Empty list = fall back to role defaults."""
+    sync_from_supabase()
     data = request.get_json() or {}
     tabs = [t for t in (data.get("tabs") or []) if t in ALLOWED_TAB_IDS]
     emp = _sheet_emp(emp_id)
     rec = USERS_DB.get(emp_id) or {}
+    target_key = emp_id
+    if not rec:
+        for k, v in USERS_DB.items():
+            if isinstance(v, dict) and str(v.get("employee_id")) == str(emp_id):
+                rec = v
+                target_key = k
+                break
     if not rec.get("role"):
         rec["role"] = "employee"
         rec["role_source"] = rec.get("role_source") or "manual"
     rec.update({
-        "username": emp_id, "employee_id": emp_id,
+        "username": rec.get("username") or emp_id, "employee_id": emp_id,
         "name": rec.get("name") or emp.get("name", emp_id),
         "allowed_tabs": tabs,
         "created_at": rec.get("created_at") or datetime.now(timezone.utc).isoformat(),
     })
+    USERS_DB[target_key] = rec
     USERS_DB[emp_id] = rec
     push_setting("meta_ai_users", USERS_DB)
     return jsonify({"ok": True, "employee_id": emp_id, "allowed_tabs": tabs})

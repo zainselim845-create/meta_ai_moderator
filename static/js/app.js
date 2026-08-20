@@ -435,42 +435,80 @@ async function loadHR() {
 // (only "بوابتي"); managers/admin see the full agency nav.
 async function applyRoleUI() {
   let me = {};
-  try { me = await (await fetch('/api/me')).json(); } catch(e) { return; }
+  try {
+    const res = await fetch('/api/me');
+    if (!res.ok) return;
+    me = await res.json();
+  } catch(e) { return; }
+  if (!me.logged_in) return;
+  
+  window._me = me;
+
   const isEmp = me.role === 'employee';
+  const isMgr = me.role === 'account_manager';
+  const isAdmin = !!me.is_admin;
+  const tabs = me.allowed_tabs || [];
+
   const portalNav = document.getElementById('nav-myportal');
-  if (portalNav) portalNav.classList.toggle('hidden', !isEmp && !(me.allowed_tabs||[]).includes('myportal'));
+  if (portalNav) portalNav.classList.toggle('hidden', !isEmp && !tabs.includes('myportal'));
+  
   // permissions tab: admin only
   const permNav = document.getElementById('nav-permissions');
-  if (permNav) permNav.classList.toggle('hidden', !me.is_admin);
+  if (permNav) permNav.classList.toggle('hidden', !isAdmin);
+  
   // plan tab: admin, managers, or anyone granted the 'plan' tab
   const planNav = document.getElementById('nav-plan');
-  const canPlan = me.is_admin || me.is_manager || (me.allowed_tabs||[]).includes('plan');
+  const canPlan = isAdmin || isMgr || tabs.includes('plan');
   if (planNav) planNav.classList.toggle('hidden', !canPlan);
 
   const navKey = (b) => { let id = (b.id||'').replace('nav-',''); return id === 'chatwoot' ? 'accounts' : id; };
-  const tabs = me.allowed_tabs || [];
 
-  if (!me.is_admin && tabs.length) {
-    // ADMIN-CHOSEN tabs: show only the checked ones (myportal always available)
-    const allow = new Set(tabs); allow.add('myportal');
+  if (isAdmin) {
+    // Admin sees all navigation tabs
     document.querySelectorAll('#sidebar .nb').forEach(b => {
-      b.classList.toggle('hidden', !allow.has(navKey(b)));
+      b.classList.remove('hidden');
     });
-    if (isEmp) ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.add('hidden'); });
-    if (typeof go === 'function') go(tabs[0]);
-    window._me = me;
+    if (portalNav) portalNav.classList.remove('hidden');
+    ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.remove('hidden'); });
+    return;
+  }
+
+  if (tabs.length) {
+    // Custom allowed tabs
+    const allow = new Set(tabs);
+    allow.add('myportal');
+    document.querySelectorAll('#sidebar .nb').forEach(b => {
+      const k = navKey(b);
+      b.classList.toggle('hidden', !allow.has(k) && b.id !== 'nav-permissions');
+    });
+    ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.toggle('hidden', isEmp && !tabs.includes('crm') && !tabs.includes('accounts')); });
+    return;
+  }
+
+  if (isMgr) {
+    // Account Manager: see everything except permissions
+    document.querySelectorAll('#sidebar .nb').forEach(b => {
+      if (b.id === 'nav-permissions') {
+        b.classList.add('hidden');
+      } else {
+        b.classList.remove('hidden');
+      }
+    });
+    ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.remove('hidden'); });
     return;
   }
 
   if (isEmp) {
-    // default employee lock: only my portal
+    // Default Employee: locked down to myportal
     document.querySelectorAll('#sidebar .nb').forEach(b => {
       if (b.id !== 'nav-myportal') b.classList.add('hidden');
+      else b.classList.remove('hidden');
     });
     ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.add('hidden'); });
-    if (typeof go === 'function') go('myportal');
+    if (typeof go === 'function' && (!window.location.hash || window.location.hash === '#' || window.location.hash === '#v-myportal')) {
+      go('myportal');
+    }
   }
-  window._me = me;
 }
 
 async function loadMyPortal() {
@@ -1334,3 +1372,17 @@ window.addEventListener('hashchange', function() {
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
   restoreActiveTab();
 }
+
+// Live Permissions & Session Sync: Periodically poll /api/me and on tab focus
+// so permission/role changes made by admin take effect immediately without requiring re-login!
+setInterval(function() {
+  if (document.visibilityState === 'visible' && window._me && window._me.logged_in) {
+    applyRoleUI();
+  }
+}, 15000);
+
+window.addEventListener('focus', function() {
+  if (window._me && window._me.logged_in) {
+    applyRoleUI();
+  }
+});
