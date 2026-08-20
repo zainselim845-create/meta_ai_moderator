@@ -1329,15 +1329,38 @@ function renderTaskCard(t) {
         '<span>👔 AM:</span> <span class="text-indigo-900">' + esc(t.am_name || t.am_id || 'عام') + '</span>' +
     '</div>';
 
-    // reference images
-    var refs = (t.media_urls && t.media_urls.length) ? t.media_urls : [];
-    var refsHtml = refs.length ? '<div class="flex gap-1 flex-wrap">' + refs.slice(0, 4).map(function(u) {
-        return '<a href="' + esc(u) + '" target="_blank" class="block w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-50"><img src="' + esc(driveThumb(u)) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
-    }).join('') + (refs.length > 4 ? '<span class="text-[10px] text-slate-400 self-center">+' + (refs.length - 4) + '</span>' : '') + '</div>' : '';
+    var clientTag = (selectedEmployeeFilter && t.client_name) ?
+        '<div class="text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">' +
+            '<span>🏢 ' + esc(t.client_name) + '</span>' +
+        '</div>' : '';
 
-    var links = (t.reference_links && t.reference_links.length) ?
-        '<div class="text-[10px] text-slate-500">🔗 ' + t.reference_links.slice(0, 3).map(function(u) {
-            return '<a href="' + esc(u) + '" target="_blank" class="text-blue-600 underline">مرجع</a>'; }).join(' · ') + '</div>' : '';
+    // reference images (from docx or uploaded)
+    var refs = (t.media_urls && t.media_urls.length) ? t.media_urls : [];
+    var refsHtml = refs.length ? '<div class="flex gap-1.5 flex-wrap pt-0.5">' + refs.slice(0, 4).map(function(u) {
+        var isData = u.startsWith('data:image/');
+        var thumbSrc = isData ? u : driveThumb(u);
+        return '<a href="' + esc(u) + '" target="_blank" class="block w-14 h-14 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 shadow-xs hover:opacity-90 transition"><img src="' + esc(thumbSrc) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
+    }).join('') + (refs.length > 4 ? '<span class="text-[10px] text-slate-400 self-center font-bold">+' + (refs.length - 4) + '</span>' : '') + '</div>' : '';
+
+    // reference links
+    var refLinks = (t.reference_links && t.reference_links.length) ? t.reference_links : [];
+    var links = refLinks.length ?
+        '<div class="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">' +
+        refLinks.slice(0, 3).map(function(u, idx) {
+            var label = u.includes('drive.google') ? '📁 ملف Drive' :
+                        u.includes('pinterest') ? '📌 Pinterest' :
+                        u.includes('youtube') || u.includes('youtu.be') ? '🎥 فيديو' :
+                        u.includes('behance') ? '🎨 Behance' : ('🔗 ريفرنس ' + (idx + 1));
+            return '<a href="' + esc(u) + '" target="_blank" class="inline-flex items-center gap-1 bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-violet-200 transition">' + esc(label) + ' ↗</a>';
+        }).join('') + '</div>' : '';
+
+    // visual idea / written reference
+    var visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || '').trim();
+    var visHtml = (visIdea && visIdea !== t.title && visIdea !== t.caption) ?
+        '<div class="bg-amber-50/90 border border-amber-200/80 rounded-xl p-2.5 text-xs text-amber-950 space-y-0.5 shadow-2xs">' +
+            '<div class="font-bold text-[10px] text-amber-800 flex items-center gap-1">🎨 فكرة / ريفرنس التصميم:</div>' +
+            '<div class="leading-relaxed text-[11px] whitespace-pre-wrap">' + esc(visIdea) + '</div>' +
+        '</div>' : '';
 
     // Detailed Deliverables Box
     var rawNotes = (t.notes || t.note || t.delivery_notes || t.deliverables || '').trim();
@@ -1388,9 +1411,10 @@ function renderTaskCard(t) {
 
     var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
         '<div class="flex items-center justify-between gap-1 flex-wrap">' +
-            '<div class="flex items-center gap-1.5">' +
+            '<div class="flex items-center gap-1.5 flex-wrap">' +
                 '<span class="font-mono font-bold text-xs bg-slate-900 text-white px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
                 '<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ' + statusBadgeClass + '">' + stLabel + '</span>' +
+                clientTag +
             '</div>' +
             '<div class="flex items-center gap-1.5">' +
                 amTag +
@@ -1399,6 +1423,7 @@ function renderTaskCard(t) {
         '</div>' +
         '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
         '<div class="text-xs text-slate-600 whitespace-pre-wrap max-h-36 overflow-y-auto bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 leading-relaxed">' + esc(t.caption || t.description || '') + '</div>' +
+        visHtml +
         refsHtml + links;
 
     // Dates
@@ -1484,25 +1509,29 @@ function renderTasksBoard() {
         var allTasks = tasksList || [];
         var displayTasks = allTasks.slice();
 
-        // Sort tasks in natural ascending order: TASK-0001 -> TASK-0010
-        displayTasks.sort(function(a, b) {
-            var numA = parseInt((String(a.task_id || '').match(/\d+/) || [999999])[0], 10);
-            var numB = parseInt((String(b.task_id || '').match(/\d+/) || [999999])[0], 10);
-            return numA - numB;
-        });
-
-        if (selectedAMFilter) {
+        // If employee filter is active, fetch and display ALL tasks assigned to this employee across ALL clients
+        if (selectedEmployeeFilter) {
+            var empAllTasks = (employeesWorkloadData && employeesWorkloadData[selectedEmployeeFilter]) || [];
+            if (empAllTasks.length > 0) {
+                displayTasks = empAllTasks.slice();
+            } else {
+                displayTasks = displayTasks.filter(function(t) {
+                    return String(t.assigned_employee_id || '').trim() === String(selectedEmployeeFilter).trim();
+                });
+            }
+        } else if (selectedAMFilter) {
             displayTasks = displayTasks.filter(function(t) {
                 return String(t.am_id || '').trim() === String(selectedAMFilter).trim() ||
                        String(t.am_name || '').trim() === String(selectedAMName).trim();
             });
         }
 
-        if (selectedEmployeeFilter) {
-            displayTasks = displayTasks.filter(function(t) {
-                return String(t.assigned_employee_id || '').trim() === String(selectedEmployeeFilter).trim();
-            });
-        }
+        // Sort tasks in natural ascending order: TASK-0001 -> TASK-0010
+        displayTasks.sort(function(a, b) {
+            var numA = parseInt((String(a.task_id || '').match(/\d+/) || [999999])[0], 10);
+            var numB = parseInt((String(b.task_id || '').match(/\d+/) || [999999])[0], 10);
+            return numA - numB;
+        });
 
         if (badge) {
             var done = displayTasks.filter(function(t){ return t.status === 'Completed'; }).length;
@@ -1522,7 +1551,8 @@ function renderTasksBoard() {
         var amList = Object.values(amMap);
 
         var amBarHtml = '';
-        if (amList.length > 1 || (window._me && (window._me.is_admin || window._me.role === 'admin' || window._me.role === 'manager'))) {
+        var isUserAdmin = window._me && (window._me.is_admin || window._me.role === 'admin');
+        if (isUserAdmin && amList.length > 1 && !selectedEmployeeFilter) {
             amBarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex items-center justify-between flex-wrap gap-2 shadow-xs mb-1">' +
                 '<div class="flex items-center gap-2 flex-wrap">' +
                     '<span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">👔 فلترة حسب مدير الحساب (AM):</span>' +
@@ -1544,20 +1574,19 @@ function renderTasksBoard() {
 
         var filterBannerHtml = '';
         if (selectedEmployeeFilter) {
-            var empOtherTasks = (employeesWorkloadData && employeesWorkloadData[selectedEmployeeFilter]) || [];
             var currentCid = (window._me && window._me.active_client_id) || '';
-            var otherClientsCount = empOtherTasks.filter(function(ot){ return ot.client_id !== currentCid; }).length;
+            var otherClientsCount = displayTasks.filter(function(ot){ return ot.client_id !== currentCid; }).length;
 
             filterBannerHtml = '<div class="col-span-full bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 shadow-sm">' +
                 '<div class="flex items-center gap-3">' +
                     '<div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm">👤</div>' +
                     '<div>' +
                         '<div class="font-bold text-sm text-blue-900 flex items-center gap-2">' +
-                            '<span>مهام الموظف: <b>' + esc(selectedEmployeeName) + '</b></span>' +
-                            '<span class="bg-blue-200 text-blue-800 text-[11px] font-mono px-2 py-0.5 rounded-full font-bold">' + displayTasks.length + ' مهمة هنا</span>' +
+                            '<span>كل مهام الموظف: <b>' + esc(selectedEmployeeName) + '</b> عبر جميع العملاء والمشاريع</span>' +
+                            '<span class="bg-blue-200 text-blue-800 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">' + displayTasks.length + ' مهمة إجمالاً</span>' +
                         '</div>' +
-                        '<p class="text-xs text-blue-700 mt-0.5">' + (displayTasks.length ? 'يتم الآن عرض المهام المسندة لهذا الموظف فقط في هذا العميل.' : 'لا توجد مهام مسندة لهذا الموظف في هذا العميل حالياً.') + 
-                        (otherClientsCount > 0 ? ' <span class="font-bold">(' + otherClientsCount + ' مهام إضافية له في عملاء آخرين)</span>' : '') + '</p>' +
+                        '<p class="text-xs text-blue-700 mt-0.5">' + (displayTasks.length ? 'يتم الآن عرض جميع المهام المسندة لهذا الموظف عبر كل حسابات وعملاء الشركة.' : 'لا توجد مهام مسندة لهذا الموظف حالياً.') + 
+                        (otherClientsCount > 0 ? ' <span class="font-bold">(' + otherClientsCount + ' منها في عملاء آخرين)</span>' : '') + '</p>' +
                     '</div>' +
                 '</div>' +
                 '<button type="button" onclick="clearEmployeeFilter()" class="text-xs bg-white hover:bg-blue-100 text-blue-800 font-bold border border-blue-300 px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5">' +
@@ -1570,7 +1599,7 @@ function renderTasksBoard() {
 
         if (!displayTasks || displayTasks.length === 0) {
             board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' +
-                (selectedEmployeeFilter ? 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> في هذا العميل حالياً 🎯' : 
+                (selectedEmployeeFilter ? 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> حالياً 🎯' : 
                  selectedAMFilter ? 'لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b> في هذا العميل 🎯' :
                  'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 🚀') +
                 '</div>';
@@ -1580,24 +1609,37 @@ function renderTasksBoard() {
         var clientNameEl = document.getElementById('tasks-client-name');
         var activeClientName = (clientNameEl ? clientNameEl.textContent.replace(/^—\s*/, '').trim() : '') || 'العميل';
 
-        // Group tasks by file_name / plan_name
+        // Group tasks by file_name / plan_name / client_name
         var fileGroups = {};
         displayTasks.forEach(function(t) {
+            var colKey = '';
+            var cName = t.client_name || activeClientName;
             var fName = (t.file_name || t.plan_name || '').trim();
-            if (!fName || fName === 'خطة محتوى' || fName === 'ملف الخطة') {
-                fName = activeClientName;
+            if (selectedEmployeeFilter) {
+                colKey = cName + (fName ? (' — ' + fName) : '');
+            } else {
+                colKey = fName;
+                if (!colKey || colKey === 'خطة محتوى' || colKey === 'ملف الخطة') {
+                    colKey = activeClientName;
+                }
             }
-            if (!fileGroups[fName]) {
-                fileGroups[fName] = [];
+            if (!fileGroups[colKey]) {
+                fileGroups[colKey] = {
+                    title: colKey,
+                    clientName: cName,
+                    fileName: fName || colKey,
+                    tasks: []
+                };
             }
-            fileGroups[fName].push(t);
+            fileGroups[colKey].tasks.push(t);
         });
 
-        var fileNames = Object.keys(fileGroups);
+        var groupKeys = Object.keys(fileGroups);
 
         var columnsHtml = '<div class="col-span-full flex gap-6 overflow-x-auto pb-6 items-start w-full pt-1">';
-        fileNames.forEach(function(fName) {
-            var fTasks = fileGroups[fName];
+        groupKeys.forEach(function(k) {
+            var grp = fileGroups[k];
+            var fTasks = grp.tasks;
             fTasks.sort(function(a, b) {
                 var na = parseInt((String(a.task_id || '').match(/\d+/) || [999999])[0], 10);
                 var nb = parseInt((String(b.task_id || '').match(/\d+/) || [999999])[0], 10);
@@ -1610,9 +1652,9 @@ function renderTasksBoard() {
                     '<div class="flex items-center gap-2.5 min-w-0">' +
                         '<div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">📄</div>' +
                         '<div class="min-w-0">' +
-                            '<h4 class="font-bold text-sm text-slate-900 truncate" title="' + esc(fName) + '">ملف: ' + esc(fName) + '</h4>' +
+                            '<h4 class="font-bold text-sm text-slate-900 truncate" title="' + esc(grp.fileName) + '">ملف: ' + esc(grp.fileName) + '</h4>' +
                             '<div class="flex items-center gap-1.5 text-xs mt-0.5">' +
-                                '<span class="text-blue-700 font-bold truncate">🏢 ' + esc(activeClientName) + '</span>' +
+                                '<span class="text-blue-700 font-bold truncate">🏢 ' + esc(grp.clientName) + '</span>' +
                                 '<span class="text-slate-300">·</span>' +
                                 '<span class="text-slate-500 font-mono text-[11px] whitespace-nowrap">' + completedCount + '/' + fTasks.length + ' منجز</span>' +
                             '</div>' +

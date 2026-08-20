@@ -3082,7 +3082,18 @@ def assigned_client_ids():
     """Client ids the current user is allowed to see. Admins see all."""
     if is_admin():
         return [c.get("id") for c in AGENCY_CLIENTS_STORE]
-    return list(current_user_rec().get("assigned_clients") or [])
+    user_rec = current_user_rec()
+    assigned = list(user_rec.get("assigned_clients") or [])
+    my_eid = _my_employee_id()
+    my_name = (user_rec.get("name") or current_username() or "").strip().lower()
+    for c in AGENCY_CLIENTS_STORE:
+        cid = str(c.get("id") or c.get("client_id") or "")
+        if cid and cid not in assigned:
+            c_am_id = str(c.get("am_id") or c.get("account_manager_id") or c.get("am_employee_id") or "").strip()
+            c_am_name = str(c.get("am_name") or c.get("account_manager") or "").strip().lower()
+            if (my_eid and c_am_id == my_eid) or (my_name and (c_am_name == my_name or my_name in c_am_name)):
+                assigned.append(cid)
+    return assigned
 
 def can_see_client(cid):
     return is_admin() or (cid in assigned_client_ids())
@@ -6121,7 +6132,7 @@ def _universal_heuristic_plan_parser(plan_text):
                         c_low = c_clean.lower()
                         if c_low in type_kws:
                             post_type = type_kws[c_low]
-                        elif any(c_low.startswith(p) for p in ['صورة ', 'تصميم ', 'شخص ', 'زوج ', 'فيديو ', 'هنعمل ', 'مشهد ', 'فكرة التصميم', 'visual:']):
+                        elif any(c_low.startswith(p) for p in ['صورة', 'تصميم', 'شخص', 'زوج', 'فيديو', 'هنعمل', 'مشهد', 'فكرة', 'ريفرنس', 'المصدر', 'visual', 'design', 'ref', 'reference', 'موشن', 'انفوجرافيك']):
                             visual = c_clean
                         elif re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', c_clean) and len(c_clean) < 25:
                             pub_date = c_clean
@@ -6163,11 +6174,11 @@ def _universal_heuristic_plan_parser(plan_text):
     tab_lines = [l for l in lines if l.strip() and '\t' in l]
     if len(tab_lines) >= 3:
         header_row = tab_lines[0].lower()
-        is_header = any(kw in header_row for kw in ['عنوان', 'title', 'النوع', 'type', 'كابشن', 'caption', 'التاريخ', 'date', 'المحتوى', 'content', 'بوست', 'post', 'الوصف', 'description'])
+        is_header = any(kw in header_row for kw in ['عنوان', 'title', 'النوع', 'type', 'كابشن', 'caption', 'التاريخ', 'date', 'المحتوى', 'content', 'بوست', 'post', 'الوصف', 'description', 'ريفرنس', 'reference'])
         data_rows = tab_lines[1:] if is_header else tab_lines
         if len(data_rows) >= 2:
             table_results = []
-            url_re_t = re.compile(r'https?://[^\s|]+')
+            url_re_t = re.compile(r'https?://[^\s|\t\n]+|data:image/[^;\s|\t\n]+;base64,[A-Za-z0-9+/=]+')
             type_kws = {'بوست': 'post', 'post': 'post', 'ريلز': 'reel', 'reel': 'reel', 'فيديو': 'reel', 'video': 'reel',
                         'كاروسيل': 'carousel', 'carousel': 'carousel', 'ستوري': 'story', 'story': 'story', 'موشن': 'motion', 'motion': 'motion'}
             for row in data_rows:
@@ -6175,7 +6186,7 @@ def _universal_heuristic_plan_parser(plan_text):
                 if not cells:
                     continue
                 row_lower = row.lower()
-                if any(kw in row_lower for kw in ['عنوان', 'title', 'النوع', 'type', 'الـ hook', 'كابشن']) and len(cells) <= 3:
+                if any(kw in row_lower for kw in ['عنوان', 'title', 'النوع', 'type', 'الـ hook', 'كابشن', 'تاريخ النزول']) and len(cells) <= 3:
                     continue
                 
                 post_type = "post"
@@ -6200,7 +6211,7 @@ def _universal_heuristic_plan_parser(plan_text):
                         pub_date = parsed_d.strftime("%Y-%m-%d") if parsed_d else dm.group(0)
                         continue
 
-                    if any(c_low.startswith(p) for p in ['صورة ', 'تصميم ', 'شخص ', 'زوج ', 'فيديو ', 'هنعمل ', 'مشهد ', 'فكرة التصميم', 'فكرة الفيديو', 'visual:', 'design:']):
+                    if any(c_low.startswith(p) for p in ['صورة', 'تصميم', 'شخص', 'زوج', 'فيديو', 'هنعمل', 'مشهد', 'فكرة', 'ريفرنس', 'المصدر', 'visual', 'design', 'ref', 'reference', 'موشن', 'انفوجرافيك']):
                         visual = c_clean
                         continue
 
@@ -6683,7 +6694,7 @@ def api_tasks_ingest_plan():
             dl_date = (p.get("delivery_deadline") or "").strip()
             media_urls = p.get("media_urls") or []
             
-            ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower()]
+            ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower() and not u.startswith("data:image/")]
             image_urls = [u for u in media_urls if u not in ref_links]
 
             new_task = {
@@ -6694,6 +6705,7 @@ def api_tasks_ingest_plan():
                 "title": title,
                 "description": caption or title,
                 "caption": caption,
+                "visual_idea": visual,
                 "status": "Pending AM Approval",
                 "scheduled_start_date": "",
                 "publish_date": pub_date,
@@ -6705,7 +6717,7 @@ def api_tasks_ingest_plan():
                 "assignee_name": "",
                 "media_urls": image_urls,
                 "reference_links": ref_links,
-                "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls},
+                "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls, "reference_links": ref_links},
                 "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
@@ -7121,14 +7133,27 @@ def api_employees_workload():
                 "client_name": _client_name(cid),
                 "delivery_deadline": t.get("delivery_deadline"),
                 "publish_date": t.get("publish_date"),
+                "publish_time": t.get("publish_time") or "10:00",
+                "scheduled_start_date": t.get("scheduled_start_date"),
                 "drive_link": t.get("drive_link"),
                 "notes": t.get("notes"),
                 "caption": t.get("caption"),
+                "visual_idea": t.get("visual_idea") or (t.get("content_data") or {}).get("visual_idea") or (t.get("graphic_data") or {}).get("idea"),
                 "review_note": t.get("review_note"),
                 "timer_state": t.get("timer_state"),
                 "started_at": t.get("started_at"),
                 "submitted_at": t.get("submitted_at"),
-                "assigned_at": t.get("assigned_at")
+                "assigned_at": t.get("assigned_at"),
+                "assigned_employee_id": eid,
+                "assignee_name": t.get("assignee_name"),
+                "am_id": t.get("am_id"),
+                "am_name": t.get("am_name"),
+                "file_name": t.get("file_name"),
+                "plan_name": t.get("plan_name"),
+                "media_urls": t.get("media_urls") or [],
+                "reference_links": t.get("reference_links") or [],
+                "content_data": t.get("content_data") or {},
+                "graphic_data": t.get("graphic_data") or {}
             })
     return jsonify({"workload": counts, "in_progress": inprog, "tasks_by_employee": tasks_by_emp})
 
