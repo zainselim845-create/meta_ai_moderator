@@ -2335,18 +2335,24 @@ async function loadTaskMonthlyReport() {
 
         var report = (data && data.report) ? data.report : [];
         if (!report || report.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">لا توجد سجلات أداء لهذا الشهر بعد</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-slate-500">لا توجد سجلات أداء لهذا الشهر بعد</td></tr>';
             return;
         }
 
         tbody.innerHTML = report.map(function(r) {
+            var onTimeBadge = r.on_time_rate !== '-' ?
+                ('<span class="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">' + esc(r.on_time_rate) +
+                 ' <span class="text-[10px] text-slate-400 font-normal">(' + r.on_time_count + ' في الموعد)</span></span>') : '<span class="text-slate-400">—</span>';
+            
             return '<tr>' +
                 '<td class="p-3 font-bold text-slate-900">' + esc(r.employee) + ' <span class="text-xs font-normal text-slate-500">(' + esc(r.role) + ')</span></td>' +
                 '<td class="p-3 font-mono">' + r.assigned + '</td>' +
                 '<td class="p-3 font-mono">' + r.started + '</td>' +
                 '<td class="p-3 font-mono font-bold text-emerald-600">' + r.completed + '</td>' +
                 '<td class="p-3 font-mono font-bold text-blue-600">' + r.completion_rate + '</td>' +
-                '<td class="p-3 font-mono">' + r.avg_duration + '</td>' +
+                '<td class="p-3 font-mono">' + onTimeBadge + '</td>' +
+                '<td class="p-3 font-mono text-indigo-900 font-bold">' + esc(r.avg_turnaround || '-') + '</td>' +
+                '<td class="p-3 font-mono text-slate-600">' + esc(r.avg_duration || '-') + '</td>' +
                 '<td class="p-3 text-xs text-slate-700">' + (r.notes && r.notes.length ? r.notes.map(esc).join('<br>') : '-') + '</td>' +
             '</tr>';
         }).join('');

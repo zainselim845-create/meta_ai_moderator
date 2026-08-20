@@ -7327,6 +7327,9 @@ def api_tasks_monthly_report():
             "assigned": 0,
             "started": 0,
             "completed": 0,
+            "on_time": 0,
+            "late": 0,
+            "turnaround_hours": [],
             "durations": [],
             "notes": []
         }
@@ -7349,6 +7352,9 @@ def api_tasks_monthly_report():
                 "assigned": 0,
                 "started": 0,
                 "completed": 0,
+                "on_time": 0,
+                "late": 0,
+                "turnaround_hours": [],
                 "durations": [],
                 "notes": []
             }
@@ -7360,6 +7366,9 @@ def api_tasks_monthly_report():
                 "assigned": 0,
                 "started": 0,
                 "completed": 0,
+                "on_time": 0,
+                "late": 0,
+                "turnaround_hours": [],
                 "durations": [],
                 "notes": []
             }
@@ -7374,6 +7383,30 @@ def api_tasks_monthly_report():
             stats[target_key]["started"] += 1
         if st == "Completed":
             stats[target_key]["completed"] += 1
+
+        # KPI turnaround & on-time calculations
+        kpis = t.get("kpis") or {}
+        is_on_time = kpis.get("is_on_time")
+        if is_on_time is None and t.get("delivery_deadline") and t.get("submitted_at"):
+            dl = str(t["delivery_deadline"])[:10]
+            sub = str(t["submitted_at"])[:10]
+            is_on_time = (sub <= dl)
+            
+        if is_on_time is True:
+            stats[target_key]["on_time"] += 1
+        elif is_on_time is False:
+            stats[target_key]["late"] += 1
+            
+        th = kpis.get("turnaround_hours")
+        if th is None and t.get("assigned_at") and t.get("submitted_at"):
+            try:
+                dt_a = datetime.fromisoformat(str(t["assigned_at"]).replace("Z", "+00:00"))
+                dt_s = datetime.fromisoformat(str(t["submitted_at"]).replace("Z", "+00:00"))
+                th = round(max(0, (dt_s - dt_a).total_seconds()) / 3600, 2)
+            except Exception:
+                pass
+        if th is not None and th > 0:
+            stats[target_key]["turnaround_hours"].append(th)
 
         secs = (t.get("timer_state") or {}).get("elapsed_seconds") or 0
         if not secs:
@@ -7400,6 +7433,17 @@ def api_tasks_monthly_report():
                 avg_dur = "-"
                 
             rate = f"{int((s['completed'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
+            
+            on_time_total = s["on_time"] + s["late"]
+            on_time_rate = f"{int((s['on_time'] / on_time_total) * 100)}%" if on_time_total > 0 else "-"
+            
+            t_hours = s["turnaround_hours"]
+            if t_hours:
+                avg_th = sum(t_hours) / len(t_hours)
+                avg_turnaround = f"{avg_th:.1f} ساعة" if avg_th >= 1 else f"{int(avg_th * 60)} دقيقة"
+            else:
+                avg_turnaround = "-"
+
             report_data.append({
                 "employee": s["name"],
                 "role": s["role"],
@@ -7407,6 +7451,10 @@ def api_tasks_monthly_report():
                 "started": s["started"],
                 "completed": s["completed"],
                 "completion_rate": rate,
+                "on_time_rate": on_time_rate,
+                "on_time_count": s["on_time"],
+                "late_count": s["late"],
+                "avg_turnaround": avg_turnaround,
                 "avg_duration": avg_dur,
                 "notes": s["notes"],
             })
@@ -7431,10 +7479,10 @@ def api_tasks_send_monthly_report():
     rows_html = ""
     for r in report_rows:
         notes_html = f"<ul>{''.join([f'<li>{n}</li>' for n in r['notes']])}</ul>" if r['notes'] else "<i>No notes</i>"
-        rows_html += f"<tr><td style='padding:8px;border:1px solid #e2e8f0;'>{_hx(r['employee'])}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['assigned']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['started']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completed']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completion_rate']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['avg_duration']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{notes_html}</td></tr>"
+        rows_html += f"<tr><td style='padding:8px;border:1px solid #e2e8f0;'>{_hx(r['employee'])}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['assigned']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['started']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completed']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completion_rate']}</td><td style='padding:8px;border:1px solid #e2e8f0;font-weight:bold;color:#16a34a;'>{r.get('on_time_rate','-')}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r.get('avg_turnaround','-')}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['avg_duration']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{notes_html}</td></tr>"
 
     generated_at = datetime.now(timezone.utc).strftime("%d/%m/%Y - %I:%M %p UTC")
-    html_content = f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>body{{font-family:Arial,sans-serif;background:#f8fafc;padding:20px;color:#1e293b;}}table{{border-collapse:collapse;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;}}th{{background:#2563eb;color:white;padding:10px;text-align:right;}}td{{padding:8px;border:1px solid #e2e8f0;}}</style></head><body><div style="max-width:700px;margin:0 auto;background:#ffffff;padding:25px;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.05);"><h2 style="color:#2563eb;margin-top:0;text-align:center;">📊 تقرير أداء وساعات عمل الفريق - {month_str}</h2><p style="font-size:14px;color:#64748b;text-align:center;">تاريخ التقرير: <strong>{month_str}</strong> | وقت التقديم: {generated_at}</p><table><thead><tr><th>الموظف</th><th>المكتسبة</th><th>جاري العمل</th><th>المكتملة</th><th>معدل الإنجاز</th><th>متوسط الوقت</th><th>الملاحظات</th></tr></thead><tbody>{rows_html if rows_html else "<tr><td colspan='7' style='text-align:center;padding:15px;'>لا توجد مهام مسجلة لهذا الشهر بعد</td></tr>"}</tbody></table><p style="font-size:12px;color:#94a3b8;margin-top:25px;text-align:center;">تم إصدار هذا التقرير تلقائياً من منصة Domya Meta AI Task & Operations Engine 🚀</p></div></body></html>"""
+    html_content = f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>body{{font-family:Arial,sans-serif;background:#f8fafc;padding:20px;color:#1e293b;}}table{{border-collapse:collapse;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;}}th{{background:#2563eb;color:white;padding:10px;text-align:right;}}td{{padding:8px;border:1px solid #e2e8f0;}}</style></head><body><div style="max-width:850px;margin:0 auto;background:#ffffff;padding:25px;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.05);"><h2 style="color:#2563eb;margin-top:0;text-align:center;">📊 تقرير أداء ومؤشرات الـ KPIs للفريق - {month_str}</h2><p style="font-size:14px;color:#64748b;text-align:center;">تاريخ التقرير: <strong>{month_str}</strong> | وقت التقديم: {generated_at}</p><table><thead><tr><th>الموظف</th><th>المسندة</th><th>جاري العمل</th><th>المكتملة</th><th>معدل الإنجاز</th><th>الالتزام بالموعد</th><th>متوسط مدة الإنجاز</th><th>وقت التايمر</th><th>الملاحظات</th></tr></thead><tbody>{rows_html if rows_html else "<tr><td colspan='9' style='text-align:center;padding:15px;'>لا توجد مهام مسجلة لهذا الشهر بعد</td></tr>"}</tbody></table><p style="font-size:12px;color:#94a3b8;margin-top:25px;text-align:center;">تم إصدار هذا التقرير تلقائياً من منصة Domya Meta AI Task & Operations Engine 🚀</p></div></body></html>"""
 
     cfg = get_smtp_config()
     smtp_user = cfg["user"]
