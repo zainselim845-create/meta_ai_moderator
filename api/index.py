@@ -3085,13 +3085,15 @@ def assigned_client_ids():
     user_rec = current_user_rec()
     assigned = list(user_rec.get("assigned_clients") or [])
     my_eid = _my_employee_id()
-    my_name = (user_rec.get("name") or current_username() or "").strip().lower()
+    my_name = (user_rec.get("name") or "").strip().lower()
     for c in AGENCY_CLIENTS_STORE:
         cid = str(c.get("id") or c.get("client_id") or "")
         if cid and cid not in assigned:
             c_am_id = str(c.get("am_id") or c.get("account_manager_id") or c.get("am_employee_id") or "").strip()
             c_am_name = str(c.get("am_name") or c.get("account_manager") or "").strip().lower()
-            if (my_eid and c_am_id == my_eid) or (my_name and (c_am_name == my_name or my_name in c_am_name)):
+            if my_eid and c_am_id and c_am_id == my_eid:
+                assigned.append(cid)
+            elif my_name and c_am_name and c_am_name == my_name:
                 assigned.append(cid)
     return assigned
 
@@ -7138,6 +7140,7 @@ def api_employees_workload():
                 "drive_link": t.get("drive_link"),
                 "notes": t.get("notes"),
                 "caption": t.get("caption"),
+                "description": t.get("description") or t.get("caption"),
                 "visual_idea": t.get("visual_idea") or (t.get("content_data") or {}).get("visual_idea") or (t.get("graphic_data") or {}).get("idea"),
                 "review_note": t.get("review_note"),
                 "timer_state": t.get("timer_state"),
