@@ -5313,6 +5313,80 @@ def save_client_task_logs(logs_list, _cid=None):
     cache["task_logs"] = updated
     push_setting("meta_ai_task_logs", updated)
 
+def _append_task_log(t, action, actor_name=None, actor_id=None, actor_type=None, target_emp_id=None, target_emp_name=None, details=None, note=None):
+    """Appends an event to the task's activity log and recalculates KPI metrics."""
+    if not isinstance(t, dict):
+        return {}
+    t.setdefault("activity_log", [])
+    now_utc = datetime.now(timezone.utc)
+    now_iso = now_utc.isoformat()
+    cairo_dt = now_utc + timedelta(hours=_tz_offset())
+    cairo_str = cairo_dt.strftime("%Y-%m-%d %I:%M %p")
+    
+    if not actor_name and has_request_context():
+        actor_name = current_user_rec().get("name") or current_username()
+    if not actor_id and has_request_context():
+        actor_id = _my_employee_id() or session.get("uid")
+    if not actor_type and has_request_context():
+        actor_type = current_role()
+        
+    actor_name = actor_name or "النظام"
+    actor_id = str(actor_id or "system")
+    actor_type = actor_type or "system"
+    
+    entry = {
+        "id": f"log_{int(time.time()*1000)}_{len(t['activity_log'])+1}",
+        "action": action,
+        "timestamp": now_iso,
+        "time_cairo": cairo_str,
+        "actor_name": actor_name,
+        "actor_id": actor_id,
+        "actor_type": actor_type,
+        "target_employee_id": str(target_emp_id) if target_emp_id else "",
+        "target_employee_name": str(target_emp_name) if target_emp_name else "",
+        "note": note or "",
+        "details": details or {}
+    }
+    t["activity_log"].append(entry)
+    t["stage_history"] = t["activity_log"]
+
+    # Calculate KPI metrics for the task
+    kpis = t.get("kpis") or {}
+    assigned_at = t.get("assigned_at")
+    submitted_at = t.get("submitted_at")
+    deadline = t.get("delivery_deadline")
+    
+    if assigned_at:
+        kpis["assigned_at"] = assigned_at
+    if submitted_at:
+        kpis["submitted_at"] = submitted_at
+        try:
+            dt_assign = datetime.fromisoformat(assigned_at.replace("Z", "+00:00")) if assigned_at else None
+            dt_submit = datetime.fromisoformat(submitted_at.replace("Z", "+00:00"))
+            if dt_assign:
+                turnaround_secs = max(0, (dt_submit - dt_assign).total_seconds())
+                kpis["turnaround_hours"] = round(turnaround_secs / 3600, 2)
+                kpis["turnaround_minutes"] = round(turnaround_secs / 60, 1)
+        except Exception:
+            pass
+            
+        if deadline:
+            dl_str = str(deadline)[:10]
+            try:
+                dt_submit = datetime.fromisoformat(submitted_at.replace("Z", "+00:00"))
+                sub_cairo = (dt_submit + timedelta(hours=_tz_offset())).strftime("%Y-%m-%d")
+                kpis["is_on_time"] = bool(sub_cairo <= dl_str)
+                kpis["deadline"] = dl_str
+            except Exception:
+                pass
+            
+    timer_secs = (t.get("timer_state") or {}).get("elapsed_seconds", 0)
+    if timer_secs:
+        kpis["timer_minutes"] = round(timer_secs / 60, 1)
+        
+    t["kpis"] = kpis
+    return entry
+
 def parse_flexible_date_str(val_str):
     if not val_str:
         return None
@@ -5886,6 +5960,11 @@ def api_tasks():
             "note": data.get("note") or "",
             "created_at": datetime.now(timezone.utc).isoformat()
         }
+        _append_task_log(new_task, "created",
+                         actor_name=current_user_rec().get("name") or current_username(),
+                         actor_id=data.get("am_id") or _my_employee_id(),
+                         actor_type=current_role(),
+                         note="إنشاء المهمة يدوياً")
         tasks.insert(0, new_task)
         save_client_tasks(tasks, _cid)
         return jsonify({"success": True, "task": new_task})
@@ -6723,6 +6802,11 @@ def api_tasks_ingest_plan():
                 "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
+            _append_task_log(new_task, "created",
+                             actor_name=new_task.get("am_name"),
+                             actor_id=new_task.get("am_id"),
+                             actor_type="account_manager",
+                             note=f"استخراج وإنشاء المهمة من خطة: {clean_file_title}")
             tasks.append(new_task)
             counter += 1
             created_count += 1
@@ -6761,6 +6845,11 @@ def api_task_set_dates(task_id):
     # if no explicit deadline, default it to the publish date
     if not t.get("delivery_deadline") and t.get("publish_date"):
         t["delivery_deadline"] = t["publish_date"]
+    _append_task_log(t, "dates_updated",
+                     actor_name=current_user_rec().get("name") or current_username(),
+                     actor_type="account_manager",
+                     note=f"تعديل المواعيد (البدء: {t.get('scheduled_start_date') or '—'} · النزول: {t.get('publish_date') or '—'} · التسليم: {t.get('delivery_deadline') or '—'})",
+                     details={"scheduled_start_date": t.get("scheduled_start_date"), "publish_date": t.get("publish_date"), "delivery_deadline": t.get("delivery_deadline")})
     save_one_task(t, cid)
     return jsonify({"ok": True, "task": t})
 
@@ -6956,6 +7045,11 @@ def api_task_add_reference(task_id):
         t.setdefault(key, [])
         if link not in t[key]:
             t[key].append(link)
+        _append_task_log(t, "reference_added",
+                         actor_name=current_user_rec().get("name") or current_username(),
+                         actor_type="account_manager",
+                         note=f"إضافة ملف ريفرنس: {safe}",
+                         details={"url": link, "type": "file"})
         save_one_task(t, cid)
         return jsonify({"ok": True, "task": t, "url": link})
 
@@ -6969,6 +7063,11 @@ def api_task_add_reference(task_id):
     t.setdefault(key, [])
     if url not in t[key]:
         t[key].append(url)
+    _append_task_log(t, "reference_added",
+                     actor_name=current_user_rec().get("name") or current_username(),
+                     actor_type="account_manager",
+                     note="إضافة رابط ريفرنس خارجي",
+                     details={"url": url, "type": "link"})
     save_one_task(t, cid)
     return jsonify({"ok": True, "task": t})
 
@@ -6999,6 +7098,12 @@ def api_task_upload_asset(task_id):
     if link not in t["media_urls"]:
         t["media_urls"].append(link)
     t["media_type"] = "video" if mime.startswith("video") else "image"
+    _append_task_log(t, "asset_uploaded",
+                     actor_name=current_user_rec().get("name") or current_username(),
+                     actor_id=_my_employee_id() or session.get("uid"),
+                     actor_type=current_role(),
+                     note=f"رفع ملف على Drive: {safe}",
+                     details={"drive_link": link, "filename": safe})
     save_one_task(t, cid)
     return jsonify({"ok": True, "drive_link": link, "task": t})
 
@@ -7044,6 +7149,12 @@ def api_task_upload_complete(task_id):
     if link not in t["media_urls"]:
         t["media_urls"].append(link)
     t["media_type"] = "video" if str(mime).startswith("video") else "image"
+    _append_task_log(t, "asset_uploaded",
+                     actor_name=current_user_rec().get("name") or current_username(),
+                     actor_id=_my_employee_id() or session.get("uid"),
+                     actor_type=current_role(),
+                     note="اكتمال رفع ملف كبير على Drive",
+                     details={"drive_link": link, "file_id": fid})
     save_one_task(t, cid)
     return jsonify({"ok": True, "drive_link": link})
 
@@ -7156,7 +7267,9 @@ def api_employees_workload():
                 "media_urls": t.get("media_urls") or [],
                 "reference_links": t.get("reference_links") or [],
                 "content_data": t.get("content_data") or {},
-                "graphic_data": t.get("graphic_data") or {}
+                "graphic_data": t.get("graphic_data") or {},
+                "activity_log": t.get("activity_log") or t.get("stage_history") or [],
+                "kpis": t.get("kpis") or {}
             })
     return jsonify({"workload": counts, "in_progress": inprog, "tasks_by_employee": tasks_by_emp})
 
@@ -7661,6 +7774,13 @@ def api_tasks_assign(task_id):
     t["assignee_name"] = emp_name
     t["status"] = "Assigned"
     t["assigned_at"] = datetime.now(timezone.utc).isoformat()
+    _append_task_log(t, "assigned",
+                     actor_name=current_user_rec().get("name") or current_username(),
+                     actor_type="account_manager",
+                     target_emp_id=emp_id,
+                     target_emp_name=emp_name,
+                     note=f"إسناد المهمة إلى الموظف: {emp_name}",
+                     details={"delivery_deadline": t.get("delivery_deadline"), "publish_date": t.get("publish_date")})
     save_client_tasks(tasks, _cid)
 
     # Send an INTERACTIVE task card (start/submit buttons) — same actions as the website.
@@ -7717,15 +7837,14 @@ def api_task_recall(task_id):
     ts["last_start"] = None
     t["timer_state"] = ts
 
-    # Record recall in stage history
-    t["stage_history"] = (t.get("stage_history") or []) + [{
-        "action": "recalled_by_manager",
-        "by": session.get("uid", "admin"),
-        "from_employee_id": prev_emp_id,
-        "from_employee_name": prev_emp_name,
-        "reason": reason,
-        "at": datetime.now(timezone.utc).isoformat()
-    }]
+    # Record recall in stage history & activity log
+    _append_task_log(t, "recalled",
+                     actor_name=current_user_rec().get("name") or current_username(),
+                     actor_type="account_manager",
+                     target_emp_id=prev_emp_id,
+                     target_emp_name=prev_emp_name,
+                     note=f"سحب المهمة من: {prev_emp_name}" + (f" · السبب: {reason}" if reason else ""),
+                     details={"reason": reason, "from_employee_id": prev_emp_id, "from_employee_name": prev_emp_name})
     
     # Notify previous employee via telegram if assigned
     if prev_emp_id:
@@ -7788,6 +7907,11 @@ def api_my_task_start(task_id):
     ts["is_running"] = True
     ts["last_start"] = t["started_at"]
     t["timer_state"] = ts
+    _append_task_log(t, "started",
+                     actor_name=t.get("assignee_name") or current_user_rec().get("name"),
+                     actor_id=t.get("assigned_employee_id") or eid,
+                     actor_type="employee",
+                     note="بدء العمل على المهمة وتشغيل التايمر")
     save_one_task(t, cid)
     return jsonify({"ok": True, "task": t})
 
@@ -7841,8 +7965,14 @@ def api_my_task_submit(task_id):
         if drive_link not in t["media_urls"]:
             t["media_urls"].append(drive_link)
 
-    save_one_task(t, cid)
     mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
+    _append_task_log(t, "submitted",
+                     actor_name=t.get("assignee_name") or current_user_rec().get("name"),
+                     actor_id=t.get("assigned_employee_id") or eid,
+                     actor_type="employee",
+                     note=notes or "تسليم المخرجات لمدير الحساب",
+                     details={"notes": notes, "drive_link": drive_link, "elapsed_minutes": mins})
+    save_one_task(t, cid)
     # ping ONLY the client's account manager (it also shows in their web board).
     _notify_client_am(cid,
         f"📥 <b>مهمة جاهزة للمراجعة</b>\n👤 {t.get('assignee_name','')}\n📝 {t.get('title','')}\n"
@@ -7898,6 +8028,13 @@ def api_task_review(task_id):
 
     if action in ("reject", "return"):
         t["status"] = "Assigned"
+        _append_task_log(t, "reviewed_reject",
+                         actor_name=current_user_rec().get("name") or current_username(),
+                         actor_type="account_manager",
+                         target_emp_id=t.get("assigned_employee_id"),
+                         target_emp_name=t.get("assignee_name"),
+                         note=review_note or "إعادة المهمة للموظف للتعديل",
+                         details={"review_note": review_note})
         if cur_tg:
             send_telegram_bot_notification(cur_tg,
                 f"🔄 <b>محتاج تعديل</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\n📝 {review_note or 'راجع الملاحظات'}")
@@ -7907,8 +8044,13 @@ def api_task_review(task_id):
         t["assigned_employee_id"] = next_emp_id
         t["assignee_name"] = nxt.get("name", next_emp_id)
         t["status"] = "Assigned"
-        t["stage_history"] = (t.get("stage_history") or []) + [{
-            "employee_id": t.get("assigned_employee_id"), "at": datetime.now(timezone.utc).isoformat()}]
+        _append_task_log(t, "reviewed_forward",
+                         actor_name=current_user_rec().get("name") or current_username(),
+                         actor_type="account_manager",
+                         target_emp_id=next_emp_id,
+                         target_emp_name=nxt.get("name", next_emp_id),
+                         note=f"تمرير المهمة إلى: {nxt.get('name', next_emp_id)}",
+                         details={"next_employee_id": next_emp_id, "review_note": review_note})
         ntg = str(nxt.get("telegram_id", "")).replace(".0", "").strip()
         if ntg:
             send_telegram_bot_notification(ntg,
@@ -7949,6 +8091,11 @@ def api_task_review(task_id):
             scheduled = post
         except Exception as _e:
             print(f"[task→schedule] {_e}")
+        _append_task_log(t, "reviewed_approved",
+                         actor_name=current_user_rec().get("name") or current_username(),
+                         actor_type="account_manager",
+                         note=review_note or "اعتماد نهائي للمهمة وجدولة النشر",
+                         details={"publish_date": pub_date, "publish_time": t.get("publish_time"), "scheduled_post_id": t.get("scheduled_post_id")})
         if cur_tg:
             send_telegram_bot_notification(cur_tg,
                 f"✅ <b>تم اعتماد مهمتك واتجدولت للنشر</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\n"
@@ -8828,6 +8975,11 @@ def _tasks_handle_callback(cbq):
                 ts["is_running"] = True
                 ts["last_start"] = t["started_at"]
                 t["timer_state"] = ts
+                _append_task_log(t, "started",
+                                 actor_name=t.get("assignee_name") or "الموظف",
+                                 actor_id=t.get("assigned_employee_id"),
+                                 actor_type="employee",
+                                 note="بدء العمل على المهمة من Telegram Bot")
                 save_one_task(t, cid)
                 _tasks_answer(cb_id, "بدأت الشغل 🚀")
         else:  # tb_ submit → ask for a note to the account manager first
@@ -8873,8 +9025,15 @@ def _tasks_do_submit(t, cid, note):
     elif t.get("drive_link"):
         drive_link = t.get("drive_link")
 
-    save_one_task(t, cid)
     mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
+    _append_task_log(t, "submitted",
+                     actor_name=t.get("assignee_name") or "الموظف",
+                     actor_id=t.get("assigned_employee_id"),
+                     actor_type="employee",
+                     note=note or "تسليم المخرجات من Telegram Bot",
+                     details={"notes": note, "drive_link": drive_link, "elapsed_minutes": mins})
+    save_one_task(t, cid)
+    # ping ONLY the client's account manager (it also shows in their web board).
     _notify_client_am(cid,
         f"📥 <b>مهمة جاهزة للمراجعة</b>\n👤 {t.get('assignee_name','')}\n📝 {t.get('title','')}\n"
         f"🏢 {_client_name(cid)}\n⏱️ {mins} دقيقة\n📝 ملاحظات: {note or '—'}\n" +

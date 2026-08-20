@@ -1271,6 +1271,31 @@ function isoDate(d) {
     d = (d || '').toString().trim();
     return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : '';
 }
+
+function fmtCairoTime(isoStr) {
+    if (!isoStr) return '';
+    try {
+        var d = new Date(isoStr);
+        if (isNaN(d.getTime())) return String(isoStr).slice(0, 19).replace('T', ' ');
+        return d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' +
+               d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    } catch(e) {
+        return String(isoStr).slice(0, 19).replace('T', ' ');
+    }
+}
+
+function toggleTaskTimeline(boxId) {
+    var box = document.getElementById(boxId);
+    var arrow = document.getElementById('arrow-' + boxId);
+    if (!box) return;
+    if (box.classList.contains('hidden')) {
+        box.classList.remove('hidden');
+        if (arrow) arrow.textContent = '▲';
+    } else {
+        box.classList.add('hidden');
+        if (arrow) arrow.textContent = '▼';
+    }
+}
 // AM sets start / publish / deadline for a task
 async function saveTaskDates(taskId) {
     var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
@@ -1469,6 +1494,160 @@ function renderTaskCard(t) {
 
     if (t.review_note) {
         html += '<div class="bg-purple-50 p-2 rounded-xl text-[11px] text-purple-700 border border-purple-100">📝 ملاحظة المراجعة السابقة: ' + esc(t.review_note) + '</div>';
+    }
+
+    // Activity Log & Timeline (سجل النشاط وحساب الـ KPIs)
+    var logEntries = (t.activity_log && t.activity_log.length) ? t.activity_log : ((t.stage_history && t.stage_history.length) ? t.stage_history : []);
+    
+    // Construct synthetic log entries if legacy task doesn't have activity_log yet
+    if (!logEntries.length) {
+        logEntries = [];
+        if (t.created_at) {
+            logEntries.push({
+                action: 'created',
+                time_cairo: fmtCairoTime(t.created_at),
+                actor_name: t.am_name || 'مدير الحساب',
+                note: 'إنشاء المهمة'
+            });
+        }
+        if (t.assigned_at && t.assignee_name) {
+            logEntries.push({
+                action: 'assigned',
+                time_cairo: fmtCairoTime(t.assigned_at),
+                actor_name: t.am_name || 'مدير الحساب',
+                target_employee_name: t.assignee_name,
+                note: 'إسناد المهمة إلى ' + t.assignee_name
+            });
+        }
+        if (t.started_at) {
+            logEntries.push({
+                action: 'started',
+                time_cairo: fmtCairoTime(t.started_at),
+                actor_name: t.assignee_name || 'الموظف',
+                note: 'بدء العمل وتشغيل التايمر'
+            });
+        }
+        if (t.submitted_at) {
+            logEntries.push({
+                action: 'submitted',
+                time_cairo: fmtCairoTime(t.submitted_at),
+                actor_name: t.assignee_name || 'الموظف',
+                note: t.notes || 'تسليم المهمة لمدير الحساب',
+                details: { drive_link: t.drive_link }
+            });
+        }
+        if (t.completed_at) {
+            logEntries.push({
+                action: 'reviewed_approved',
+                time_cairo: fmtCairoTime(t.completed_at),
+                actor_name: t.am_name || 'مدير الحساب',
+                note: 'اعتماد نهائي وجدولة النشر'
+            });
+        }
+    }
+
+    var kpisHtml = '';
+    var kpis = t.kpis || {};
+    var hasKpis = (t.assigned_at && (t.submitted_at || t.status === 'Completed' || t.status === 'Awaiting AM Review')) || (kpis && kpis.turnaround_hours !== undefined);
+    
+    if (hasKpis) {
+        var turnaroundText = '';
+        if (kpis && kpis.turnaround_hours !== undefined) {
+            var th = kpis.turnaround_hours;
+            turnaroundText = th < 1 ? (Math.round(th * 60) + ' دقيقة') : (th + ' ساعة');
+        } else if (t.assigned_at && t.submitted_at) {
+            var diffMs = new Date(t.submitted_at) - new Date(t.assigned_at);
+            if (diffMs > 0) {
+                var diffHrs = (diffMs / (1000 * 60 * 60)).toFixed(1);
+                turnaroundText = diffHrs < 1 ? (Math.round(diffMs / 60000) + ' دقيقة') : (diffHrs + ' ساعة');
+            }
+        }
+        
+        var isOnTime = kpis ? kpis.is_on_time : undefined;
+        if (isOnTime === undefined && t.delivery_deadline && t.submitted_at) {
+            var dl = String(t.delivery_deadline).slice(0, 10);
+            var sub = String(t.submitted_at).slice(0, 10);
+            isOnTime = sub <= dl;
+        }
+
+        var kpiBadge = isOnTime === true ?
+            '<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0">✅ تم التسليم في الموعد</span>' :
+            (isOnTime === false ?
+                '<span class="bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0">⚠️ تأخير عن موعد التسليم</span>' : '');
+
+        kpisHtml = '<div class="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-2.5 text-xs space-y-1.5 shadow-2xs">' +
+            '<div class="flex items-center justify-between font-bold text-[11px] text-indigo-900 border-b border-indigo-100 pb-1">' +
+                '<span class="flex items-center gap-1">📊 تقرير الـ KPIs والسرعة:</span>' +
+                kpiBadge +
+            '</div>' +
+            '<div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-700 pt-0.5">' +
+                '<div>👔 المسلم: <b class="text-indigo-950">' + esc(t.am_name || 'مدير الحساب') + '</b></div>' +
+                '<div>👤 المستلم: <b class="text-indigo-950">' + esc(t.assignee_name || 'غير محدد') + '</b></div>' +
+                (t.assigned_at ? '<div>📅 تاريخ الإسناد: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.assigned_at)) + '</span></div>' : '') +
+                (t.submitted_at ? '<div>📦 تاريخ التسليم: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.submitted_at)) + '</span></div>' : '') +
+                (turnaroundText ? '<div class="col-span-2 text-indigo-900 font-bold bg-white/80 px-2 py-1 rounded-lg border border-indigo-100 flex items-center justify-between mt-1"><span>⏱️ مدة إنجاز الموظف:</span><span class="font-mono text-xs text-indigo-700">' + turnaroundText + '</span></div>' : '') +
+            '</div>' +
+        '</div>';
+    }
+
+    var timelineLogHtml = '';
+    if (logEntries.length > 0) {
+        var logId = 'log-box-' + esc(t.task_id);
+        timelineLogHtml = '<div class="pt-0.5">' +
+            '<button type="button" onclick="toggleTaskTimeline(\'' + esc(logId) + '\')" class="w-full text-right bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-slate-200 flex items-center justify-between transition">' +
+                '<span class="flex items-center gap-1.5">📜 سجل كل العمليات والمواعيد <span class="bg-slate-200 text-slate-700 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold">' + logEntries.length + '</span></span>' +
+                '<span id="arrow-' + esc(logId) + '" class="text-slate-400 text-xs transition">▼</span>' +
+            '</button>' +
+            '<div id="' + esc(logId) + '" class="hidden mt-1.5 space-y-1.5 bg-slate-50/90 border border-slate-200 rounded-xl p-2.5 max-h-48 overflow-y-auto text-xs">';
+            
+        logEntries.slice().reverse().forEach(function(l) {
+            var icon = l.action === 'created' ? '🟢' :
+                       l.action === 'assigned' ? '🎯' :
+                       l.action === 'started' ? '⏱️' :
+                       l.action === 'submitted' ? '📦' :
+                       l.action === 'reviewed_reject' ? '↩️' :
+                       l.action === 'reviewed_forward' ? '➡️' :
+                       l.action === 'reviewed_approved' ? '✅' :
+                       l.action === 'recalled' ? '⚠️' :
+                       l.action === 'dates_updated' ? '📅' :
+                       l.action === 'reference_added' ? '🔗' :
+                       l.action === 'asset_uploaded' ? '📤' : '📝';
+            
+            var actionTitle = l.action === 'created' ? 'إنشاء المهمة' :
+                              l.action === 'assigned' ? ('إسناد إلى ' + (l.target_employee_name || 'موظف')) :
+                              l.action === 'started' ? 'بدء العمل' :
+                              l.action === 'submitted' ? 'تسليم المخرجات' :
+                              l.action === 'reviewed_reject' ? 'طلب تعديل' :
+                              l.action === 'reviewed_forward' ? ('تمرير إلى ' + (l.target_employee_name || 'موظف آخر')) :
+                              l.action === 'reviewed_approved' ? 'اعتماد نهائي وجدولة' :
+                              l.action === 'recalled' ? 'سحب المهمة' :
+                              l.action === 'dates_updated' ? 'تعديل المواعيد' :
+                              l.action === 'reference_added' ? 'إضافة ريفرنس' :
+                              l.action === 'asset_uploaded' ? 'رفع ملف على Drive' : (l.note || l.action);
+
+            timelineLogHtml += '<div class="flex items-start gap-2 text-[11px] border-b border-slate-200/60 pb-1.5 last:border-0 last:pb-0">' +
+                '<span class="text-sm shrink-0">' + icon + '</span>' +
+                '<div class="flex-1 min-w-0">' +
+                    '<div class="flex items-center justify-between gap-1 flex-wrap">' +
+                        '<span class="font-bold text-slate-900">' + esc(actionTitle) + '</span>' +
+                        '<span class="text-[10px] text-slate-400 font-mono">' + esc(l.time_cairo || l.timestamp || '') + '</span>' +
+                    '</div>' +
+                    '<div class="text-[10px] text-slate-500 mt-0.5">' +
+                        'بواسطة: <b class="text-slate-700">' + esc(l.actor_name || l.actor_type || '—') + '</b>' +
+                        (l.note && l.note !== actionTitle ? (' · ' + esc(l.note)) : '') +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        });
+
+        timelineLogHtml += '</div></div>';
+    }
+
+    if (kpisHtml) {
+        html += kpisHtml;
+    }
+    if (timelineLogHtml) {
+        html += timelineLogHtml;
     }
 
     // AM controls
