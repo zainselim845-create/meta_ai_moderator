@@ -273,9 +273,11 @@ def sync_from_supabase():
                     try:
                         parsed = json.loads(v)
                         if isinstance(parsed, str):
-                            try: parsed = json.loads(parsed)
-                            except: pass
-                    except:
+                            try:
+                                parsed = json.loads(parsed)
+                            except Exception:
+                                pass
+                    except Exception:
                         parsed = v
                     if k == "meta_ai_kb":
                         cache["kb"] = parsed
@@ -1785,7 +1787,7 @@ def api_send_reply():
             res_data = {}
             try:
                 res_data = res.json()
-            except:
+            except Exception:
                 pass
 
             if res.status_code >= 400 or "error" in res_data:
@@ -1828,7 +1830,7 @@ def api_send_reply():
             res_data = {}
             try:
                 res_data = res.json()
-            except:
+            except Exception:
                 pass
 
             if res.status_code >= 400 or "error" in res_data:
@@ -3747,8 +3749,10 @@ def _supabase_get_setting(key):
             v = r.json()[0].get("value")
             parsed = json.loads(v) if isinstance(v, str) else v
             if isinstance(parsed, str):
-                try: parsed = json.loads(parsed)
-                except: pass
+                try:
+                    parsed = json.loads(parsed)
+                except Exception:
+                    pass
             return parsed
     except Exception as e:
         print(f"[supa get {key}] {e}")
