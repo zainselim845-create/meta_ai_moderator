@@ -1036,14 +1036,78 @@ window.showUploadProgressModal = showUploadProgressModal;
 window.updateUploadProgress = updateUploadProgress;
 window.finishUploadProgress = finishUploadProgress;
 
+function uploadFileDirectlyToCloud(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append('reqtype', 'fileupload');
+    fd.append('fileToUpload', file);
+    
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://catbox.moe/user/api.php', true);
+    
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && typeof onProgress === 'function') {
+        onProgress(e.loaded, e.total);
+      }
+    };
+    
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const url = (xhr.responseText || '').trim();
+        if (url && url.startsWith('http')) {
+          resolve(url);
+        } else {
+          reject(new Error('رد غير صالح من خادم الرفع: ' + url));
+        }
+      } else {
+        reject(new Error('فشل الرفع (' + xhr.status + ')'));
+      }
+    };
+    
+    xhr.onerror = () => {
+      reject(new Error('انقطع الاتصال بخادم الرفع'));
+    };
+    
+    xhr.send(fd);
+  });
+}
+
+window.uploadFileDirectlyToCloud = uploadFileDirectlyToCloud;
+
 // Direct browser→Drive resumable upload with live XHR progress bar
 function driveUploadFile(taskId, file) {
   return new Promise(async (resolve, reject) => {
     const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
     showUploadProgressModal(file.name, file.size, isVideo);
     
+    // 1. Direct Cloud Upload via XHR (bypasses all serverless limits, works up to 200MB!)
     try {
-      // 1. Try direct Google Drive Resumable Session
+      const directUrl = await uploadFileDirectlyToCloud(file, (loaded, total) => {
+        updateUploadProgress(loaded, total);
+      });
+      
+      const attachRes = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          drive_link: directUrl,
+          link: directUrl,
+          filename: file.name,
+          mime: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream')
+        })
+      });
+      const data = await attachRes.json();
+      if (attachRes.ok && data.ok) {
+        finishUploadProgress(true);
+        resolve(directUrl);
+        return;
+      }
+    } catch(directErr) {
+      console.warn("Direct upload error, trying Google Drive / Server fallback:", directErr);
+    }
+    
+    // 2. Google Drive Resumable Session Fallback
+    try {
       const sessionRes = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1098,7 +1162,12 @@ function driveUploadFile(taskId, file) {
         return;
       }
       
-      // 2. Fallback to server multipart upload with XHR progress
+      // 3. Fallback: Server Upload (for files < 4MB)
+      if (file.size > 4 * 1024 * 1024) {
+        finishUploadProgress(false, 'حجم الملف كبير جداً (> 4MB). يرجى نسخ ولصق رابط Google Drive');
+        reject(new Error('حجم الملف كبير جداً. يرجى لصق رابط Google Drive'));
+        return;
+      }
       const fd = new FormData();
       fd.append('file', file);
       const serverXhr = new XMLHttpRequest();

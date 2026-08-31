@@ -8724,6 +8724,19 @@ def api_tasks_set_drive_link(task_id):
     t.setdefault("media_urls", [])
     if link not in t["media_urls"]:
         t["media_urls"].append(link)
+    
+    mime = str(data.get("mime") or "")
+    fname = str(data.get("filename") or "")
+    is_vid = mime.startswith("video") or any(link.lower().split("?")[0].endswith(ext) for ext in [".mp4", ".mov", ".webm", ".avi", ".mkv"]) or any(fname.lower().endswith(ext) for ext in [".mp4", ".mov", ".webm", ".avi", ".mkv"])
+    if is_vid:
+        t["media_type"] = "video"
+
+    _append_task_log(t, "asset_uploaded",
+                     actor_name=current_user_rec().get("name") or current_username(),
+                     actor_id=_my_employee_id() or session.get("uid"),
+                     actor_type=current_role(),
+                     note=f"ربط ملف/تسليم المهمة: {fname or link}",
+                     details={"drive_link": link, "filename": fname})
     save_one_task(t, cid)
     return jsonify({"ok": True, "success": True, "task": t, "drive_link": link})
 
