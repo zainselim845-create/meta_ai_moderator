@@ -8989,6 +8989,42 @@ def drive_diag_nested():
     return jsonify(out)
 
 
+@app.route("/api/drive/account", methods=["GET"])
+@require_admin
+def api_drive_account():
+    """Identify the connected Google Drive account (email, name, quota) via Google OAuth."""
+    token = get_google_oauth_access_token()
+    if not token:
+        return jsonify({"error": "تعذر توليد Google OAuth Access Token. تحقق من بيانات الربط على Vercel."}), 400
+    try:
+        req = urllib.request.Request(
+            "https://www.googleapis.com/drive/v3/about?fields=user,storageQuota",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            user = data.get("user") or {}
+            quota = data.get("storageQuota") or {}
+            
+            # Format storage
+            usage_bytes = int(quota.get("usage", 0))
+            limit_bytes = int(quota.get("limit", 0))
+            usage_gb = f"{usage_bytes / (1024**3):.2f} GB" if usage_bytes else "0 GB"
+            limit_gb = f"{limit_bytes / (1024**3):.2f} GB" if limit_bytes else "غير محدود"
+            
+            return jsonify({
+                "success": True,
+                "email": user.get("emailAddress", ""),
+                "display_name": user.get("displayName", ""),
+                "permission_id": user.get("permissionId", ""),
+                "storage_used": usage_gb,
+                "storage_limit": limit_gb,
+                "client_id": (GOOGLE_CLIENT_ID[:15] + "...") if GOOGLE_CLIENT_ID else "",
+            })
+    except Exception as e:
+        return jsonify({"error": f"خطأ في جلب بيانات حساب Google: {str(e)}"}), 500
+
+
 @app.route("/api/telegram/attendance/welcome", methods=["POST"])
 def att_welcome_broadcast():
     """Send a welcome message via the attendance bot to every active employee who
