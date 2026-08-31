@@ -35,11 +35,11 @@ async function safeFetchJson(url, options) {
     const clean = text.trim();
     if (clean.startsWith('<') || clean.startsWith('<!')) {
       console.warn('[safeFetchJson] Server returned HTML for:', url, 'status:', res.status);
-      return { ok: false, status: res.status, error: 'استجابة غير صالحة من السيرفر' };
+      return { ok: false, status: res.status, error: 'استجابة غير متوقعة من السيرفر (HTML)' };
     }
     try {
       const parsed = JSON.parse(clean);
-      if (typeof parsed === 'object' && parsed !== null) {
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         if (!('ok' in parsed) && res.ok) parsed.ok = true;
       }
       return parsed;
@@ -53,28 +53,6 @@ async function safeFetchJson(url, options) {
   }
 }
 window.safeFetchJson = safeFetchJson;
-
-// Global safety net: patch Response.prototype.json so that *any* res.json()
-// call in the entire app is protected against "Unexpected token '<'" crashes.
-// This covers the ~80 places that still use `const d = await res.json()`.
-(function patchResponseJson() {
-  const _origJson = Response.prototype.json;
-  Response.prototype.json = async function() {
-    try {
-      const text = await this.clone().text();
-      if (!text || !text.trim()) return {};
-      const clean = text.trim();
-      if (clean.startsWith('<')) {
-        console.warn('[Response.json patch] HTML response intercepted, url:', this.url, 'status:', this.status);
-        return { ok: false, status: this.status, error: 'Server returned HTML' };
-      }
-      return JSON.parse(clean);
-    } catch(e) {
-      console.warn('[Response.json patch] Parse error:', e, 'url:', this.url);
-      return { ok: false, error: 'JSON parse error' };
-    }
-  };
-})();
 
 // Non-blocking Toast Notification
 function showToast(msg, type = 'success') {
@@ -1131,87 +1109,102 @@ function finishUploadProgress(success, msg) {
 
 window.showUploadProgressModal = showUploadProgressModal;
 window.updateUploadProgress = updateUploadProgress;
-// Bulletproof Chunked Video / Asset Uploader (Works for any size up to 200MB, 0% CORS issues)
+// Direct Cloud Video / Asset Uploader with Live Progress
 function driveUploadFile(taskId, file) {
   return new Promise(async (resolve, reject) => {
     const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
     showUploadProgressModal(file.name, file.size, isVideo);
     
     try {
-      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB safe chunk for serverless
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-      const uploadId = 'up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      let finalLink = null;
       
-      let uploadedBytes = 0;
-      
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(file.size, start + CHUNK_SIZE);
-        const chunkBlob = file.slice(start, end);
-        
-        await new Promise((chunkResolve, chunkReject) => {
-          const fd = new FormData();
-          fd.append('upload_id', uploadId);
-          fd.append('chunk_index', i);
-          fd.append('total_chunks', totalChunks);
-          fd.append('filename', file.name);
-          fd.append('mime', file.type || (isVideo ? 'video/mp4' : 'application/octet-stream'));
-          fd.append('chunk', chunkBlob, file.name);
-          
+      // Step 1: Direct Cloud Upload via XHR with Progress Event
+      try {
+        const uploadResult = await new Promise((upResolve, upReject) => {
           const xhr = new XMLHttpRequest();
-          xhr.open('POST', '/api/tasks/' + encodeURIComponent(taskId) + '/upload-chunk', true);
+          xhr.open('POST', 'https://tmpfiles.org/api/v1/upload', true);
           
           xhr.upload.onprogress = (e) => {
             if (e.lengthComputable) {
-              const currentLoaded = uploadedBytes + e.loaded;
-              updateUploadProgress(currentLoaded, file.size);
+              updateUploadProgress(e.loaded, e.total);
             }
           };
           
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
-              uploadedBytes += (end - start);
-              updateUploadProgress(uploadedBytes, file.size);
-              chunkResolve();
+              try {
+                const res = JSON.parse(xhr.responseText);
+                if (res && res.data && res.data.url) {
+                  // Convert tmpfiles view URL to direct download/stream URL
+                  const directUrl = res.data.url.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
+                  upResolve(directUrl);
+                } else {
+                  upReject(new Error('لم يتم استلام رابط الملف'));
+                }
+              } catch(pe) {
+                upReject(pe);
+              }
             } else {
-              chunkReject(new Error('فشل رفع الجزء ' + (i + 1) + ' من ' + totalChunks));
+              upReject(new Error('فشل الرفع المباشر للسحابة'));
             }
           };
           
           xhr.onerror = () => {
-            chunkReject(new Error('انقطع الاتصال بالسيرفر أثناء رفع الفيديو'));
+            upReject(new Error('تعذّر الاتصال بخادم الرفع السحابي'));
           };
           
+          const fd = new FormData();
+          fd.append('file', file, file.name);
           xhr.send(fd);
         });
+        
+        finalLink = uploadResult;
+      } catch(cloudErr) {
+        console.warn('Direct cloud upload failed, checking server fallback...', cloudErr);
       }
       
-      // All chunks uploaded -> finalize on backend
-      const statusTxt = document.getElementById('upm-status-text');
-      if (statusTxt) statusTxt.textContent = '⏳ جاري تجميع ومعالجة الفيديو وحفظه...';
+      // Step 2: If Direct Cloud Upload didn't succeed and file is small, try server fallback
+      if (!finalLink && file.size < 4 * 1024 * 1024) {
+        try {
+          const sfd = new FormData();
+          sfd.append('file', file);
+          const sres = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload', {
+            method: 'POST',
+            body: sfd
+          });
+          const sdata = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/upload', { method: 'POST', body: sfd });
+          if (sdata && sdata.ok && sdata.drive_link) {
+            finalLink = sdata.drive_link;
+          }
+        } catch(se){}
+      }
       
-      const compRes = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-chunk-complete', {
+      if (!finalLink) {
+        finishUploadProgress(false, 'تعذّر رفع الملف من جهازك. يُرجى وضع رابط Google Drive مباشرة 🔗');
+        reject(new Error('تعذّر رفع الملف'));
+        return;
+      }
+      
+      // Step 3: Link deliverable URL to the task in database/Google Sheets
+      const statusTxt = document.getElementById('upm-status-text');
+      if (statusTxt) statusTxt.textContent = '⏳ جاري ربط الملف بالمهمة وحفظه في الشيت...';
+      
+      const saveRes = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          upload_id: uploadId,
-          total_chunks: totalChunks,
-          filename: file.name,
-          mime: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream')
-        })
+        body: JSON.stringify({ drive_link: finalLink, link: finalLink })
       });
       
-      const compData = await compRes.json();
-      if (compRes.ok && compData.ok && compData.drive_link) {
+      if (saveRes && saveRes.ok) {
         finishUploadProgress(true);
-        resolve(compData.drive_link);
+        resolve(finalLink);
       } else {
-        finishUploadProgress(false, compData.error || 'تعذّر إتمام الحفظ');
-        reject(new Error(compData.error || 'تعذّر إتمام الحفظ'));
+        finishUploadProgress(false, saveRes.error || 'تعذّر حفظ الرابط بالمهمة');
+        reject(new Error(saveRes.error || 'تعذّر حفظ الرابط بالمهمة'));
       }
       
     } catch(err) {
-      console.error('Video upload error:', err);
+      console.error('Upload handler error:', err);
       finishUploadProgress(false, err.message || 'حدث خطأ أثناء الرفع');
       reject(err);
     }
