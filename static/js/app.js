@@ -763,12 +763,8 @@ async function loadMyPortal() {
         ` : ''}
         ${canWork(t) ? `
           <div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2">
-            <label class="cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold py-1.5 px-3 rounded-xl border border-sky-200 shadow-2xs transition">
-              <span>📤 ارفع فيديو / تصميم جديد</span>
-              <input type="file" accept="image/*,video/*" class="hidden" onchange="uploadMyTaskAsset('${esc(t.task_id)}', this)">
-            </label>
-            <button type="button" onclick="promptSetDriveLink('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-3 rounded-xl shadow-2xs transition">
-              <span>🔗 الصق رابط Google Drive</span>
+            <button type="button" onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold py-2 px-4 rounded-xl border border-sky-200 shadow-2xs transition flex items-center gap-1.5">
+              <span>📤 تسليم شغلك (فيديو / رابط Google Drive)</span>
             </button>
           </div>
         ` : ''}

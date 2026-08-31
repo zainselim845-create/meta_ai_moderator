@@ -1577,10 +1577,9 @@ function renderTaskCard(t, indexInPlan) {
     // Upload & Reference from device & link
     html += '<div class="space-y-1.5 pt-1">' +
         '<div class="grid grid-cols-2 gap-1.5">' +
-            '<label class="text-center cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-sky-200 shadow-xs flex items-center justify-center gap-1 transition">' +
-                '<span>📤 رفع للـ Drive</span>' +
-                '<input type="file" accept="image/*,video/*" class="hidden" onchange="uploadTaskAsset(\'' + esc(t.task_id) + '\', this)">' +
-            '</label>' +
+            '<button type="button" onclick="openDeliverableModal(\'' + esc(t.task_id) + '\', \'' + esc(driveLink||'') + '\')" class="text-center bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-sky-200 shadow-xs flex items-center justify-center gap-1 transition">' +
+                '<span>📤 تسليم فيديو / Drive</span>' +
+            '</button>' +
             '<label class="text-center cursor-pointer bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-violet-200 shadow-xs flex items-center justify-center gap-1 transition">' +
                 '<span>➕ ريفرانس من الجهاز</span>' +
                 '<input type="file" accept="image/*,video/*,.pdf,.doc,.docx" class="hidden" onchange="uploadTaskReferenceFile(\'' + esc(t.task_id) + '\', this)">' +
@@ -3240,3 +3239,75 @@ async function saveGoogleDriveSettings() {
 
 window.checkGoogleDriveStatus = checkGoogleDriveStatus;
 window.saveGoogleDriveSettings = saveGoogleDriveSettings;
+
+// Deliverable Modal Manager
+window._activeDeliverableTaskId = null;
+
+function openDeliverableModal(taskId, currentLink) {
+    window._activeDeliverableTaskId = taskId;
+    var modal = document.getElementById('task-deliverable-modal');
+    if (!modal) return;
+    var inp = document.getElementById('deliv-drive-input');
+    if (inp) inp.value = currentLink || '';
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeDeliverableModal() {
+    var modal = document.getElementById('task-deliverable-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function submitDriveLinkDeliverable() {
+    var taskId = window._activeDeliverableTaskId;
+    if (!taskId) return;
+    var inp = document.getElementById('deliv-drive-input');
+    var link = (inp ? inp.value : '').trim();
+    if (!link) {
+        showToast('يرجى لصق رابط Google Drive أو الملف أولاً', 'error');
+        return;
+    }
+    showToast('جاري حفظ وربط الرابط بالمهمة... ⏳');
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ drive_link: link, link: link })
+        });
+        var d = await res.json();
+        if (res.ok && d.ok) {
+            closeDeliverableModal();
+            showToast('🎉 تم حفظ وربط رابط Google Drive بالتاسك بنجاح! ✅', 'success');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            if (typeof loadMyPortal === 'function') loadMyPortal();
+        } else {
+            showToast(d.error || 'تعذّر حفظ الرابط', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+
+async function handleModalFileUpload(input) {
+    var taskId = window._activeDeliverableTaskId;
+    var file = (input && input.files && input.files[0]) ? input.files[0] : null;
+    if (!taskId || !file) return;
+    closeDeliverableModal();
+    try {
+        await driveUploadFile(taskId, file);
+        showToast('🎉 تم رفع الملف بنجاح وربطه بالمهمة! ✅', 'success');
+        if (typeof loadTasksEngine === 'function') loadTasksEngine();
+        if (typeof loadMyPortal === 'function') loadMyPortal();
+    } catch(e) {
+        showToast('تعذّر الرفع: ' + (e.message || ''), 'error');
+    }
+    if (input) input.value = '';
+}
+
+window.openDeliverableModal = openDeliverableModal;
+window.closeDeliverableModal = closeDeliverableModal;
+window.submitDriveLinkDeliverable = submitDriveLinkDeliverable;
+window.handleModalFileUpload = handleModalFileUpload;
