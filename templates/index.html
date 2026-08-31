@@ -1670,15 +1670,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=9.45">
+  <script src="/static/js/app.js?v=9.46">
   </script>
-  <script src="/static/js/inbox.js?v=9.45">
+  <script src="/static/js/inbox.js?v=9.46">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=9.45">
+  <script src="/static/js/chatwoot_free.js?v=9.46">
   </script>
-  <script src="/static/js/views.js?v=9.45">
+  <script src="/static/js/views.js?v=9.46">
   </script>
-  <script src="/static/js/clients.js?v=9.45">
+  <script src="/static/js/clients.js?v=9.46">
   </script>
  
   <!-- Modal: Add New Connected Account -->
@@ -1741,10 +1741,38 @@
       <button class="btn-ghost text-xs px-4 py-2.5 rounded-xl border border-slate-200" onclick="closeAddAccountModal()" type="button">
        إلغاء
       </button>
-     </div>
-    </form>
+      </div>
+     </form>
+    </div>
    </div>
+
+  <!-- Modal: View Task Details -->
+  <div id="task-details-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 hidden" onclick="if(event.target===this) closeTaskDetailsModal()">
+    <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 bg-slate-50/80">
+        <div class="flex items-center gap-2 flex-wrap min-w-0" id="tdm-header-badges">
+          <span class="bg-blue-600 text-white font-bold font-mono text-xs px-2.5 py-1 rounded-lg" id="tdm-post-seq">#1</span>
+          <span class="font-mono font-bold text-xs bg-slate-900 text-white px-2.5 py-1 rounded-lg" id="tdm-task-id">TASK-0000</span>
+          <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800" id="tdm-status">معتمد ✅</span>
+          <span class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md" id="tdm-client">العميل</span>
+        </div>
+        <button onclick="closeTaskDetailsModal()" class="text-slate-400 hover:text-slate-700 font-bold text-xl p-1 leading-none rounded-lg hover:bg-slate-200 transition">✕</button>
+      </div>
+      <div class="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs" id="tdm-body">
+        <div class="text-center py-8 text-slate-400">جارِ تحميل تفاصيل المهمة...</div>
+      </div>
+      <div class="border-t border-slate-100 p-3 sm:p-4 bg-slate-50 flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2" id="tdm-footer-actions">
+          <button onclick="goToTaskOnBoard()" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 shadow-sm transition">
+            <span>📋 عرض في لوحة المهام</span>
+          </button>
+        </div>
+        <button onclick="closeTaskDetailsModal()" class="text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 transition">
+          إغلاق النافذة
+        </button>
+      </div>
+    </div>
   </div>
-</body>
+ </body>
 
 </html>

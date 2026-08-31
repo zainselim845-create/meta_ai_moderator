@@ -2640,7 +2640,14 @@ async function loadTaskMonthlyReport() {
                 notesHtml = r.notes.map(function(n) {
                     if (typeof n === 'object' && n && n.task_id) {
                         var stBadge = (n.status === 'Awaiting AM Review') ? ' <span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full font-bold">بانتظار مراجعة AM</span>' : ((n.status === 'Completed') ? ' <span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">معتمد ✅</span>' : '');
-                        return '<div class="mb-1 leading-tight"><span class="font-mono font-bold text-slate-800 bg-slate-100 px-1 rounded">' + esc(n.task_id) + '</span>' + stBadge + ': <span class="text-slate-700">' + esc(n.note) + '</span></div>';
+                        return '<div onclick="openTaskDetailsModal(\'' + esc(n.task_id) + '\')" class="mb-1.5 p-1.5 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-lg cursor-pointer transition shadow-2xs flex items-center justify-between gap-1.5 flex-wrap group" title="اضغط لعرض تفاصيل المهمة ومرفقاتها">' +
+                            '<div class="flex items-center gap-1 min-w-0">' +
+                                '<span class="font-mono font-bold text-xs bg-slate-900 text-white px-1.5 py-0.5 rounded group-hover:bg-blue-600 transition">' + esc(n.task_id) + '</span>' +
+                                stBadge +
+                                '<span class="text-slate-700 text-xs font-semibold truncate">: ' + esc(n.note || 'مكتملة') + '</span>' +
+                            '</div>' +
+                            '<span class="text-[10px] text-blue-600 font-bold bg-white px-1.5 py-0.5 rounded border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition shrink-0">👁️ عرض</span>' +
+                        '</div>';
                     }
                     var s = String(n || '').replace(/<[^>]*>/g, '');
                     return '<div class="mb-1 leading-tight">' + esc(s) + '</div>';
@@ -2815,3 +2822,174 @@ window.recallTaskAction = recallTaskAction;
 window.reassignTaskFromBoard = reassignTaskFromBoard;
 window.assignTaskFromBoard = assignTaskFromBoard;
 window.runSystemDiagnostics = runSystemDiagnostics;
+
+var _currentModalTaskId = null;
+async function openTaskDetailsModal(taskId) {
+    if (!taskId) return;
+    _currentModalTaskId = taskId;
+    var modal = document.getElementById('task-details-modal');
+    if (!modal) return;
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    var tIdEl = document.getElementById('tdm-task-id');
+    var postSeqEl = document.getElementById('tdm-post-seq');
+    var stEl = document.getElementById('tdm-status');
+    var clientEl = document.getElementById('tdm-client');
+    var bodyEl = document.getElementById('tdm-body');
+    
+    if (tIdEl) tIdEl.textContent = taskId;
+    if (postSeqEl) postSeqEl.textContent = '#...';
+    if (stEl) stEl.innerHTML = '<span class="animate-pulse">جارِ التحميل...</span>';
+    if (clientEl) clientEl.textContent = '...';
+    if (bodyEl) bodyEl.innerHTML = '<div class="py-12 text-center text-slate-400"><div class="inline-block w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div><div>جارِ تحميل تفاصيل المهمة ومرفقاتها...</div></div>';
+    
+    var t = (typeof tasksList !== 'undefined' && Array.isArray(tasksList)) ? tasksList.find(function(x){ return x && x.task_id === taskId; }) : null;
+    var clientName = '';
+    
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId));
+        if (res.ok) {
+            var d = await res.json();
+            if (d.ok && d.task) {
+                t = d.task;
+                clientName = d.client_name || '';
+            }
+        }
+    } catch(e) { console.error("fetch task error:", e); }
+    
+    if (!t) {
+        if (bodyEl) bodyEl.innerHTML = '<div class="py-12 text-center text-red-500 font-bold">⚠️ تعذّر العثور على بيانات المهمة (' + esc(taskId) + ')</div>';
+        return;
+    }
+    
+    var postSeq = t.post_number_in_plan || t.post_number || (typeof getTaskSequenceNum === 'function' ? getTaskSequenceNum(t) : 1);
+    var st = t.status || 'Pending AM Approval';
+    var stLabel = (st === 'Completed') ? 'معتمد ومكتمل ✅' :
+                  (st === 'Awaiting AM Review') ? 'بانتظار مراجعة AM ⏳' :
+                  (st === 'In Progress') ? 'جاري العمل 🚀' :
+                  (st === 'Assigned') ? 'مسندة للموظف 👤' : 'بانتظار موافقة AM 📌';
+    var stBadgeClass = (st === 'Completed') ? 'bg-emerald-100 text-emerald-800' :
+                       (st === 'In Progress') ? 'bg-blue-100 text-blue-800' :
+                       (st === 'Awaiting AM Review') ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700';
+    
+    if (tIdEl) tIdEl.textContent = t.task_id;
+    if (postSeqEl) postSeqEl.textContent = '#' + postSeq;
+    if (stEl) {
+        stEl.className = 'text-xs font-bold px-2.5 py-1 rounded-full ' + stBadgeClass;
+        stEl.textContent = stLabel;
+    }
+    if (clientEl) {
+        var cName = clientName || (typeof _clientNameMap === 'function' ? _clientNameMap(t.client_id) : (t.client_name || t.client_id || ''));
+        clientEl.textContent = '🏢 ' + cName;
+    }
+    
+    var driveLink = (t.drive_link || t.google_drive_link || t.submission_link || t.drive_url || '').trim();
+    var rawNotes = (t.notes || t.note || t.delivery_notes || t.deliverables || '').trim();
+    
+    var delivHtml = '';
+    if (driveLink || rawNotes || (t.delivery_files && t.delivery_files.length)) {
+        delivHtml = '<div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 space-y-2.5">' +
+            '<div class="flex items-center justify-between"><span class="font-bold text-xs text-emerald-900 flex items-center gap-1.5">📦 تسليمات وإنجاز الموظف:</span><span class="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Google Drive</span></div>';
+        if (driveLink) {
+            delivHtml += '<div class="flex items-center gap-2 flex-wrap">' +
+                '<a href="' + esc(driveLink) + '" target="_blank" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl shadow-xs transition text-xs"><span>📁 فتح مجلد / ملف التسليم على Drive ↗️</span></a>' +
+                '<button onclick="navigator.clipboard.writeText(\'' + esc(driveLink) + '\');showToast(\'تم نسخ الرابط ✅\')" class="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-xl font-bold transition text-xs"><span>📋 نسخ الرابط</span></button>' +
+            '</div>';
+        }
+        if (rawNotes) {
+            delivHtml += '<div class="bg-white/90 p-2.5 rounded-xl border border-emerald-100 text-slate-800 space-y-0.5"><div class="text-[10px] text-slate-500 font-bold">📝 ملاحظات الموظف عند التسليم:</div><div class="font-semibold whitespace-pre-line">' + esc(rawNotes) + '</div></div>';
+        }
+        delivHtml += '</div>';
+    }
+    
+    var logsHtml = '';
+    var logs = (t.activity_log || []);
+    if (logs && logs.length) {
+        logsHtml = '<div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">' +
+            '<div class="font-bold text-xs text-slate-800">📜 سجل كل العمليات والمواعيد (' + logs.length + '):</div>' +
+            '<div class="space-y-1.5 max-h-44 overflow-y-auto pr-1 text-[11px]">';
+        logs.forEach(function(l) {
+            var at = l.at ? l.at.replace('T', ' ').substring(0, 19) : '-';
+            var by = l.by ? ' بواسطة <b>' + esc(l.by) + '</b>' : '';
+            var desc = l.description || l.action || 'عملية';
+            logsHtml += '<div class="bg-white p-2 rounded-xl border border-slate-100 flex items-start justify-between gap-2 shadow-2xs">' +
+                '<div><span class="font-bold text-slate-800">' + esc(desc) + '</span><span class="text-slate-500">' + by + '</span></div>' +
+                '<span class="text-[10px] font-mono text-slate-400 whitespace-nowrap shrink-0">' + at + '</span>' +
+            '</div>';
+        });
+        logsHtml += '</div></div>';
+    }
+    
+    var refHtml = '';
+    var imgs = (t.media_urls || []);
+    if (imgs && imgs.length) {
+        refHtml = '<div class="space-y-1.5">' +
+            '<div class="font-bold text-xs text-slate-700">🖼️ صور ومراجع البوست:</div>' +
+            '<div class="flex gap-2 flex-wrap">';
+        imgs.forEach(function(img) {
+            var thumb = (typeof driveThumb === 'function') ? driveThumb(img) : img;
+            refHtml += '<a href="' + esc(img) + '" target="_blank" class="block group relative">' +
+                '<img src="' + esc(thumb) + '" class="w-16 h-16 rounded-xl object-cover border border-slate-200 shadow-2xs group-hover:scale-105 transition" onerror="this.style.display=\'none\'">' +
+            '</a>';
+        });
+        refHtml += '</div></div>';
+    }
+    
+    bodyEl.innerHTML = '<div class="space-y-4">' +
+        '<div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">' +
+            '<div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">عنوان المنشور / البوست:</div>' +
+            '<h3 class="font-bold text-base text-slate-900 leading-snug">' + esc(t.title || 'بدون عنوان') + '</h3>' +
+            (t.plan_name ? ('<div class="text-xs text-blue-600 font-bold">📄 الخطة: ' + esc(t.plan_name) + '</div>') : '') +
+        '</div>' +
+        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' +
+            '<div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl space-y-1">' +
+                '<div class="text-[10px] text-slate-500 font-bold">👤 الموظف المسند إليه:</div>' +
+                '<div class="font-bold text-xs text-slate-800">' + esc(t.assignee_name || 'غير مسند بعد') + '</div>' +
+            '</div>' +
+            '<div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl space-y-1">' +
+                '<div class="text-[10px] text-slate-500 font-bold">⏰ موعد التسليم:</div>' +
+                '<div class="font-mono font-bold text-xs text-amber-800">' + esc(t.delivery_deadline || t.publish_date || 'غير محدد') + '</div>' +
+            '</div>' +
+        '</div>' +
+        (t.caption ? ('<div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-1.5">' +
+            '<div class="text-[10px] text-slate-500 font-bold">✍️ نص الكابشن (Caption):</div>' +
+            '<div class="text-xs text-slate-800 whitespace-pre-line leading-relaxed">' + esc(t.caption) + '</div>' +
+        '</div>') : '') +
+        (t.visual_idea ? ('<div class="bg-purple-50/70 border border-purple-200 rounded-2xl p-3.5 space-y-1">' +
+            '<div class="text-[10px] text-purple-900 font-bold">🎨 التخيل / فكرة الجرافيك (Visual Idea):</div>' +
+            '<div class="text-xs text-purple-950 whitespace-pre-line">' + esc(t.visual_idea) + '</div>' +
+        '</div>') : '') +
+        (t.review_note ? ('<div class="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 space-y-1">' +
+            '<div class="text-[10px] text-amber-900 font-bold">📝 ملاحظة مراجعة الأكونت مانيجر:</div>' +
+            '<div class="text-xs text-amber-950 whitespace-pre-line">' + esc(t.review_note) + '</div>' +
+        '</div>') : '') +
+        delivHtml +
+        refHtml +
+        logsHtml +
+    '</div>';
+}
+
+function closeTaskDetailsModal() {
+    var modal = document.getElementById('task-details-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function goToTaskOnBoard() {
+    closeTaskDetailsModal();
+    if (typeof go === 'function') {
+        var btn = document.getElementById('nav-tasks');
+        go('tasks', btn);
+    }
+    setTimeout(function() {
+        if (typeof loadTasksEngine === 'function') loadTasksEngine();
+    }, 150);
+}
+
+window.openTaskDetailsModal = openTaskDetailsModal;
+window.closeTaskDetailsModal = closeTaskDetailsModal;
+window.goToTaskOnBoard = goToTaskOnBoard;

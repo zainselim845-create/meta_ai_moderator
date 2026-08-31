@@ -8532,6 +8532,17 @@ def _owner_chat():
     return os.environ.get("OWNER_TELEGRAM_CHAT_ID", "1693828086")
 
 
+@app.route("/api/tasks/<task_id>", methods=["GET"])
+@auth_guard
+def api_get_task_details(task_id):
+    sync_from_supabase()
+    t, cid = _find_task_any_client(task_id)
+    if not t:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+    client_name = _client_name(cid)
+    return jsonify({"ok": True, "task": t, "client_id": cid, "client_name": client_name})
+
+
 @app.route("/api/me/tasks/<task_id>/start", methods=["POST"])
 @auth_guard
 def api_my_task_start(task_id):
