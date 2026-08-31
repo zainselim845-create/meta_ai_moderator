@@ -2337,9 +2337,10 @@ async function updateTaskStatusAction(taskId, newStatus, empId, notes) {
 
 var _planQuill = null;
 async function loadPlanBuilder() {
-    var cSel = document.getElementById('pb-client');
+    var cInput = document.getElementById('pb-client');
+    var dlist = document.getElementById('pb-clients-list');
     var mSel = document.getElementById('pb-am');
-    if (!cSel || !mSel) return;
+    if (!cInput || !mSel) return;
     // init the open-source rich-text (Word-like) editor once
     if (window.Quill && !_planQuill && document.getElementById('pb-editor')) {
         _planQuill = new Quill('#pb-editor', {
@@ -2352,24 +2353,30 @@ async function loadPlanBuilder() {
         // assigned to clients, so /api/clients would return empty for them)
         var cd = await (await fetch('/api/plan/clients')).json();
         var clients = Array.isArray(cd) ? cd : (cd.clients || []);
-        cSel.innerHTML = clients.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('') || '<option value="">لا يوجد عملاء</option>';
+        window._planClientsCache = clients;
+        if (dlist) {
+            dlist.innerHTML = clients.map(function(c){ return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('');
+        }
+        if (cInput.tagName === 'SELECT') {
+            cInput.innerHTML = '<option value="">اختر أو اكتب اسم العميل...</option>' + clients.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('');
+        }
     } catch(e){}
     try {
         var md = await (await fetch('/api/managers')).json();
         var ms = md.managers || [];
-        mSel.innerHTML = '<option value="">— بدون —</option>' + ms.map(function(m){ return '<option value="' + esc(m.employee_id) + '">' + esc(m.name) + '</option>'; }).join('');
+        mSel.innerHTML = '<option value="">— بدون إسناد مباشر —</option>' + ms.map(function(m){ return '<option value="' + esc(m.employee_id) + '">' + esc(m.name) + '</option>'; }).join('');
     } catch(e){}
 }
 
 async function uploadPlanImage(input) {
     var files = input && input.files ? Array.from(input.files) : [];
     if (!files.length) return;
-    var client_id = (document.getElementById('pb-client') || {}).value || '';
+    var clientInput = ((document.getElementById('pb-client') || {}).value || '').trim();
     showToast('جاري رفع الصورة على Drive... ⏳');
     for (var i = 0; i < files.length; i++) {
         var fd = new FormData();
         fd.append('file', files[i]);
-        if (client_id) fd.append('client_id', client_id);
+        if (clientInput) fd.append('client_id', clientInput);
         try {
             var res = await fetch('/api/plan/upload-image', { method: 'POST', body: fd });
             var data = await res.json();
@@ -2387,16 +2394,30 @@ async function uploadPlanImage(input) {
 }
 
 async function createPlan() {
-    var client_id = (document.getElementById('pb-client')||{}).value || '';
+    var clientInput = ((document.getElementById('pb-client')||{}).value || '').trim();
+    var planName = ((document.getElementById('pb-plan-name')||{}).value || '').trim();
     var am = (document.getElementById('pb-am')||{}).value || '';
     var txt = _planQuill ? _planQuill.getText().trim() : (((document.getElementById('pb-text')||{}).value) || '').trim();
-    if (!client_id) { showToast('اختر العميل', 'error'); return; }
-    if (!txt) { showToast('اكتب البلان', 'error'); return; }
-    showToast('جاري إنشاء البلان... ⏳');
+    if (!clientInput) { showToast('اكتب أو اختر اسم العميل', 'error'); return; }
+    if (!txt) { showToast('اكتب محتوى البلان', 'error'); return; }
+    
+    // Check if client matches an existing ID
+    var matchedClient = (window._planClientsCache || []).find(function(c) {
+        return c.name.toLowerCase() === clientInput.toLowerCase() || c.id === clientInput;
+    });
+    var clientId = matchedClient ? matchedClient.id : clientInput;
+    
+    showToast('جاري إنشاء البلان وإدراجه في دورة العمل... ⏳');
     try {
         var res = await fetch('/api/plan/create', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client_id: client_id, am_employee_id: am, plan_text: txt })
+            body: JSON.stringify({
+                client_id: clientId,
+                client_name: clientInput,
+                plan_name: planName,
+                am_employee_id: am,
+                plan_text: txt
+            })
         });
         var data = await res.json();
         if (res.ok && data.ok) {
@@ -2406,15 +2427,19 @@ async function createPlan() {
                 var amMsg = data.am_notified ? ('واتبعت للأكونت مانيجر <b>' + esc(data.am_name || '') + '</b> على التليجرام ✅')
                     : (data.am_has_telegram === false ? ('⚠️ الأكونت مانيجر <b>' + esc(data.am_name || '') + '</b> مالوش تليجرام في الشيت')
                     : ('⚠️ اتعمل البلان بس الرسالة موصلتش لـ <b>' + esc(data.am_name || '') + '</b> (لازم يعمل Start لبوت المهام)'));
-                box.innerHTML = 'تم إنشاء <b>' + data.created + '</b> بوست، ' + amMsg + '<br>' +
-                    '<div class="mt-2 flex items-center gap-2"><span class="text-slate-500">لينك المشاركة برا السيستم:</span>' +
-                    '<input value="' + esc(data.share_url) + '" readonly class="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-[11px]" onclick="this.select()">' +
-                    '<button onclick="navigator.clipboard.writeText(\'' + esc(data.share_url) + '\');showToast(\'اتنسخ ✅\')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">نسخ</button></div>';
+                box.innerHTML = '🎉 تم إنشاء البلان بنجاح: <b>' + data.created + '</b> بوست للعميل <b>' + esc(data.client_name || clientInput) + '</b>، ' + amMsg + '<br>' +
+                    '<div class="mt-2 flex items-center gap-2 flex-wrap"><span class="text-slate-500 text-xs font-bold">🔗 لينك المشاركة برا السيستم:</span>' +
+                    '<input value="' + esc(data.share_url) + '" readonly class="flex-1 min-w-[200px] px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono" onclick="this.select()">' +
+                    '<button onclick="navigator.clipboard.writeText(\'' + esc(data.share_url) + '\');showToast(\'تم نسخ الرابط ✅\')" class="text-xs px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition">نسخ الرابط</button></div>';
             }
             if (_planQuill) _planQuill.setText('');
-            loadTasksEngine();
+            if (document.getElementById('pb-plan-name')) document.getElementById('pb-plan-name').value = '';
+            showToast('تم إنشاء البلان وإدراج المهام بنجاح! 🚀', 'success');
+            if (typeof loadClientsList === 'function') loadClientsList();
+            if (typeof loadPlanBuilder === 'function') loadPlanBuilder();
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
         } else { showToast(data.error || 'تعذّر الإنشاء', 'error'); }
-    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+    } catch(e) { showToast('خطأ في الاتصال بالسيرفر', 'error'); }
 }
 
 async function extractTextFromDocxClient(file) {

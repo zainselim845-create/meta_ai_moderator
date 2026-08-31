@@ -7205,13 +7205,45 @@ def api_plan_create():
     if not (is_manager() or ("plan" in (current_user_rec().get("allowed_tabs") or []))):
         return jsonify({"error": "غير مصرح لك ببناء البلان"}), 403
     data = request.get_json() or {}
-    client_id = (data.get("client_id") or "").strip()
+    client_input = (data.get("client_name") or data.get("client_id") or "").strip()
     am_id = (data.get("am_employee_id") or "").strip()
     plan_text = (data.get("plan_text") or "").strip()
-    if not client_id or not _is_real_client(client_id):
-        return jsonify({"error": "اختر عميلاً صحيحاً"}), 400
+    plan_title = (data.get("plan_name") or data.get("title") or "").strip()
+    
+    if not client_input:
+        return jsonify({"error": "يرجى كتابة أو اختيار اسم العميل"}), 400
     if not plan_text:
-        return jsonify({"error": "اكتب البلان"}), 400
+        return jsonify({"error": "اكتب محتوى البلان"}), 400
+
+    sync_from_supabase()
+    # 1. Match existing client by ID or Name (case-insensitive)
+    client_id = None
+    target_client = None
+    for c in AGENCY_CLIENTS_STORE:
+        if str(c.get("id")) == client_input or str(c.get("name", "")).strip().lower() == client_input.lower():
+            client_id = str(c.get("id"))
+            target_client = c
+            break
+            
+    # 2. Auto-create new client on the fly if not found
+    if not client_id:
+        slug = re.sub(r"[^a-zA-Z0-9]", "", client_input.replace(" ", "_"))[:15].lower()
+        client_id = f"cli_{slug}_{int(time.time())}" if slug else f"cli_{int(time.time())}"
+        target_client = {
+            "id": client_id,
+            "name": client_input,
+            "company": client_input,
+            "package": "Business VIP",
+            "page_id": None,
+            "ig_id": None,
+            "status": "active",
+            "is_active": True,
+            "fb_connected": False,
+            "ig_connected": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        AGENCY_CLIENTS_STORE.append(target_client)
+        push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
 
     tasks = get_client_tasks(client_id)
     max_num = 0
@@ -7222,6 +7254,7 @@ def api_plan_create():
     counter = max_num + 1
     created = 0
     extracted_posts = _universal_extract_plan_posts(plan_text)
+    clean_pname = plan_title or f"خطة {target_client.get('name')}"
     for p_idx, p in enumerate(extracted_posts, 1):
         title = (p.get("title") or "منشور جديد").lstrip("-•*✅✍️ ").strip()[:140]
         caption = (p.get("caption") or title).strip()
@@ -7234,19 +7267,34 @@ def api_plan_create():
         
         ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower()]
         image_urls = [u for u in media_urls if u not in ref_links]
-        post_num = _resolve_post_number(p, default_index=p_idx)
+        post_num = p_idx
 
-        tasks.insert(0, {
-            "task_id": f"TASK-{counter:04d}", "post_number": post_num, "client_id": client_id, "title": title,
-            "description": caption or title, "caption": caption,
-            "status": "Pending AM Approval", "scheduled_start_date": "", "publish_date": pub_date,
+        new_t = {
+            "task_id": f"TASK-{counter:04d}",
+            "post_number": post_num,
+            "client_id": client_id,
+            "plan_name": clean_pname,
+            "file_name": clean_pname,
+            "title": title,
+            "description": caption or title,
+            "caption": caption,
+            "visual_idea": visual,
+            "status": "Pending AM Approval",
+            "scheduled_start_date": "",
+            "publish_date": pub_date,
             "publish_time": pub_time,
-            "delivery_deadline": dl_date, "am_id": am_id or "EMP-001", "assigned_employee_id": "",
-            "assignee_name": "", "media_urls": image_urls, "reference_links": ref_links,
-            "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls},
+            "delivery_deadline": dl_date,
+            "am_id": am_id or "EMP-001",
+            "assigned_employee_id": "",
+            "assignee_name": "",
+            "media_urls": image_urls,
+            "reference_links": ref_links,
+            "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls, "reference_links": ref_links},
             "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
-            "created_by": current_username(), "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+            "created_by": current_username(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        tasks.append(new_t)
         counter += 1
         created += 1
     save_client_tasks(tasks, client_id)
@@ -7271,6 +7319,7 @@ def api_plan_create():
     push_setting("meta_ai_plan_shares", shares)
     base = os.environ.get("PORTAL_URL", "https://metaaimoderator.vercel.app").rstrip("/")
     return jsonify({"ok": True, "created": created,
+                    "client_id": client_id, "client_name": target_client.get("name") or client_input,
                     "am_name": am_name, "am_notified": am_notified, "am_has_telegram": am_has_tg,
                     "share_url": f"{base}/share/plan/{client_id}?t={token}"})
 
