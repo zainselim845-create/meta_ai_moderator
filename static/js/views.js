@@ -3478,18 +3478,24 @@ async function openPlanBuilderModal() {
     modal.classList.remove('hidden');
 
     var clientInput = document.getElementById('pb-client-name');
-    var matched = (window.clientsList || []).find(function(c){ return c.id === currentClient || c.name === currentClient; });
+    var activeCName = '';
+    var clientNameEl = document.getElementById('tasks-client-name');
+    if (clientNameEl && clientNameEl.textContent) {
+        activeCName = clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim();
+    }
+    if (!activeCName) {
+        var matched = (window.clientsList || []).find(function(c){ return c.id === currentClient || c.name === currentClient; });
+        activeCName = matched ? matched.name : (currentClient || 'Domya Marketing Agency');
+    }
     if (clientInput) {
-        if (!clientInput.value || clientInput.value.trim() === 'كم') {
-            clientInput.value = matched ? matched.name : (currentClient || 'Domya Marketing Agency');
-        }
+        clientInput.value = activeCName;
     }
 
     var planNameInput = document.getElementById('pb-plan-name');
-    if (planNameInput && !planNameInput.value) {
+    if (planNameInput) {
         var d = new Date();
         var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-        planNameInput.value = 'خطة محتوى ' + months[d.getMonth()] + ' ' + d.getFullYear();
+        planNameInput.value = 'خطة ' + activeCName + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
     }
 
     // Load real AMs from API
@@ -3657,8 +3663,10 @@ async function submitPlanBuilder() {
         return;
     }
 
-    var clientName = ((document.getElementById('pb-client-name') || {}).value || '').trim();
-    var planName = ((document.getElementById('pb-plan-name') || {}).value || 'خطة محتوى جديدة').trim();
+    var clientNameEl = document.getElementById('tasks-client-name');
+    var activeCName = (clientNameEl ? clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim() : '') || 'Domya Marketing Agency';
+    var clientName = ((document.getElementById('pb-client-name') || {}).value || '').trim() || activeCName;
+    var planName = ((document.getElementById('pb-plan-name') || {}).value || ('خطة ' + clientName)).trim();
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
 
     var structuredPosts = [];
