@@ -8249,16 +8249,27 @@ def api_tasks_reindex_and_sort():
     for cid in client_ids:
         c_tasks = get_client_tasks(cid)
         if c_tasks:
+            # Group tasks by plan inside this client so every plan starts from 1..N
+            by_plan = {}
+            for t in c_tasks:
+                pkey = str(t.get("plan_name") or t.get("file_name") or "خطة عامة").strip()
+                by_plan.setdefault(pkey, []).append(t)
+            
+            for pkey, ptasks in by_plan.items():
+                ptasks.sort(key=_natural_task_sort_key)
+                for idx, task in enumerate(ptasks, 1):
+                    task["post_number"] = idx
+                    if not task.get("delivery_deadline") and task.get("publish_date"):
+                        task["delivery_deadline"] = task.get("publish_date")
+            
             c_tasks.sort(key=_natural_task_sort_key)
-            for idx, task in enumerate(c_tasks, 1):
-                task["post_number"] = _resolve_post_number(task, default_index=idx)
             save_client_tasks(c_tasks, cid)
             reindexed_count += len(c_tasks)
             
     return jsonify({
         "success": True,
         "ok": True,
-        "message": f"تم تطبيق الترتيب الطبيعي والتنظيم بنجاح على {reindexed_count} مهمة في قاعدة البيانات 🚀",
+        "message": f"تم تطبيق الترقيم الداخلي لكل خطة والترتيب بنجاح على {reindexed_count} مهمة في قاعدة البيانات 🚀",
         "reindexed_count": reindexed_count,
         "clients_count": len(client_ids)
     })
