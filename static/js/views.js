@@ -1,6 +1,15 @@
-/* Domya AI Moderator - Views Module (Part 1) */
-
 /* Domya AI Moderator - Views Module */
+
+function formatGoogleDriveViewLink(url) {
+    if (!url) return '';
+    var str = String(url).trim();
+    var m = str.match(/id=([a-zA-Z0-9_\-]+)/i) || str.match(/\/d\/([a-zA-Z0-9_\-]+)/i);
+    if (m && m[1] && str.indexOf('google.com') !== -1) {
+        return 'https://drive.google.com/file/d/' + m[1] + '/view';
+    }
+    return str;
+}
+window.formatGoogleDriveViewLink = formatGoogleDriveViewLink;
 
 async function loadStats(){
     try {
@@ -1506,21 +1515,22 @@ function renderTaskCard(t, indexInPlan) {
             '</div>';
 
         if (driveLink) {
-            var isVid = (t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(driveLink));
+            var viewUrl = formatGoogleDriveViewLink(driveLink);
+            var isVid = (t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(driveLink) || viewUrl.includes('/file/d/'));
             deliverablesBox += '<div class="bg-emerald-50/90 border border-emerald-200 rounded-xl p-2.5 space-y-2 shadow-2xs">' +
                 '<div class="flex items-center justify-between gap-1 flex-wrap">' +
-                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">' + (isVid ? '🎬 فيديو المخرجات المسلّم:' : '📁 رابط تسليمات المهمة:') + '</span>' +
-                    '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">محفوظ بالملف ✅</span>' +
+                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">' + (isVid ? '🎬 فيديو المخرجات على Drive:' : '📁 رابط تسليمات المهمة:') + '</span>' +
+                    '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">جاهز للشاهدة ✅</span>' +
                 '</div>' +
                 '<div class="flex items-center gap-1.5">' +
-                    '<a href="' + esc(driveLink) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3 rounded-lg transition flex items-center justify-center gap-1.5 shadow-xs">' +
-                        '<span>' + (isVid ? '▶️ تشغيل / فتح الفيديو ↗️' : '↗️ فتح ملف التسليم ↗️') + '</span>' +
+                    '<a href="' + esc(viewUrl) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3 rounded-lg transition flex items-center justify-center gap-1.5 shadow-xs">' +
+                        '<span>' + (isVid ? '▶️ تشغيل الفيديو على Google Drive ↗️' : '↗️ فتح ملف التسليم ↗️') + '</span>' +
                     '</a>' +
-                    '<button type="button" onclick="copyTaskDriveLink(\'' + esc(driveLink) + '\')" class="bg-white hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-1.5 px-3 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-xs">' +
+                    '<button type="button" onclick="copyTaskDriveLink(\'' + esc(viewUrl) + '\')" class="bg-white hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-1.5 px-3 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-xs">' +
                         '<span>📋 نسخ الرابط</span>' +
                     '</button>' +
                 '</div>' +
-                '<div class="text-[10px] font-mono text-slate-500 truncate bg-white/80 p-1.5 rounded-md border border-emerald-100 select-all" title="' + esc(driveLink) + '">' + esc(driveLink) + '</div>' +
+                '<div class="text-[10px] font-mono text-slate-500 truncate bg-white/80 p-1.5 rounded-md border border-emerald-100 select-all" title="' + esc(viewUrl) + '">' + esc(viewUrl) + '</div>' +
             '</div>';
         }
 

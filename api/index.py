@@ -5948,7 +5948,7 @@ def drive_upload_bytes(name, data, mime, parent_url=None, parent_id=None):
             urllib.request.urlopen(perm, timeout=15).read()
         except Exception as e:
             print(f"[drive perm] {e}")
-        return f"https://drive.google.com/uc?export=view&id={fid}"
+        return f"https://drive.google.com/file/d/{fid}/view"
     except Exception as e:
         print(f"[drive upload] {e}")
         return None
@@ -7620,7 +7620,7 @@ def api_task_upload_complete(task_id):
     token = get_google_oauth_access_token()
     if token:
         _drive_set_anyone_reader(token, fid)
-    link = f"https://drive.google.com/uc?export=view&id={fid}"
+    link = f"https://drive.google.com/file/d/{fid}/view"
     mime = (request.get_json() or {}).get("mime", "")
     t["drive_link"] = link
     t.setdefault("media_urls", [])
