@@ -19,7 +19,7 @@
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <link href="/static/css/styles.css?v=9.36" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=9.37" rel="stylesheet"/>
   <style>
    /* Plan editor: each paragraph auto-directions by its own language (Arabic → RTL, English → LTR) */
    #pb-editor .ql-editor { direction: rtl; text-align: right; }
@@ -1304,18 +1304,96 @@
       </div>
      </div>
 
-     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-      <h4 class="font-bold text-sm text-slate-900 mb-3 flex items-center gap-2">
-       <i class="w-4 h-4 text-blue-600" data-lucide="clock"></i>
-       <span>آخر سجلات الحضور والانصراف</span>
-      </h4>
-      <div class="overflow-x-auto">
+     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+      <div class="flex items-center justify-between flex-wrap gap-3 border-b border-slate-100 pb-4">
+       <div>
+        <h4 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+         <i class="w-4 h-4 text-blue-600" data-lucide="clock"></i>
+         <span>سجلات الحضور والانصراف بالتفصيل</span>
+        </h4>
+        <p class="text-xs text-slate-500 mt-0.5">استعراض وتصفية سجلات حضور وانصراف الموظفين شهراً بشهر مع إحصائيات الدقة والالتزام.</p>
+       </div>
+
+       <!-- Month Navigation Controls -->
+       <div class="flex items-center gap-1.5 flex-wrap bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+        <button type="button" onclick="shiftHrAttMonth(-1)" class="text-xs px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-lg border border-slate-200 shadow-2xs transition" title="الشهر السابق">
+         ◀ السابق
+        </button>
+        <input type="month" id="hr-att-month" onchange="loadHrAttendanceTable()" class="text-xs font-bold px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-slate-800 shadow-2xs focus:ring-2 focus:ring-blue-500 focus:outline-none"/>
+        <button type="button" onclick="shiftHrAttMonth(1)" class="text-xs px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-lg border border-slate-200 shadow-2xs transition" title="الشهر التالي">
+         التالي ▶
+        </button>
+        <button type="button" onclick="setHrAttCurrentMonth()" class="text-xs px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 shadow-2xs transition">
+         الشهر الحالي 📅
+        </button>
+        <button type="button" onclick="loadHrAttendanceTable()" class="text-xs px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-2xs transition inline-flex items-center gap-1">
+         <i class="w-3.5 h-3.5" data-lucide="refresh-cw"></i> تحديث
+        </button>
+       </div>
+      </div>
+
+      <!-- Filters Bar: Employee, Status, Search -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-slate-50/70 p-3 rounded-xl border border-slate-200">
+       <div>
+        <label class="text-[11px] font-bold text-slate-600 block mb-1">👤 تصفية بالموظف:</label>
+        <select id="hr-att-emp-select" onchange="renderHrAttendanceTable()" class="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-slate-800">
+         <option value="">كل الموظفين</option>
+        </select>
+       </div>
+       <div>
+        <label class="text-[11px] font-bold text-slate-600 block mb-1">📊 حالة الحضور:</label>
+        <select id="hr-att-status-select" onchange="renderHrAttendanceTable()" class="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-slate-800">
+         <option value="">كل الحالات</option>
+         <option value="حاضر">حاضر في الموعد ✅</option>
+         <option value="متأخر">متأخر 🟡</option>
+         <option value="غياب">غياب 🔴</option>
+        </select>
+       </div>
+       <div>
+        <label class="text-[11px] font-bold text-slate-600 block mb-1">🔍 بحث سريع:</label>
+        <input type="text" id="hr-att-search" oninput="renderHrAttendanceTable()" placeholder="ابحث بالاسم أو التاريخ..." class="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-slate-800"/>
+       </div>
+      </div>
+
+      <!-- Monthly KPI Summary Chips -->
+      <div id="hr-att-summary-chips" class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+       <div class="bg-slate-100 border border-slate-200 p-2 rounded-xl">
+        <div class="text-[10px] text-slate-500 font-bold">إجمالي السجلات</div>
+        <div id="hr-att-count-total" class="text-base font-bold text-slate-800 font-mono">0</div>
+       </div>
+       <div class="bg-emerald-50 border border-emerald-200 p-2 rounded-xl">
+        <div class="text-[10px] text-emerald-700 font-bold">حضور في الموعد</div>
+        <div id="hr-att-count-present" class="text-base font-bold text-emerald-700 font-mono">0</div>
+       </div>
+       <div class="bg-amber-50 border border-amber-200 p-2 rounded-xl">
+        <div class="text-[10px] text-amber-700 font-bold">مرات التأخير</div>
+        <div id="hr-att-count-late" class="text-base font-bold text-amber-700 font-mono">0</div>
+       </div>
+       <div class="bg-red-50 border border-red-200 p-2 rounded-xl">
+        <div class="text-[10px] text-red-700 font-bold">مرات الغياب</div>
+        <div id="hr-att-count-absent" class="text-base font-bold text-red-700 font-mono">0</div>
+       </div>
+       <div class="bg-indigo-50 border border-indigo-200 p-2 rounded-xl col-span-2 sm:col-span-1">
+        <div class="text-[10px] text-indigo-700 font-bold">إجمالي الساعات</div>
+        <div id="hr-att-count-hours" class="text-base font-bold text-indigo-700 font-mono">0 ساعة</div>
+       </div>
+      </div>
+
+      <div class="overflow-x-auto border border-slate-200 rounded-xl">
        <table class="w-full text-right text-xs">
-        <thead class="bg-slate-50 text-slate-600">
-         <tr><th class="p-3">التاريخ</th><th class="p-3">الموظف</th><th class="p-3">حضور</th><th class="p-3">انصراف</th><th class="p-3">ساعات</th><th class="p-3">الحالة</th></tr>
+        <thead class="bg-slate-50 text-slate-700 border-b border-slate-200">
+         <tr>
+          <th class="p-3">التاريخ</th>
+          <th class="p-3">الموظف</th>
+          <th class="p-3 text-center">تسجيل الحضور</th>
+          <th class="p-3 text-center">تسجيل الانصراف</th>
+          <th class="p-3 text-center">ساعات العمل</th>
+          <th class="p-3 text-center">المسافة / الموقع</th>
+          <th class="p-3 text-center">الحالة</th>
+         </tr>
         </thead>
         <tbody id="hr-attendance-body" class="divide-y divide-slate-100">
-         <tr><td colspan="6" class="p-4 text-center text-slate-400">جارِ التحميل...</td></tr>
+         <tr><td colspan="7" class="p-4 text-center text-slate-400">جارِ تحميل سجلات الحضور...</td></tr>
         </tbody>
        </table>
       </div>
@@ -1524,15 +1602,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=9.36">
+  <script src="/static/js/app.js?v=9.37">
   </script>
-  <script src="/static/js/inbox.js?v=9.36">
+  <script src="/static/js/inbox.js?v=9.37">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=9.36">
+  <script src="/static/js/chatwoot_free.js?v=9.37">
   </script>
-  <script src="/static/js/views.js?v=9.36">
+  <script src="/static/js/views.js?v=9.37">
   </script>
-  <script src="/static/js/clients.js?v=9.36">
+  <script src="/static/js/clients.js?v=9.37">
   </script>
  
   <!-- Modal: Add New Connected Account -->

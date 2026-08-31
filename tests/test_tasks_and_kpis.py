@@ -9,6 +9,7 @@ from api.index import (
     _natural_task_sort_key,
     _append_task_log,
     _consolidate_and_merge_post_fragments,
+    _matches_month,
 )
 
 # =====================================================================
@@ -174,3 +175,22 @@ def test_submissions_history_preserves_all_submitted_rounds():
     assert task['submissions_history'][0]['drive_link'] == 'https://drive.google.com/file/d/sample1'
     assert task['submissions_history'][1]['drive_link'] == 'https://drive.google.com/file/d/sample2_v2'
     assert 'تعديل الألوان' in task['submissions_history'][1]['notes']
+
+
+@pytest.mark.parametrize(
+    'date_str,month_filter,expected',
+    [
+        ('2026-08-31', '2026-08', True),
+        ('2026-08-01 10:00:00', '2026-08', True),
+        ('31/08/2026', '2026-08', True),
+        ('11/8/2026', '2026-08', True),
+        ('2026/08/15', '2026-08', True),
+        ('2026-07-31', '2026-08', False),
+        ('31/07/2026', '2026-08', False),
+        ('2025-08-15', '2026-08', False),
+        ('', '2026-08', False),
+        ('2026-08-10', '', True),
+    ],
+)
+def test_matches_month_handles_various_date_formats(date_str, month_filter, expected):
+    assert _matches_month(date_str, month_filter) == expected

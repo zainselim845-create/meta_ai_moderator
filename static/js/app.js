@@ -379,11 +379,18 @@ function setApprovalMode(mode) {
   showToast(mode === 'auto' ? 'تم تفعيل الرد التلقائي الفوري ⚡' : 'تم تفعيل وضع المراجعة البشرية 👨‍💼');
 }
 
+window._hrAttendanceData = [];
+
 // ---- HR: company employees / attendance / payroll (from the company Google Sheet) ----
 async function loadHR() {
   const monthEl = document.getElementById('hr-month');
   const month = (monthEl && monthEl.value) ? monthEl.value : new Date().toISOString().slice(0,7);
   if (monthEl && !monthEl.value) monthEl.value = month;
+
+  // Sync attendance month picker if empty
+  const attMonthEl = document.getElementById('hr-att-month');
+  if (attMonthEl && !attMonthEl.value) attMonthEl.value = month;
+
   // Summary (payroll + performance)
   try {
     const d = await (await fetch('/api/hr/summary?month=' + month)).json();
@@ -413,22 +420,160 @@ async function loadHR() {
     const body = document.getElementById('hr-payroll-body');
     if (body) body.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">تعذّر تحميل بيانات الموظفين (تأكد إن شيت الشركة مشارَك "أي شخص لديه الرابط")</td></tr>';
   }
-  // Attendance log
-  try {
-    const d = await (await fetch('/api/hr/attendance?month=' + month)).json();
-    const rows = (d.attendance || []).slice(0,50);
-    const body = document.getElementById('hr-attendance-body');
-    if (body) body.innerHTML = rows.length ? rows.map(r=>`
-      <tr class="hover:bg-slate-50">
-        <td class="p-3 font-mono text-slate-500">${esc(r.date||'')}</td>
-        <td class="p-3 font-bold text-slate-900">${esc(r.name||r.employee_id||'')}</td>
-        <td class="p-3 text-center">${esc(r.checkin_time||'-')}</td>
-        <td class="p-3 text-center">${esc(r.checkout_time||'-')}</td>
-        <td class="p-3 text-center">${esc(r.hours||'0')}</td>
-        <td class="p-3">${esc(r.status||r.action||'')}</td>
-      </tr>`).join('') : '<tr><td colspan="6" class="p-4 text-center text-slate-400">لا يوجد سجلات حضور لهذا الشهر</td></tr>';
-  } catch(e) {}
+  
+  // Load Attendance log with dedicated month
+  await loadHrAttendanceTable();
   if (window.lucide) lucide.createIcons();
+}
+
+async function loadHrAttendanceTable(customMonth) {
+  const monthEl = document.getElementById('hr-att-month');
+  let month = customMonth || (monthEl && monthEl.value) || new Date().toISOString().slice(0,7);
+  if (monthEl) monthEl.value = month;
+
+  const tbody = document.getElementById('hr-attendance-body');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">جارِ تحميل سجلات شهر ' + esc(month) + '... ⏳</td></tr>';
+
+  try {
+    const res = await fetch('/api/hr/attendance?month=' + encodeURIComponent(month));
+    const d = await res.json();
+    window._hrAttendanceData = (d && d.attendance) ? d.attendance : [];
+
+    // Populate employee filter dropdown
+    const empSelect = document.getElementById('hr-att-emp-select');
+    if (empSelect) {
+      const currentVal = empSelect.value;
+      const empMap = {};
+      window._hrAttendanceData.forEach(r => {
+        const id = (r.employee_id || '').trim();
+        const name = (r.name || id).trim();
+        if (id || name) empMap[id || name] = name;
+      });
+      let opts = '<option value="">كل الموظفين (' + Object.keys(empMap).length + ')</option>';
+      Object.keys(empMap).sort().forEach(k => {
+        opts += `<option value="${esc(k)}">${esc(empMap[k])}</option>`;
+      });
+      empSelect.innerHTML = opts;
+      if (currentVal && empMap[currentVal]) empSelect.value = currentVal;
+    }
+
+    renderHrAttendanceTable(d.summary);
+  } catch(e) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">تعذّر تحميل سجلات الحضور لهذا الشهر</td></tr>';
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderHrAttendanceTable(serverSummary) {
+  const tbody = document.getElementById('hr-attendance-body');
+  if (!tbody) return;
+
+  const empFilter = (document.getElementById('hr-att-emp-select')?.value || '').toLowerCase().trim();
+  const statusFilter = (document.getElementById('hr-att-status-select')?.value || '').toLowerCase().trim();
+  const searchFilter = (document.getElementById('hr-att-search')?.value || '').toLowerCase().trim();
+
+  let filtered = (window._hrAttendanceData || []).filter(r => {
+    if (empFilter) {
+      const id = String(r.employee_id || '').toLowerCase();
+      const name = String(r.name || '').toLowerCase();
+      if (id !== empFilter && name !== empFilter && !id.includes(empFilter) && !name.includes(empFilter)) return false;
+    }
+    if (statusFilter) {
+      const st = String(r.status || r.action || '').toLowerCase();
+      if (!st.includes(statusFilter)) return false;
+    }
+    if (searchFilter) {
+      const allText = (String(r.name||'') + ' ' + String(r.employee_id||'') + ' ' + String(r.date||'') + ' ' + String(r.status||'')).toLowerCase();
+      if (!allText.includes(searchFilter)) return false;
+    }
+    return true;
+  });
+
+  // Calculate local summary metrics
+  let totalCount = filtered.length;
+  let presentCount = 0;
+  let lateCount = 0;
+  let absentCount = 0;
+  let totalHours = 0.0;
+
+  filtered.forEach(r => {
+    const st = String(r.status || r.action || '');
+    if (st.includes('حاضر')) presentCount++;
+    else if (st.includes('متأخر') || st.includes('تاخير')) lateCount++;
+    else if (st.includes('غياب')) absentCount++;
+
+    const h = parseFloat(String(r.hours || '0').replace(',', '.')) || 0;
+    totalHours += h;
+  });
+
+  // Update summary chips
+  const elTot = document.getElementById('hr-att-count-total');
+  const elPres = document.getElementById('hr-att-count-present');
+  const elLate = document.getElementById('hr-att-count-late');
+  const elAbs = document.getElementById('hr-att-count-absent');
+  const elHrs = document.getElementById('hr-att-count-hours');
+
+  if (elTot) elTot.textContent = totalCount;
+  if (elPres) elPres.textContent = presentCount;
+  if (elLate) elLate.textContent = lateCount;
+  if (elAbs) elAbs.textContent = absentCount;
+  if (elHrs) elHrs.textContent = totalHours.toFixed(1) + ' ساعة';
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 font-bold">لا توجد سجلات حضور تطابق التصفية المحددة</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => {
+    const st = String(r.status || r.action || 'حاضر');
+    let stBadge = '<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold text-[10px]">' + esc(st) + '</span>';
+    if (st.includes('حاضر')) {
+      stBadge = '<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold text-[10px]">حاضر ✅</span>';
+    } else if (st.includes('متأخر') || st.includes('تاخير')) {
+      stBadge = '<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold text-[10px]">متأخر 🟡</span>';
+    } else if (st.includes('غياب')) {
+      stBadge = '<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold text-[10px]">غياب 🔴</span>';
+    }
+
+    const dist = (r.distance && r.distance !== '0m') ?
+      `<span class="text-[10px] text-slate-500 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">📍 ${esc(r.distance)}</span>` : '<span class="text-slate-400">—</span>';
+
+    const empName = esc(r.name || r.employee_id || 'موظف');
+    const empId = r.employee_id ? `<span class="text-[10px] font-mono text-slate-400 block">${esc(r.employee_id)}</span>` : '';
+    const hrs = r.hours ? `${esc(r.hours)} س` : '<span class="text-slate-400">—</span>';
+
+    return `
+      <tr class="hover:bg-slate-50 transition">
+        <td class="p-3 font-mono font-bold text-slate-700">${esc(r.date||'')}</td>
+        <td class="p-3 font-bold text-slate-900">${empName} ${empId}</td>
+        <td class="p-3 text-center font-mono font-bold text-slate-800">${esc(r.checkin_time||'-')}</td>
+        <td class="p-3 text-center font-mono text-slate-600">${esc(r.checkout_time||'-')}</td>
+        <td class="p-3 text-center font-mono font-bold text-indigo-700">${hrs}</td>
+        <td class="p-3 text-center">${dist}</td>
+        <td class="p-3 text-center">${stBadge}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function shiftHrAttMonth(delta) {
+  const monthEl = document.getElementById('hr-att-month');
+  const current = (monthEl && monthEl.value) ? monthEl.value : new Date().toISOString().slice(0,7);
+  const parts = current.split('-');
+  let y = parseInt(parts[0], 10);
+  let m = parseInt(parts[1], 10) + delta;
+  if (m < 1) { m = 12; y--; }
+  else if (m > 12) { m = 1; y++; }
+  const nextMonth = y + '-' + (m < 10 ? '0' + m : m);
+  if (monthEl) monthEl.value = nextMonth;
+  loadHrAttendanceTable(nextMonth);
+}
+
+function setHrAttCurrentMonth() {
+  const nowMonth = new Date().toISOString().slice(0,7);
+  const monthEl = document.getElementById('hr-att-month');
+  if (monthEl) monthEl.value = nowMonth;
+  loadHrAttendanceTable(nowMonth);
 }
 
 // Adapt the UI to the logged-in user's role. Employees get a locked-down portal

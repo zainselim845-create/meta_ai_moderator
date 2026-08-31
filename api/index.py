@@ -7707,6 +7707,29 @@ def api_hr_employees():
     return jsonify({"employees": rows, "total": len(rows), "active": len(active)})
 
 
+def _matches_month(date_str, month_str):
+    if not month_str:
+        return True
+    if not date_str:
+        return False
+    d = str(date_str).strip()
+    m = str(month_str).strip()
+    if d.startswith(m):
+        return True
+    parts = m.split("-")
+    if len(parts) == 2:
+        y, mm = parts[0], parts[1]
+        try:
+            imm = str(int(mm))
+            if f"/{mm}/{y}" in d or f"-{mm}-{y}" in d or f"/{imm}/{y}" in d or f"-{imm}-{y}" in d:
+                return True
+        except Exception:
+            pass
+        if d.startswith(f"{y}/{mm}") or d.startswith(f"{y}-{mm}"):
+            return True
+    return False
+
+
 @app.route("/api/hr/attendance", methods=["GET"])
 @require_admin
 def api_hr_attendance():
@@ -7714,13 +7737,61 @@ def api_hr_attendance():
     rows = _gsheet_rows(cfg["sheet_id"], cfg["attendance_gid"])
     month = (request.args.get("month") or "").strip()  # YYYY-MM
     emp_id = (request.args.get("employee_id") or "").strip()
+    status_filter = (request.args.get("status") or "").strip()
+    
     if month:
-        rows = [r for r in rows if str(r.get("date", "")).startswith(month)]
+        rows = [r for r in rows if _matches_month(r.get("date", ""), month)]
     if emp_id:
-        rows = [r for r in rows if str(r.get("employee_id", "")) == emp_id]
-    # newest first
-    rows.sort(key=lambda r: str(r.get("date", "")), reverse=True)
-    return jsonify({"attendance": rows, "total": len(rows)})
+        rows = [r for r in rows if str(r.get("employee_id", "")).strip() == emp_id]
+    if status_filter:
+        rows = [r for r in rows if str(r.get("status", "")).strip() == status_filter]
+        
+    total_hours = 0.0
+    present_count = 0
+    late_count = 0
+    absent_count = 0
+    
+    for r in rows:
+        st = str(r.get("status", "")).strip()
+        if "حاضر" in st:
+            present_count += 1
+        elif "متأخر" in st or "تاخير" in st:
+            late_count += 1
+        elif "غياب" in st:
+            absent_count += 1
+            
+        hrs_val = str(r.get("hours", "")).strip()
+        if not hrs_val and r.get("checkin_time") and r.get("checkout_time"):
+            try:
+                t1 = datetime.strptime(str(r["checkin_time"]).strip(), "%H:%M:%S")
+                t2 = datetime.strptime(str(r["checkout_time"]).strip(), "%H:%M:%S")
+                diff_sec = max(0, (t2 - t1).total_seconds())
+                hrs_val = f"{diff_sec / 3600.0:.1f}"
+                r["hours"] = hrs_val
+            except Exception:
+                pass
+        if hrs_val:
+            try:
+                total_hours += float(hrs_val.replace(",", "."))
+            except Exception:
+                pass
+                
+    # Sort newest date + time first
+    rows.sort(key=lambda r: (str(r.get("date", "")), str(r.get("checkin_time", ""))), reverse=True)
+    
+    return jsonify({
+        "success": True,
+        "month": month,
+        "attendance": rows,
+        "total": len(rows),
+        "summary": {
+            "total": len(rows),
+            "present": present_count,
+            "late": late_count,
+            "absent": absent_count,
+            "total_hours": round(total_hours, 1)
+        }
+    })
 
 
 @app.route("/api/hr/payroll", methods=["GET"])
@@ -7755,7 +7826,7 @@ def api_hr_summary():
         if st not in ("active", "approved"):
             continue
         eid = str(e.get("employee_id", ""))
-        recs = [r for r in att if str(r.get("employee_id", "")) == eid and str(r.get("date", "")).startswith(month)]
+        recs = [r for r in att if str(r.get("employee_id", "")) == eid and _matches_month(r.get("date", ""), month)]
         worked = [r for r in recs if str(r.get("status", r.get("action", ""))).strip().lower() not in ("absent", "غياب")]
         absents = len(recs) - len(worked)
         late = sum(1 for r in recs if str(r.get("status", "")).strip().lower() in ("late", "متأخر"))
@@ -7949,7 +8020,7 @@ def api_my_attendance():
             if str(r.get("employee_id", "")) == eid]
     month = (request.args.get("month") or "").strip()
     if month:
-        rows = [r for r in rows if str(r.get("date", "")).startswith(month)]
+        rows = [r for r in rows if _matches_month(r.get("date", ""), month)]
     rows.sort(key=lambda r: str(r.get("date", "")), reverse=True)
     return jsonify({"attendance": rows, "employee_id": eid, "total": len(rows)})
 
