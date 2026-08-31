@@ -560,8 +560,8 @@ async function loadMyPortal() {
         ${canWork(t) ? `<div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2">
           <label class="cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-3 rounded-lg border border-sky-200">📤 ارفع شغلك (فيديو/تصميم)
             <input type="file" accept="image/*,video/*" class="hidden" onchange="uploadMyTaskAsset('${esc(t.task_id)}', this)"></label>
-          ${t.drive_link ? `<a href="${esc(t.drive_link)}" target="_blank" class="text-[11px] text-emerald-700 font-bold">📁 ملفك على Drive</a>` : '<span class="text-[10px] text-slate-400">الملف بيترفع على Drive تلقائياً</span>'}
-        </div>` : (t.drive_link ? `<a href="${esc(t.drive_link)}" target="_blank" class="text-[11px] text-emerald-700 font-bold">📁 ملفك على Drive</a>` : '')}
+          ${t.drive_link ? `<div class="flex items-center gap-1.5 flex-wrap"><a href="${esc(t.drive_link)}" target="_blank" class="text-[11px] text-emerald-700 font-bold hover:underline">📁 فتح ملف التسليم (Drive)</a><button type="button" onclick="copyTaskDriveLink('${esc(t.drive_link)}')" class="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-bold hover:bg-emerald-100">📋 نسخ الرابط</button></div>` : '<span class="text-[10px] text-slate-400">الملف بيترفع على Drive تلقائياً</span>'}
+        </div>` : (t.drive_link ? `<div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2"><a href="${esc(t.drive_link)}" target="_blank" class="text-[11px] text-emerald-700 font-bold hover:underline">📁 ملف التسليم على Drive 🚀</a><button type="button" onclick="copyTaskDriveLink('${esc(t.drive_link)}')" class="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-bold hover:bg-emerald-100">📋 نسخ رابط الدرايف</button></div>` : '')}
       </div>`).join('') : '<div class="p-4 text-center text-xs text-slate-400">مفيش مهام مسندة ليك حالياً</div>';
   } catch(e) {}
   // My attendance
@@ -1386,3 +1386,31 @@ window.addEventListener('focus', function() {
     applyRoleUI();
   }
 });
+
+function copyTaskDriveLink(link) {
+  if (!link) {
+    if (typeof showToast === 'function') showToast('لا يوجد رابط درايف مسجل لهذه المهمة');
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(function() {
+      if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح 📋');
+    }).catch(function() {
+      fallbackCopyText(link);
+    });
+  } else {
+    fallbackCopyText(link);
+  }
+}
+
+function fallbackCopyText(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح 📋');
+  } catch(e) {}
+  document.body.removeChild(ta);
+}

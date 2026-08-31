@@ -1296,6 +1296,34 @@ function toggleTaskTimeline(boxId) {
         if (arrow) arrow.textContent = '▼';
     }
 }
+
+function copyTaskDriveLink(link) {
+    if (!link) {
+        if (typeof showToast === 'function') showToast('لا يوجد رابط درايف مسجل لهذه المهمة');
+        return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(function() {
+            if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح 📋');
+        }).catch(function() {
+            fallbackCopyText(link);
+        });
+    } else {
+        fallbackCopyText(link);
+    }
+}
+
+function fallbackCopyText(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح 📋');
+    } catch(e) {}
+    document.body.removeChild(ta);
+}
 // AM sets start / publish / deadline for a task
 async function saveTaskDates(taskId) {
     var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
@@ -1475,10 +1503,20 @@ function renderTaskCard(t) {
             '</div>';
 
         if (driveLink) {
-            deliverablesBox += '<div class="flex items-center gap-1.5">' +
-                '<a href="' + esc(driveLink) + '" target="_blank" class="flex-1 bg-white hover:bg-emerald-50 text-emerald-700 font-bold text-[11px] py-1.5 px-2.5 rounded-lg border border-emerald-300 transition flex items-center justify-center gap-1.5 shadow-xs">' +
-                    '<span>📁 فتح ملف التسليم (Drive) 🚀</span>' +
-                '</a>' +
+            deliverablesBox += '<div class="bg-emerald-50/90 border border-emerald-200 rounded-xl p-2.5 space-y-2 shadow-2xs">' +
+                '<div class="flex items-center justify-between gap-1 flex-wrap">' +
+                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">📁 رابط تسليمات المهمة (Google Drive):</span>' +
+                    '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">جاهز للتحميل 🚀</span>' +
+                '</div>' +
+                '<div class="flex items-center gap-1.5">' +
+                    '<a href="' + esc(driveLink) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3 rounded-lg transition flex items-center justify-center gap-1.5 shadow-xs">' +
+                        '<span>↗️ فتح في Google Drive</span>' +
+                    '</a>' +
+                    '<button type="button" onclick="copyTaskDriveLink(\'' + esc(driveLink) + '\')" class="bg-white hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-1.5 px-3 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-xs">' +
+                        '<span>📋 نسخ الرابط</span>' +
+                    '</button>' +
+                '</div>' +
+                '<div class="text-[10px] font-mono text-slate-500 truncate bg-white/80 p-1.5 rounded-md border border-emerald-100 select-all" title="' + esc(driveLink) + '">' + esc(driveLink) + '</div>' +
             '</div>';
         }
 

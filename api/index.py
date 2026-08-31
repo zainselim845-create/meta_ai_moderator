@@ -5223,6 +5223,52 @@ def save_client_employees(emp_list, _cid=None):
     cache["employees"] = updated
     push_setting("meta_ai_employees", updated)
 
+
+def _natural_task_sort_key(t):
+    """Extract natural sequential ordering for a task:
+    1. Title or caption number: 'بوست 1', 'post 2', 'منشور 3', '1. '
+    2. Arabic textual ordinal: 'الاول', 'الثاني', 'الثالث'...
+    3. TASK-xxxx number
+    4. Publish Date / Time
+    """
+    if not isinstance(t, dict):
+        return (9, 999999, "")
+    title = str(t.get("title") or "")
+    caption = str(t.get("caption") or "")
+    task_id = str(t.get("task_id") or "")
+    
+    m = re.search(r'(?:بوست|منشور|post|item|تاسك|مهمة|#)\s*(\d+)', title, re.I)
+    if not m:
+        m = re.search(r'(?:بوست|منشور|post|item|تاسك|مهمة|#)\s*(\d+)', caption, re.I)
+    if not m:
+        m = re.search(r'^(\d+)[\.\-\:\s]', title.strip())
+    if m:
+        return (1, int(m.group(1)), task_id)
+        
+    ord_map = {
+        'الاول': 1, 'الاولى': 1, 'الأول': 1, 'الأولى': 1,
+        'الثاني': 2, 'الثانية': 2, 'الثالث': 3, 'الثالثة': 3,
+        'الرابع': 4, 'الرابعة': 4, 'الخامس': 5, 'الخامسة': 5,
+        'السادس': 6, 'السادسة': 6, 'السابع': 7, 'السابعة': 7,
+        'الثامن': 8, 'الثامنة': 8, 'التاسع': 9, 'التاسعة': 9,
+        'العاشر': 10, 'العاشرة': 10,
+        'الحادي عشر': 11, 'الحادية عشر': 11, 'الثاني عشر': 12, 'الثانية عشر': 12
+    }
+    for word, val in ord_map.items():
+        if word in title:
+            return (1, val, task_id)
+            
+    m_tid = re.search(r'TASK-(\d+)', task_id)
+    if m_tid:
+        return (2, int(m_tid.group(1)), task_id)
+        
+    pub = (t.get("publish_date") or "") + " " + (t.get("publish_time") or "")
+    if pub.strip():
+        return (3, pub, task_id)
+        
+    return (4, 999999, task_id)
+
+
 def get_client_tasks(_cid=None):
     """MERGE mam_tasks (authoritative, race-safe) with any legacy blob tasks not yet
     migrated — so nothing is lost during the transition to per-row storage."""
@@ -5243,7 +5289,9 @@ def get_client_tasks(_cid=None):
     for t in (cache.get("tasks") or []):
         if isinstance(t, dict) and (t.get("client_id") or _cid) == _cid and str(t.get("task_id")) not in seen:
             tasks.append(t)
+    tasks.sort(key=_natural_task_sort_key)
     return tasks
+
 
 def _all_tasks_db():
     """ALL tasks across every client — mam_tasks (authoritative) MERGED with any legacy
@@ -5267,6 +5315,7 @@ def _all_tasks_db():
     for t in (cache.get("tasks") or []):
         if isinstance(t, dict) and str(t.get("task_id")) not in seen:
             out.append(t)
+    out.sort(key=_natural_task_sort_key)
     return out
 
 def save_client_tasks(tasks_list, _cid=None):
@@ -5771,51 +5820,6 @@ def api_task_timer(task_id):
 
     elapsed_mins = round((timer_state.get("elapsed_seconds") or 0) / 60, 1)
     return jsonify({"success": True, "task_id": task_id, "timer_state": timer_state, "elapsed_minutes": elapsed_mins})
-
-
-def _natural_task_sort_key(t):
-    """Extract natural sequential ordering for a task:
-    1. Title or caption number: 'بوست 1', 'post 2', 'منشور 3', '1. '
-    2. Arabic textual ordinal: 'الاول', 'الثاني', 'الثالث'...
-    3. TASK-xxxx number
-    4. Publish Date / Time
-    """
-    if not isinstance(t, dict):
-        return (9, 999999, "")
-    title = str(t.get("title") or "")
-    caption = str(t.get("caption") or "")
-    task_id = str(t.get("task_id") or "")
-    
-    m = re.search(r'(?:بوست|منشور|post|item|تاسك|مهمة|#)\s*(\d+)', title, re.I)
-    if not m:
-        m = re.search(r'(?:بوست|منشور|post|item|تاسك|مهمة|#)\s*(\d+)', caption, re.I)
-    if not m:
-        m = re.search(r'^(\d+)[\.\-\:\s]', title.strip())
-    if m:
-        return (1, int(m.group(1)), task_id)
-        
-    ord_map = {
-        'الاول': 1, 'الاولى': 1, 'الأول': 1, 'الأولى': 1,
-        'الثاني': 2, 'الثانية': 2, 'الثالث': 3, 'الثالثة': 3,
-        'الرابع': 4, 'الرابعة': 4, 'الخامس': 5, 'الخامسة': 5,
-        'السادس': 6, 'السادسة': 6, 'السابع': 7, 'السابعة': 7,
-        'الثامن': 8, 'الثامنة': 8, 'التاسع': 9, 'التاسعة': 9,
-        'العاشر': 10, 'العاشرة': 10,
-        'الحادي عشر': 11, 'الحادية عشر': 11, 'الثاني عشر': 12, 'الثانية عشر': 12
-    }
-    for word, val in ord_map.items():
-        if word in title:
-            return (1, val, task_id)
-            
-    m_tid = re.search(r'TASK-(\d+)', task_id)
-    if m_tid:
-        return (2, int(m_tid.group(1)), task_id)
-        
-    pub = (t.get("publish_date") or "") + " " + (t.get("publish_time") or "")
-    if pub.strip():
-        return (3, pub, task_id)
-        
-    return (4, 999999, task_id)
 
 
 @app.route("/api/am/workspace", methods=["GET"])
@@ -7842,8 +7846,42 @@ def api_my_tasks():
     mine = [t for t in all_tasks if isinstance(t, dict) and eid and (
         str(t.get("assigned_employee_id") or "") == eid or
         str(t.get("assignee_name") or "") == (current_user_rec().get("name") or uname))]
-    mine.sort(key=lambda t: str(t.get("delivery_deadline") or t.get("publish_date") or ""))
+    mine.sort(key=_natural_task_sort_key)
     return jsonify({"tasks": mine, "employee_id": eid})
+
+
+@app.route("/api/tasks/reindex-and-sort", methods=["POST", "GET"])
+@auth_guard
+def api_tasks_reindex_and_sort():
+    """Apply natural sequential sorting to all existing tasks across all clients in DB & cache."""
+    sync_from_supabase()
+    all_clients = list(AGENCY_CLIENTS_STORE)
+    reindexed_count = 0
+    client_ids = set()
+    for c in all_clients:
+        cid = str(c.get("id") or c.get("client_id") or "").strip()
+        if cid:
+            client_ids.add(cid)
+            
+    # Also grab distinct client_ids from cache
+    for t in (cache.get("tasks") or []):
+        if isinstance(t, dict) and t.get("client_id"):
+            client_ids.add(str(t.get("client_id")).strip())
+            
+    for cid in client_ids:
+        c_tasks = get_client_tasks(cid)
+        if c_tasks:
+            c_tasks.sort(key=_natural_task_sort_key)
+            save_client_tasks(c_tasks, cid)
+            reindexed_count += len(c_tasks)
+            
+    return jsonify({
+        "success": True,
+        "ok": True,
+        "message": f"تم تطبيق الترتيب الطبيعي والتنظيم بنجاح على {reindexed_count} مهمة في قاعدة البيانات 🚀",
+        "reindexed_count": reindexed_count,
+        "clients_count": len(client_ids)
+    })
 
 
 @app.route("/api/me/attendance", methods=["GET"])
