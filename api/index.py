@@ -7637,6 +7637,115 @@ def api_task_upload_complete(task_id):
     return jsonify({"ok": True, "drive_link": link})
 
 
+@app.route("/api/tasks/<task_id>/upload-chunk", methods=["POST"])
+@auth_guard
+def api_task_upload_chunk(task_id):
+    t, cid = _find_task_any_client(task_id)
+    if not t:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+    if not (can_see_client(cid) or str(t.get("assigned_employee_id") or "") == _my_employee_id()):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    upload_id = (request.form.get("upload_id") or "").strip()
+    chunk_index = request.form.get("chunk_index")
+    if not upload_id or chunk_index is None:
+        return jsonify({"error": "ناقص بيانات القطعة"}), 400
+
+    chunk_file = request.files.get("chunk")
+    if not chunk_file:
+        return jsonify({"error": "لم يتم إرسال قطعة الملف"}), 400
+
+    safe_upload_id = re.sub(r'[^a-zA-Z0-9_\-]', '', upload_id)
+    tmp_dir = os.path.join(os.environ.get("TEMP", "/tmp"), f"up_{safe_upload_id}")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    chunk_path = os.path.join(tmp_dir, f"{int(chunk_index)}.bin")
+    chunk_file.save(chunk_path)
+
+    return jsonify({"ok": True, "chunk_index": int(chunk_index)})
+
+
+@app.route("/api/tasks/<task_id>/upload-chunk-complete", methods=["POST"])
+@auth_guard
+def api_task_upload_chunk_complete(task_id):
+    t, cid = _find_task_any_client(task_id)
+    if not t:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+    if not (can_see_client(cid) or str(t.get("assigned_employee_id") or "") == _my_employee_id()):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    data = request.get_json() or {}
+    upload_id = str(data.get("upload_id") or "").strip()
+    total_chunks = int(data.get("total_chunks") or 1)
+    filename = str(data.get("filename") or "video.mp4").strip()
+    mime = str(data.get("mime") or "video/mp4").strip()
+
+    safe_upload_id = re.sub(r'[^a-zA-Z0-9_\-]', '', upload_id)
+    tmp_dir = os.path.join(os.environ.get("TEMP", "/tmp"), f"up_{safe_upload_id}")
+    if not os.path.exists(tmp_dir):
+        return jsonify({"error": "جلسة الرفع غير موجودة أو انتهت صلاحيتها"}), 400
+
+    full_bytes = bytearray()
+    for i in range(total_chunks):
+        p = os.path.join(tmp_dir, f"{i}.bin")
+        if not os.path.exists(p):
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            return jsonify({"error": f"فقدت القطعة رقم {i+1} أثناء الرفع. يرجى إعادة المحاولة"}), 400
+        with open(p, "rb") as f:
+            full_bytes.extend(f.read())
+
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+    raw_data = bytes(full_bytes)
+
+    eid = str(t.get("assigned_employee_id") or _my_employee_id() or "EMP-001")
+    emp_name = t.get("assignee_name") or current_user_rec().get("name") or eid
+    plan_name = str(t.get("plan_name") or t.get("file_name") or _client_name(cid) or "خطة عامة").strip()
+    post_num = t.get("post_number") or _resolve_post_number(t, default_index=1)
+    
+    ext = os.path.splitext(filename)[1] or (".mp4" if mime.startswith("video") else ".png")
+    clean_title = re.sub(r'[^\w\s\u0600-\u06FF\.\-]+', '_', t.get('title') or 'مهمة').strip()[:40]
+    safe_name = f"{plan_name} — بوست #{post_num} — {clean_title}{ext}"
+
+    link = None
+    target_folder_id = employee_plan_folder_id(eid, plan_name, name=emp_name) or client_month_folder_id(cid)
+    if get_google_oauth_access_token():
+        try:
+            link = drive_upload_bytes(safe_name, raw_data, mime, parent_id=target_folder_id)
+        except Exception as de:
+            print(f"[chunk gdrive upload err] {de}")
+
+    if not link:
+        try:
+            cr = requests.post(
+                "https://catbox.moe/user/api.php",
+                data={"reqtype": "fileupload"},
+                files={"fileToUpload": (safe_name, raw_data, mime)},
+                timeout=45
+            )
+            if cr.status_code == 200 and cr.text.strip().startswith("http"):
+                link = cr.text.strip()
+        except Exception as ce:
+            print(f"[chunk catbox fallback err] {ce}")
+
+    if not link:
+        return jsonify({"error": "تعذّر رفع الملف إلى السحابة. يرجى لصق رابط Google Drive مباشرة"}), 500
+
+    t["drive_link"] = link
+    t.setdefault("media_urls", [])
+    if link not in t["media_urls"]:
+        t["media_urls"].append(link)
+    t["media_type"] = "video" if (mime.startswith("video") or ext.lower() in [".mp4", ".mov", ".webm", ".avi", ".mkv"]) else "image"
+
+    _append_task_log(t, "asset_uploaded",
+                     actor_name=current_user_rec().get("name") or current_username(),
+                     actor_id=_my_employee_id() or session.get("uid"),
+                     actor_type=current_role(),
+                     note=f"رفع وحفظ ملف الفيديو/التصميم بنجاح: {safe_name}",
+                     details={"drive_link": link, "filename": safe_name, "size_bytes": len(raw_data)})
+    save_one_task(t, cid)
+    return jsonify({"ok": True, "drive_link": link, "task": t, "file_name": safe_name})
+
+
 @app.route("/api/tasks/<task_id>/status", methods=["PUT", "POST"])
 @auth_guard
 def api_tasks_update_status(task_id):

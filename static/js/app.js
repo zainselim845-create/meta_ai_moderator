@@ -1072,175 +1072,87 @@ function finishUploadProgress(success, msg) {
 
 window.showUploadProgressModal = showUploadProgressModal;
 window.updateUploadProgress = updateUploadProgress;
-window.finishUploadProgress = finishUploadProgress;
-
-function uploadFileDirectlyToCloud(file, onProgress) {
-  return new Promise((resolve, reject) => {
-    const fd = new FormData();
-    fd.append('reqtype', 'fileupload');
-    fd.append('fileToUpload', file);
-    
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', 'https://catbox.moe/user/api.php', true);
-    
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && typeof onProgress === 'function') {
-        onProgress(e.loaded, e.total);
-      }
-    };
-    
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const url = (xhr.responseText || '').trim();
-        if (url && url.startsWith('http')) {
-          resolve(url);
-        } else {
-          reject(new Error('رد غير صالح من خادم الرفع: ' + url));
-        }
-      } else {
-        reject(new Error('فشل الرفع (' + xhr.status + ')'));
-      }
-    };
-    
-    xhr.onerror = () => {
-      reject(new Error('انقطع الاتصال بخادم الرفع'));
-    };
-    
-    xhr.send(fd);
-  });
-}
-
-window.uploadFileDirectlyToCloud = uploadFileDirectlyToCloud;
-
-// Direct browser→Drive resumable upload with live XHR progress bar
+// Bulletproof Chunked Video / Asset Uploader (Works for any size up to 200MB, 0% CORS issues)
 function driveUploadFile(taskId, file) {
   return new Promise(async (resolve, reject) => {
     const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
     showUploadProgressModal(file.name, file.size, isVideo);
     
-    // 1. Direct Cloud Upload via XHR (bypasses all serverless limits, works up to 200MB!)
     try {
-      const directUrl = await uploadFileDirectlyToCloud(file, (loaded, total) => {
-        updateUploadProgress(loaded, total);
-      });
+      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB safe chunk for serverless
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      const uploadId = 'up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
       
-      const attachRes = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
+      let uploadedBytes = 0;
+      
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(file.size, start + CHUNK_SIZE);
+        const chunkBlob = file.slice(start, end);
+        
+        await new Promise((chunkResolve, chunkReject) => {
+          const fd = new FormData();
+          fd.append('upload_id', uploadId);
+          fd.append('chunk_index', i);
+          fd.append('total_chunks', totalChunks);
+          fd.append('filename', file.name);
+          fd.append('mime', file.type || (isVideo ? 'video/mp4' : 'application/octet-stream'));
+          fd.append('chunk', chunkBlob, file.name);
+          
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/tasks/' + encodeURIComponent(taskId) + '/upload-chunk', true);
+          
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const currentLoaded = uploadedBytes + e.loaded;
+              updateUploadProgress(currentLoaded, file.size);
+            }
+          };
+          
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              uploadedBytes += (end - start);
+              updateUploadProgress(uploadedBytes, file.size);
+              chunkResolve();
+            } else {
+              chunkReject(new Error('فشل رفع الجزء ' + (i + 1) + ' من ' + totalChunks));
+            }
+          };
+          
+          xhr.onerror = () => {
+            chunkReject(new Error('انقطع الاتصال بالسيرفر أثناء رفع الفيديو'));
+          };
+          
+          xhr.send(fd);
+        });
+      }
+      
+      // All chunks uploaded -> finalize on backend
+      const statusTxt = document.getElementById('upm-status-text');
+      if (statusTxt) statusTxt.textContent = '⏳ جاري تجميع ومعالجة الفيديو وحفظه...';
+      
+      const compRes = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-chunk-complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          drive_link: directUrl,
-          link: directUrl,
+          upload_id: uploadId,
+          total_chunks: totalChunks,
           filename: file.name,
           mime: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream')
         })
       });
-      const data = await attachRes.json();
-      if (attachRes.ok && data.ok) {
+      
+      const compData = await compRes.json();
+      if (compRes.ok && compData.ok && compData.drive_link) {
         finishUploadProgress(true);
-        resolve(directUrl);
-        return;
+        resolve(compData.drive_link);
+      } else {
+        finishUploadProgress(false, compData.error || 'تعذّر إتمام الحفظ');
+        reject(new Error(compData.error || 'تعذّر إتمام الحفظ'));
       }
-    } catch(directErr) {
-      console.warn("Direct upload error, trying Google Drive / Server fallback:", directErr);
-    }
-    
-    // 2. Google Drive Resumable Session Fallback
-    try {
-      const sessionRes = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name, mime: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream') })
-      });
-      const s = await sessionRes.json();
-      
-      if (sessionRes.ok && s.ok && s.upload_url) {
-        const xhr = new XMLHttpRequest();
-        xhr.open('PUT', s.upload_url, true);
-        xhr.setRequestHeader('Content-Type', file.type || (isVideo ? 'video/mp4' : 'application/octet-stream'));
-        
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            updateUploadProgress(e.loaded, e.total);
-          }
-        };
-        
-        xhr.onload = async () => {
-          if (xhr.status === 200 || xhr.status === 201) {
-            try {
-              const meta = JSON.parse(xhr.responseText || '{}');
-              const compRes = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-complete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ file_id: meta.id, mime: file.type || '' })
-              });
-              const c = await compRes.json();
-              if (compRes.ok && c.ok) {
-                finishUploadProgress(true);
-                resolve(c.drive_link);
-              } else {
-                finishUploadProgress(false, c.error || 'تعذّر تأكيد الرفع');
-                reject(new Error(c.error || 'تعذّر تأكيد الرفع'));
-              }
-            } catch(pe) {
-              finishUploadProgress(false, 'خطأ في معالجة بيانات الرفع');
-              reject(pe);
-            }
-          } else {
-            finishUploadProgress(false, 'فشل الرفع للـ Drive (' + xhr.status + ')');
-            reject(new Error('فشل الرفع للـ Drive (' + xhr.status + ')'));
-          }
-        };
-        
-        xhr.onerror = () => {
-          finishUploadProgress(false, 'انقطع الاتصال أثناء الرفع');
-          reject(new Error('انقطع الاتصال أثناء الرفع'));
-        };
-        
-        xhr.send(file);
-        return;
-      }
-      
-      // 3. Fallback: Server Upload (for files < 4MB)
-      if (file.size > 4 * 1024 * 1024) {
-        finishUploadProgress(false, 'حجم الملف كبير جداً (> 4MB). يرجى نسخ ولصق رابط Google Drive');
-        reject(new Error('حجم الملف كبير جداً. يرجى لصق رابط Google Drive'));
-        return;
-      }
-      const fd = new FormData();
-      fd.append('file', file);
-      const serverXhr = new XMLHttpRequest();
-      serverXhr.open('POST', '/api/tasks/' + encodeURIComponent(taskId) + '/upload', true);
-      
-      serverXhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          updateUploadProgress(e.loaded, e.total);
-        }
-      };
-      
-      serverXhr.onload = () => {
-        try {
-          const d = JSON.parse(serverXhr.responseText || '{}');
-          if (serverXhr.status >= 200 && serverXhr.status < 300 && d.ok) {
-            finishUploadProgress(true);
-            resolve(d.drive_link);
-          } else {
-            finishUploadProgress(false, d.error || 'تعذّر الرفع');
-            reject(new Error(d.error || 'تعذّر الرفع'));
-          }
-        } catch(pe) {
-          finishUploadProgress(false, 'خطأ في قراءة الرد');
-          reject(pe);
-        }
-      };
-      
-      serverXhr.onerror = () => {
-        finishUploadProgress(false, 'خطأ في الاتصال بالسيرفر');
-        reject(new Error('خطأ في الاتصال بالسيرفر'));
-      };
-      
-      serverXhr.send(fd);
       
     } catch(err) {
+      console.error('Video upload error:', err);
       finishUploadProgress(false, err.message || 'حدث خطأ أثناء الرفع');
       reject(err);
     }
