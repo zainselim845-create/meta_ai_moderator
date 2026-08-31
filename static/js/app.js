@@ -977,42 +977,182 @@ async function deleteCompanyEmployee(empId, name) {
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
-// Direct browser→Drive resumable upload — for large files, bypasses the server body
-// limit and lands in the client's Drive folder. Falls back to server for small files.
-async function driveUploadFile(taskId, file) {
-  if (file.size > 4 * 1024 * 1024) {
-    const s = await (await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-session', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: file.name, mime: file.type || 'application/octet-stream' })
-    })).json();
-    if (!s.ok || !s.upload_url) throw new Error(s.error || 'تعذّر بدء الرفع');
-    const put = await fetch(s.upload_url, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
-    if (!put.ok) throw new Error('فشل الرفع للـ Drive (' + put.status + ')');
-    const meta = await put.json();
-    const c = await (await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-complete', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_id: meta.id, mime: file.type || '' })
-    })).json();
-    if (!c.ok) throw new Error(c.error || 'تعذّر إنهاء الرفع');
-    return c.drive_link;
-  }
-  const fd = new FormData(); fd.append('file', file);
-  const r = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload', { method: 'POST', body: fd });
-  const d = await r.json();
-  if (!(r.ok && d.ok)) throw new Error(d.error || 'تعذّر الرفع');
-  return d.drive_link;
+// Global Live Upload Progress helpers
+function showUploadProgressModal(filename, totalSize, isVideo) {
+  const modal = document.getElementById('upload-progress-modal');
+  if (!modal) return;
+  const title = document.getElementById('upm-title');
+  const fn = document.getElementById('upm-filename');
+  const icon = document.getElementById('upm-icon');
+  const bar = document.getElementById('upm-bar');
+  const percent = document.getElementById('upm-percent');
+  const stats = document.getElementById('upm-stats');
+  const statusTxt = document.getElementById('upm-status-text');
+  
+  const sizeMB = (totalSize / (1024 * 1024)).toFixed(1);
+  if (title) title.textContent = isVideo ? 'جاري رفع الفيديو...' : 'جاري رفع الملف...';
+  if (fn) fn.textContent = filename + ' (' + sizeMB + ' MB)';
+  if (icon) icon.textContent = isVideo ? '🎬' : '📁';
+  if (bar) { bar.style.width = '0%'; bar.className = 'bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-150 ease-out'; }
+  if (percent) percent.textContent = '0%';
+  if (stats) stats.textContent = '0 MB / ' + sizeMB + ' MB';
+  if (statusTxt) statusTxt.textContent = '🚀 جاري الرفع المباشر إلى Google Drive...';
+  
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
 }
+
+function updateUploadProgress(loaded, total) {
+  const pct = Math.min(100, Math.round((loaded / total) * 100));
+  const bar = document.getElementById('upm-bar');
+  const percent = document.getElementById('upm-percent');
+  const stats = document.getElementById('upm-stats');
+  const statusTxt = document.getElementById('upm-status-text');
+  
+  const loadedMB = (loaded / (1024 * 1024)).toFixed(1);
+  const totalMB = (total / (1024 * 1024)).toFixed(1);
+  
+  if (bar) bar.style.width = pct + '%';
+  if (percent) percent.textContent = pct + '%';
+  if (stats) stats.textContent = loadedMB + ' MB / ' + totalMB + ' MB';
+  if (statusTxt && pct >= 100) statusTxt.textContent = '⏳ جاري المعالجة وتأكيد الربط بـ Google Drive...';
+}
+
+function finishUploadProgress(success, msg) {
+  const bar = document.getElementById('upm-bar');
+  const statusTxt = document.getElementById('upm-status-text');
+  if (bar && success) {
+    bar.className = 'bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-150';
+    bar.style.width = '100%';
+  }
+  if (statusTxt) statusTxt.textContent = success ? '🎉 اكتمل الرفع بنجاح!' : ('❌ ' + (msg || 'فشل الرفع'));
+  setTimeout(() => {
+    const modal = document.getElementById('upload-progress-modal');
+    if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+  }, success ? 700 : 2500);
+}
+
+window.showUploadProgressModal = showUploadProgressModal;
+window.updateUploadProgress = updateUploadProgress;
+window.finishUploadProgress = finishUploadProgress;
+
+// Direct browser→Drive resumable upload with live XHR progress bar
+function driveUploadFile(taskId, file) {
+  return new Promise(async (resolve, reject) => {
+    const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
+    showUploadProgressModal(file.name, file.size, isVideo);
+    
+    try {
+      // 1. Try direct Google Drive Resumable Session
+      const sessionRes = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, mime: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream') })
+      });
+      const s = await sessionRes.json();
+      
+      if (sessionRes.ok && s.ok && s.upload_url) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', s.upload_url, true);
+        xhr.setRequestHeader('Content-Type', file.type || (isVideo ? 'video/mp4' : 'application/octet-stream'));
+        
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            updateUploadProgress(e.loaded, e.total);
+          }
+        };
+        
+        xhr.onload = async () => {
+          if (xhr.status === 200 || xhr.status === 201) {
+            try {
+              const meta = JSON.parse(xhr.responseText || '{}');
+              const compRes = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload-complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_id: meta.id, mime: file.type || '' })
+              });
+              const c = await compRes.json();
+              if (compRes.ok && c.ok) {
+                finishUploadProgress(true);
+                resolve(c.drive_link);
+              } else {
+                finishUploadProgress(false, c.error || 'تعذّر تأكيد الرفع');
+                reject(new Error(c.error || 'تعذّر تأكيد الرفع'));
+              }
+            } catch(pe) {
+              finishUploadProgress(false, 'خطأ في معالجة بيانات الرفع');
+              reject(pe);
+            }
+          } else {
+            finishUploadProgress(false, 'فشل الرفع للـ Drive (' + xhr.status + ')');
+            reject(new Error('فشل الرفع للـ Drive (' + xhr.status + ')'));
+          }
+        };
+        
+        xhr.onerror = () => {
+          finishUploadProgress(false, 'انقطع الاتصال أثناء الرفع');
+          reject(new Error('انقطع الاتصال أثناء الرفع'));
+        };
+        
+        xhr.send(file);
+        return;
+      }
+      
+      // 2. Fallback to server multipart upload with XHR progress
+      const fd = new FormData();
+      fd.append('file', file);
+      const serverXhr = new XMLHttpRequest();
+      serverXhr.open('POST', '/api/tasks/' + encodeURIComponent(taskId) + '/upload', true);
+      
+      serverXhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          updateUploadProgress(e.loaded, e.total);
+        }
+      };
+      
+      serverXhr.onload = () => {
+        try {
+          const d = JSON.parse(serverXhr.responseText || '{}');
+          if (serverXhr.status >= 200 && serverXhr.status < 300 && d.ok) {
+            finishUploadProgress(true);
+            resolve(d.drive_link);
+          } else {
+            finishUploadProgress(false, d.error || 'تعذّر الرفع');
+            reject(new Error(d.error || 'تعذّر الرفع'));
+          }
+        } catch(pe) {
+          finishUploadProgress(false, 'خطأ في قراءة الرد');
+          reject(pe);
+        }
+      };
+      
+      serverXhr.onerror = () => {
+        finishUploadProgress(false, 'خطأ في الاتصال بالسيرفر');
+        reject(new Error('خطأ في الاتصال بالسيرفر'));
+      };
+      
+      serverXhr.send(fd);
+      
+    } catch(err) {
+      finishUploadProgress(false, err.message || 'حدث خطأ أثناء الرفع');
+      reject(err);
+    }
+  });
+}
+
+window.driveUploadFile = driveUploadFile;
 
 // Employee uploads their work (video/graphic) from the portal — auto to Drive.
 async function uploadMyTaskAsset(taskId, input) {
   const file = (input && input.files && input.files[0]) ? input.files[0] : null;
   if (!file) return;
-  showToast('جاري رفع شغلك على Google Drive... ⏳');
   try {
-    await driveUploadFile(taskId, file);
-    showToast('اترفع شغلك على Drive ✅');
+    const link = await driveUploadFile(taskId, file);
+    showToast('🎉 تم رفع الفيديو/الملف بنجاح وربطه بالمهمة على Google Drive! ✅', 'success');
     if (typeof loadMyPortal === 'function') loadMyPortal();
-  } catch(e) { showToast('تعذّر الرفع: ' + (e.message || ''), 'error'); }
+  } catch(e) {
+    showToast('تعذّر الرفع: ' + (e.message || ''), 'error');
+  }
   if (input) input.value = '';
 }
 

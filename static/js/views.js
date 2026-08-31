@@ -2135,6 +2135,68 @@ async function clearAllTasks() {
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
+async function uploadTaskAsset(taskId, input) {
+    var file = (input && input.files && input.files[0]) ? input.files[0] : null;
+    if (!file) return;
+    try {
+        await driveUploadFile(taskId, file);
+        showToast('🎉 تم رفع الفيديو/الملف وربطه بالتاسك على Google Drive بنجاح! ✅', 'success');
+        loadTasksEngine();
+    } catch(e) {
+        showToast('تعذّر الرفع: ' + (e.message || ''), 'error');
+    }
+    if (input) input.value = '';
+}
+
+async function uploadTaskReferenceFile(taskId, input) {
+    var file = (input && input.files && input.files[0]) ? input.files[0] : null;
+    if (!file) return;
+    var isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm)$/i.test(file.name);
+    if (typeof showUploadProgressModal === 'function') {
+        showUploadProgressModal(file.name, file.size, isVideo);
+    }
+    try {
+        var fd = new FormData();
+        fd.append('file', file);
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/tasks/' + encodeURIComponent(taskId) + '/references', true);
+        
+        xhr.upload.onprogress = function(e) {
+            if (e.lengthComputable && typeof updateUploadProgress === 'function') {
+                updateUploadProgress(e.loaded, e.total);
+            }
+        };
+        
+        xhr.onload = function() {
+            try {
+                var data = JSON.parse(xhr.responseText || '{}');
+                if (xhr.status >= 200 && xhr.status < 300 && data.ok) {
+                    if (typeof finishUploadProgress === 'function') finishUploadProgress(true);
+                    showToast('تمت إضافة الريفرانس بنجاح ✅', 'success');
+                    loadTasksEngine();
+                } else {
+                    if (typeof finishUploadProgress === 'function') finishUploadProgress(false, data.error || 'تعذّرت الإضافة');
+                    showToast(data.error || 'تعذّرت إضافة الريفرانس', 'error');
+                }
+            } catch(pe) {
+                if (typeof finishUploadProgress === 'function') finishUploadProgress(false, 'خطأ في معالجة الرد');
+                showToast('خطأ في معالجة الرد', 'error');
+            }
+        };
+        
+        xhr.onerror = function() {
+            if (typeof finishUploadProgress === 'function') finishUploadProgress(false, 'انقطع الاتصال بالسيرفر');
+            showToast('انقطع الاتصال بالسيرفر', 'error');
+        };
+        
+        xhr.send(fd);
+    } catch(e) {
+        if (typeof finishUploadProgress === 'function') finishUploadProgress(false, e.message || 'خطأ');
+        showToast('خطأ في رفع الملف: ' + (e.message || ''), 'error');
+    }
+    if (input) input.value = '';
+}
+
 async function deleteTaskAction(taskId) {
     if (!confirm('حذف المهمة ' + taskId + ' نهائياً؟')) return;
     try {

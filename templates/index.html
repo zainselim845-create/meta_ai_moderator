@@ -1690,15 +1690,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=9.47">
+  <script src="/static/js/app.js?v=9.48">
   </script>
-  <script src="/static/js/inbox.js?v=9.47">
+  <script src="/static/js/inbox.js?v=9.48">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=9.47">
+  <script src="/static/js/chatwoot_free.js?v=9.48">
   </script>
-  <script src="/static/js/views.js?v=9.47">
+  <script src="/static/js/views.js?v=9.48">
   </script>
-  <script src="/static/js/clients.js?v=9.47">
+  <script src="/static/js/clients.js?v=9.48">
   </script>
  
   <!-- Modal: Add New Connected Account -->
@@ -1790,6 +1790,33 @@
         <button onclick="closeTaskDetailsModal()" class="text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 transition">
           إغلاق النافذة
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Live Upload Progress Modal -->
+  <div id="upload-progress-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-2xl text-blue-600 shrink-0" id="upm-icon">
+          🎬
+        </div>
+        <div class="min-w-0 flex-1">
+          <h4 class="font-bold text-sm text-slate-900 truncate" id="upm-title">جاري رفع الفيديو...</h4>
+          <p class="text-xs text-slate-500 truncate" id="upm-filename">video.mp4</p>
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between text-xs font-bold">
+          <span class="text-slate-600 font-mono" id="upm-stats">0 MB / 0 MB</span>
+          <span class="font-mono text-blue-600 text-sm font-bold" id="upm-percent">0%</span>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-200">
+          <div id="upm-bar" class="bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-150 ease-out" style="width: 0%"></div>
+        </div>
+      </div>
+      <div class="text-center text-[11px] text-slate-500 font-medium bg-slate-50 p-2.5 rounded-xl border border-slate-100" id="upm-status-text">
+        🚀 جاري الرفع المباشر إلى Google Drive... يرجى الانتظار
       </div>
     </div>
   </div>
