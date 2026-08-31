@@ -1758,17 +1758,24 @@ async function saveScheduledPost() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   checkAuth();
-  if (typeof applyRoleUI === 'function') {
-    await applyRoleUI();
-  }
+  
+  // Show the page IMMEDIATELY with last-known tab (no blocking API call)
   restoreActiveTab();
   initLucideIcons();
   
   // Set today's date as default for scheduler
   const dateInput = document.getElementById('post-date');
   if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+  
+  // Background: fetch role data and apply UI restrictions (non-blocking)
+  if (typeof applyRoleUI === 'function') {
+    applyRoleUI().then(() => {
+      // Re-apply tab after role is known (may redirect employee to myportal)
+      restoreActiveTab();
+    }).catch(() => {});
+  }
   
   // Populate the header account switcher from real connected accounts
   if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
