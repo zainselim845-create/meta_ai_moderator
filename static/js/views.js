@@ -1093,25 +1093,27 @@ function renderClientTabs() {
 
     var planNames = Object.keys(plans);
     
-    var html = '<div class="flex items-center gap-2 overflow-x-auto pb-1 w-full flex-nowrap">';
-    html += '<button type="button" onclick="filterTasksByPlan(null)" class="shrink-0 whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 ' +
+    var html = '<div class="flex items-center justify-between gap-2 overflow-x-auto pb-2 pt-1 w-full flex-wrap sm:flex-nowrap">';
+    html += '<div class="flex items-center gap-2 overflow-x-auto flex-nowrap shrink-0">';
+    html += '<button type="button" onclick="filterTasksByPlan(null)" class="shrink-0 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-2 ' +
         (!selectedPlanFilter ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '">' +
         '<span>📑 جميع الخطط</span>' +
-        '<span class="' + (!selectedPlanFilter ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800') + ' text-xs px-2 py-0.5 rounded-full font-mono font-bold">' + allTasks.length + '</span>' +
+        '<span dir="ltr" class="' + (!selectedPlanFilter ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-800') + ' text-[11px] px-2 py-0.5 rounded-full font-mono font-bold">' + allTasks.length + '</span>' +
     '</button>';
 
     planNames.forEach(function(pName) {
         var pInfo = plans[pName];
         var isSel = (selectedPlanFilter === pName);
         var cleanTitle = esc(pName).replace(/\.(docx|doc|pdf|txt)$/i, '');
-        html += '<button type="button" onclick="filterTasksByPlan(\'' + esc(pName).replace(/'/g, "\\'") + '\')" class="shrink-0 whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ' +
+        html += '<button type="button" onclick="filterTasksByPlan(\'' + esc(pName).replace(/'/g, "\\'") + '\')" class="shrink-0 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-2 ' +
             (isSel ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-300' : 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100') + '">' +
             '<span>📄 ' + cleanTitle + '</span>' +
-            '<span class="text-[10px] font-mono ' + (isSel ? 'bg-white/20 text-white' : 'bg-purple-200 text-purple-900') + ' px-1.5 py-0.5 rounded-lg font-bold">' + pInfo.completed + '/' + pInfo.total + '</span>' +
+            '<span dir="ltr" class="text-[11px] font-mono ' + (isSel ? 'bg-white/25 text-white' : 'bg-purple-200 text-purple-950') + ' px-2 py-0.5 rounded-lg font-bold">' + pInfo.completed + ' / ' + pInfo.total + '</span>' +
         '</button>';
     });
+    html += '</div>';
 
-    html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1 mr-auto">' +
+    html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5 mr-auto">' +
         '<span>➕ كتابة خطة جديدة بالقالب</span>' +
     '</button>';
     html += '</div>';
@@ -1482,8 +1484,12 @@ function renderTaskCard(t, indexInPlan) {
     var stLabel = st === 'Completed' ? 'مكتملة' : st === 'In Progress' ? 'جاري العمل' :
                   st === 'Awaiting AM Review' ? 'بانتظار مراجعتك' : st === 'Assigned' ? 'مُسندة' : 'بانتظار الإسناد';
 
+    var cleanAM = (t.am_name || '').trim();
+    if (!cleanAM || cleanAM === 'EMP-001' || cleanAM === 'EMP-001-AM' || t.am_id === 'EMP-001' || t.am_id === 'EMP-001-AM') {
+        cleanAM = 'محمود خالد';
+    }
     var amTag = '<div class="flex items-center gap-1 text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md font-bold">' +
-        '<span>👔 AM:</span> <span class="text-indigo-900">' + esc(t.am_name || t.am_id || 'عام') + '</span>' +
+        '<span>👔 AM:</span> <span class="text-indigo-900">' + esc(cleanAM) + '</span>' +
     '</div>';
 
     var clientTag = (selectedEmployeeFilter && t.client_name) ?
@@ -2001,8 +2007,14 @@ function renderTasksBoard() {
         // Build distinct AM list for Manager overview
         var amMap = {};
         allTasks.forEach(function(t) {
-            var amId = (t.am_id || 'unassigned').trim();
-            var amName = (t.am_name || (amId === 'EMP-001' ? 'أكونت مانيجر' : amId)).trim();
+            var amId = (t.am_id || '').trim();
+            var amName = (t.am_name || '').trim();
+            if (!amId || amId === 'EMP-001' || amId === 'EMP-001-AM' || amId === 'AM-001' || amId === 'system' || amId === 'unassigned') {
+                amId = 'AM-2072-9827';
+                amName = 'محمود خالد';
+                t.am_id = amId;
+                t.am_name = amName;
+            }
             if (!amMap[amId]) amMap[amId] = { id: amId, name: amName, count: 0 };
             amMap[amId].count++;
         });
@@ -2058,25 +2070,25 @@ function renderTasksBoard() {
                 '<div class="flex items-center gap-1.5 flex-wrap">' +
                     '<span class="text-xs font-bold text-slate-800 flex items-center gap-1">📊 ترتيب حسب:</span>' +
                     '<button type="button" onclick="setTaskSort(\'sequence\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'sequence' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>🔢 رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ▲' : ' ▼') : '') +
+                        '<span>🔢 رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'pub_date\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'pub_date' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>📅 تاريخ النشر</span>' + (currentTaskSort === 'pub_date' ? (currentTaskSortDir === 'asc' ? ' ▲' : ' ▼') : '') +
+                        '<span>📅 تاريخ النشر</span>' + (currentTaskSort === 'pub_date' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'deadline\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'deadline' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>⏰ موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ▲' : ' ▼') : '') +
+                        '<span>⏰ موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'status\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'status' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>📊 الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ▲' : ' ▼') : '') +
+                        '<span>📋 الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'task_id\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'task_id' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>🆔 الكود</span>' + (currentTaskSort === 'task_id' ? (currentTaskSortDir === 'asc' ? ' ▲' : ' ▼') : '') +
+                        '<span>🏷️ الكود</span>' + (currentTaskSort === 'task_id' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'created_at\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'created_at' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>🆕 الأحدث</span>' + (currentTaskSort === 'created_at' ? (currentTaskSortDir === 'asc' ? ' ▲' : ' ▼') : '') +
+                        '<span>⏱️ الأحدث</span>' + (currentTaskSort === 'created_at' ? (currentTaskSortDir === 'desc' ? ' ↓' : ' ↑') : '') +
                     '</button>' +
                 '</div>' +
-                '<div class="flex items-center gap-2 flex-1 sm:max-w-xs">' +
+                '<div class="flex items-center gap-2 w-full sm:w-auto">' +
                     '<div class="relative w-full">' +
                         '<input type="text" value="' + esc(taskSearchQuery) + '" oninput="onTaskSearchInput(this.value)" placeholder="🔍 بحث في المهام..." class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-blue-500 shadow-2xs">' +
                         (taskSearchQuery ? '<button type="button" onclick="onTaskSearchInput(\'\')" class="absolute left-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-700">✕</button>' : '') +
@@ -2135,38 +2147,74 @@ function renderTasksBoard() {
 
         var groupKeys = Object.keys(fileGroups);
 
-        var columnsHtml = '<div class="col-span-full flex gap-6 overflow-x-auto pb-6 items-start w-full pt-1">';
-        groupKeys.forEach(function(k) {
-            var grp = fileGroups[k];
+        var columnsHtml = '';
+        if (selectedPlanFilter || groupKeys.length === 1) {
+            var singleKey = groupKeys[0];
+            var grp = fileGroups[singleKey];
             var fTasks = sortTaskList(grp.tasks, currentTaskSort, currentTaskSortDir);
-            // Strictly assign sequential internal post numbers (1, 2, 3... N) per plan
             fTasks.forEach(function(t, idx) {
                 t.post_number_in_plan = idx + 1;
                 t.post_number = idx + 1;
             });
             var completedCount = fTasks.filter(function(t){ return t.status === 'Completed'; }).length;
 
-            columnsHtml += '<div class="w-88 sm:w-[420px] shrink-0 bg-slate-100/90 border border-slate-200/90 rounded-3xl p-4 shadow-sm space-y-3.5 flex flex-col">' +
-                '<div class="flex items-center justify-between border-b border-slate-200/90 pb-3 bg-white -m-4 mb-0 p-4 rounded-t-3xl shadow-xs">' +
-                    '<div class="flex items-center gap-2.5 min-w-0">' +
-                        '<div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">📄</div>' +
-                        '<div class="min-w-0">' +
-                            '<h4 class="font-bold text-sm text-slate-900 truncate" title="' + esc(grp.fileName) + '">ملف: ' + esc(grp.fileName) + '</h4>' +
-                            '<div class="flex items-center gap-1.5 text-xs mt-0.5">' +
-                                '<span class="text-blue-700 font-bold truncate">🏢 ' + esc(grp.clientName) + '</span>' +
-                                '<span class="text-slate-300">·</span>' +
-                                '<span class="text-slate-500 font-mono text-[11px] whitespace-nowrap">' + completedCount + '/' + fTasks.length + ' منجز</span>' +
+            columnsHtml = '<div class="col-span-full space-y-4">' +
+                '<div class="bg-gradient-to-r from-slate-900 via-purple-950 to-indigo-950 text-white rounded-3xl p-4 sm:p-5 shadow-sm flex items-center justify-between flex-wrap gap-3">' +
+                    '<div class="flex items-center gap-3">' +
+                        '<div class="w-12 h-12 rounded-2xl bg-white/15 text-white flex items-center justify-center font-bold text-xl shadow-inner shrink-0">📄</div>' +
+                        '<div>' +
+                            '<div class="flex items-center gap-2 flex-wrap">' +
+                                '<h3 class="font-bold text-base sm:text-lg text-white">خطة: ' + esc(grp.fileName) + '</h3>' +
+                                '<span class="bg-purple-500/30 text-purple-200 text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border border-purple-400/30">' + fTasks.length + ' بوست بالخطة</span>' +
+                            '</div>' +
+                            '<div class="flex items-center gap-2 text-xs text-purple-200 mt-1">' +
+                                '<span class="font-bold text-white">🏢 ' + esc(grp.clientName) + '</span>' +
+                                '<span>·</span>' +
+                                '<span dir="ltr" class="font-mono bg-white/20 px-2 py-0.5 rounded-md text-white font-bold">' + completedCount + ' / ' + fTasks.length + ' منجز</span>' +
                             '</div>' +
                         '</div>' +
                     '</div>' +
-                    '<span class="bg-blue-600 text-white text-xs font-mono font-bold px-2.5 py-1 rounded-full shadow-xs shrink-0">' + fTasks.length + ' مهام</span>' +
+                    (selectedPlanFilter ? ('<button type="button" onclick="filterTasksByPlan(null)" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 transition flex items-center gap-1.5">' +
+                        '<span>📑 عرض جميع الخطط الأخرى</span>' +
+                    '</button>') : '') +
                 '</div>' +
-                '<div class="space-y-3.5 pt-1 max-h-[850px] overflow-y-auto pr-1">' +
+                '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">' +
                     fTasks.map(function(t, idx) { return renderTaskCard(t, idx + 1); }).join('') +
                 '</div>' +
             '</div>';
-        });
-        columnsHtml += '</div>';
+        } else {
+            columnsHtml = '<div class="col-span-full flex gap-6 overflow-x-auto pb-6 items-start w-full pt-1">';
+            groupKeys.forEach(function(k) {
+                var grp = fileGroups[k];
+                var fTasks = sortTaskList(grp.tasks, currentTaskSort, currentTaskSortDir);
+                fTasks.forEach(function(t, idx) {
+                    t.post_number_in_plan = idx + 1;
+                    t.post_number = idx + 1;
+                });
+                var completedCount = fTasks.filter(function(t){ return t.status === 'Completed'; }).length;
+
+                columnsHtml += '<div class="w-88 sm:w-[420px] shrink-0 bg-slate-100/90 border border-slate-200/90 rounded-3xl p-4 shadow-sm space-y-3.5 flex flex-col">' +
+                    '<div class="flex items-center justify-between border-b border-slate-200/90 pb-3 bg-white -m-4 mb-0 p-4 rounded-t-3xl shadow-xs">' +
+                        '<div class="flex items-center gap-2.5 min-w-0">' +
+                            '<div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">📄</div>' +
+                            '<div class="min-w-0">' +
+                                '<h4 class="font-bold text-sm text-slate-900 truncate" title="' + esc(grp.fileName) + '">ملف: ' + esc(grp.fileName) + '</h4>' +
+                                '<div class="flex items-center gap-1.5 text-xs mt-0.5">' +
+                                    '<span class="text-blue-700 font-bold truncate">🏢 ' + esc(grp.clientName) + '</span>' +
+                                    '<span class="text-slate-300">·</span>' +
+                                    '<span dir="ltr" class="text-slate-500 font-mono text-[11px] whitespace-nowrap font-bold">' + completedCount + ' / ' + fTasks.length + '</span>' +
+                                '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<span class="bg-blue-600 text-white text-xs font-mono font-bold px-2.5 py-1 rounded-full shadow-xs shrink-0">' + fTasks.length + ' مهام</span>' +
+                    '</div>' +
+                    '<div class="space-y-3.5 pt-1 max-h-[850px] overflow-y-auto pr-1">' +
+                        fTasks.map(function(t, idx) { return renderTaskCard(t, idx + 1); }).join('') +
+                    '</div>' +
+                '</div>';
+            });
+            columnsHtml += '</div>';
+        }
 
         board.innerHTML = topBanners + columnsHtml;
     } catch(err) {
