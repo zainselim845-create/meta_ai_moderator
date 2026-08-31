@@ -729,11 +729,33 @@ async function loadMyPortal() {
             ${actionBtns(t)}
           </div>
         </div>
-        ${canWork(t) ? `<div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2">
-          <label class="cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-3 rounded-lg border border-sky-200">📤 ارفع شغلك (فيديو/تصميم)
-            <input type="file" accept="image/*,video/*" class="hidden" onchange="uploadMyTaskAsset('${esc(t.task_id)}', this)"></label>
-          ${t.drive_link ? `<div class="flex items-center gap-1.5 flex-wrap"><a href="${esc(t.drive_link)}" target="_blank" class="text-[11px] text-emerald-700 font-bold hover:underline">📁 فتح ملف التسليم (Drive)</a><button type="button" onclick="copyTaskDriveLink('${esc(t.drive_link)}')" class="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-bold hover:bg-emerald-100">📋 نسخ الرابط</button></div>` : '<span class="text-[10px] text-slate-400">الملف بيترفع على Drive تلقائياً</span>'}
-        </div>` : (t.drive_link ? `<div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2"><a href="${esc(t.drive_link)}" target="_blank" class="text-[11px] text-emerald-700 font-bold hover:underline">📁 ملف التسليم على Drive 🚀</a><button type="button" onclick="copyTaskDriveLink('${esc(t.drive_link)}')" class="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-bold hover:bg-emerald-100">📋 نسخ رابط الدرايف</button></div>` : '')}
+        ${t.drive_link ? `
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 space-y-1.5 shadow-2xs">
+            <div class="flex items-center justify-between text-xs font-bold text-emerald-900">
+              <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '🎬 مخرجات الفيديو المسلّمة:' : '📁 ملف التسليم المسجّل:'}</span>
+              <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">محفوظ بالملف ✅</span>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <a href="${esc(t.drive_link)}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xs transition flex items-center gap-1">
+                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '▶️ فتح / تشغيل الفيديو ↗️' : '📁 فتح ملف التسليم ↗️'}</span>
+              </a>
+              <button type="button" onclick="copyTaskDriveLink('${esc(t.drive_link)}')" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-lg shadow-2xs transition flex items-center gap-1">
+                <span>📋 نسخ الرابط</span>
+              </button>
+            </div>
+          </div>
+        ` : ''}
+        ${canWork(t) ? `
+          <div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2">
+            <label class="cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold py-1.5 px-3 rounded-xl border border-sky-200 shadow-2xs transition">
+              <span>📤 ارفع فيديو / تصميم جديد</span>
+              <input type="file" accept="image/*,video/*" class="hidden" onchange="uploadMyTaskAsset('${esc(t.task_id)}', this)">
+            </label>
+            <button type="button" onclick="promptSetDriveLink('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-3 rounded-xl shadow-2xs transition">
+              <span>🔗 الصق رابط Google Drive</span>
+            </button>
+          </div>
+        ` : ''}
       </div>`).join('') : '<div class="p-4 text-center text-xs text-slate-400">مفيش مهام مسندة ليك حالياً</div>';
   } catch(e) {}
   // My attendance

@@ -1506,14 +1506,15 @@ function renderTaskCard(t, indexInPlan) {
             '</div>';
 
         if (driveLink) {
+            var isVid = (t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(driveLink));
             deliverablesBox += '<div class="bg-emerald-50/90 border border-emerald-200 rounded-xl p-2.5 space-y-2 shadow-2xs">' +
                 '<div class="flex items-center justify-between gap-1 flex-wrap">' +
-                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">📁 رابط تسليمات المهمة (Google Drive):</span>' +
-                    '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">جاهز للتحميل 🚀</span>' +
+                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">' + (isVid ? '🎬 فيديو المخرجات المسلّم:' : '📁 رابط تسليمات المهمة:') + '</span>' +
+                    '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">محفوظ بالملف ✅</span>' +
                 '</div>' +
                 '<div class="flex items-center gap-1.5">' +
                     '<a href="' + esc(driveLink) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3 rounded-lg transition flex items-center justify-center gap-1.5 shadow-xs">' +
-                        '<span>↗️ فتح في Google Drive</span>' +
+                        '<span>' + (isVid ? '▶️ تشغيل / فتح الفيديو ↗️' : '↗️ فتح ملف التسليم ↗️') + '</span>' +
                     '</a>' +
                     '<button type="button" onclick="copyTaskDriveLink(\'' + esc(driveLink) + '\')" class="bg-white hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-1.5 px-3 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-xs">' +
                         '<span>📋 نسخ الرابط</span>' +
