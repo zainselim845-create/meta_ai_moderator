@@ -1090,6 +1090,7 @@ async function switchToClient(id) {
 
 async function loadTasksEngine() {
     renderClientTabs();
+    if (typeof loadTasksIngestFields === 'function') loadTasksIngestFields();
     try {
         var rTasks = await fetch('/api/tasks');
         var rEmps = await fetch('/api/tasks/employees');
@@ -2556,42 +2557,151 @@ async function extractTextFromDocxClient(file) {
     }
 }
 
+async function loadTasksIngestFields() {
+    var cInput = document.getElementById('tasks-ingest-client');
+    var dlist = document.getElementById('tasks-ingest-clients-list');
+    var amSel = document.getElementById('tasks-ingest-am');
+    
+    // 1. Clients
+    try {
+        var clients = window.clientsList || [];
+        if (!clients.length) {
+            var r = await (await fetch('/api/clients')).json();
+            clients = (r && r.clients) ? r.clients : (Array.isArray(r) ? r : []);
+            window.clientsList = clients;
+        }
+        if (dlist) {
+            dlist.innerHTML = clients.map(function(c){ return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('');
+        }
+        if (cInput && !cInput.value && typeof currentClient !== 'undefined' && currentClient) {
+            var activeC = clients.find(function(c){ return c.id === currentClient; });
+            if (activeC) cInput.value = activeC.name;
+        }
+    } catch(e){}
+    
+    // 2. Managers
+    try {
+        var md = await (await fetch('/api/managers')).json();
+        var ms = md.managers || [];
+        window._managersCache = ms;
+        if (amSel) {
+            var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
+            var optHtml = '<option value="">— اختر الأكونت مانيجر —</option>';
+            ms.forEach(function(m) {
+                var isMe = myEmpId && String(m.employee_id) === String(myEmpId);
+                optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '>' + esc(m.name) + (isMe ? ' (أنا 🙋‍♂️)' : '') + '</option>';
+            });
+            amSel.innerHTML = optHtml;
+        }
+    } catch(e){}
+}
+
+function setTasksIngestSelfAM() {
+    var amSel = document.getElementById('tasks-ingest-am');
+    if (!amSel) return;
+    var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
+    var myName = (window.currentUserData && (window.currentUserData.name || window.currentUserData.username)) || '';
+    
+    var found = false;
+    for (var i = 0; i < amSel.options.length; i++) {
+        var opt = amSel.options[i];
+        if ((myEmpId && opt.value === myEmpId) || (myName && opt.text.includes(myName))) {
+            amSel.selectedIndex = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found && amSel.options.length > 1) {
+        amSel.selectedIndex = 1;
+    }
+    showToast('تم تحديد حسابك كـ Account Manager ✅');
+}
+
+window.loadTasksIngestFields = loadTasksIngestFields;
+window.setTasksIngestSelfAM = setTasksIngestSelfAM;
+
 async function ingestPlanAction(ev) {
     if (ev) ev.preventDefault();
     var el = document.getElementById('plan-ingest-input');
     var fileEl = document.getElementById('plan-ingest-file');
     var driveEl = document.getElementById('plan-ingest-drive');
+    var clientInputEl = document.getElementById('tasks-ingest-client');
+    var amEl = document.getElementById('tasks-ingest-am');
+    var planNameEl = document.getElementById('tasks-ingest-plan-name');
+
     var txt = el ? el.value.trim() : '';
     var file = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
     var drive = driveEl ? driveEl.value.trim() : '';
+    var clientInput = clientInputEl ? clientInputEl.value.trim() : '';
+    var amId = amEl ? amEl.value.trim() : '';
+    var planName = planNameEl ? planNameEl.value.trim() : '';
+
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
 
+    var matchedClient = (window.clientsList || []).find(function(c) {
+        return c.name.toLowerCase() === clientInput.toLowerCase() || c.id === clientInput;
+    });
+    var clientId = matchedClient ? matchedClient.id : (clientInput || (typeof currentClient !== 'undefined' ? currentClient : ''));
+    var fileName = planName || (file ? file.name : (drive ? 'ملف Google Drive' : 'خطة محتوى مباشرة'));
     var opts;
-    var fileName = file ? file.name : (drive ? 'ملف Google Drive' : 'خطة محتوى مباشرة');
+
     if (file) {
         showToast('جاري قراءة واستخراج نص الملف فورياً... ⏳');
         var clientText = await extractTextFromDocxClient(file);
         if (clientText && clientText.length > 10) {
-            // Send pure extracted text payload (< 100KB) - 100% bypasses any 413 file size limit!
             opts = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plan_text: clientText, drive_link: drive, file_name: fileName })
+                body: JSON.stringify({
+                    plan_text: clientText,
+                    drive_link: drive,
+                    file_name: fileName,
+                    plan_name: fileName,
+                    client_id: clientId,
+                    client_name: clientInput,
+                    am_employee_id: amId
+                })
             };
         } else if (file.size < 4 * 1024 * 1024) {
             var fd = new FormData();
             fd.append('file', file);
             fd.append('file_name', fileName);
+            fd.append('plan_name', fileName);
             if (drive) fd.append('drive_link', drive);
+            if (clientId) fd.append('client_id', clientId);
+            if (clientInput) fd.append('client_name', clientInput);
+            if (amId) fd.append('am_employee_id', amId);
             opts = { method: 'POST', body: fd };
         } else {
             showToast('حجم الملف كبير جداً (> 4.5MB). يرجى نسخه ولصقه في المربع أو استخدام رابط Google Drive', 'error');
             return;
         }
     } else if (drive) {
-        opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ drive_link: drive, file_name: fileName }) };
+        opts = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                drive_link: drive,
+                file_name: fileName,
+                plan_name: fileName,
+                client_id: clientId,
+                client_name: clientInput,
+                am_employee_id: amId
+            })
+        };
     } else {
-        opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_text: txt, file_name: fileName }) };
+        opts = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                plan_text: txt,
+                file_name: fileName,
+                plan_name: fileName,
+                client_id: clientId,
+                client_name: clientInput,
+                am_employee_id: amId
+            })
+        };
     }
 
     showToast('جاري تفريغ الخطة وتقسيم المهام بالذكاء الاصطناعي... ⏳');
@@ -2604,10 +2714,16 @@ async function ingestPlanAction(ev) {
             data = { error: 'تعذر قراءة رد الخادم (' + res.status + ')' };
         }
         if (res.ok && data.success) {
-            showToast('تم تفريغ وإنشاء ' + (data.ingested_count || 0) + ' مهمة بنجاح 🎉');
+            var amNotice = data.am_notified ? ' وتم إرسال تنبيه للأكونت مانيجر على التليجرام ✅' : '';
+            showToast('تم تفريغ وإنشاء ' + (data.ingested_count || 0) + ' مهمة للعميل ' + (data.client_name || '') + amNotice + ' 🎉', 'success');
             if (el) el.value = '';
             if (fileEl) fileEl.value = '';
             if (driveEl) driveEl.value = '';
+            if (planNameEl) planNameEl.value = '';
+            if (data.client_id) {
+                currentClient = data.client_id;
+            }
+            if (typeof loadClientsList === 'function') loadClientsList();
             loadTasksEngine();
         } else {
             showToast(data.error || 'خطأ في معالجة الخطة (' + res.status + ')', 'error');

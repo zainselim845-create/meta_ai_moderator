@@ -7001,7 +7001,44 @@ def _after_colon(s):
 def api_tasks_ingest_plan():
     try:
         sync_from_supabase()
-        _cid = current_client_id()
+        req_json = request.get_json(silent=True) or {}
+        
+        # 1) Resolve client (from input or fallback to current client)
+        client_input = (request.form.get("client_name") or request.form.get("client_id") if request.form else None) or \
+                       (req_json.get("client_name") or req_json.get("client_id") or "")
+        client_input = str(client_input).strip()
+        
+        _cid = None
+        target_client = None
+        if client_input:
+            for c in AGENCY_CLIENTS_STORE:
+                if str(c.get("id")) == client_input or str(c.get("name", "")).strip().lower() == client_input.lower():
+                    _cid = str(c.get("id"))
+                    target_client = c
+                    break
+            if not _cid:
+                slug = re.sub(r"[^a-zA-Z0-9]", "", client_input.replace(" ", "_"))[:15].lower()
+                _cid = f"cli_{slug}_{int(time.time())}" if slug else f"cli_{int(time.time())}"
+                target_client = {
+                    "id": _cid, "name": client_input, "company": client_input, "package": "Business VIP",
+                    "page_id": None, "ig_id": None, "status": "active", "is_active": True,
+                    "fb_connected": False, "ig_connected": False, "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                AGENCY_CLIENTS_STORE.append(target_client)
+                push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
+        
+        if not _cid:
+            _cid = current_client_id()
+            target_client = next((c for c in AGENCY_CLIENTS_STORE if c.get("id") == _cid), None)
+
+        # 2) Resolve Account Manager
+        am_id_input = (request.form.get("am_employee_id") or request.form.get("am_id") if request.form else None) or \
+                      (req_json.get("am_employee_id") or req_json.get("am_id") or "")
+        am_id_input = str(am_id_input).strip()
+        am_id = am_id_input or _my_employee_id() or "EMP-001"
+        am_emp = _sheet_emp(am_id) if am_id else {}
+        am_name = am_emp.get("name") or (current_user_rec().get("name") if str(am_id) == str(_my_employee_id()) else am_id) or current_username()
+
         plan_text = ""
         _pfolder = client_month_folder_id(_cid)
         
@@ -7037,12 +7074,12 @@ def api_tasks_ingest_plan():
             return jsonify({"error": "تعذر قراءة نص الخطة. يرجى التأكد من رفع ملف DOCX سليم أو لصق النص مباشرة.", "success": False}), 400
 
         # 4) Extract actual file name / plan name passed from upload
-        req_json = request.get_json(silent=True) or {}
         raw_file_name = (request.form.get("file_name") if request.form else "") or \
-                        (req_json.get("file_name") if isinstance(req_json, dict) else "") or \
+                        (req_json.get("plan_name") or req_json.get("file_name") if isinstance(req_json, dict) else "") or \
                         (up.filename if up and up.filename else "") or ""
         
-        clean_file_title = re.sub(r'\.(docx|doc|txt|pdf)$', '', raw_file_name, flags=re.I).strip() if raw_file_name else "ملف الخطة"
+        c_name_disp = target_client.get("name") if target_client else _client_name(_cid)
+        clean_file_title = re.sub(r'\.(docx|doc|txt|pdf)$', '', raw_file_name, flags=re.I).strip() if raw_file_name else f"خطة {c_name_disp}"
 
         tasks = get_client_tasks(_cid)
         max_num = 0
@@ -7071,7 +7108,7 @@ def api_tasks_ingest_plan():
             
             ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower() and not u.startswith("data:image/")]
             image_urls = [u for u in media_urls if u not in ref_links]
-            post_num = _resolve_post_number(p, default_index=p_idx)
+            post_num = p_idx
 
             new_task = {
                 "task_id": f"TASK-{counter:04d}",
@@ -7088,8 +7125,8 @@ def api_tasks_ingest_plan():
                 "publish_date": pub_date,
                 "publish_time": pub_time,
                 "delivery_deadline": dl_date,
-                "am_id": _my_employee_id() or "EMP-001",
-                "am_name": current_user_rec().get("name") or current_username(),
+                "am_id": am_id,
+                "am_name": am_name,
                 "assigned_employee_id": "",
                 "assignee_name": "",
                 "media_urls": image_urls,
@@ -7109,7 +7146,29 @@ def api_tasks_ingest_plan():
 
         tasks.sort(key=_natural_task_sort_key)
         save_client_tasks(tasks, _cid)
-        return jsonify({"success": True, "ok": True, "ingested_count": created_count, "tasks": tasks})
+
+        # Notify AM on Telegram
+        am_notified = False
+        tg = str(am_emp.get("telegram_id", "")).replace(".0", "").strip() if am_emp else ""
+        if tg:
+            creator = current_user_rec().get("name") or current_username()
+            am_notified = bool(send_telegram_bot_notification(tg,
+                f"📋 <b>وصلك تفريغ خطة جديدة</b>\n"
+                f"🏢 {c_name_disp}\n"
+                f"📄 الخطة: {clean_file_title}\n"
+                f"📝 عدد المهام: {created_count}\n"
+                f"👤 من: {creator}\n\n"
+                f"راجع وحدّد المواعيد والإسناد من البوابة 🚀"))
+
+        return jsonify({
+            "success": True, "ok": True,
+            "ingested_count": created_count,
+            "client_id": _cid,
+            "client_name": c_name_disp,
+            "am_name": am_name,
+            "am_notified": am_notified,
+            "tasks": tasks
+        })
     except Exception as e:
         import traceback
         traceback.print_exc()
