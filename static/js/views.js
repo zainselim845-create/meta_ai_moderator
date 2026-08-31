@@ -3521,8 +3521,8 @@ function addPlanBuilderRow(postData) {
             '</div>' +
             '<div class="flex items-center gap-2">' +
                 '<div class="flex items-center gap-1.5">' +
-                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 موعد النشر:</label>' +
-                    '<input type="date" class="pb-publish-date text-xs px-2 py-1 border border-slate-200 rounded-xl bg-slate-50 font-bold" value="' + esc(data.publish_date || '') + '" />' +
+                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 موعد النشر (اختياري):</label>' +
+                    '<input type="date" class="pb-publish-date text-xs px-2 py-1 border border-slate-200 rounded-xl bg-slate-50 font-bold" value="' + esc(data.publish_date || '') + '" title="اختياري - يمكنك تركه فارغاً" />' +
                 '</div>' +
                 '<button type="button" onclick="removePlanBuilderRow(this)" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center font-bold text-xs transition" title="حذف هذا البوست">' +
                     '✕' +
