@@ -1660,9 +1660,9 @@ async function loadHrGeofenceSettings() {
     const lEl = document.getElementById('hr-cfg-late');
     if (lEl) lEl.value = cfg.late_after_time || '10:15';
     const latEl = document.getElementById('hr-cfg-lat');
-    if (latEl) latEl.value = cfg.company_lat || 30.0444;
+    if (latEl) latEl.value = cfg.company_lat || 30.469771;
     const lonEl = document.getElementById('hr-cfg-lon');
-    if (lonEl) lonEl.value = cfg.company_lon || 31.2357;
+    if (lonEl) lonEl.value = cfg.company_lon || 31.180022;
     const hEl = document.getElementById('hr-cfg-hide-loc');
     if (hEl) hEl.checked = (cfg.hide_location !== false);
   } catch(e) {}
@@ -1677,8 +1677,8 @@ async function saveHrGeofenceSettings() {
   const body = {
     geofence_meters: parseInt(gEl?.value || 300, 10),
     late_after_time: (lEl?.value || '10:15').trim(),
-    company_lat: parseFloat(latEl?.value || 30.0444),
-    company_lon: parseFloat(lonEl?.value || 31.2357),
+    company_lat: parseFloat(latEl?.value || 30.469771),
+    company_lon: parseFloat(lonEl?.value || 31.180022),
     hide_location: hEl ? hEl.checked : true
   };
   try {

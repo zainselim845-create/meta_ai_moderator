@@ -7826,6 +7826,18 @@ def api_tasks_send_monthly_report():
 import csv as _csv
 from io import StringIO as _StringIO
 
+def _parse_coordinate(val, fallback):
+    if val is None:
+        return float(fallback)
+    s = str(val).strip().replace("٫", ".").replace(",", ".")
+    if not s or s.lower() in ("0", "0.0", "-", "none", "null"):
+        return float(fallback)
+    try:
+        f = float(s)
+        return f if abs(f) > 0.001 else float(fallback)
+    except Exception:
+        return float(fallback)
+
 # Default company sheet (Domya). Override via /api/hr/config (stored in Supabase).
 _HR_DEFAULTS = {
     "sheet_id": "1Y4i5wOm85xg6Umwph0i5-5SmssAdCy0uUlqUvzQwGj0",
@@ -7833,8 +7845,8 @@ _HR_DEFAULTS = {
     "attendance_gid": "2023520809",
     "payroll_gid": "253719303",
     "geofence_meters": int(os.environ.get("ATT_GEOFENCE_M", 300)),
-    "company_lat": float(os.environ.get("ATT_DEFAULT_LAT", 30.0444)),
-    "company_lon": float(os.environ.get("ATT_DEFAULT_LON", 31.2357)),
+    "company_lat": float(os.environ.get("ATT_DEFAULT_LAT", 30.469771)),
+    "company_lon": float(os.environ.get("ATT_DEFAULT_LON", 31.180022)),
     "hide_location": os.environ.get("ATT_HIDE_LOCATION", "true").lower() in ("true", "1", "yes"),
     "late_after_time": os.environ.get("ATT_LATE_AFTER", "10:15"),
 }
@@ -7845,6 +7857,10 @@ def hr_config():
         cfg = {}
     out = dict(_HR_DEFAULTS)
     out.update({k: v for k, v in cfg.items() if v is not None})
+    # If legacy placeholder coordinates were cached, default to true HQ
+    if abs(float(out.get("company_lat", 0)) - 30.0444) < 0.001:
+        out["company_lat"] = float(os.environ.get("ATT_DEFAULT_LAT", 30.469771))
+        out["company_lon"] = float(os.environ.get("ATT_DEFAULT_LON", 31.180022))
     return out
 
 def _gsheet_rows(sheet_id, gid, timeout=12):
@@ -8639,10 +8655,10 @@ def api_task_review(task_id):
 import urllib.request as _urlreq
 import urllib.error as _urlerr
 
-ATT_GEOFENCE_M = float(os.environ.get("ATT_GEOFENCE_M", "50"))
-ATT_DEFAULT_LAT = float(os.environ.get("ATT_DEFAULT_LAT", "30.46977"))
-ATT_DEFAULT_LON = float(os.environ.get("ATT_DEFAULT_LON", "31.18002"))
-ATT_LATE_AFTER = os.environ.get("ATT_LATE_AFTER", "11:01:00")  # HH:MM:SS
+ATT_GEOFENCE_M = float(os.environ.get("ATT_GEOFENCE_M", "300"))
+ATT_DEFAULT_LAT = float(os.environ.get("ATT_DEFAULT_LAT", "30.469771"))
+ATT_DEFAULT_LON = float(os.environ.get("ATT_DEFAULT_LON", "31.180022"))
+ATT_LATE_AFTER = os.environ.get("ATT_LATE_AFTER", "10:15:00")  # HH:MM:SS
 _SHEET_TITLE_CACHE = {}
 
 def _att_bot_token():
@@ -8872,12 +8888,17 @@ def _att_today_records(emp_id, today):
 def _att_handle_location(emp, chat_id, loc):
     cfg = hr_config()
     today, now_t = _cairo_now_parts()
-    try:
-        clat = float(emp.get("latitude") or cfg.get("company_lat") or ATT_DEFAULT_LAT)
-        clon = float(emp.get("longitude") or cfg.get("company_lon") or ATT_DEFAULT_LON)
-    except Exception:
-        clat, clon = ATT_DEFAULT_LAT, ATT_DEFAULT_LON
-    dist = _haversine_m(float(loc["latitude"]), float(loc["longitude"]), clat, clon)
+    
+    # Priority: Company HQ -> Employee specific branch (if set and valid)
+    comp_lat = _parse_coordinate(cfg.get("company_lat"), ATT_DEFAULT_LAT)
+    comp_lon = _parse_coordinate(cfg.get("company_lon"), ATT_DEFAULT_LON)
+    clat = _parse_coordinate(emp.get("latitude"), comp_lat)
+    clon = _parse_coordinate(emp.get("longitude"), comp_lon)
+    
+    user_lat = _parse_coordinate(loc.get("latitude"), clat)
+    user_lon = _parse_coordinate(loc.get("longitude"), clon)
+    
+    dist = _haversine_m(user_lat, user_lon, clat, clon)
     max_geofence = int(cfg.get("geofence_meters") or ATT_GEOFENCE_M)
     late_after = str(cfg.get("late_after_time") or ATT_LATE_AFTER)
     hide_loc = bool(cfg.get("hide_location", True))
