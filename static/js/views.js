@@ -1739,6 +1739,66 @@ function renderTaskCard(t) {
         timelineLogHtml += '</div></div>';
     }
 
+    // Submissions History & Deliverables Archive (سجل وأرشيف كل التسليمات السابقة للرجوع إليها)
+    var subHistory = (t.submissions_history && t.submissions_history.length) ? t.submissions_history : [];
+    if (!subHistory.length && (t.submitted_at || t.drive_link || rawNotes)) {
+        subHistory = [{
+            submitted_at: t.submitted_at || t.completed_at || t.created_at,
+            submitted_by: t.assignee_name || 'الموظف',
+            notes: rawNotes,
+            drive_link: driveLink,
+            media_urls: t.media_urls || []
+        }];
+    }
+
+    var historyArchiveHtml = '';
+    if (subHistory.length > 0) {
+        var subBoxId = 'sub-box-' + esc(t.task_id);
+        historyArchiveHtml = '<div class="pt-0.5">' +
+            '<button type="button" onclick="toggleTaskTimeline(\'' + esc(subBoxId) + '\')" class="w-full text-right bg-emerald-50/80 hover:bg-emerald-100/80 text-emerald-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-emerald-200 flex items-center justify-between transition shadow-2xs">' +
+                '<span class="flex items-center gap-1.5">📦 أرشيف وسجل التسليمات السابقة <span class="bg-emerald-200 text-emerald-900 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold">' + subHistory.length + '</span></span>' +
+                '<span id="arrow-' + esc(subBoxId) + '" class="text-emerald-700 text-xs transition">▼</span>' +
+            '</button>' +
+            '<div id="' + esc(subBoxId) + '" class="hidden mt-1.5 space-y-2 bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-2.5 max-h-56 overflow-y-auto text-xs">';
+
+        subHistory.slice().reverse().forEach(function(s, idx) {
+            var subNum = subHistory.length - idx;
+            var subDrive = (s.drive_link || '').trim();
+            var subNotes = (s.notes || '').trim();
+            var subTime = s.submitted_at ? fmtCairoTime(s.submitted_at) : '—';
+            var subBy = s.submitted_by || 'الموظف';
+
+            historyArchiveHtml += '<div class="bg-white border border-emerald-100 rounded-lg p-2 space-y-1.5 shadow-2xs">' +
+                '<div class="flex items-center justify-between text-[10px] border-b border-slate-100 pb-1">' +
+                    '<span class="font-bold text-emerald-950">تسليم #' + subNum + ' — ' + esc(subBy) + '</span>' +
+                    '<span class="text-slate-500 font-mono">' + esc(subTime) + '</span>' +
+                '</div>';
+
+            if (subNotes && subNotes !== '—') {
+                historyArchiveHtml += '<div class="text-[11px] text-slate-700 bg-slate-50 p-1.5 rounded border border-slate-100 whitespace-pre-wrap leading-relaxed">' + esc(subNotes) + '</div>';
+            }
+
+            if (subDrive) {
+                historyArchiveHtml += '<div class="flex items-center gap-1.5 pt-0.5">' +
+                    '<a href="' + esc(subDrive) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] py-1 px-2 rounded transition flex items-center justify-center gap-1">' +
+                        '<span>↗️ فتح في Google Drive</span>' +
+                    '</a>' +
+                    '<button type="button" onclick="copyTaskDriveLink(\'' + esc(subDrive) + '\')" class="bg-white hover:bg-emerald-50 text-emerald-800 font-bold text-[10px] py-1 px-2 rounded border border-emerald-200 transition flex items-center gap-1">' +
+                        '<span>📋 نسخ الرابط</span>' +
+                    '</button>' +
+                '</div>';
+            }
+
+            historyArchiveHtml += '</div>';
+        });
+
+        historyArchiveHtml += '</div></div>';
+    }
+
+    if (historyArchiveHtml) {
+        html += historyArchiveHtml;
+    }
+
     if (kpisHtml) {
         html += kpisHtml;
     }
@@ -1763,14 +1823,14 @@ function renderTaskCard(t) {
     if (st === 'Awaiting AM Review') {
         html += '<div class="grid grid-cols-2 gap-1 pt-1">' +
             '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs py-1.5 rounded-lg">↩️ رجّع للتعديل</button>' +
-            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-lg">✅ اعتماد + جدولة</button>' +
+            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-lg">✅ اعتماد واكتمال</button>' +
             '</div>' +
             '<div class="flex gap-1 pt-1"><select id="fwd-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">مرّرها للي بعده...</option>' + empOptionsHtml('') + '</select>' +
             '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">مرّر ➡️</button></div>' +
             '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 rounded-lg shadow-sm mt-1">↩️ سحب المهمة من الموظف</button>';
     }
     if (st === 'Completed') {
-        html += '<span class="text-xs font-bold text-emerald-600 block text-center">✓ مكتملة' + (t.scheduled_post_id ? ' ومجدولة للنشر 🗓️' : '') + '</span>';
+        html += '<span class="text-xs font-bold text-emerald-600 block text-center">✓ مكتملة ومعتمدة بنجاح ✅</span>';
     }
     html += '</div></div>';
     return html;
@@ -2093,7 +2153,8 @@ async function reviewTaskDecision(taskId, action) {
         body.note = note;
     }
     if (action === 'finalize') {
-        var n2 = prompt('ملاحظة اعتماد (اختياري):', '');
+        var n2 = prompt('ملاحظة اعتماد واكتمال المهمة (اختياري):', '');
+        if (n2 === null) return;
         body.note = n2 || '';
     }
     try {
@@ -2102,7 +2163,7 @@ async function reviewTaskDecision(taskId, action) {
         });
         var data = await res.json();
         if (res.ok && data.success !== false) {
-            showToast(action === 'finalize' ? 'تم الاعتماد والجدولة للنشر ✅🗓️' : action === 'forward' ? 'تم تمرير المهمة للموظف التالي ➡️' : 'تم إرجاع المهمة للموظف ↩️');
+            showToast(action === 'finalize' ? 'تم اعتماد واكتمال المهمة بنجاح ✅' : action === 'forward' ? 'تم تمرير المهمة للموظف التالي ➡️' : 'تم إرجاع المهمة للموظف ↩️');
             loadTasksEngine();
         } else { showToast(data.error || 'تعذّر تنفيذ المراجعة', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }

@@ -8170,12 +8170,26 @@ def api_my_task_submit(task_id):
             t["media_urls"].append(drive_link)
 
     mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
+    
+    # Save into permanent submissions history & deliverables archive
+    sub_entry = {
+        "id": f"sub-{int(time.time()*1000)}",
+        "submitted_at": t["submitted_at"],
+        "submitted_by": t.get("assignee_name") or current_user_rec().get("name") or "الموظف",
+        "employee_id": t.get("assigned_employee_id") or eid,
+        "drive_link": drive_link,
+        "notes": notes,
+        "media_urls": list(t.get("media_urls") or []),
+        "elapsed_minutes": mins
+    }
+    t.setdefault("submissions_history", []).append(sub_entry)
+
     _append_task_log(t, "submitted",
                      actor_name=t.get("assignee_name") or current_user_rec().get("name"),
                      actor_id=t.get("assigned_employee_id") or eid,
                      actor_type="employee",
                      note=notes or "تسليم المخرجات لمدير الحساب",
-                     details={"notes": notes, "drive_link": drive_link, "elapsed_minutes": mins})
+                     details={"notes": notes, "drive_link": drive_link, "elapsed_minutes": mins, "submission_id": sub_entry["id"]})
     save_one_task(t, cid)
     # ping ONLY the client's account manager (it also shows in their web board).
     _notify_client_am(cid,
@@ -8261,51 +8275,20 @@ def api_task_review(task_id):
                 f"📋 <b>مهمة وصلتلك</b>\n👤 {nxt.get('name','')}\n📝 {t.get('title','')}\n"
                 f"🏢 {_client_name(cid)}\n⏰ تسليم: {t.get('delivery_deadline','-')}\nابدأ من البوابة 🚀")
     else:
-        # Finalize → must have a publish date, else it would publish immediately.
-        pub_date = str(t.get("publish_date") or "").strip()
-        if not re.match(r"^\d{4}-\d{2}-\d{2}", pub_date):
-            return jsonify({"error": "حدّد معاد النزول (تاريخ) قبل الاعتماد والجدولة"}), 400
+        # Finalize / Approve — mark Completed and archive (unlinked from scheduler)
         t["status"] = "Completed"
         t["completed_at"] = datetime.now(timezone.utc).isoformat()
-        try:
-            urls = t.get("media_urls") or ([t.get("drive_link")] if t.get("drive_link") else [])
-            post = {
-                "id": f"post-{int(time.time()*1000)}",
-                "client_id": cid,
-                "caption": t.get("caption") or t.get("description") or t.get("title", ""),
-                "target": t.get("target", "fb"),
-                "media_type": (t.get("media_type") or "image").lower(),
-                "drive_link": t.get("drive_link", ""),
-                "media_urls": [u for u in urls if u],
-                "media_url": drive_to_direct(urls[0]) if urls and urls[0] else "",
-                "date": pub_date,
-                "time": t.get("publish_time", "10:00"),
-                "scheduled_at": _local_to_utc_iso(pub_date, t.get("publish_time", "10:00")),
-                "status": "pending",
-                "from_task": t.get("task_id"),
-            }
-            posts = cache.get("scheduled_posts")
-            if not isinstance(posts, list):
-                posts = IN_MEMORY_POSTS
-            posts.insert(0, post)
-            cache["scheduled_posts"] = posts
-            push_setting("meta_ai_scheduled_posts", posts)
-            save_scheduled_post(post)
-            t["scheduled_post_id"] = post["id"]
-            scheduled = post
-        except Exception as _e:
-            print(f"[task→schedule] {_e}")
         _append_task_log(t, "reviewed_approved",
                          actor_name=current_user_rec().get("name") or current_username(),
                          actor_type="account_manager",
-                         note=review_note or "اعتماد نهائي للمهمة وجدولة النشر",
-                         details={"publish_date": pub_date, "publish_time": t.get("publish_time"), "scheduled_post_id": t.get("scheduled_post_id")})
+                         note=review_note or "اعتماد نهائي واكتمال المهمة",
+                         details={"review_note": review_note})
         if cur_tg:
             send_telegram_bot_notification(cur_tg,
-                f"✅ <b>تم اعتماد مهمتك واتجدولت للنشر</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\n"
-                + (f"📝 {review_note}" if review_note else "شغل جميل 👏"))
+                f"✅ <b>تم اعتماد مهمتك بنجاح 👏</b>\n📝 {t.get('title','')}\n🏢 {_client_name(cid)}\n"
+                + (f"📝 {review_note}" if review_note else "تسلم إيدك، شغل ممتاز!"))
     save_one_task(t, cid)
-    return jsonify({"ok": True, "task": t, "scheduled": scheduled})
+    return jsonify({"ok": True, "task": t})
 
 
 # ============================================================
@@ -9230,12 +9213,25 @@ def _tasks_do_submit(t, cid, note):
         drive_link = t.get("drive_link")
 
     mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
+    
+    sub_entry = {
+        "id": f"sub-{int(time.time()*1000)}",
+        "submitted_at": t["submitted_at"],
+        "submitted_by": t.get("assignee_name") or "الموظف",
+        "employee_id": t.get("assigned_employee_id"),
+        "drive_link": drive_link,
+        "notes": note,
+        "media_urls": list(t.get("media_urls") or []),
+        "elapsed_minutes": mins
+    }
+    t.setdefault("submissions_history", []).append(sub_entry)
+
     _append_task_log(t, "submitted",
                      actor_name=t.get("assignee_name") or "الموظف",
                      actor_id=t.get("assigned_employee_id"),
                      actor_type="employee",
                      note=note or "تسليم المخرجات من Telegram Bot",
-                     details={"notes": note, "drive_link": drive_link, "elapsed_minutes": mins})
+                     details={"notes": note, "drive_link": drive_link, "elapsed_minutes": mins, "submission_id": sub_entry["id"]})
     save_one_task(t, cid)
     # ping ONLY the client's account manager (it also shows in their web board).
     _notify_client_am(cid,

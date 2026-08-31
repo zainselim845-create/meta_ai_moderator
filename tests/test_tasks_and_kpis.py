@@ -143,3 +143,34 @@ def test_plan_fragment_merging_consolidates_fields_into_single_post():
     post = consolidated[0]
     assert 'بوست 1' in post['title']
     assert 'خلفية زرقاء' in post['caption']
+
+
+def test_submissions_history_preserves_all_submitted_rounds():
+    task = {'task_id': 'TASK-0001', 'submissions_history': [], 'activity_log': []}
+    
+    # First submission
+    sub1 = {
+        'id': 'sub-1',
+        'submitted_at': '2026-08-01T12:00:00+00:00',
+        'submitted_by': 'رنا ممدوح',
+        'drive_link': 'https://drive.google.com/file/d/sample1',
+        'notes': 'تصميم المخرجات الأولية',
+        'media_urls': ['https://drive.google.com/file/d/sample1']
+    }
+    task['submissions_history'].append(sub1)
+    
+    # Second submission after review
+    sub2 = {
+        'id': 'sub-2',
+        'submitted_at': '2026-08-01T15:00:00+00:00',
+        'submitted_by': 'رنا ممدوح',
+        'drive_link': 'https://drive.google.com/file/d/sample2_v2',
+        'notes': 'تعديل الألوان والخطوط بناء على طلب AM',
+        'media_urls': ['https://drive.google.com/file/d/sample2_v2']
+    }
+    task['submissions_history'].append(sub2)
+    
+    assert len(task['submissions_history']) == 2
+    assert task['submissions_history'][0]['drive_link'] == 'https://drive.google.com/file/d/sample1'
+    assert task['submissions_history'][1]['drive_link'] == 'https://drive.google.com/file/d/sample2_v2'
+    assert 'تعديل الألوان' in task['submissions_history'][1]['notes']
