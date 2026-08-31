@@ -1093,25 +1093,28 @@ function renderClientTabs() {
 
     var planNames = Object.keys(plans);
     
-    var html = '<button onclick="filterTasksByPlan(null)" class="whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 ' +
-        (!selectedPlanFilter ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200') + '">' +
+    var html = '<div class="flex items-center gap-2 overflow-x-auto pb-1 w-full flex-nowrap">';
+    html += '<button type="button" onclick="filterTasksByPlan(null)" class="shrink-0 whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 ' +
+        (!selectedPlanFilter ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '">' +
         '<span>📑 جميع الخطط</span>' +
-        '<span class="bg-white/20 text-xs px-2 py-0.5 rounded-full font-mono font-bold">' + allTasks.length + '</span>' +
+        '<span class="' + (!selectedPlanFilter ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800') + ' text-xs px-2 py-0.5 rounded-full font-mono font-bold">' + allTasks.length + '</span>' +
     '</button>';
 
     planNames.forEach(function(pName) {
         var pInfo = plans[pName];
         var isSel = (selectedPlanFilter === pName);
-        html += '<button onclick="filterTasksByPlan(\'' + esc(pName) + '\')" class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ' +
-            (isSel ? 'bg-purple-600 text-white shadow-sm' : 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100') + '">' +
-            '<span>📄 ' + esc(pName) + '</span>' +
+        var cleanTitle = esc(pName).replace(/\.(docx|doc|pdf|txt)$/i, '');
+        html += '<button type="button" onclick="filterTasksByPlan(\'' + esc(pName).replace(/'/g, "\\'") + '\')" class="shrink-0 whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ' +
+            (isSel ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-300' : 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100') + '">' +
+            '<span>📄 ' + cleanTitle + '</span>' +
             '<span class="text-[10px] font-mono ' + (isSel ? 'bg-white/20 text-white' : 'bg-purple-200 text-purple-900') + ' px-1.5 py-0.5 rounded-lg font-bold">' + pInfo.completed + '/' + pInfo.total + '</span>' +
         '</button>';
     });
 
-    html += '<button onclick="openPlanBuilderModal()" class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-2xs transition flex items-center gap-1">' +
-        '<span>➕ خطة جديدة بالقالب</span>' +
+    html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1 mr-auto">' +
+        '<span>➕ كتابة خطة جديدة بالقالب</span>' +
     '</button>';
+    html += '</div>';
 
     box.innerHTML = html;
 }
@@ -1948,14 +1951,23 @@ function renderTasksBoard() {
             });
         }
 
+        // 1.5 Plan Filter
+        if (selectedPlanFilter) {
+            displayTasks = displayTasks.filter(function(t) {
+                var p = (t.plan_name || t.file_name || 'خطة عامة').trim();
+                var f = (t.file_name || '').trim();
+                return p === selectedPlanFilter || f === selectedPlanFilter;
+            });
+        }
+
         // 2. Status Filter
         if (currentTaskStatusFilter && currentTaskStatusFilter !== 'all') {
             displayTasks = displayTasks.filter(function(t) {
-                var st = t.status || 'Pending AM Approval';
-                if (currentTaskStatusFilter === 'in_progress') return st === 'In Progress' || st === 'Assigned';
-                if (currentTaskStatusFilter === 'review') return st === 'Awaiting AM Review';
-                if (currentTaskStatusFilter === 'pending') return st === 'Pending AM Approval';
-                if (currentTaskStatusFilter === 'completed') return st === 'Completed';
+                var st = (t.status || 'Pending AM Approval').trim();
+                if (currentTaskStatusFilter === 'in_progress') return st === 'In Progress' || st === 'Assigned' || st.indexOf('جاري') !== -1 || st.indexOf('مسند') !== -1;
+                if (currentTaskStatusFilter === 'review') return st === 'Awaiting AM Review' || st.indexOf('مراجعة') !== -1;
+                if (currentTaskStatusFilter === 'pending') return st === 'Pending AM Approval' || st === 'Pending' || st.indexOf('إسناد') !== -1 || st.indexOf('بانتظار') !== -1;
+                if (currentTaskStatusFilter === 'completed') return st === 'Completed' || st.indexOf('مكتمل') !== -1;
                 return true;
             });
         }
@@ -3379,31 +3391,25 @@ async function openPlanBuilderModal() {
         planNameInput.value = 'خطة محتوى ' + months[d.getMonth()] + ' ' + d.getFullYear();
     }
 
-    // Load real team & AMs from API
+    // Load real AMs from API
     var amSelect = document.getElementById('pb-am-select');
+    var realAMs = [
+        { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
+        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' }
+    ];
+
     try {
-        var empData = await safeFetchJson('/api/tasks/employees');
-        if (empData && empData.employees) {
-            window.allTeamEmployees = empData.employees;
+        var mgrData = await safeFetchJson('/api/managers');
+        if (mgrData && mgrData.managers && mgrData.managers.length) {
+            realAMs = mgrData.managers.filter(function(m){
+                return (m.name || '').indexOf('روضة') === -1;
+            });
         }
     } catch(e){}
 
-    var team = window.allTeamEmployees || [
-        { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
-        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' },
-        { employee_id: 'EMP-8086-4520', name: 'محمد سعيد فوزي محمد', role: 'Ai automation & إدارة' },
-        { employee_id: 'EMP-5970-2611', name: 'روضة عبد الحميد', role: 'الاداره' }
-    ];
-
     if (amSelect) {
         amSelect.innerHTML = '';
-        var amList = team.filter(function(e){
-            var r = (e.role || '').toLowerCase();
-            return r.includes('account') || r.includes('manager') || r.includes('اداره') || r.includes('إدارة') || r.includes('admin') || e.employee_id.startsWith('AM-');
-        });
-        if (!amList.length) amList = team;
-
-        amList.forEach(function(a){
+        realAMs.forEach(function(a){
             var opt = document.createElement('option');
             opt.value = a.employee_id || a.id;
             opt.textContent = '👤 ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager');
