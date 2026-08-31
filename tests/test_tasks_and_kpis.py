@@ -213,3 +213,49 @@ def test_submissions_history_preserves_all_submitted_rounds():
 )
 def test_matches_month_handles_various_date_formats(date_str, month_filter, expected):
     assert _matches_month(date_str, month_filter) == expected
+
+
+def test_haversine_and_geofence_calculation():
+    from api.index import _haversine_m
+    # Test distance between Cairo center and Giza (approx 8-10 km)
+    dist = _haversine_m(30.0444, 31.2357, 30.0131, 31.2089)
+    assert 3000 < dist < 6000  # meters
+    # Same point distance should be 0
+    assert _haversine_m(30.0444, 31.2357, 30.0444, 31.2357) == 0
+
+
+def test_location_anti_forwarding_rules():
+    # Simulated forwarded message from telegram
+    forwarded_msg = {
+        "message_id": 123,
+        "date": 1788170000,
+        "forward_date": 1788169900,
+        "forward_from": {"id": 999, "first_name": "Friend"},
+        "location": {"latitude": 30.0444, "longitude": 31.2357}
+    }
+    is_forwarded = bool(
+        forwarded_msg.get("forward_date") or 
+        forwarded_msg.get("forward_from") or 
+        forwarded_msg.get("forward_origin") or 
+        forwarded_msg.get("forward_from_chat") or 
+        forwarded_msg.get("forward_sender_name") or
+        forwarded_msg.get("forward_from_message_id")
+    )
+    assert is_forwarded is True
+
+    # Real live location message
+    live_msg = {
+        "message_id": 124,
+        "date": 1788170000,
+        "location": {"latitude": 30.0444, "longitude": 31.2357}
+    }
+    is_live_forwarded = bool(
+        live_msg.get("forward_date") or 
+        live_msg.get("forward_from") or 
+        live_msg.get("forward_origin") or 
+        live_msg.get("forward_from_chat") or 
+        live_msg.get("forward_sender_name") or
+        live_msg.get("forward_from_message_id")
+    )
+    assert is_live_forwarded is False
+

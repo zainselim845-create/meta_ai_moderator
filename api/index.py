@@ -3779,8 +3779,11 @@ def api_register():
 @require_admin
 def api_users_list():
     sync_from_supabase()
+    emp_folders = cache.get("employee_folders") or {}
     out = []
     for un, rec in USERS_DB.items():
+        eid = rec.get("employee_id") or (un if un.startswith("EMP-") or un.startswith("AM-") else "")
+        fid = emp_folders.get(str(eid)) or emp_folders.get(str(un))
         out.append({
             "username": un,
             "role": rec.get("role", "account_manager"),
@@ -3788,7 +3791,9 @@ def api_users_list():
             "password": rec.get("password_plain", ""),  # visible to admins only (this route is @require_admin)
             "assigned_clients": rec.get("assigned_clients") or [],
             "allowed_tabs": rec.get("allowed_tabs") or [],
-            "employee_id": rec.get("employee_id", ""),
+            "employee_id": eid,
+            "drive_folder_id": fid or "",
+            "drive_folder_url": f"https://drive.google.com/drive/folders/{fid}" if fid else "",
             "created_at": rec.get("created_at"),
             "is_primary": (un == admin_user),
         })
@@ -5739,6 +5744,99 @@ def client_month_folder_id(cid, month=None):
         print(f"[client month folder] {e}")
         return parent
 
+
+def employee_drive_folder_id(eid, name=None):
+    """Get-or-create a dedicated root Drive folder for an employee."""
+    if not eid:
+        return None
+    folders = cache.get("employee_folders") or {}
+    if folders.get(str(eid)):
+        return folders[str(eid)]
+    token = get_google_oauth_access_token()
+    if not token:
+        return None
+    emp_info = _sheet_emp(eid)
+    emp_name = name or emp_info.get("name") or eid
+    folder_name = f"Domya — الموظف {emp_name} ({eid})"
+    try:
+        meta = {"name": folder_name, "mimeType": "application/vnd.google-apps.folder"}
+        req = urllib.request.Request(
+            "https://www.googleapis.com/drive/v3/files?fields=id",
+            data=json.dumps(meta).encode("utf-8"),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        )
+        fid = json.loads(urllib.request.urlopen(req, timeout=15).read()).get("id")
+        if not fid:
+            return None
+        _drive_set_anyone_reader(token, fid)
+        folders[str(eid)] = fid
+        cache["employee_folders"] = folders
+        push_setting("meta_ai_employee_folders", folders)
+        return fid
+    except Exception as e:
+        print(f"[employee folder err] {e}")
+        return None
+
+
+def employee_plan_folder_id(eid, plan_name, month=None, name=None):
+    """Get-or-create hierarchy: Employee Folder > Month (YYYY-MM) > Plan Name."""
+    parent = employee_drive_folder_id(eid, name=name)
+    if not parent:
+        return None
+    if not month:
+        try:
+            month = _cairo_now().strftime("%Y-%m")
+        except Exception:
+            month = datetime.now(timezone.utc).strftime("%Y-%m")
+    clean_plan = (plan_name or "خطة عامة").strip()
+    key = f"{eid}:{month}:{clean_plan}"
+    subfolders = cache.get("employee_plan_folders") or {}
+    if subfolders.get(key):
+        return subfolders[key]
+    token = get_google_oauth_access_token()
+    if not token:
+        return parent
+    try:
+        # 1. Month subfolder inside Employee Root
+        month_key = f"{eid}:{month}"
+        month_folders = cache.get("employee_month_folders") or {}
+        month_fid = month_folders.get(month_key)
+        if not month_fid:
+            m_meta = {"name": month, "mimeType": "application/vnd.google-apps.folder", "parents": [parent]}
+            m_req = urllib.request.Request(
+                "https://www.googleapis.com/drive/v3/files?fields=id",
+                data=json.dumps(m_meta).encode("utf-8"),
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            )
+            month_fid = json.loads(urllib.request.urlopen(m_req, timeout=15).read()).get("id")
+            if month_fid:
+                _drive_set_anyone_reader(token, month_fid)
+                month_folders[month_key] = month_fid
+                cache["employee_month_folders"] = month_folders
+                push_setting("meta_ai_employee_month_folders", month_folders)
+            else:
+                month_fid = parent
+
+        # 2. Plan subfolder inside Month Folder
+        p_meta = {"name": clean_plan, "mimeType": "application/vnd.google-apps.folder", "parents": [month_fid]}
+        p_req = urllib.request.Request(
+            "https://www.googleapis.com/drive/v3/files?fields=id",
+            data=json.dumps(p_meta).encode("utf-8"),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        )
+        plan_fid = json.loads(urllib.request.urlopen(p_req, timeout=15).read()).get("id")
+        if plan_fid:
+            _drive_set_anyone_reader(token, plan_fid)
+            subfolders[key] = plan_fid
+            cache["employee_plan_folders"] = subfolders
+            push_setting("meta_ai_employee_plan_folders", subfolders)
+            return plan_fid
+        return month_fid
+    except Exception as e:
+        print(f"[employee plan folder err] {e}")
+        return parent
+
+
 def drive_resumable_session(name, mime, parent_id=None):
     """Start a resumable upload session; returns the session URL the browser PUTs to
     (no OAuth token is exposed to the browser)."""
@@ -7251,9 +7349,20 @@ def api_task_upload_asset(task_id):
         return jsonify({"error": "لم يتم اختيار ملف"}), 400
     raw = up.read()
     mime = up.mimetype or "application/octet-stream"
-    safe = re.sub(r"[^\w.\-]+", "_", up.filename)[:80]
-    name = f"{task_id}_{safe}"
-    link = drive_upload_bytes(name, raw, mime, parent_id=client_month_folder_id(cid))
+    eid = str(t.get("assigned_employee_id") or _my_employee_id() or "EMP-001")
+    emp_name = t.get("assignee_name") or current_user_rec().get("name") or eid
+    plan_name = str(t.get("plan_name") or t.get("file_name") or _client_name(cid) or "خطة عامة").strip()
+    post_num = t.get("post_number") or _resolve_post_number(t, default_index=1)
+    
+    # Store directly in Employee's dedicated Plan Folder (Employee > Month > Plan)
+    target_folder_id = employee_plan_folder_id(eid, plan_name, name=emp_name) or client_month_folder_id(cid)
+    
+    # Clean filename: [اسم البلان] — بوست #[رقم_البوست] — [عنوان_التاسك].[ext]
+    ext = os.path.splitext(up.filename)[1] or (".mp4" if mime.startswith("video") else ".png")
+    clean_title = re.sub(r'[^\w\s\u0600-\u06FF\.\-]+', '_', t.get('title') or 'مهمة').strip()[:40]
+    safe_name = f"{plan_name} — بوست #{post_num} — {clean_title}{ext}"
+    
+    link = drive_upload_bytes(safe_name, raw, mime, parent_id=target_folder_id)
     if not link:
         return jsonify({"error": "تعذّر الرفع على Drive"}), 500
     t["drive_link"] = link
@@ -7265,29 +7374,38 @@ def api_task_upload_asset(task_id):
                      actor_name=current_user_rec().get("name") or current_username(),
                      actor_id=_my_employee_id() or session.get("uid"),
                      actor_type=current_role(),
-                     note=f"رفع ملف على Drive: {safe}",
-                     details={"drive_link": link, "filename": safe})
+                     note=f"رفع ملف على Drive في مجلد الموظف: {safe_name}",
+                     details={"drive_link": link, "filename": safe_name, "plan_name": plan_name, "post_number": post_num})
     save_one_task(t, cid)
-    return jsonify({"ok": True, "drive_link": link, "task": t})
+    return jsonify({"ok": True, "drive_link": link, "task": t, "file_name": safe_name})
 
 
 @app.route("/api/tasks/<task_id>/upload-session", methods=["POST"])
 @auth_guard
 def api_task_upload_session(task_id):
     """Start a direct browser→Drive resumable upload (for large videos, bypasses the
-    server body limit). File lands in the client's Drive folder."""
+    server body limit). File lands in the employee's plan Drive folder."""
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
     if not (can_see_client(cid) or str(t.get("assigned_employee_id") or "") == _my_employee_id()):
         return jsonify({"error": "غير مصرح"}), 403
     data = request.get_json() or {}
-    fname = re.sub(r"[^\w.\-]+", "_", (data.get("filename") or "asset"))[:80]
+    eid = str(t.get("assigned_employee_id") or _my_employee_id() or "EMP-001")
+    emp_name = t.get("assignee_name") or current_user_rec().get("name") or eid
+    plan_name = str(t.get("plan_name") or t.get("file_name") or _client_name(cid) or "خطة عامة").strip()
+    post_num = t.get("post_number") or _resolve_post_number(t, default_index=1)
+    target_folder_id = employee_plan_folder_id(eid, plan_name, name=emp_name) or client_month_folder_id(cid)
+
+    orig_fname = (data.get("filename") or "asset")
+    ext = os.path.splitext(orig_fname)[1] or ".mp4"
+    clean_title = re.sub(r'[^\w\s\u0600-\u06FF\.\-]+', '_', t.get('title') or 'مهمة').strip()[:40]
+    safe_name = f"{plan_name} — بوست #{post_num} — {clean_title}{ext}"
     mime = (data.get("mime") or "application/octet-stream")
-    session_url = drive_resumable_session(f"{task_id}_{fname}", mime, parent_id=client_month_folder_id(cid))
+    session_url = drive_resumable_session(safe_name, mime, parent_id=target_folder_id)
     if not session_url:
         return jsonify({"error": "تعذّر بدء الرفع"}), 500
-    return jsonify({"ok": True, "upload_url": session_url})
+    return jsonify({"ok": True, "upload_url": session_url, "file_name": safe_name})
 
 
 @app.route("/api/tasks/<task_id>/upload-complete", methods=["POST"])
@@ -7714,6 +7832,11 @@ _HR_DEFAULTS = {
     "employees_gid": "1158009464",
     "attendance_gid": "2023520809",
     "payroll_gid": "253719303",
+    "geofence_meters": int(os.environ.get("ATT_GEOFENCE_M", 300)),
+    "company_lat": float(os.environ.get("ATT_DEFAULT_LAT", 30.0444)),
+    "company_lon": float(os.environ.get("ATT_DEFAULT_LON", 31.2357)),
+    "hide_location": os.environ.get("ATT_HIDE_LOCATION", "true").lower() in ("true", "1", "yes"),
+    "late_after_time": os.environ.get("ATT_LATE_AFTER", "10:15"),
 }
 
 def hr_config():
@@ -7721,7 +7844,7 @@ def hr_config():
     if not isinstance(cfg, dict):
         cfg = {}
     out = dict(_HR_DEFAULTS)
-    out.update({k: v for k, v in cfg.items() if v})
+    out.update({k: v for k, v in cfg.items() if v is not None})
     return out
 
 def _gsheet_rows(sheet_id, gid, timeout=12):
@@ -7751,9 +7874,26 @@ def api_hr_config():
     if request.method == "POST":
         data = request.get_json() or {}
         cur = cache.get("hr_sheet") if isinstance(cache.get("hr_sheet"), dict) else {}
-        for k in ("sheet_id", "employees_gid", "attendance_gid", "payroll_gid"):
+        for k in ("sheet_id", "employees_gid", "attendance_gid", "payroll_gid", "late_after_time"):
             if data.get(k) is not None:
                 cur[k] = str(data.get(k)).strip()
+        if data.get("geofence_meters") is not None:
+            try:
+                cur["geofence_meters"] = int(data.get("geofence_meters"))
+            except Exception:
+                pass
+        if data.get("company_lat") is not None:
+            try:
+                cur["company_lat"] = float(data.get("company_lat"))
+            except Exception:
+                pass
+        if data.get("company_lon") is not None:
+            try:
+                cur["company_lon"] = float(data.get("company_lon"))
+            except Exception:
+                pass
+        if data.get("hide_location") is not None:
+            cur["hide_location"] = bool(data.get("hide_location"))
         cache["hr_sheet"] = cur
         push_setting("meta_ai_hr_sheet", cur)
         return jsonify({"ok": True, "config": hr_config()})
@@ -7952,6 +8092,34 @@ def _emp_username(emp):
 def _my_employee_id():
     """The sheet employee_id linked to the logged-in portal user (if any)."""
     return str(current_user_rec().get("employee_id") or "").strip()
+
+
+@app.route("/api/me/drive-folder", methods=["GET"])
+@auth_guard
+def api_my_drive_folder():
+    """Get the logged-in employee's Google Drive folder URL."""
+    eid = _my_employee_id() or session.get("uid")
+    if not eid:
+        return jsonify({"error": "لا يوجد كود موظف مرتبط بحسابك"}), 400
+    name = current_user_rec().get("name") or current_username()
+    fid = employee_drive_folder_id(eid, name=name)
+    if not fid:
+        return jsonify({"error": "تعذر إنشاء أو جلب مجلد Google Drive"}), 500
+    url = f"https://drive.google.com/drive/folders/{fid}"
+    return jsonify({"ok": True, "employee_id": eid, "folder_id": fid, "folder_url": url, "name": name})
+
+
+@app.route("/api/employees/<eid>/drive-folder", methods=["GET"])
+@require_manager
+def api_employee_drive_folder(eid):
+    """Get any employee's Google Drive folder URL (for Admin / Manager in permissions & HR)."""
+    emp = _sheet_emp(eid)
+    name = emp.get("name") or eid
+    fid = employee_drive_folder_id(eid, name=name)
+    if not fid:
+        return jsonify({"error": "تعذر إنشاء أو جلب مجلد Google Drive للموظف"}), 500
+    url = f"https://drive.google.com/drive/folders/{fid}"
+    return jsonify({"ok": True, "employee_id": eid, "folder_id": fid, "folder_url": url, "name": name})
 
 
 @app.route("/api/employees/onboard", methods=["POST"])
@@ -8694,14 +8862,16 @@ def _att_handle_location(emp, chat_id, loc):
     cfg = hr_config()
     today, now_t = _cairo_now_parts()
     try:
-        clat = float(emp.get("latitude") or ATT_DEFAULT_LAT)
-        clon = float(emp.get("longitude") or ATT_DEFAULT_LON)
+        clat = float(emp.get("latitude") or cfg.get("company_lat") or ATT_DEFAULT_LAT)
+        clon = float(emp.get("longitude") or cfg.get("company_lon") or ATT_DEFAULT_LON)
     except Exception:
         clat, clon = ATT_DEFAULT_LAT, ATT_DEFAULT_LON
     dist = _haversine_m(float(loc["latitude"]), float(loc["longitude"]), clat, clon)
+    max_geofence = int(cfg.get("geofence_meters") or ATT_GEOFENCE_M)
+    late_after = str(cfg.get("late_after_time") or ATT_LATE_AFTER)
     hide_loc = bool(cfg.get("hide_location", True))
-    if dist > ATT_GEOFENCE_M:
-        loc_fail = "خارج النطاق المسموح به لمقر الشركة" if hide_loc else f"المسافة: <code>{dist} متر</code>"
+    if dist > max_geofence:
+        loc_fail = f"خارج النطاق المسموح به لمقر الشركة ({max_geofence} متر)" if hide_loc else f"المسافة: <code>{dist} متر</code> (المسموح {max_geofence} متر)"
         _att_send(chat_id, f"❌ <b>أنت خارج نطاق الشركة</b>\n📍 {loc_fail}\nلازم تكون في مكان العمل عشان تسجّل.", keyboard=_att_menu())
         return
     recs = _att_today_records(emp.get("employee_id"), today)
@@ -8718,7 +8888,7 @@ def _att_handle_location(emp, chat_id, loc):
         if any(str(r.get("checkin_time", "")).strip() not in ("", "0") for r in _att_today_records(emp.get("employee_id"), today)):
             _att_send(chat_id, "✅ حضورك مسجّل بالفعل النهاردة.", keyboard=_att_menu())
             return
-        status = "متأخر" if now_t >= ATT_LATE_AFTER else "حاضر"
+        status = "متأخر" if now_t >= late_after else "حاضر"
         ok = _sheets_append(cfg["sheet_id"], cfg["attendance_gid"],
             ["employee_id", "date", "name", "checkin_time", "checkout_time", "hours", "latitude", "longitude", "distance", "status"],
             {"employee_id": emp_id, "date": today, "name": emp.get("name", ""), "checkin_time": now_t,
@@ -8903,26 +9073,55 @@ def telegram_attendance_webhook():
             msg_id = msg.get("message_id")
             msg_date = max(int(msg.get("date") or 0), int(msg.get("edit_date") or 0))
             now_ts = int(datetime.now(timezone.utc).timestamp())
-            max_age = int(os.environ.get("ATT_LOC_MAX_AGE", "150"))  # seconds
-            # 1) freshness / anti-spoof: reject an old or replayed location pin
+            max_age = int(os.environ.get("ATT_LOC_MAX_AGE", "90"))  # seconds
+
+            # 1) Reject ANY forwarded message (forward_date, forward_from, forward_origin, forward_from_chat, forward_sender_name)
+            is_forwarded = bool(
+                msg.get("forward_date") or 
+                msg.get("forward_from") or 
+                msg.get("forward_origin") or 
+                msg.get("forward_from_chat") or 
+                msg.get("forward_sender_name") or
+                msg.get("forward_from_message_id")
+            )
+            if is_forwarded:
+                _att_delete_message(chat_id, msg_id)
+                _att_send(chat_id, "❌ <b>تم رفض تسجيل الحضور!</b>\nالموقع تم إرساله عبر إعادة التوجيه (Forwarded Location).\nيجب الضغط على زر «📍 إرسال موقعي المباشر» من هاتفك فقط 🔒", keyboard=_att_menu())
+                return jsonify({"ok": True})
+
+            # 2) Reject pinned venue/places (search pins) instead of live GPS
+            if msg.get("venue"):
+                _att_delete_message(chat_id, msg_id)
+                _att_send(chat_id, "❌ <b>تم رفض تسجيل الحضور!</b>\nتم إرسال نقطة خريطة (Venue/Pin) وليس موقعك الجغرافي الفعلي GPS المباشر 📍", keyboard=_att_menu())
+                return jsonify({"ok": True})
+
+            # 3) Freshness check: reject old / replayed timestamps
             if msg_date and (now_ts - msg_date) > max_age:
                 _att_delete_message(chat_id, msg_id)
-                _att_send(chat_id, "⚠️ الموقع ده قديم. اضغط 📎 ثم Location واختر <b>«إرسال موقعي الحالي»</b> (مش موقع محفوظ أو محوّل).", keyboard=_att_menu())
+                _att_send(chat_id, "⚠️ انتهت صلاحية وقت الموقع (قديم). اضغط على «📍 تسجيل حضور» ثم اضغط «📍 إرسال موقعي المباشر» مباشرة 🔒", keyboard=_att_menu())
                 return jsonify({"ok": True})
-            # 2) reject forwarded locations (a location relayed from elsewhere)
-            if msg.get("forward_date") or msg.get("forward_from") or msg.get("forward_origin"):
+
+            # 4) Verify active check-in challenge session token (must have pressed the button within 120s)
+            att_sess = (cache.get(f"att_challenge_{tg_id}") or {})
+            sess_time = att_sess.get("time", 0)
+            if not sess_time or (time.time() - sess_time > 120):
                 _att_delete_message(chat_id, msg_id)
-                _att_send(chat_id, "⚠️ مينفعش موقع محوّل (Forwarded). ابعت موقعك الحالي المباشر.", keyboard=_att_menu())
+                _att_send(chat_id, "⚠️ يرجى الضغط أولاً على زر <b>«📍 تسجيل حضور»</b> أو <b>«🚪 تسجيل انصراف»</b> من القائمة، ثم مشاركة موقعك عبر الزر المخصص 🔒", keyboard=_att_menu())
                 return jsonify({"ok": True})
-            # 3) process, then wipe the shared location for privacy
+            # Clear challenge once validated
+            cache.pop(f"att_challenge_{tg_id}", None)
+
+            # 5) Process attendance & wipe message for privacy
             _att_handle_location(emp, chat_id, loc)
             _att_delete_message(chat_id, msg_id)
         elif text == "📍 تسجيل حضور":
-            _att_send(chat_id, "📍 ابعت موقعك الجغرافي (Location) عشان أسجّل حضورك.",
-                      keyboard=[[{"text": "📍 إرسال موقعي", "request_location": True}]])
+            cache[f"att_challenge_{tg_id}"] = {"time": time.time(), "action": "checkin"}
+            _att_send(chat_id, "📍 لتسجيل الحضور، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
+                      keyboard=[[{"text": "📍 إرسال موقعي المباشر", "request_location": True}]])
         elif text == "🚪 تسجيل انصراف":
-            _att_send(chat_id, "📍 ابعت موقعك الجغرافي (Location) عشان أسجّل انصرافك.",
-                      keyboard=[[{"text": "📍 إرسال موقعي", "request_location": True}]])
+            cache[f"att_challenge_{tg_id}"] = {"time": time.time(), "action": "checkout"}
+            _att_send(chat_id, "🚪 لتسجيل الانصراف، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
+                      keyboard=[[{"text": "📍 إرسال موقعي المباشر", "request_location": True}]])
         elif text == "📊 حالتي اليوم":
             _att_status(emp, chat_id)
         elif text == "🚫 تسجيل غياب":
@@ -9370,15 +9569,15 @@ def _tasks_handle_callback(cbq):
                 save_one_task(t, cid)
                 _tasks_answer(cb_id, "بدأت الشغل 🚀")
         else:  # tb_ submit → ask for a note to the account manager first
-            if t.get("status") != "In Progress":
-                _tasks_answer(cb_id, "لازم تبدأ الشغل الأول")
+            if t.get("status") not in ("In Progress", "Assigned", "Pending AM Approval"):
+                _tasks_answer(cb_id, "المهمة مسلمة بالفعل أو قيد المراجعة")
             else:
                 pend = cache.get("tasks_note_pending") or {}
                 pend[str(presser)] = tid
                 cache["tasks_note_pending"] = pend
                 push_setting("meta_ai_tasks_note_pending", pend)
                 _tasks_answer(cb_id, "اكتب ملاحظتك 📝")
-                _tasks_send(chat_id, f"📝 اكتب ملاحظتك للأكونت مانيجر عن «{t.get('title','')}» (أو ابعت <b>تم</b> من غير ملاحظة):")
+                _tasks_send(chat_id, f"📝 اكتب ملاحظتك أو رابط الملف للأكونت مانيجر عن «{t.get('title','')}» (أو ابعت <b>تم</b> من غير ملاحظة):")
         return
     _tasks_answer(cb_id)
 
@@ -9461,12 +9660,12 @@ def telegram_tasks_webhook():
             cache["tasks_note_pending"] = pend
             push_setting("meta_ai_tasks_note_pending", pend)
             t, cid = _find_task_any_client(tid)
-            if t and t.get("status") == "In Progress":
-                note = "" if text in ("تم", "خلاص", "لا", "skip", "-") else text
+            if t and t.get("status") in ("In Progress", "Assigned", "Pending AM Approval"):
+                note = "" if text in ("تم", "خلاص", "لا", "skip", "-", "done") else text
                 _tasks_do_submit(t, cid, note)
-                _tasks_send(chat_id, "✅ اتسلّمت للأكونت مانيجر للمراجعة. شكراً!")
+                _tasks_send(chat_id, "✅ تم تسليم المهمة للأكونت مانيجر للمراجعة بنجاح! شكراً لك.")
             else:
-                _tasks_send(chat_id, "المهمة مش في مرحلة التسليم.")
+                _tasks_send(chat_id, "المهمة مسلمة بالفعل أو قيد المراجعة.")
             return jsonify({"ok": True})
         if text == "/start":
             emp = _tasks_presser_emp(tg_id)

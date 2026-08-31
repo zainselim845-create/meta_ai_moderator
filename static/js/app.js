@@ -399,6 +399,8 @@ async function loadHR() {
   const attMonthEl = document.getElementById('hr-att-month');
   if (attMonthEl && !attMonthEl.value) attMonthEl.value = month;
 
+  loadHrGeofenceSettings();
+
   // Summary (payroll + performance)
   try {
     const d = await (await fetch('/api/hr/summary?month=' + month)).json();
@@ -1047,6 +1049,16 @@ async function renderMembers() {
       return `<button onclick="toggleAssign('${esc(u.username)}','${esc(c.id)}',${!on})" class="text-[11px] px-2 py-0.5 rounded-full border ${on?'bg-blue-600 text-white border-blue-600':'bg-white text-slate-600 border-slate-200'}">${esc(c.name)}</button>`;
     }).join(' ');
     const nm = displayName(u);
+    const driveTargetId = u.employee_id || u.username;
+    const driveFolderBtn = driveTargetId ? `
+      <div class="flex items-center gap-1.5 pt-1">
+        <button onclick="openEmployeeDriveFolder('${esc(driveTargetId)}')" class="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs">
+          <span>📁 مجلد Google Drive للموظف ↗️</span>
+        </button>
+        <button onclick="copyEmployeeDriveFolder('${esc(driveTargetId)}')" class="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs">
+          <span>📋 نسخ الرابط</span>
+        </button>
+      </div>` : '';
     return `<div class="border border-slate-200 rounded-xl p-3 flex flex-col gap-2">
       <div class="flex items-center justify-between gap-2 flex-wrap">
         <div>
@@ -1067,6 +1079,7 @@ async function renderMembers() {
              <button onclick="copyText('${esc(u.password)}')" title="نسخ" class="text-slate-400 hover:text-slate-700">📋</button>`
           : `<span class="text-slate-400">— (اضغط «إرسال بيانات جديدة» لتوليد كلمة مرور)</span>`}
       </div>
+      ${driveFolderBtn}
       ${u.role==='admin'?'<div class="text-[11px] text-slate-400">يرى كل العملاء</div>':`<div class="flex flex-wrap gap-1">${chips}</div>`}
     </div>`;
   }).join('') || '<div class="text-xs text-slate-400 text-center p-3">لا يوجد أعضاء بعد</div>';
@@ -1574,7 +1587,113 @@ function fallbackCopyText(text) {
   ta.select();
   try {
     document.execCommand('copy');
-    if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح 📋');
+    if (typeof showToast === 'function') showToast('تم نسخ الرابط بنجاح 📋');
   } catch(e) {}
   document.body.removeChild(ta);
+}
+
+async function openMyDriveFolder() {
+  try {
+    const r = await fetch('/api/me/drive-folder');
+    const d = await r.json();
+    if (d.folder_url) {
+      window.open(d.folder_url, '_blank');
+    } else {
+      showToast(d.error || 'تعذر جلب مجلد Google Drive', 'error');
+    }
+  } catch(e) {
+    showToast('خطأ في الاتصال بالسيرفر', 'error');
+  }
+}
+
+async function copyMyDriveFolder() {
+  try {
+    const r = await fetch('/api/me/drive-folder');
+    const d = await r.json();
+    if (d.folder_url) {
+      copyText(d.folder_url);
+      showToast('تم نسخ رابط مجلدك على Google Drive بنجاح 📋');
+    } else {
+      showToast(d.error || 'تعذر جلب مجلد Google Drive', 'error');
+    }
+  } catch(e) {
+    showToast('خطأ في الاتصال بالسيرفر', 'error');
+  }
+}
+
+async function openEmployeeDriveFolder(eid) {
+  try {
+    const r = await fetch('/api/employees/' + encodeURIComponent(eid) + '/drive-folder');
+    const d = await r.json();
+    if (d.folder_url) {
+      window.open(d.folder_url, '_blank');
+    } else {
+      showToast(d.error || 'تعذر جلب مجلد الموظف على Drive', 'error');
+    }
+  } catch(e) {
+    showToast('خطأ في الاتصال بالسيرفر', 'error');
+  }
+}
+
+async function copyEmployeeDriveFolder(eid) {
+  try {
+    const r = await fetch('/api/employees/' + encodeURIComponent(eid) + '/drive-folder');
+    const d = await r.json();
+    if (d.folder_url) {
+      copyText(d.folder_url);
+      showToast('تم نسخ رابط مجلد الموظف على Google Drive بنجاح 📋');
+    } else {
+      showToast(d.error || 'تعذر جلب مجلد الموظف على Drive', 'error');
+    }
+  } catch(e) {
+    showToast('خطأ في الاتصال بالسيرفر', 'error');
+  }
+}
+
+async function loadHrGeofenceSettings() {
+  try {
+    const r = await fetch('/api/hr/config');
+    const d = await r.json();
+    const cfg = d.config || {};
+    const gEl = document.getElementById('hr-cfg-geofence');
+    if (gEl) gEl.value = cfg.geofence_meters || 300;
+    const lEl = document.getElementById('hr-cfg-late');
+    if (lEl) lEl.value = cfg.late_after_time || '10:15';
+    const latEl = document.getElementById('hr-cfg-lat');
+    if (latEl) latEl.value = cfg.company_lat || 30.0444;
+    const lonEl = document.getElementById('hr-cfg-lon');
+    if (lonEl) lonEl.value = cfg.company_lon || 31.2357;
+    const hEl = document.getElementById('hr-cfg-hide-loc');
+    if (hEl) hEl.checked = (cfg.hide_location !== false);
+  } catch(e) {}
+}
+
+async function saveHrGeofenceSettings() {
+  const gEl = document.getElementById('hr-cfg-geofence');
+  const lEl = document.getElementById('hr-cfg-late');
+  const latEl = document.getElementById('hr-cfg-lat');
+  const lonEl = document.getElementById('hr-cfg-lon');
+  const hEl = document.getElementById('hr-cfg-hide-loc');
+  const body = {
+    geofence_meters: parseInt(gEl?.value || 300, 10),
+    late_after_time: (lEl?.value || '10:15').trim(),
+    company_lat: parseFloat(latEl?.value || 30.0444),
+    company_lon: parseFloat(lonEl?.value || 31.2357),
+    hide_location: hEl ? hEl.checked : true
+  };
+  try {
+    const r = await fetch('/api/hr/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      showToast('تم حفظ إعدادات النطاق الجغرافي وحماية الموقع بنجاح 💾✅');
+    } else {
+      showToast(d.error || 'تعذر حفظ الإعدادات', 'error');
+    }
+  } catch(e) {
+    showToast('خطأ في حفظ الإعدادات', 'error');
+  }
 }

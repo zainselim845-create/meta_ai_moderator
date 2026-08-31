@@ -2088,6 +2088,12 @@ function renderTasksBoard() {
         groupKeys.forEach(function(k) {
             var grp = fileGroups[k];
             var fTasks = sortTaskList(grp.tasks, currentTaskSort, currentTaskSortDir);
+            // Ensure sequential internal post numbers (1, 2, 3... N) per plan
+            fTasks.forEach(function(t, idx) {
+                if (t.post_number === undefined || t.post_number === null || t.post_number === '') {
+                    t.post_number = getTaskSequenceNum(t) || (idx + 1);
+                }
+            });
             var completedCount = fTasks.filter(function(t){ return t.status === 'Completed'; }).length;
 
             columnsHtml += '<div class="w-88 sm:w-[420px] shrink-0 bg-slate-100/90 border border-slate-200/90 rounded-3xl p-4 shadow-sm space-y-3.5 flex flex-col">' +

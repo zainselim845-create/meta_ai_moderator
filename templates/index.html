@@ -231,6 +231,26 @@
       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2"><i class="w-5 h-5 text-blue-600" data-lucide="user"></i><span id="myportal-name">أهلاً بك</span></h3>
       <p class="text-xs text-slate-500 mt-1">دي مهامك المسندة ليك وسجل حضورك. أي حاجة تخص شغلك بس.</p>
      </div>
+
+     <!-- Employee Dedicated Google Drive Folder Card -->
+     <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap shadow-xs">
+      <div class="flex items-center gap-3 min-w-0">
+       <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">📁</div>
+       <div class="min-w-0">
+        <h4 class="font-bold text-sm text-emerald-950 truncate">مجلد تسليماتي على Google Drive</h4>
+        <p class="text-xs text-emerald-700 mt-0.5">كل شغلك وتصميماتك بتترتب تلقائياً داخل فولدر خاص بيك مقسّم بالشهور والخطط.</p>
+       </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+       <button type="button" onclick="openMyDriveFolder()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs">
+        <span>↗️ فتح مجلدي على Drive</span>
+       </button>
+       <button type="button" onclick="copyMyDriveFolder()" class="bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs px-3 py-2 rounded-xl transition inline-flex items-center gap-1 shadow-xs">
+        <span>📋 نسخ الرابط</span>
+       </button>
+      </div>
+     </div>
+
      <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
       <div class="flex items-center justify-between mb-3">
        <h3 class="font-bold text-sm text-slate-900">مهامي</h3>
@@ -1267,6 +1287,49 @@
     </div>
     <!-- HR: Company Employees / Attendance / Payroll (reads the company Google Sheet) -->
     <div class="view hidden space-y-6" id="v-hr">
+     <!-- HR: Geofence & Location Privacy Settings Card -->
+     <div class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-5 shadow-sm space-y-4">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+       <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-400/30 text-blue-400 flex items-center justify-center font-bold text-base">📍</div>
+        <div>
+         <h4 class="font-bold text-sm text-white">إعدادات النطاق الجغرافي وحماية الموقع (Geofence Settings)</h4>
+         <p class="text-xs text-slate-300 mt-0.5">تحديد أقصى مسافة مسموح بها للموظف لتسجيل الحضور من مقر الشركة وإخفاء الإحداثيات.</p>
+        </div>
+       </div>
+       <button type="button" onclick="saveHrGeofenceSettings()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs inline-flex items-center gap-1.5">
+        <span>💾 حفظ إعدادات النطاق</span>
+       </button>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+       <div class="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1">
+        <label class="font-bold text-slate-200 block">نطاق السماح (بالمتر):</label>
+        <div class="flex items-center gap-1.5">
+         <input type="number" id="hr-cfg-geofence" min="50" max="5000" step="50" class="w-full bg-slate-800 border border-slate-700 text-white font-bold font-mono px-2.5 py-1.5 rounded-lg text-xs" placeholder="300"/>
+         <span class="text-slate-400 font-bold">متر</span>
+        </div>
+       </div>
+       <div class="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1">
+        <label class="font-bold text-slate-200 block">وقت احتساب التأخير:</label>
+        <input type="time" id="hr-cfg-late" class="w-full bg-slate-800 border border-slate-700 text-white font-bold font-mono px-2.5 py-1.5 rounded-lg text-xs"/>
+       </div>
+       <div class="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1">
+        <label class="font-bold text-slate-200 block">إحداثيات مقر الشركة:</label>
+        <div class="flex gap-1">
+         <input type="text" id="hr-cfg-lat" placeholder="Lat (30.04)" class="w-1/2 bg-slate-800 border border-slate-700 text-white font-mono px-2 py-1.5 rounded-lg text-[11px]"/>
+         <input type="text" id="hr-cfg-lon" placeholder="Lon (31.23)" class="w-1/2 bg-slate-800 border border-slate-700 text-white font-mono px-2 py-1.5 rounded-lg text-[11px]"/>
+        </div>
+       </div>
+       <div class="bg-white/10 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
+        <label class="font-bold text-slate-200 block">حماية خصوصية اللوكيشن:</label>
+        <label class="inline-flex items-center gap-2 cursor-pointer pt-1">
+         <input type="checkbox" id="hr-cfg-hide-loc" class="w-4 h-4 rounded text-blue-600"/>
+         <span class="text-xs text-slate-300 font-bold">إخفاء الأرقام من الموظفين 🔒</span>
+        </label>
+       </div>
+      </div>
+     </div>
+
      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
       <div class="flex items-center justify-between flex-wrap gap-3">
        <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
@@ -1602,15 +1665,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=9.38">
+  <script src="/static/js/app.js?v=9.40">
   </script>
-  <script src="/static/js/inbox.js?v=9.38">
+  <script src="/static/js/inbox.js?v=9.40">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=9.38">
+  <script src="/static/js/chatwoot_free.js?v=9.40">
   </script>
-  <script src="/static/js/views.js?v=9.38">
+  <script src="/static/js/views.js?v=9.40">
   </script>
-  <script src="/static/js/clients.js?v=9.38">
+  <script src="/static/js/clients.js?v=9.40">
   </script>
  
   <!-- Modal: Add New Connected Account -->
