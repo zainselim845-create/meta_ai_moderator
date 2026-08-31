@@ -1142,6 +1142,7 @@ async function loadTasksEngine() {
         tasksList = (dataTasks && dataTasks.tasks) ? dataTasks.tasks : [];
         employeesList = (dataEmps && dataEmps.employees) ? dataEmps.employees : [];
 
+        renderClientTabs();
         renderTasksBoard();
         renderEmployeesStatus();
         loadTaskMonthlyReport();
@@ -1928,6 +1929,7 @@ function sortTaskList(tasksArr, sortKey, sortDir) {
 
 function renderTasksBoard() {
     try {
+        renderClientTabs();
         var board = document.getElementById('tasks-board-grid');
         if (!board) return;
         var badge = document.getElementById('tasks-count-badge');
