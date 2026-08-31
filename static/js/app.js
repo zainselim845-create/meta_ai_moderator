@@ -622,12 +622,19 @@ async function applyRoleUI() {
 
   const navKey = (b) => { let id = (b.id||'').replace('nav-',''); return id === 'chatwoot' ? 'accounts' : id; };
 
+  const btnAddAcc = document.getElementById('btn-header-add-account');
+  const btnOauth = document.getElementById('btn-header-oauth');
+  const clientSelBox = document.getElementById('header-client-selector-box');
+
   if (isAdmin) {
-    // Admin sees all navigation tabs
+    // Admin sees all navigation tabs and header buttons
     document.querySelectorAll('#sidebar .nb').forEach(b => {
       b.classList.remove('hidden');
     });
     if (portalNav) portalNav.classList.remove('hidden');
+    if (btnAddAcc) btnAddAcc.classList.remove('hidden');
+    if (btnOauth) btnOauth.classList.remove('hidden');
+    if (clientSelBox) clientSelBox.classList.remove('hidden');
     ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.remove('hidden'); });
     return;
   }
@@ -640,6 +647,11 @@ async function applyRoleUI() {
       const k = navKey(b);
       b.classList.toggle('hidden', !allow.has(k) || b.id === 'nav-permissions');
     });
+    // Hide administrative buttons from employee header
+    if (btnAddAcc) btnAddAcc.classList.add('hidden');
+    if (btnOauth) btnOauth.classList.add('hidden');
+    if (clientSelBox) clientSelBox.classList.add('hidden');
+
     ['header-account-select','bot-status-badge'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.closest('div')?.classList.toggle('hidden', !allow.has('crm') && !allow.has('accounts'));
@@ -665,6 +677,10 @@ async function applyRoleUI() {
         b.classList.toggle('hidden', !mgrAllow.has(k));
       }
     });
+    if (btnAddAcc) btnAddAcc.classList.remove('hidden');
+    if (btnOauth) btnOauth.classList.remove('hidden');
+    if (clientSelBox) clientSelBox.classList.remove('hidden');
+
     ['header-account-select','bot-status-badge'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.closest('div')?.classList.remove('hidden');
@@ -1771,12 +1787,12 @@ async function saveScheduledPost() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Immediately restore the active tab from URL hash or localStorage
-  restoreActiveTab();
-
+document.addEventListener('DOMContentLoaded', async () => {
   checkAuth();
-  if (typeof applyRoleUI === 'function') applyRoleUI();
+  if (typeof applyRoleUI === 'function') {
+    await applyRoleUI();
+  }
+  restoreActiveTab();
   initLucideIcons();
   
   // Set today's date as default for scheduler
@@ -1790,8 +1806,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function restoreActiveTab() {
   try {
+    const me = window._me;
+    let defaultTab = (me && me.role === 'employee') ? 'myportal' : 'inbox';
     const hash = (window.location.hash || '').replace('#', '').trim();
-    const saved = hash || localStorage.getItem('active_tab') || 'inbox';
+    let saved = hash || localStorage.getItem('active_tab') || defaultTab;
+    
+    if (me && !me.is_admin) {
+      const allowed = new Set((me.allowed_tabs && me.allowed_tabs.length) ? me.allowed_tabs : (me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : ['myportal']));
+      allowed.add('myportal');
+      if (!allowed.has(saved)) {
+        saved = (me.role === 'employee') ? 'myportal' : 'dash';
+      }
+    }
     if (saved) {
       go(saved);
     }
@@ -1811,7 +1837,11 @@ window.addEventListener('hashchange', function() {
 
 // Also trigger immediate tab restore if DOM is already parsed
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
-  restoreActiveTab();
+  if (typeof applyRoleUI === 'function') {
+    applyRoleUI().then(() => restoreActiveTab());
+  } else {
+    restoreActiveTab();
+  }
 }
 
 // Live Permissions & Session Sync: Periodically poll /api/me and on tab focus
