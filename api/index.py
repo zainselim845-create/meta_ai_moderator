@@ -8901,17 +8901,16 @@ def _att_handle_location(emp, chat_id, loc):
     dist = _haversine_m(user_lat, user_lon, clat, clon)
     max_geofence = int(cfg.get("geofence_meters") or ATT_GEOFENCE_M)
     late_after = str(cfg.get("late_after_time") or ATT_LATE_AFTER)
-    hide_loc = bool(cfg.get("hide_location", True))
     if dist > max_geofence:
-        loc_fail = f"خارج النطاق المسموح به لمقر الشركة ({max_geofence} متر)" if hide_loc else f"المسافة: <code>{dist} متر</code> (المسموح {max_geofence} متر)"
-        _att_send(chat_id, f"❌ <b>أنت خارج نطاق الشركة</b>\n📍 {loc_fail}\nلازم تكون في مكان العمل عشان تسجّل.", keyboard=_att_menu())
+        fdist = f"{dist} متر" if dist < 1000 else f"{dist/1000:.2f} كم"
+        _att_send(chat_id, f"❌ <b>أنت خارج نطاق مقر الشركة!</b>\n📍 المسافة الحالية: <b>{fdist}</b>\n📏 أقصى مسافة مسموح بها: <b>{max_geofence} متر</b>\n\nيجب التواجد داخل مقر الشركة لتسجيل الحضور/الانصراف.", keyboard=_att_menu())
         return
     recs = _att_today_records(emp.get("employee_id"), today)
     has_in = any(str(r.get("checkin_time", "")).strip() not in ("", "0") for r in recs)
     has_out = any(str(r.get("checkout_time", "")).strip() not in ("", "0") for r in recs)
     emp_id = str(emp.get("employee_id", "")).strip()
     fdist = f"{dist} متر" if dist < 1000 else f"{dist/1000:.2f} كم"
-    loc_display = "📍 تم التحقق: داخل مقر العمل ✅" if hide_loc else f"📍 {fdist}"
+    loc_display = f"📍 المسافة: {fdist} (داخل المقر ✅)"
     if has_in and has_out:
         _att_send(chat_id, "✅ سجّلت حضورك وانصرافك النهاردة خلاص. شكراً!", keyboard=_att_menu())
         return
@@ -8924,7 +8923,7 @@ def _att_handle_location(emp, chat_id, loc):
         ok = _sheets_append(cfg["sheet_id"], cfg["attendance_gid"],
             ["employee_id", "date", "name", "checkin_time", "checkout_time", "hours", "latitude", "longitude", "distance", "status"],
             {"employee_id": emp_id, "date": today, "name": emp.get("name", ""), "checkin_time": now_t,
-             "checkout_time": "", "hours": "", "latitude": loc["latitude"], "longitude": loc["longitude"],
+             "checkout_time": "", "hours": "", "latitude": str(user_lat), "longitude": str(user_lon),
              "distance": f"{dist}m", "status": status})
         if ok:
             emoji = "⚠️" if status == "متأخر" else "✅"
@@ -8940,20 +8939,17 @@ def _att_handle_location(emp, chat_id, loc):
         try:
             ih, im = int(cin.split(":")[0]), int(cin.split(":")[1])
             oh, om = int(now_t.split(":")[0]), int(now_t.split(":")[1])
-            hours = f"{(oh*60+om-ih*60-im)/60:.2f}"
+            hours = f"{max(0, round((oh*60+om - (ih*60+im))/60.0, 2)):.2f}"
         except Exception:
             pass
         ok = _sheets_update_match(cfg["sheet_id"], cfg["attendance_gid"],
-            {"employee_id": emp_id, "date": today},
-            {"checkout_time": now_t, "hours": hours})
+                                  {"employee_id": emp_id, "date": today},
+                                  {"checkout_time": now_t, "hours": hours})
         if ok:
-            _att_send(chat_id, f"🔴 <b>تم تسجيل الانصراف بنجاح!</b>\n👤 {emp.get('name','')}\n📅 {today}\n⏰ {now_t}\n⌛ ساعات العمل: {hours}\n{loc_display}", keyboard=_att_menu())
+            _att_send(chat_id, f"🔴 <b>تم تسجيل الانصراف بنجاح!</b>\n👤 {emp.get('name','')}\n📅 {today}\n⏰ {now_t}\n⏱️ ساعات العمل: <b>{hours} ساعة</b>\n{loc_display}", keyboard=_att_menu())
             _att_notify_owner(f"🔴 انصراف: {emp.get('name','')} — {now_t} ({hours}h)")
         else:
             _att_send(chat_id, "⚠️ حصل خطأ في حفظ الانصراف. حاول تاني.", keyboard=_att_menu())
-
-def _att_notify_owner(msg):
-    _att_send(_owner_chat(), msg)
 
 def _att_status(emp, chat_id):
     today, _ = _cairo_now_parts()
@@ -9105,7 +9101,7 @@ def telegram_attendance_webhook():
             msg_id = msg.get("message_id")
             msg_date = max(int(msg.get("date") or 0), int(msg.get("edit_date") or 0))
             now_ts = int(datetime.now(timezone.utc).timestamp())
-            max_age = int(os.environ.get("ATT_LOC_MAX_AGE", "90"))  # seconds
+            max_age = int(os.environ.get("ATT_LOC_MAX_AGE", "300"))  # 5 minutes
 
             # 1) Reject ANY forwarded message (forward_date, forward_from, forward_origin, forward_from_chat, forward_sender_name)
             is_forwarded = bool(
@@ -9122,38 +9118,24 @@ def telegram_attendance_webhook():
                 return jsonify({"ok": True})
 
             # 2) Reject pinned venue/places (search pins) instead of live GPS
-            if msg.get("venue"):
+            if msg.get("venue") or msg.get("via_bot"):
                 _att_delete_message(chat_id, msg_id)
                 _att_send(chat_id, "❌ <b>تم رفض تسجيل الحضور!</b>\nتم إرسال نقطة خريطة (Venue/Pin) وليس موقعك الجغرافي الفعلي GPS المباشر 📍", keyboard=_att_menu())
                 return jsonify({"ok": True})
 
-            # 3) Freshness check: reject old / replayed timestamps
+            # 3) Freshness check: reject old / replayed timestamps (> 5 mins)
             if msg_date and (now_ts - msg_date) > max_age:
                 _att_delete_message(chat_id, msg_id)
-                _att_send(chat_id, "⚠️ انتهت صلاحية وقت الموقع (قديم). اضغط على «📍 تسجيل حضور» ثم اضغط «📍 إرسال موقعي المباشر» مباشرة 🔒", keyboard=_att_menu())
+                _att_send(chat_id, "⚠️ انتهت صلاحية وقت الموقع (قديم). يرجى إرسال موقعك المباشر الآن 🔒", keyboard=_att_menu())
                 return jsonify({"ok": True})
 
-            # 4) Verify active check-in challenge session token (must have pressed the button within 120s)
-            att_sess = (cache.get(f"att_challenge_{tg_id}") or {})
-            sess_time = att_sess.get("time", 0)
-            if not sess_time or (time.time() - sess_time > 120):
-                _att_delete_message(chat_id, msg_id)
-                _att_send(chat_id, "⚠️ يرجى الضغط أولاً على زر <b>«📍 تسجيل حضور»</b> أو <b>«🚪 تسجيل انصراف»</b> من القائمة، ثم مشاركة موقعك عبر الزر المخصص 🔒", keyboard=_att_menu())
-                return jsonify({"ok": True})
-            # Clear challenge once validated
-            cache.pop(f"att_challenge_{tg_id}", None)
-
-            # 5) Process attendance & wipe message for privacy
+            # 4) Process attendance & wipe message for privacy
             _att_handle_location(emp, chat_id, loc)
             _att_delete_message(chat_id, msg_id)
-        elif text == "📍 تسجيل حضور":
-            cache[f"att_challenge_{tg_id}"] = {"time": time.time(), "action": "checkin"}
-            _att_send(chat_id, "📍 لتسجيل الحضور، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
-                      keyboard=[[{"text": "📍 إرسال موقعي المباشر", "request_location": True}]])
-        elif text == "🚪 تسجيل انصراف":
-            cache[f"att_challenge_{tg_id}"] = {"time": time.time(), "action": "checkout"}
-            _att_send(chat_id, "🚪 لتسجيل الانصراف، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
-                      keyboard=[[{"text": "📍 إرسال موقعي المباشر", "request_location": True}]])
+        elif text in ("📍 تسجيل حضور", "🚪 تسجيل انصراف"):
+            action_name = "الحضور" if text == "📍 تسجيل حضور" else "الانصراف"
+            _att_send(chat_id, f"📍 لتسجيل {action_name}، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
+                      keyboard=[[{"text": "📍 إرسال موقعي المباشر", "request_location": True}], ["📊 حالتي اليوم", "🚫 تسجيل غياب"]])
         elif text == "📊 حالتي اليوم":
             _att_status(emp, chat_id)
         elif text == "🚫 تسجيل غياب":
