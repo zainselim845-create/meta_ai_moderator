@@ -7844,7 +7844,7 @@ _HR_DEFAULTS = {
     "employees_gid": "1158009464",
     "attendance_gid": "2023520809",
     "payroll_gid": "253719303",
-    "geofence_meters": int(os.environ.get("ATT_GEOFENCE_M", 300)),
+    "geofence_meters": int(os.environ.get("ATT_GEOFENCE_M", 500)),
     "company_lat": float(os.environ.get("ATT_DEFAULT_LAT", 30.469771)),
     "company_lon": float(os.environ.get("ATT_DEFAULT_LON", 31.180022)),
     "hide_location": os.environ.get("ATT_HIDE_LOCATION", "true").lower() in ("true", "1", "yes"),
@@ -8655,7 +8655,7 @@ def api_task_review(task_id):
 import urllib.request as _urlreq
 import urllib.error as _urlerr
 
-ATT_GEOFENCE_M = float(os.environ.get("ATT_GEOFENCE_M", "300"))
+ATT_GEOFENCE_M = float(os.environ.get("ATT_GEOFENCE_M", "500"))
 ATT_DEFAULT_LAT = float(os.environ.get("ATT_DEFAULT_LAT", "30.469771"))
 ATT_DEFAULT_LON = float(os.environ.get("ATT_DEFAULT_LON", "31.180022"))
 ATT_LATE_AFTER = os.environ.get("ATT_LATE_AFTER", "10:15:00")  # HH:MM:SS
@@ -8888,12 +8888,16 @@ def _att_today_records(emp_id, today):
 def _att_handle_location(emp, chat_id, loc):
     cfg = hr_config()
     today, now_t = _cairo_now_parts()
+    tg_id = str((emp or {}).get("telegram_id") or "").strip()
     
-    # Priority: Company HQ -> Employee specific branch (if set and valid)
+    # Primary reference is the Company Headquarters
     comp_lat = _parse_coordinate(cfg.get("company_lat"), ATT_DEFAULT_LAT)
     comp_lon = _parse_coordinate(cfg.get("company_lon"), ATT_DEFAULT_LON)
-    clat = _parse_coordinate(emp.get("latitude"), comp_lat)
-    clon = _parse_coordinate(emp.get("longitude"), comp_lon)
+    clat = comp_lat
+    clon = comp_lon
+    if emp.get("branch_lat") or emp.get("branch_latitude"):
+        clat = _parse_coordinate(emp.get("branch_lat") or emp.get("branch_latitude"), comp_lat)
+        clon = _parse_coordinate(emp.get("branch_lon") or emp.get("branch_longitude"), comp_lon)
     
     user_lat = _parse_coordinate(loc.get("latitude"), clat)
     user_lon = _parse_coordinate(loc.get("longitude"), clon)
@@ -8901,9 +8905,26 @@ def _att_handle_location(emp, chat_id, loc):
     dist = _haversine_m(user_lat, user_lon, clat, clon)
     max_geofence = int(cfg.get("geofence_meters") or ATT_GEOFENCE_M)
     late_after = str(cfg.get("late_after_time") or ATT_LATE_AFTER)
+    
     if dist > max_geofence:
         fdist = f"{dist} متر" if dist < 1000 else f"{dist/1000:.2f} كم"
-        _att_send(chat_id, f"❌ <b>أنت خارج نطاق مقر الشركة!</b>\n📍 المسافة الحالية: <b>{fdist}</b>\n📏 أقصى مسافة مسموح بها: <b>{max_geofence} متر</b>\n\nيجب التواجد داخل مقر الشركة لتسجيل الحضور/الانصراف.", keyboard=_att_menu())
+        is_owner = (tg_id == str(_owner_chat()).strip() or str(chat_id) == str(_owner_chat()).strip())
+        inline_btn = None
+        if is_owner:
+            inline_btn = [[{"text": "🏢 تعيين هذا الموقع كمقر رسمي للشركة 📍", "callback_data": f"sethq_{user_lat}_{user_lon}"}]]
+        
+        msg_text = (
+            f"❌ <b>أنت خارج نطاق مقر الشركة!</b>\n\n"
+            f"📍 <b>موقعك الحالي المرسل (GPS):</b>\n<code>{user_lat}, {user_lon}</code>\n"
+            f"🏢 <b>مقر الشركة المسجل بالنظام:</b>\n<code>{clat}, {clon}</code>\n"
+            f"📏 <b>المسافة الحالية:</b> <b>{fdist}</b> (المسموح {max_geofence} متر)\n\n"
+        )
+        if is_owner:
+            msg_text += "💡 <i>أنت المدير: اضغط على الزر بالأسفل لتعيين هذا الموقع كمقر رسمي للشركة فوراً:</i>"
+        else:
+            msg_text += "يجب التواجد داخل مقر الشركة لتسجيل الحضور."
+            
+        _att_send(chat_id, msg_text, keyboard=_att_menu(), inline=inline_btn)
         return
     recs = _att_today_records(emp.get("employee_id"), today)
     has_in = any(str(r.get("checkin_time", "")).strip() not in ("", "0") for r in recs)
@@ -9039,8 +9060,26 @@ def _att_owner_callback(cbq):
     allowed |= {x.strip() for x in os.environ.get("OWNER_APPROVERS", "").split(",") if x.strip()}
     if presser not in allowed:
         print(f"[att approval blocked] presser={presser} not in {allowed}")
-        _att_answer_callback(cb_id, "غير مصرح لك بالموافقة")
+        _att_answer_callback(cb_id, "غير مصرح لك")
         return
+
+    if data.startswith("sethq_"):
+        parts = data.split("_")
+        if len(parts) >= 3:
+            nlat, nlon = parts[1], parts[2]
+            cur = cache.get("hr_sheet") if isinstance(cache.get("hr_sheet"), dict) else {}
+            try:
+                cur["company_lat"] = float(nlat)
+                cur["company_lon"] = float(nlon)
+                cache["hr_sheet"] = cur
+                push_setting("meta_ai_hr_sheet", cur)
+                _att_answer_callback(cb_id, "تم تعيين المقر بنجاح")
+                chat_id = str((cbq.get("message") or {}).get("chat", {}).get("id") or presser)
+                _att_send(chat_id, f"✅ <b>تم تحديث موقع مقر الشركة بنجاح!</b>\n🏢 المقر المعتمد الجديد: <code>{nlat}, {nlon}</code>\n\nاضغط الآن على <b>«📍 تسجيل حضور»</b> وسيتم تسجيلك فوراً داخل المقر 🎉", keyboard=_att_menu())
+            except Exception as e:
+                _att_answer_callback(cb_id, f"خطأ: {e}")
+        return
+
     approve = data.startswith("owner_approve_")
     tg_id = data.replace("owner_approve_", "").replace("owner_reject_", "").strip()
     emp = _att_emp_by_tg(tg_id)
