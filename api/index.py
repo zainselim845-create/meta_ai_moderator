@@ -7422,7 +7422,8 @@ def api_tasks_monthly_report():
             "name": r["name"],
             "role": r["role"],
             "assigned": 0,
-            "started": 0,
+            "in_progress": 0,
+            "submitted": 0,
             "completed": 0,
             "on_time": 0,
             "late": 0,
@@ -7447,7 +7448,8 @@ def api_tasks_monthly_report():
                 "name": nm or eid,
                 "role": "فريق العمل",
                 "assigned": 0,
-                "started": 0,
+                "in_progress": 0,
+                "submitted": 0,
                 "completed": 0,
                 "on_time": 0,
                 "late": 0,
@@ -7461,7 +7463,8 @@ def api_tasks_monthly_report():
                 "name": nm,
                 "role": "فريق العمل",
                 "assigned": 0,
-                "started": 0,
+                "in_progress": 0,
+                "submitted": 0,
                 "completed": 0,
                 "on_time": 0,
                 "late": 0,
@@ -7474,10 +7477,19 @@ def api_tasks_monthly_report():
             continue
 
         st = t.get("status", "")
+        # Total tasks assigned to this employee
         if st in ("Assigned", "In Progress", "Awaiting AM Review", "Completed"):
             stats[target_key]["assigned"] += 1
-        if st in ("In Progress", "Awaiting AM Review", "Completed"):
-            stats[target_key]["started"] += 1
+            
+        # Active in progress
+        if st == "In Progress":
+            stats[target_key]["in_progress"] += 1
+            
+        # Submitted by employee (Awaiting AM Review or Completed)
+        if st in ("Awaiting AM Review", "Completed"):
+            stats[target_key]["submitted"] += 1
+            
+        # Approved / Completed by AM
         if st == "Completed":
             stats[target_key]["completed"] += 1
 
@@ -7514,7 +7526,11 @@ def api_tasks_monthly_report():
         note = (t.get("notes") or t.get("note") or t.get("review_note") or "").strip()
         if note and note not in (".", "-"):
             tid = t.get("task_id", "")
-            stats[target_key]["notes"].append(f"<b>{_hx(tid)}:</b> {_hx(note)}")
+            stats[target_key]["notes"].append({
+                "task_id": str(tid),
+                "note": str(note),
+                "status": str(st)
+            })
 
     report_data = []
     for k, s in stats.items():
@@ -7529,7 +7545,7 @@ def api_tasks_monthly_report():
             else:
                 avg_dur = "-"
                 
-            rate = f"{int((s['completed'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
+            rate = f"{int((s['submitted'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
             
             on_time_total = s["on_time"] + s["late"]
             on_time_rate = f"{int((s['on_time'] / on_time_total) * 100)}%" if on_time_total > 0 else "-"
@@ -7545,7 +7561,9 @@ def api_tasks_monthly_report():
                 "employee": s["name"],
                 "role": s["role"],
                 "assigned": s["assigned"],
-                "started": s["started"],
+                "in_progress": s["in_progress"],
+                "started": s["in_progress"] + s["submitted"],
+                "submitted": s["submitted"],
                 "completed": s["completed"],
                 "completion_rate": rate,
                 "on_time_rate": on_time_rate,
@@ -7556,7 +7574,7 @@ def api_tasks_monthly_report():
                 "notes": s["notes"],
             })
 
-    report_data.sort(key=lambda r: (r["completed"], r["assigned"]), reverse=True)
+    report_data.sort(key=lambda r: (r["submitted"], r["completed"], r["assigned"]), reverse=True)
     return jsonify({"success": True, "month": month_str, "report": report_data})
 
 
@@ -7575,8 +7593,15 @@ def api_tasks_send_monthly_report():
 
     rows_html = ""
     for r in report_rows:
-        notes_html = f"<ul>{''.join([f'<li>{n}</li>' for n in r['notes']])}</ul>" if r['notes'] else "<i>No notes</i>"
-        rows_html += f"<tr><td style='padding:8px;border:1px solid #e2e8f0;'>{_hx(r['employee'])}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['assigned']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['started']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completed']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['completion_rate']}</td><td style='padding:8px;border:1px solid #e2e8f0;font-weight:bold;color:#16a34a;'>{r.get('on_time_rate','-')}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r.get('avg_turnaround','-')}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{r['avg_duration']}</td><td style='padding:8px;border:1px solid #e2e8f0;'>{notes_html}</td></tr>"
+        notes_list = []
+        for n in (r.get('notes') or []):
+            if isinstance(n, dict):
+                notes_list.append(f"<b>{_hx(n.get('task_id',''))}:</b> {_hx(n.get('note',''))}")
+            else:
+                notes_list.append(str(_hx(n)))
+        notes_html = f"<ul style='margin:0;padding-right:15px;'>{''.join([f'<li>{x}</li>' for x in notes_list])}</ul>" if notes_list else "<i>—</i>"
+        deliv = r.get('submitted', r.get('completed', 0))
+        rows_html += f"<tr><td style='padding:8px;border:1px solid #e2e8f0;font-weight:bold;'>{_hx(r['employee'])} <span style='font-size:11px;color:#64748b;'>({_hx(r.get('role',''))})</span></td><td style='padding:8px;border:1px solid #e2e8f0;text-align:center;'>{r['assigned']}</td><td style='padding:8px;border:1px solid #e2e8f0;text-align:center;'>{r.get('in_progress', 0)}</td><td style='padding:8px;border:1px solid #e2e8f0;text-align:center;font-weight:bold;color:#16a34a;'>{deliv}</td><td style='padding:8px;border:1px solid #e2e8f0;text-align:center;font-weight:bold;'>{r['completion_rate']}</td><td style='padding:8px;border:1px solid #e2e8f0;text-align:center;font-weight:bold;color:#16a34a;'>{r.get('on_time_rate','-')}</td><td style='padding:8px;border:1px solid #e2e8f0;text-align:center;'>{r.get('avg_turnaround','-')}</td><td style='padding:8px;border:1px solid #e2e8f0;text-align:center;'>{r.get('avg_duration','-')}</td><td style='padding:8px;border:1px solid #e2e8f0;font-size:11px;'>{notes_html}</td></tr>"
 
     generated_at = datetime.now(timezone.utc).strftime("%d/%m/%Y - %I:%M %p UTC")
     html_content = f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>body{{font-family:Arial,sans-serif;background:#f8fafc;padding:20px;color:#1e293b;}}table{{border-collapse:collapse;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;}}th{{background:#2563eb;color:white;padding:10px;text-align:right;}}td{{padding:8px;border:1px solid #e2e8f0;}}</style></head><body><div style="max-width:850px;margin:0 auto;background:#ffffff;padding:25px;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.05);"><h2 style="color:#2563eb;margin-top:0;text-align:center;">📊 تقرير أداء ومؤشرات الـ KPIs للفريق - {month_str}</h2><p style="font-size:14px;color:#64748b;text-align:center;">تاريخ التقرير: <strong>{month_str}</strong> | وقت التقديم: {generated_at}</p><table><thead><tr><th>الموظف</th><th>المسندة</th><th>جاري العمل</th><th>المكتملة</th><th>معدل الإنجاز</th><th>الالتزام بالموعد</th><th>متوسط مدة الإنجاز</th><th>وقت التايمر</th><th>الملاحظات</th></tr></thead><tbody>{rows_html if rows_html else "<tr><td colspan='9' style='text-align:center;padding:15px;'>لا توجد مهام مسجلة لهذا الشهر بعد</td></tr>"}</tbody></table><p style="font-size:12px;color:#94a3b8;margin-top:25px;text-align:center;">تم إصدار هذا التقرير تلقائياً من منصة Domya Meta AI Task & Operations Engine 🚀</p></div></body></html>"""

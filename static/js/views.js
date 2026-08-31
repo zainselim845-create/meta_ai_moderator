@@ -2541,16 +2541,35 @@ async function loadTaskMonthlyReport() {
                 ('<span class="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">' + esc(r.on_time_rate) +
                  ' <span class="text-[10px] text-slate-400 font-normal">(' + r.on_time_count + ' في الموعد)</span></span>') : '<span class="text-slate-400">—</span>';
             
+            var notesHtml = '-';
+            if (r.notes && r.notes.length) {
+                notesHtml = r.notes.map(function(n) {
+                    if (typeof n === 'object' && n && n.task_id) {
+                        var stBadge = (n.status === 'Awaiting AM Review') ? ' <span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full font-bold">بانتظار مراجعة AM</span>' : ((n.status === 'Completed') ? ' <span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">معتمد ✅</span>' : '');
+                        return '<div class="mb-1 leading-tight"><span class="font-mono font-bold text-slate-800 bg-slate-100 px-1 rounded">' + esc(n.task_id) + '</span>' + stBadge + ': <span class="text-slate-700">' + esc(n.note) + '</span></div>';
+                    }
+                    var s = String(n || '').replace(/<[^>]*>/g, '');
+                    return '<div class="mb-1 leading-tight">' + esc(s) + '</div>';
+                }).join('');
+            }
+
+            var rateNum = parseInt(r.completion_rate, 10);
+            var rateBadge = r.completion_rate !== '-' ?
+                '<span class="font-mono font-bold px-2 py-0.5 rounded-md ' + (rateNum >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800') + '">' + esc(r.completion_rate) + '</span>' : '<span class="text-slate-400">—</span>';
+
+            var inProg = (r.in_progress !== undefined) ? r.in_progress : 0;
+            var deliv = (r.submitted !== undefined) ? r.submitted : r.completed;
+
             return '<tr>' +
                 '<td class="p-3 font-bold text-slate-900">' + esc(r.employee) + ' <span class="text-xs font-normal text-slate-500">(' + esc(r.role) + ')</span></td>' +
-                '<td class="p-3 font-mono">' + r.assigned + '</td>' +
-                '<td class="p-3 font-mono">' + r.started + '</td>' +
-                '<td class="p-3 font-mono font-bold text-emerald-600">' + r.completed + '</td>' +
-                '<td class="p-3 font-mono font-bold text-blue-600">' + r.completion_rate + '</td>' +
+                '<td class="p-3 font-mono font-bold text-slate-800">' + r.assigned + '</td>' +
+                '<td class="p-3 font-mono text-amber-600 font-bold">' + inProg + '</td>' +
+                '<td class="p-3 font-mono font-bold text-emerald-600">' + deliv + '</td>' +
+                '<td class="p-3">' + rateBadge + '</td>' +
                 '<td class="p-3 font-mono">' + onTimeBadge + '</td>' +
                 '<td class="p-3 font-mono text-indigo-900 font-bold">' + esc(r.avg_turnaround || '-') + '</td>' +
                 '<td class="p-3 font-mono text-slate-600">' + esc(r.avg_duration || '-') + '</td>' +
-                '<td class="p-3 text-xs text-slate-700">' + (r.notes && r.notes.length ? r.notes.map(esc).join('<br>') : '-') + '</td>' +
+                '<td class="p-3 text-xs text-slate-700 max-w-xs">' + notesHtml + '</td>' +
             '</tr>';
         }).join('');
     } catch(e) { console.error(e); }
