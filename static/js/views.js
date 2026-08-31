@@ -3139,8 +3139,12 @@ async function openTaskDetailsModal(taskId) {
                 '<div class="font-mono font-bold text-xs text-amber-800">' + esc(t.delivery_deadline || t.publish_date || 'غير محدد') + '</div>' +
             '</div>' +
         '</div>' +
+        ((t.tagline || (t.content_data && t.content_data.tagline) || (t.content_data && t.content_data.tag_line)) ? ('<div class="bg-amber-50/90 border border-amber-200 rounded-2xl p-3.5 space-y-1">' +
+            '<div class="text-[10px] text-amber-900 font-bold flex items-center gap-1">🏷️ التاج لاين / الهوك الجذاب (Tagline / Hook):</div>' +
+            '<div class="text-xs font-bold text-amber-950 leading-relaxed">' + esc(t.tagline || t.content_data.tagline || t.content_data.tag_line) + '</div>' +
+        '</div>') : '') +
         (t.caption ? ('<div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-1.5">' +
-            '<div class="text-[10px] text-slate-500 font-bold">✍️ نص الكابشن (Caption):</div>' +
+            '<div class="text-[10px] text-slate-500 font-bold flex items-center gap-1">✍️ نص الكونتنت والكابشن الكامل (Caption):</div>' +
             '<div class="text-xs text-slate-800 whitespace-pre-line leading-relaxed">' + esc(t.caption) + '</div>' +
         '</div>') : '') +
         (t.visual_idea ? ('<div class="bg-purple-50/70 border border-purple-200 rounded-2xl p-3.5 space-y-1">' +
@@ -3319,3 +3323,223 @@ window.openDeliverableModal = openDeliverableModal;
 window.closeDeliverableModal = closeDeliverableModal;
 window.submitDriveLinkDeliverable = submitDriveLinkDeliverable;
 window.handleModalFileUpload = handleModalFileUpload;
+
+/* =========================================================================
+   PLAN BUILDER TEMPLATE (منشئ وقالب كتابة الخطة التفاعلي)
+   ========================================================================= */
+
+var planBuilderRowCount = 0;
+
+function openPlanBuilderModal() {
+    var modal = document.getElementById('plan-builder-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+
+    var clientInput = document.getElementById('pb-client-name');
+    var currentCName = (typeof currentClient !== 'undefined' && currentClient) ? currentClient : '';
+    if (clientInput && !clientInput.value) {
+        var matched = (window.clientsList || []).find(function(c){ return c.id === currentCName; });
+        clientInput.value = matched ? matched.name : currentCName;
+    }
+
+    var planNameInput = document.getElementById('pb-plan-name');
+    if (planNameInput && !planNameInput.value) {
+        var d = new Date();
+        var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+        planNameInput.value = 'خطة محتوى ' + months[d.getMonth()] + ' ' + d.getFullYear();
+    }
+
+    // Fill AM select
+    var amSelect = document.getElementById('pb-am-select');
+    if (amSelect) {
+        amSelect.innerHTML = '';
+        var users = window.systemUsers || [];
+        var ams = users.filter(function(u){ return u.role === 'account_manager' || u.role === 'admin'; });
+        if (!ams.length) ams = [{ id: 'EMP-001', name: 'أحمد محمد (Account Manager)' }];
+        ams.forEach(function(a){
+            var opt = document.createElement('option');
+            opt.value = a.employee_id || a.id || a.username;
+            opt.textContent = (a.name || a.username) + ' (' + (a.role === 'admin' ? 'مدير' : 'AM') + ')';
+            amSelect.appendChild(opt);
+        });
+    }
+
+    var container = document.getElementById('pb-posts-container');
+    if (container && container.children.length === 0) {
+        addPlanBuilderRow();
+    }
+}
+
+function closePlanBuilderModal() {
+    var modal = document.getElementById('plan-builder-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function addPlanBuilderRow(postData) {
+    var container = document.getElementById('pb-posts-container');
+    if (!container) return;
+    planBuilderRowCount++;
+    var idx = planBuilderRowCount;
+    var data = postData || {};
+
+    var row = document.createElement('div');
+    row.className = 'pb-post-row bg-white border border-slate-200 hover:border-purple-300 rounded-2xl p-4 sm:p-5 shadow-xs transition space-y-3';
+    row.id = 'pb-row-' + idx;
+
+    row.innerHTML = 
+        '<div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">' +
+            '<div class="flex items-center gap-2">' +
+                '<span class="bg-purple-600 text-white font-mono font-bold text-xs px-2.5 py-1 rounded-xl shadow-2xs">بوست #' + idx + '</span>' +
+                '<select class="pb-post-type text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-800 focus:outline-none focus:border-purple-500">' +
+                    '<option value="reel"' + (data.post_type === 'reel' ? ' selected' : '') + '>🎬 ريلز / فيديو قصير (Reels)</option>' +
+                    '<option value="post"' + (data.post_type === 'post' ? ' selected' : '') + '>📝 منشور صورة مفردة (Single Post)</option>' +
+                    '<option value="carousel"' + (data.post_type === 'carousel' ? ' selected' : '') + '>🖼️ كاروسيل / سلايدات (Carousel)</option>' +
+                    '<option value="story"' + (data.post_type === 'story' ? ' selected' : '') + '>📱 ستوري / قصة (Story)</option>' +
+                    '<option value="motion"' + (data.post_type === 'motion' ? ' selected' : '') + '>💫 موشن جرافيك (Motion Graphic)</option>' +
+                '</select>' +
+            '</div>' +
+            '<div class="flex items-center gap-2">' +
+                '<div class="flex items-center gap-1.5">' +
+                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 تاريخ النشر:</label>' +
+                    '<input type="date" class="pb-publish-date text-xs px-2 py-1 border border-slate-200 rounded-xl bg-slate-50 font-bold" value="' + esc(data.publish_date || '') + '" />' +
+                '</div>' +
+                '<button type="button" onclick="removePlanBuilderRow(this)" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center font-bold text-xs transition" title="حذف هذا البوست">' +
+                    '✕' +
+                '</button>' +
+            '</div>' +
+        '</div>' +
+
+        '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">' +
+            '<div>' +
+                '<label class="block text-[11px] font-bold text-amber-900 mb-1 flex items-center gap-1">🏷️ التاج لاين / الهوك الجذاب (Tagline / Hook):</label>' +
+                '<input type="text" class="pb-tagline w-full px-3 py-2 border border-amber-200 rounded-xl bg-amber-50/40 text-xs font-bold text-amber-950 focus:bg-white focus:border-amber-400 focus:outline-none" placeholder="مثال: 3 أخطاء بتضيع ميزانية إعلاناتك..." value="' + esc(data.tagline || data.title || '') + '" />' +
+            '</div>' +
+            '<div>' +
+                '<label class="block text-[11px] font-bold text-purple-900 mb-1 flex items-center gap-1">🎨 فكرة الفيجوال / اسكربت الفيديو (Visual Idea / Script):</label>' +
+                '<input type="text" class="pb-visual w-full px-3 py-2 border border-purple-200 rounded-xl bg-purple-50/40 text-xs text-purple-950 focus:bg-white focus:border-purple-400 focus:outline-none" placeholder="مثال: تصوير الموديل مع ظهور عناوين موشن وتأثير صوتي..." value="' + esc(data.visual_idea || '') + '" />' +
+            '</div>' +
+        '</div>' +
+
+        '<div>' +
+            '<label class="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">📝 نص الكونتنت والكابشن الكامل (Full Copy / Caption / Script):</label>' +
+            '<textarea rows="3" class="pb-caption w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 leading-relaxed focus:border-purple-500 focus:outline-none" placeholder="اكتب نص البوست الكامل هنا مع التفاصيل والـ CTA والهاشتاجات...">' + esc(data.caption || '') + '</textarea>' +
+        '</div>';
+
+    container.appendChild(row);
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function removePlanBuilderRow(btn) {
+    var row = btn.closest('.pb-post-row');
+    if (row) {
+        row.remove();
+        // renumber rows
+        var rows = document.querySelectorAll('.pb-post-row');
+        rows.forEach(function(r, idx){
+            var badge = r.querySelector('.font-mono');
+            if (badge) badge.textContent = 'بوست #' + (idx + 1);
+        });
+    }
+}
+
+function loadSamplePlanTemplate() {
+    var container = document.getElementById('pb-posts-container');
+    if (container) container.innerHTML = '';
+    planBuilderRowCount = 0;
+
+    var samples = [
+        {
+            post_type: 'reel',
+            tagline: 'سر واحد هيضاعف مبيعاتك في 30 يوم 🚀',
+            caption: 'أغلب البراندات بتركز على الإعلانات وبتنسى أهم خطوة: تجربة العميل بعد أول نقرة!\n\nفي الفيديو ده هنوضح 3 خطوات عملية تقدر تطبقهم النهاردة عشان ترفع نسبة التحويل.\n\n💬 ابعتلنا كلمة (مبيعات) في الرسائل وهنبعتلك الدليل المجاني فوراً!\n\n#تسويق_إلكتروني #مبيعات #ريلز #سوشيال_ميديا',
+            visual_idea: 'فيديو ريلز عمودي 9:16 مع هوك في أول 3 ثواني وظهور التاج لاين بخط واضح ومؤثرات صوتية حماسية',
+            publish_date: new Date(Date.now() + 86400000).toISOString().split('T')[0]
+        },
+        {
+            post_type: 'carousel',
+            tagline: '5 أدوات مجانية لازم كل صانع محتوى يستخدمها 🛠️',
+            caption: 'لو بتضيع وقت في التصميم والمونتاج، البوست ده هيوفر عليك ساعات كل أسبوع!\n\nسلايد 1: أداة التغذية البصرية\nسلايد 2: أداة تحسين جودة الصوت\nسلايد 3: أداة استخراج الهاشتاجات\n\n📌 احفظ البوست عشان ترجعله وقت ما تحتاجه!\n\n#صناع_المحتوى #تصميم #جرافيك',
+            visual_idea: 'كاروسيل 5 سلايدات بتدرج ألوان البراند مع أيقونات بارزة لكل أداة وسهم تنقل سلس',
+            publish_date: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]
+        },
+        {
+            post_type: 'post',
+            tagline: 'عرض خاص لنهاية الأسبوع — خصم 30% على كل التشكيلة 🔥',
+            caption: 'العرض الأقوى وصل! استمتع بخصم 30% على كل المنتجات الجديدة لفترة محدودة.\n\n🚚 التوصيل مجاني للطلبات فوق 500 جنيه.\n\n🛒 اطلب الآن من خلال اللينك في البايو أو تواصل معنا عبر رسائل الصفحة.',
+            visual_idea: 'تصميم جرافيك احترافي يبرز صورة المنتج الرئيسي مع بادج الخصم 30% بخط جريء',
+            publish_date: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0]
+        }
+    ];
+
+    samples.forEach(function(s){
+        addPlanBuilderRow(s);
+    });
+
+    showToast('تمت تعبئة النموذج التجريبي بنجاح! يمكنك التعديل عليه كما تحب 📑✨');
+}
+
+async function submitPlanBuilder() {
+    var rows = document.querySelectorAll('.pb-post-row');
+    if (!rows.length) {
+        showToast('يرجى إضافة بوست واحد على الأقل للخطة', 'error');
+        return;
+    }
+
+    var clientName = (document.getElementById('pb-client-name') || {}).value || '';
+    var planName = (document.getElementById('pb-plan-name') || {}).value || 'خطة محتوى جديدة';
+    var amId = (document.getElementById('pb-am-select') || {}).value || '';
+
+    var clientTextBlocks = [];
+
+    rows.forEach(function(r, idx){
+        var type = (r.querySelector('.pb-post-type') || {}).value || 'post';
+        var tagline = ((r.querySelector('.pb-tagline') || {}).value || '').trim();
+        var visual = ((r.querySelector('.pb-visual') || {}).value || '').trim();
+        var caption = ((r.querySelector('.pb-caption') || {}).value || '').trim();
+        var pdate = ((r.querySelector('.pb-publish-date') || {}).value || '').trim();
+
+        var block = '---' + '\n' +
+            'بوست #' + (idx + 1) + ' | النوع: ' + type + (pdate ? (' | تاريخ النشر: ' + pdate) : '') + '\n' +
+            'التاج لاين: ' + (tagline || ('بوست #' + (idx + 1))) + '\n' +
+            (visual ? ('فكرة الفيجوال: ' + visual + '\n') : '') +
+            'الكابشن والكونتنت:\n' + (caption || tagline || 'محتوى البوست');
+
+        clientTextBlocks.push(block);
+    });
+
+    var fullPlanText = clientTextBlocks.join('\n\n');
+
+    showToast('جاري إنشاء وتقسيم مهام الخطة بالسيستم... ⏳');
+
+    try {
+        var res = await safeFetchJson('/api/tasks/ingest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                plan_text: fullPlanText,
+                plan_name: planName,
+                file_name: planName,
+                client_name: clientName,
+                am_employee_id: amId
+            })
+        });
+
+        if (res && (res.ok || res.success)) {
+            closePlanBuilderModal();
+            showToast('🎉 تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة بنجاح! 🚀', 'success');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+        } else {
+            showToast((res && res.error) || 'تعذّر حفظ الخطة', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في إرسال الخطة: ' + e.message, 'error');
+    }
+}
+
+window.openPlanBuilderModal = openPlanBuilderModal;
+window.closePlanBuilderModal = closePlanBuilderModal;
+window.addPlanBuilderRow = addPlanBuilderRow;
+window.removePlanBuilderRow = removePlanBuilderRow;
+window.loadSamplePlanTemplate = loadSamplePlanTemplate;
+window.submitPlanBuilder = submitPlanBuilder;
+

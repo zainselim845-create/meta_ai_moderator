@@ -6440,36 +6440,30 @@ def _parse_plan_with_ai(plan_text, retry_split=False):
     if retry_split:
         prompt = (
             "أنت خبير في تحليل خطط المحتوى والسوشيال ميديا (Content Plan Parser).\n"
-            "المستخدم رفع ملف خطة محتوى وأنت لازم تقسمها لبوستات / مهام منفصلة.\n\n"
-            "⚠️ مهم جداً: هذا الملف فيه أكثر من بوست/محتوى واحد لكن محاولة سابقة فشلت في تقسيمه.\n"
-            "ابحث بعناية عن كل قطعة محتوى منفصلة. قد يكون الملف:\n"
-            "- جدول (table) فيه كل صف = بوست مستقل\n"
-            "- نص متواصل لكن كل فقرة = بوست مستقل\n"
-            "- أقسام مفصولة بخطوط أو أرقام\n"
-            "- خليط من ريلز وبوستات وستوريز\n"
-            "- مكتوب بأي لغة (عربي/إنجليزي/مختلط)\n\n"
-            "قسّم النص لأكبر عدد ممكن من البوستات المنفصلة. كل قطعة محتوى لها موضوع مختلف = بوست مستقل.\n\n"
+            "المستخدم رفع ملف خطة محتوى والمطلوب تقسمها لبوستات / مهام منفصلة مع فصل دقيق بين التاج لاين والكابشن.\n\n"
+            "قواعد أساسية:\n"
+            "1. افصل التاج لاين (الهوك / العنوان الجذاب) عن نص الكونتنت والكابشن الكامل.\n"
+            "2. حقل tagline: يحتوي فقط على التاج لاين / الهوك المختصر.\n"
+            "3. حقل caption: يحتوي على نص المحتوى / الكابشن / الإسكربت الكامل بدون تكرار التاج لاين في البداية.\n"
+            "4. حقل visual_idea: يحتوي على فكرة التصميم أو المشهد أو الريفرنس.\n\n"
             "أرجع JSON فقط بالشكل:\n"
-            '{\"posts\": [{\"title\": \"...\", \"caption\": \"...\", \"visual_idea\": \"...\", \"post_type\": \"post|reel|carousel|story|motion\", \"publish_date\": \"YYYY-MM-DD or empty\", \"publish_time\": \"HH:MM default 10:00\", \"delivery_deadline\": \"YYYY-MM-DD or empty\", \"media_urls\": []}]}\n\n'
-            "لا تكتب أي شيء غير JSON. لا تدمج بوستات مختلفة في بوست واحد."
+            '{\"posts\": [{\"title\": \"...\", \"tagline\": \"...\", \"caption\": \"...\", \"visual_idea\": \"...\", \"post_type\": \"post|reel|carousel|story|motion\", \"publish_date\": \"YYYY-MM-DD or empty\", \"publish_time\": \"HH:MM default 10:00\", \"delivery_deadline\": \"YYYY-MM-DD or empty\", \"media_urls\": []}]}\n\n'
+            "لا تكتب أي شيء غير JSON."
         )
     else:
         prompt = (
             "You are an expert Social Media & Marketing Content Plan Parser.\n"
-            "Your job is to extract ALL individual posts/content pieces from the given content plan.\n\n"
+            "Your job is to extract ALL individual posts from the given marketing plan with STRICT SEPARATION between Tagline/Hook and Full Caption.\n\n"
             "CRITICAL RULES:\n"
-            "1. Each separate piece of content (post, reel, story, video, carousel, motion graphic) = ONE separate entry.\n"
-            "2. If the plan is a TABLE, each row with content is a separate post.\n"
-            "3. If the plan has sections separated by numbers, bullets, lines, or headers, each section is a separate post.\n"
-            "4. NEVER merge multiple posts into one. ALWAYS split them.\n"
-            "5. Content can be in Arabic, English, or mixed. Handle all languages.\n"
-            "6. Look for patterns like: numbered items, table rows, separated paragraphs, 'Post 1/بوست 1', dates followed by content.\n"
-            "7. If there are tab-separated columns (like from a table), parse each complete row as one post.\n"
-            "8. Preserve the FULL caption/text of each post — do NOT summarize or truncate.\n\n"
+            "1. SEPARATE TAGLINE & CAPTION: Extract the short punchy hook/headline into 'tagline' (or 'title'), and the full body/copy/script into 'caption' without prepending the tagline.\n"
+            "2. Each separate piece of content (post, reel, story, video, carousel, motion graphic) = ONE separate entry.\n"
+            "3. If the plan is a TABLE, each row is a separate post.\n"
+            "4. Preserve the FULL caption/text of each post — keep all details, emojis, bullet points, CTA.\n\n"
             "Return ONLY a JSON object with key 'posts' containing an array. Each post object has:\n"
-            "- title: (string) Short headline/hook, max 100 chars. Extract from the content.\n"
-            "- caption: (string) The FULL text/caption/script. Keep ALL details, emojis, bullet points.\n"
-            "- visual_idea: (string) Design/visual brief if mentioned, else empty string.\n"
+            "- title: (string) Clean post headline or subject, max 100 chars.\n"
+            "- tagline: (string) The specific Hook / Tagline / Headline.\n"
+            "- caption: (string) The FULL text/caption/script WITHOUT repeating the tagline.\n"
+            "- visual_idea: (string) Design / Visual / Video scene description or reference.\n"
             "- post_type: (string) One of: 'post', 'reel', 'carousel', 'story', 'motion'\n"
             "- publish_date: (string) 'YYYY-MM-DD' if found, else ''\n"
             "- publish_time: (string) 'HH:MM' (default '10:00')\n"
@@ -7153,8 +7147,11 @@ def api_tasks_ingest_plan():
             extracted_posts = [{"title": "منشور جديد", "caption": plan_text[:500], "visual_idea": "", "post_type": "post", "publish_date": "", "publish_time": "10:00", "delivery_deadline": "", "media_urls": []}]
 
         for p_idx, p in enumerate(extracted_posts, 1):
-            title = (p.get("title") or "منشور جديد").lstrip("-•*✅✍️ ").strip()[:140]
-            caption = (p.get("caption") or title).strip()
+            tagline = (p.get("tagline") or p.get("tag_line") or p.get("hook") or "").strip()
+            title = (p.get("title") or tagline or "منشور جديد").lstrip("-•*✅✍️ ").strip()[:140]
+            if not tagline and title and title != "منشور جديد":
+                tagline = title
+            caption = (p.get("caption") or "").strip()
             visual = (p.get("visual_idea") or "").strip()
             p_type = (p.get("post_type") or "post").lower()
             pub_date = (p.get("publish_date") or "").strip()
@@ -7173,7 +7170,9 @@ def api_tasks_ingest_plan():
                 "file_name": raw_file_name or clean_file_title,
                 "plan_name": clean_file_title,
                 "title": title,
-                "description": caption or title,
+                "tagline": tagline,
+                "tag_line": tagline,
+                "description": caption or tagline or title,
                 "caption": caption,
                 "visual_idea": visual,
                 "status": "Pending AM Approval",
@@ -7187,8 +7186,9 @@ def api_tasks_ingest_plan():
                 "assignee_name": "",
                 "media_urls": image_urls,
                 "reference_links": ref_links,
-                "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls, "reference_links": ref_links},
-                "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
+                "content_data": {"post_type": p_type, "tag_line": tagline, "tagline": tagline, "caption": caption, "visual_idea": visual, "reference_images": image_urls, "reference_links": ref_links},
+                "graphic_data": {"idea": visual, "reference_images": image_urls, "reference_links": ref_links},
+                "video_data": {"script": caption, "idea": visual},
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
             _append_task_log(new_task, "created",
