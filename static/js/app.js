@@ -1182,48 +1182,27 @@ function driveUploadFile(taskId, file) {
           }
         }
       } catch(gDriveErr) {
-        console.warn('Google Drive direct session upload failed, trying cloud fallback...', gDriveErr);
+        console.warn('Google Drive direct session error:', gDriveErr);
       }
       
-      // Step 2: Cloud Fallback if Google direct session hit network block
-      if (!finalLink) {
+      // Step 2: Fallback for smaller files directly through server
+      if (!finalLink && file.size < 4 * 1024 * 1024) {
         try {
-          const uploadResult = await new Promise((upResolve, upReject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', 'https://tmpfiles.org/api/v1/upload', true);
-            xhr.upload.onprogress = (e) => {
-              if (e.lengthComputable) updateUploadProgress(e.loaded, e.total);
-            };
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                  const res = JSON.parse(xhr.responseText);
-                  if (res && res.data && res.data.url) {
-                    upResolve(res.data.url.replace('tmpfiles.org/', 'tmpfiles.org/dl/'));
-                  } else upReject(new Error('فشل استلام الرابط'));
-                } catch(pe) { upReject(pe); }
-              } else upReject(new Error('فشل الرفع'));
-            };
-            xhr.onerror = () => upReject(new Error('انقطع الاتصال'));
-            const fd = new FormData();
-            fd.append('file', file, file.name);
-            xhr.send(fd);
+          const sfd = new FormData();
+          sfd.append('file', file);
+          const sdata = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/upload', {
+            method: 'POST',
+            body: sfd
           });
-          
-          if (uploadResult) {
-            const saveRes = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ drive_link: uploadResult, link: uploadResult })
-            });
-            if (saveRes && saveRes.ok) finalLink = uploadResult;
+          if (sdata && sdata.ok && sdata.drive_link) {
+            finalLink = sdata.drive_link;
           }
         } catch(fe){}
       }
       
       if (!finalLink) {
-        finishUploadProgress(false, 'تعذّر رفع الملف. يمكنك وضع رابط Google Drive مباشرة 🔗');
-        reject(new Error('تعذّر رفع الملف'));
+        finishUploadProgress(false, 'تعذّر إتمام الرفع إلى Google Drive. يمكنك لصق رابط Google Drive مباشرة 🔗');
+        reject(new Error('تعذّر رفع الملف إلى Google Drive'));
         return;
       }
       

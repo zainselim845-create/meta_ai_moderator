@@ -7712,23 +7712,8 @@ def api_task_upload_chunk_complete(task_id):
         try:
             link = drive_upload_bytes(safe_name, raw_data, mime, parent_id=target_folder_id)
         except Exception as de:
-            print(f"[chunk gdrive upload err] {de}")
-
     if not link:
-        try:
-            cr = requests.post(
-                "https://catbox.moe/user/api.php",
-                data={"reqtype": "fileupload"},
-                files={"fileToUpload": (safe_name, raw_data, mime)},
-                timeout=45
-            )
-            if cr.status_code == 200 and cr.text.strip().startswith("http"):
-                link = cr.text.strip()
-        except Exception as ce:
-            print(f"[chunk catbox fallback err] {ce}")
-
-    if not link:
-        return jsonify({"error": "تعذّر رفع الملف إلى السحابة. يرجى لصق رابط Google Drive مباشرة"}), 500
+        return jsonify({"error": "تعذّر رفع الملف إلى Google Drive. يرجى لصق رابط Google Drive مباشرة"}), 500
 
     t["drive_link"] = link
     t.setdefault("media_urls", [])
