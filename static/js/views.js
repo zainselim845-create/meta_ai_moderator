@@ -3428,10 +3428,11 @@ async function openPlanBuilderModal() {
     modal.classList.remove('hidden');
 
     var clientInput = document.getElementById('pb-client-name');
-    var currentCName = (typeof currentClient !== 'undefined' && currentClient) ? currentClient : '';
-    if (clientInput && !clientInput.value) {
-        var matched = (window.clientsList || []).find(function(c){ return c.id === currentCName; });
-        clientInput.value = matched ? matched.name : currentCName;
+    var matched = (window.clientsList || []).find(function(c){ return c.id === currentClient || c.name === currentClient; });
+    if (clientInput) {
+        if (!clientInput.value || clientInput.value.trim() === 'كم') {
+            clientInput.value = matched ? matched.name : (currentClient || 'Domya Marketing Agency');
+        }
     }
 
     var planNameInput = document.getElementById('pb-plan-name');
@@ -3606,10 +3607,11 @@ async function submitPlanBuilder() {
         return;
     }
 
-    var clientName = (document.getElementById('pb-client-name') || {}).value || '';
-    var planName = (document.getElementById('pb-plan-name') || {}).value || 'خطة محتوى جديدة';
+    var clientName = ((document.getElementById('pb-client-name') || {}).value || '').trim();
+    var planName = ((document.getElementById('pb-plan-name') || {}).value || 'خطة محتوى جديدة').trim();
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
 
+    var structuredPosts = [];
     var clientTextBlocks = [];
 
     rows.forEach(function(r, idx){
@@ -3620,7 +3622,22 @@ async function submitPlanBuilder() {
         var pdate = ((r.querySelector('.pb-publish-date') || {}).value || '').trim();
         var empSelect = r.querySelector('.pb-assignee');
         var empId = empSelect ? empSelect.value : '';
-        var empName = (empSelect && empSelect.selectedIndex > 0) ? empSelect.options[empSelect.selectedIndex].text : '';
+        var empName = (empSelect && empSelect.selectedIndex > 0) ? empSelect.options[empSelect.selectedIndex].text.replace(/^[^\s]+\s*/, '') : '';
+
+        var postObj = {
+            post_number: idx + 1,
+            title: tagline || ('بوست #' + (idx + 1)),
+            tagline: tagline,
+            tag_line: tagline,
+            visual_idea: visual,
+            caption: caption || tagline || 'محتوى البوست',
+            post_type: type,
+            publish_date: pdate,
+            publish_time: '10:00',
+            assigned_employee_id: empId,
+            assignee_name: empName
+        };
+        structuredPosts.push(postObj);
 
         var block = '---' + '\n' +
             'بوست #' + (idx + 1) + ' | النوع: ' + type + (pdate ? (' | تاريخ النشر: ' + pdate) : '') + (empId ? (' | المسند: ' + empName) : '') + '\n' +
@@ -3633,13 +3650,14 @@ async function submitPlanBuilder() {
 
     var fullPlanText = clientTextBlocks.join('\n\n');
 
-    showToast('جاري إنشاء وتقسيم مهام الخطة بالسيستم... ⏳');
+    showToast('جاري إنشاء وحفظ مهام الخطة بالسيستم... ⏳');
 
     try {
         var res = await safeFetchJson('/api/tasks/ingest-plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                posts: structuredPosts,
                 plan_text: fullPlanText,
                 plan_name: planName,
                 file_name: planName,
@@ -3651,7 +3669,16 @@ async function submitPlanBuilder() {
         if (res && (res.ok || res.success)) {
             closePlanBuilderModal();
             showToast('🎉 تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة بنجاح! 🚀', 'success');
-            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            
+            // Set plan filter to new plan so user sees it instantly
+            if (res.plan_name) {
+                selectedPlanFilter = res.plan_name;
+            }
+            if (res.client_id) {
+                await switchToClient(res.client_id);
+            } else if (typeof loadTasksEngine === 'function') {
+                loadTasksEngine();
+            }
         } else {
             showToast((res && res.error) || 'تعذّر حفظ الخطة', 'error');
         }
