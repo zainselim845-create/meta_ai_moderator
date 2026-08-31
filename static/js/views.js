@@ -1076,20 +1076,50 @@ function clearEmployeeFilter() {
     renderTasksBoard();
 }
 
-async function renderClientTabs() {
+var selectedPlanFilter = null;
+
+function renderClientTabs() {
     var box = document.getElementById('client-tabs');
     if (!box) return;
-    var clients = [], activeId = '';
-    try { var cd = await safeFetchJson('/api/clients'); clients = Array.isArray(cd) ? cd : ((cd && cd.clients) ? cd.clients : []); } catch(e){}
-    try { var me = await safeFetchJson('/api/me'); activeId = (me && me.active_client_id) ? me.active_client_id : ''; window._me = me; } catch(e){}
-    if (!clients.length) { box.innerHTML = '<span class="text-[11px] text-slate-400">لا يوجد عملاء</span>'; return; }
-    box.innerHTML = clients.map(function(c){
-        var on = c.id === activeId;
-        return '<button onclick="switchToClient(\'' + esc(c.id) + '\')" class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-lg transition ' +
-            (on ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">' + esc(c.name) + '</button>';
-    }).join('');
-    var nameEl = document.getElementById('tasks-client-name');
-    if (nameEl) { var c = clients.find(function(x){ return x.id === activeId; }); nameEl.textContent = c ? ('— ' + c.name) : ''; }
+    
+    var allTasks = tasksList || [];
+    var plans = {};
+    allTasks.forEach(function(t) {
+        var p = (t.plan_name || t.file_name || 'خطة عامة').trim();
+        if (!plans[p]) plans[p] = { name: p, total: 0, completed: 0 };
+        plans[p].total++;
+        if (t.status === 'Completed') plans[p].completed++;
+    });
+
+    var planNames = Object.keys(plans);
+    
+    var html = '<button onclick="filterTasksByPlan(null)" class="whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 ' +
+        (!selectedPlanFilter ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200') + '">' +
+        '<span>📑 جميع الخطط</span>' +
+        '<span class="bg-white/20 text-xs px-2 py-0.5 rounded-full font-mono font-bold">' + allTasks.length + '</span>' +
+    '</button>';
+
+    planNames.forEach(function(pName) {
+        var pInfo = plans[pName];
+        var isSel = (selectedPlanFilter === pName);
+        html += '<button onclick="filterTasksByPlan(\'' + esc(pName) + '\')" class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ' +
+            (isSel ? 'bg-purple-600 text-white shadow-sm' : 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100') + '">' +
+            '<span>📄 ' + esc(pName) + '</span>' +
+            '<span class="text-[10px] font-mono ' + (isSel ? 'bg-white/20 text-white' : 'bg-purple-200 text-purple-900') + ' px-1.5 py-0.5 rounded-lg font-bold">' + pInfo.completed + '/' + pInfo.total + '</span>' +
+        '</button>';
+    });
+
+    html += '<button onclick="openPlanBuilderModal()" class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-2xs transition flex items-center gap-1">' +
+        '<span>➕ خطة جديدة بالقالب</span>' +
+    '</button>';
+
+    box.innerHTML = html;
+}
+
+function filterTasksByPlan(planName) {
+    selectedPlanFilter = planName;
+    renderClientTabs();
+    renderTasksBoard();
 }
 
 async function switchToClient(id) {
@@ -3330,7 +3360,7 @@ window.handleModalFileUpload = handleModalFileUpload;
 
 var planBuilderRowCount = 0;
 
-function openPlanBuilderModal() {
+async function openPlanBuilderModal() {
     var modal = document.getElementById('plan-builder-modal');
     if (!modal) return;
     modal.classList.remove('hidden');
@@ -3349,17 +3379,34 @@ function openPlanBuilderModal() {
         planNameInput.value = 'خطة محتوى ' + months[d.getMonth()] + ' ' + d.getFullYear();
     }
 
-    // Fill AM select
+    // Load real team & AMs from API
     var amSelect = document.getElementById('pb-am-select');
+    try {
+        var empData = await safeFetchJson('/api/tasks/employees');
+        if (empData && empData.employees) {
+            window.allTeamEmployees = empData.employees;
+        }
+    } catch(e){}
+
+    var team = window.allTeamEmployees || [
+        { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
+        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' },
+        { employee_id: 'EMP-8086-4520', name: 'محمد سعيد فوزي محمد', role: 'Ai automation & إدارة' },
+        { employee_id: 'EMP-5970-2611', name: 'روضة عبد الحميد', role: 'الاداره' }
+    ];
+
     if (amSelect) {
         amSelect.innerHTML = '';
-        var users = window.systemUsers || [];
-        var ams = users.filter(function(u){ return u.role === 'account_manager' || u.role === 'admin'; });
-        if (!ams.length) ams = [{ id: 'EMP-001', name: 'أحمد محمد (Account Manager)' }];
-        ams.forEach(function(a){
+        var amList = team.filter(function(e){
+            var r = (e.role || '').toLowerCase();
+            return r.includes('account') || r.includes('manager') || r.includes('اداره') || r.includes('إدارة') || r.includes('admin') || e.employee_id.startsWith('AM-');
+        });
+        if (!amList.length) amList = team;
+
+        amList.forEach(function(a){
             var opt = document.createElement('option');
-            opt.value = a.employee_id || a.id || a.username;
-            opt.textContent = (a.name || a.username) + ' (' + (a.role === 'admin' ? 'مدير' : 'AM') + ')';
+            opt.value = a.employee_id || a.id;
+            opt.textContent = '👤 ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager');
             amSelect.appendChild(opt);
         });
     }
@@ -3382,13 +3429,28 @@ function addPlanBuilderRow(postData) {
     var idx = planBuilderRowCount;
     var data = postData || {};
 
+    var team = window.allTeamEmployees || [
+        { employee_id: 'EMP-8148', name: 'عمر احمد عبدالرحمن', role: 'فيديو ايديتور' },
+        { employee_id: 'EMP-8143', name: 'فرح ياسر ابراهيم', role: 'Video editor' },
+        { employee_id: 'EMP-8142', name: 'ندى أيمن كمال', role: 'جرافيك دزاينر' },
+        { employee_id: 'EMP-8986-4947', name: 'راما ممدوح سرج', role: 'جرافيك ديزاينر' },
+        { employee_id: 'EMP-7189-7780', name: 'عبدالرحمن محمد عربي', role: 'Content' },
+        { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' }
+    ];
+
+    var assigneeOptions = '<option value="">👤 اسناد لموظف محدد (اختياري)...</option>';
+    team.forEach(function(e){
+        var isSel = (data.assigned_employee_id === e.employee_id || (data.assignee_name && data.assignee_name === e.name));
+        assigneeOptions += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + ' (' + esc(e.role) + ')</option>';
+    });
+
     var row = document.createElement('div');
     row.className = 'pb-post-row bg-white border border-slate-200 hover:border-purple-300 rounded-2xl p-4 sm:p-5 shadow-xs transition space-y-3';
     row.id = 'pb-row-' + idx;
 
     row.innerHTML = 
-        '<div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">' +
-            '<div class="flex items-center gap-2">' +
+        '<div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 flex-wrap">' +
+            '<div class="flex items-center gap-2 flex-wrap">' +
                 '<span class="bg-purple-600 text-white font-mono font-bold text-xs px-2.5 py-1 rounded-xl shadow-2xs">بوست #' + idx + '</span>' +
                 '<select class="pb-post-type text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-800 focus:outline-none focus:border-purple-500">' +
                     '<option value="reel"' + (data.post_type === 'reel' ? ' selected' : '') + '>🎬 ريلز / فيديو قصير (Reels)</option>' +
@@ -3397,10 +3459,13 @@ function addPlanBuilderRow(postData) {
                     '<option value="story"' + (data.post_type === 'story' ? ' selected' : '') + '>📱 ستوري / قصة (Story)</option>' +
                     '<option value="motion"' + (data.post_type === 'motion' ? ' selected' : '') + '>💫 موشن جرافيك (Motion Graphic)</option>' +
                 '</select>' +
+                '<select class="pb-assignee text-xs font-bold bg-purple-50/70 border border-purple-200 rounded-xl px-2.5 py-1 text-purple-900 focus:outline-none focus:border-purple-500">' +
+                    assigneeOptions +
+                '</select>' +
             '</div>' +
             '<div class="flex items-center gap-2">' +
                 '<div class="flex items-center gap-1.5">' +
-                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 تاريخ النشر:</label>' +
+                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 موعد النشر:</label>' +
                     '<input type="date" class="pb-publish-date text-xs px-2 py-1 border border-slate-200 rounded-xl bg-slate-50 font-bold" value="' + esc(data.publish_date || '') + '" />' +
                 '</div>' +
                 '<button type="button" onclick="removePlanBuilderRow(this)" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center font-bold text-xs transition" title="حذف هذا البوست">' +
@@ -3497,9 +3562,12 @@ async function submitPlanBuilder() {
         var visual = ((r.querySelector('.pb-visual') || {}).value || '').trim();
         var caption = ((r.querySelector('.pb-caption') || {}).value || '').trim();
         var pdate = ((r.querySelector('.pb-publish-date') || {}).value || '').trim();
+        var empSelect = r.querySelector('.pb-assignee');
+        var empId = empSelect ? empSelect.value : '';
+        var empName = (empSelect && empSelect.selectedIndex > 0) ? empSelect.options[empSelect.selectedIndex].text : '';
 
         var block = '---' + '\n' +
-            'بوست #' + (idx + 1) + ' | النوع: ' + type + (pdate ? (' | تاريخ النشر: ' + pdate) : '') + '\n' +
+            'بوست #' + (idx + 1) + ' | النوع: ' + type + (pdate ? (' | تاريخ النشر: ' + pdate) : '') + (empId ? (' | المسند: ' + empName) : '') + '\n' +
             'التاج لاين: ' + (tagline || ('بوست #' + (idx + 1))) + '\n' +
             (visual ? ('فكرة الفيجوال: ' + visual + '\n') : '') +
             'الكابشن والكونتنت:\n' + (caption || tagline || 'محتوى البوست');
