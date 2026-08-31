@@ -1396,6 +1396,9 @@ function onTaskSearchInput(query) {
 
 function getTaskSequenceNum(t) {
     if (!t) return 999999;
+    if (t.post_number !== undefined && t.post_number !== null && !isNaN(parseInt(t.post_number, 10)) && parseInt(t.post_number, 10) > 0) {
+        return parseInt(t.post_number, 10);
+    }
     var title = String(t.title || '');
     var caption = String(t.caption || '');
     var task_id = String(t.task_id || '');
@@ -1424,7 +1427,7 @@ function getTaskSequenceNum(t) {
     var mTid = task_id.match(/TASK-(\d+)/i) || task_id.match(/\d+/);
     if (mTid && mTid[1]) return parseInt(mTid[1], 10);
     
-    return 999999;
+    return 1;
 }
 
 function renderTaskCard(t) {
@@ -1530,9 +1533,13 @@ function renderTaskCard(t) {
         deliverablesBox += '</div>';
     }
 
+    var postSeq = getTaskSequenceNum(t);
+    var postBadge = '<span class="bg-blue-600 hover:bg-blue-700 text-white font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg shadow-xs inline-flex items-center gap-0.5 border border-blue-500/50" title="ترتيب البوست في الخطة (بوست #' + postSeq + ')"><span>#</span><span>' + postSeq + '</span></span>';
+
     var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
         '<div class="flex items-center justify-between gap-1 flex-wrap">' +
             '<div class="flex items-center gap-1.5 flex-wrap">' +
+                postBadge +
                 '<span class="font-mono font-bold text-xs bg-slate-900 text-white px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
                 '<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ' + statusBadgeClass + '">' + stLabel + '</span>' +
                 clientTag +

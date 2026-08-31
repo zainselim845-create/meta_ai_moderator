@@ -7,19 +7,22 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from api.index import (
     _natural_task_sort_key,
+    _resolve_post_number,
     _append_task_log,
     _consolidate_and_merge_post_fragments,
     _matches_month,
 )
 
 # =====================================================================
-# Rule 1, 3, 5: Natural Task Sequence Sorting Tests
+# Rule 1, 3, 5: Natural Task Sequence Sorting & Plan Numbering Tests
 # Data-driven parameterized testing for various Arabic/English title patterns
 # =====================================================================
 
 @pytest.mark.parametrize(
     'task_item,expected_category,expected_seq',
     [
+        ({'post_number': 3, 'title': 'تصميم مخصص'}, 0, 3),
+        ({'post_number': 1, 'task_id': 'TASK-0099', 'title': 'بدون رقم في العنوان'}, 0, 1),
         ({'title': 'بوست 1: الإعلان الافتتاحي'}, 1, 1),
         ({'title': 'بوست 10: عروض الصيف'}, 1, 10),
         ({'title': 'منشور 5: نصائح طبية'}, 1, 5),
@@ -37,6 +40,22 @@ def test_task_natural_sort_key_resolves_correct_sequence(task_item, expected_cat
     cat, seq, _ = _natural_task_sort_key(task_item)
     assert cat == expected_category
     assert seq == expected_seq
+
+
+@pytest.mark.parametrize(
+    'task_dict,expected_num',
+    [
+        ({'post_number': 5}, 5),
+        ({'post_number': '12'}, 12),
+        ({'title': 'بوست 3: العرض القوي'}, 3),
+        ({'title': 'منشور 8: تفاصيل إضافية'}, 8),
+        ({'caption': 'بوست 4: كابشن المنشور'}, 4),
+        ({'title': 'المنشور الثاني'}, 2),
+        ({'title': 'تصميم عام'}, 1),
+    ],
+)
+def test_resolve_post_number_extracts_correct_post_sequence(task_dict, expected_num):
+    assert _resolve_post_number(task_dict, default_index=1) == expected_num
 
 
 def test_mixed_order_tasks_sort_into_logical_ascending_sequence():

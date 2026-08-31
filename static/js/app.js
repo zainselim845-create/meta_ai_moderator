@@ -77,13 +77,6 @@ function go(id, el) {
     if (bootStyle) bootStyle.remove();
 
     let cleanId = (id || '').replace('v-', '').replace('#', '').split('?')[0].split(':')[0].trim();
-    // Hard block: a restricted user can ONLY open their allowed tabs.
-    const _me = window._me;
-    if (_me && !_me.is_admin && (_me.allowed_tabs||[]).length) {
-      const allow = new Set(_me.allowed_tabs); allow.add('myportal');
-      const canon = cleanId === 'chatwoot' ? 'accounts' : cleanId;
-      if (!allow.has(canon)) { return; }
-    }
     // Canonical aliases
     if (cleanId === 'clients') cleanId = 'crm';
     if (cleanId === 'prompt') cleanId = 'settings';
@@ -91,6 +84,21 @@ function go(id, el) {
     if (cleanId === 'accounts' || cleanId === 'chatwoot') cleanId = 'accounts';
     if (cleanId === 'automation' || cleanId === 'rules') cleanId = 'rules';
     if (cleanId === 'help' || cleanId === 'dash') cleanId = 'dash';
+
+    // Hard block: a restricted user can ONLY open their allowed tabs.
+    const _me = window._me;
+    if (_me && !_me.is_admin) {
+      const allowedSet = new Set((_me.allowed_tabs && _me.allowed_tabs.length) ? _me.allowed_tabs : (_me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : ['myportal']));
+      allowedSet.add('myportal');
+      const canon = cleanId === 'chatwoot' ? 'accounts' : cleanId;
+      if (!allowedSet.has(canon)) {
+        console.warn('[RBAC] Blocked unpermitted view:', canon);
+        if (cleanId !== 'myportal') {
+          go('myportal');
+        }
+        return;
+      }
+    }
     // v-mode and v-chat are now independent views
 
     const paneIds = [
@@ -535,8 +543,12 @@ function renderHrAttendanceTable(serverSummary) {
       stBadge = '<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold text-[10px]">غياب 🔴</span>';
     }
 
-    const dist = (r.distance && r.distance !== '0m') ?
-      `<span class="text-[10px] text-slate-500 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">📍 ${esc(r.distance)}</span>` : '<span class="text-slate-400">—</span>';
+    const isMaskedOrVerified = r.distance && (r.distance.includes('داخل') || r.distance.includes('محمي') || r.distance.includes('نطاق'));
+    const dist = (r.distance && r.distance !== '0m' && r.distance !== '0' && r.distance !== '—') ?
+      (isMaskedOrVerified ?
+        `<span class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">📍 ${esc(r.distance)}</span>` :
+        `<span class="text-[10px] text-slate-500 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">📍 ${esc(r.distance)}</span>`
+      ) : '<span class="text-slate-400">—</span>';
 
     const empName = esc(r.name || r.employee_id || 'موظف');
     const empId = r.employee_id ? `<span class="text-[10px] font-mono text-slate-400 block">${esc(r.employee_id)}</span>` : '';
@@ -618,41 +630,44 @@ async function applyRoleUI() {
     return;
   }
 
-  if (tabs.length) {
-    // Custom allowed tabs
-    const allow = new Set(tabs);
+  if (isEmp) {
+    // Employee: locked down to myportal plus any explicit allowed tabs
+    const allow = new Set(tabs.length ? tabs : ['myportal']);
     allow.add('myportal');
     document.querySelectorAll('#sidebar .nb').forEach(b => {
       const k = navKey(b);
-      b.classList.toggle('hidden', !allow.has(k) && b.id !== 'nav-permissions');
+      b.classList.toggle('hidden', !allow.has(k) || b.id === 'nav-permissions');
     });
-    ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.toggle('hidden', isEmp && !tabs.includes('crm') && !tabs.includes('accounts')); });
+    ['header-account-select','bot-status-badge'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.closest('div')?.classList.toggle('hidden', !allow.has('crm') && !allow.has('accounts'));
+    });
+    const curHash = (window.location.hash || '').replace('#', '').replace('v-', '');
+    if (!curHash || !allow.has(curHash)) {
+      if (typeof go === 'function') go('myportal');
+    }
     return;
   }
 
   if (isMgr) {
-    // Account Manager: see everything except permissions
+    // Account Manager: see everything except permissions & hr (unless explicitly permitted)
+    const mgrAllow = new Set(tabs.length ? tabs : ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal']);
+    mgrAllow.add('myportal');
     document.querySelectorAll('#sidebar .nb').forEach(b => {
+      const k = navKey(b);
       if (b.id === 'nav-permissions') {
         b.classList.add('hidden');
+      } else if (b.id === 'nav-hr') {
+        b.classList.toggle('hidden', !mgrAllow.has('hr'));
       } else {
-        b.classList.remove('hidden');
+        b.classList.toggle('hidden', !mgrAllow.has(k));
       }
     });
-    ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.remove('hidden'); });
-    return;
-  }
-
-  if (isEmp) {
-    // Default Employee: locked down to myportal
-    document.querySelectorAll('#sidebar .nb').forEach(b => {
-      if (b.id !== 'nav-myportal') b.classList.add('hidden');
-      else b.classList.remove('hidden');
+    ['header-account-select','bot-status-badge'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.closest('div')?.classList.remove('hidden');
     });
-    ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.add('hidden'); });
-    if (typeof go === 'function' && (!window.location.hash || window.location.hash === '#' || window.location.hash === '#v-myportal')) {
-      go('myportal');
-    }
+    return;
   }
 }
 
@@ -691,7 +706,11 @@ async function loadMyPortal() {
       <div class="border border-slate-200 rounded-xl p-3 space-y-2">
         <div class="flex items-start justify-between gap-3 flex-wrap">
           <div class="flex-1 min-w-[160px]">
-            <div class="font-bold text-sm text-slate-900">${esc(t.title||t.task_id||'')}</div>
+            <div class="flex items-center gap-1.5 flex-wrap mb-1">
+              <span class="bg-blue-600 text-white font-bold font-mono text-[11px] px-2 py-0.5 rounded-md shadow-2xs">#${esc(t.post_number || (typeof getTaskSequenceNum === 'function' ? getTaskSequenceNum(t) : 1))}</span>
+              <span class="font-mono font-bold text-[11px] bg-slate-900 text-white px-2 py-0.5 rounded-md">${esc(t.task_id||'')}</span>
+              <span class="font-bold text-sm text-slate-900">${esc(t.title||'')}</span>
+            </div>
             <div class="text-[11px] text-slate-500">📅 نزول: ${esc(t.publish_date||'-')} · ⏰ تسليم: ${esc(t.delivery_deadline||'-')}</div>
             ${t.caption ? `<div class="text-[11px] text-slate-600 mt-1 whitespace-pre-line line-clamp-3">${esc(t.caption)}</div>` : ''}
             ${t.review_note ? `<div class="text-[11px] text-amber-700 mt-0.5">📝 ملاحظة المراجعة: ${esc(t.review_note)}</div>` : ''}

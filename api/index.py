@@ -3140,6 +3140,29 @@ def require_manager(f):
         return f(*a, **k)
     return _w
 
+ALLOWED_TAB_IDS = {
+    "inbox", "dash", "rules", "kb", "crm", "mode", "settings", "logs",
+    "scheduler", "tasks", "plan", "hr", "accounts", "analytics", "myportal", "permissions"
+}
+
+def user_effective_tabs(user_rec=None, role=None):
+    """Compute the authoritative allowed tabs set for the current user."""
+    if user_rec is None:
+        user_rec = current_user_rec()
+    if role is None:
+        role = current_role()
+    if role == "admin":
+        return set(ALLOWED_TAB_IDS)
+    custom = user_rec.get("allowed_tabs")
+    if custom and isinstance(custom, list) and len(custom) > 0:
+        tabs = set(custom)
+        tabs.add("myportal")
+        return tabs
+    if role == "account_manager":
+        return {"dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"}
+    # Plain employee role: strictly only myportal
+    return {"myportal"}
+
 PUBLIC_PATHS = {
     '/api/login', '/api/logout', '/api/me',
     '/webhook', '/api/oauth_url',
@@ -3163,6 +3186,29 @@ PUBLIC_PATHS = {
     '/api/oauth/start',
     '/api/data-deletion',
     '/api/health',
+}
+
+_TAB_API_GUARD = {
+    "/api/analytics": "analytics",
+    "/api/hr": "hr",
+    "/api/logs": "logs",
+    "/api/scheduler": "scheduler",
+    "/api/scheduled": "scheduler",
+    "/api/kb": "kb",
+    "/api/rules": "rules",
+    "/api/plan": "plan",
+    "/api/accounts": "accounts",
+    "/api/clients": "crm",
+    "/api/crm": "crm",
+    "/api/inbox": "inbox",
+    "/api/chat": "inbox",
+    "/api/stats": "dash",
+    "/api/dashboard": "dash",
+    "/api/settings": "settings",
+    "/api/mode": "mode",
+    "/api/permissions": "permissions",
+    "/api/am/workspace": "tasks",
+    "/api/projects/teams": "tasks",
 }
 
 @app.before_request
@@ -3192,29 +3238,26 @@ def global_api_guard():
     if 'uid' not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-    # Per-user tab enforcement: if an admin restricted this user to specific tabs,
-    # block the sensitive endpoints behind tabs they don't have.
+    # Per-user role and tab enforcement (Strict RBAC):
     try:
-        rec = current_user_rec()
-        allowed = rec.get("allowed_tabs") or []
-        if allowed and not is_admin():
-            aset = set(allowed)
-            for prefix, tab in _TAB_API_GUARD.items():
-                if p.startswith(prefix) and tab not in aset:
-                    return jsonify({"error": "التبويب غير متاح لصلاحياتك"}), 403
-    except Exception:
-        pass
-
-_TAB_API_GUARD = {
-    "/api/analytics": "analytics",
-    "/api/hr/": "hr",
-    "/api/logs": "logs",
-    "/api/scheduler": "scheduler",
-    "/api/kb": "kb",
-    "/api/rules": "rules",
-    "/api/plan": "plan",
-    "/api/accounts": "accounts",
-}
+        if not is_admin():
+            # Exempt employee self-endpoints (their own tasks, attendance, profile info)
+            is_self_endpoint = (
+                p.startswith("/api/my/") or
+                p.startswith("/api/me") or
+                p == "/api/me" or
+                "/upload-session" in p or
+                "/upload-complete" in p or
+                "/upload-asset" in p or
+                "/timer" in p
+            )
+            if not is_self_endpoint:
+                eff_tabs = user_effective_tabs()
+                for prefix, tab in _TAB_API_GUARD.items():
+                    if p.startswith(prefix) and tab not in eff_tabs:
+                        return jsonify({"error": "التبويب أو العملية غير مصرح بها لصلاحياتك", "tab_required": tab}), 403
+    except Exception as _e:
+        print(f"[rbac guard err] {_e}")
 
 @app.route("/api/health", methods=["GET"])
 def api_health():
@@ -3906,7 +3949,7 @@ def api_me():
         "is_manager": is_manager(),
         "employee_id": rec.get("employee_id", ""),
         "name": rec.get("name", ""),
-        "allowed_tabs": rec.get("allowed_tabs") or [],
+        "allowed_tabs": list(user_effective_tabs(rec, role)),
         "assigned_clients": assigned_client_ids(),
         "active_client_id": current_client_id(),
         "supabase_connected": bool(SUPABASE_URL and SUPABASE_KEY),
@@ -5252,27 +5295,24 @@ def save_client_employees(emp_list, _cid=None):
     push_setting("meta_ai_employees", updated)
 
 
-def _natural_task_sort_key(t):
-    """Extract natural sequential ordering for a task:
-    1. Title or caption number: 'بوست 1', 'post 2', 'منشور 3', '1. '
-    2. Arabic textual ordinal: 'الاول', 'الثاني', 'الثالث'...
-    3. TASK-xxxx number
-    4. Publish Date / Time
-    """
+def _resolve_post_number(t, default_index=1):
+    """Resolve the clean sequential post number (1, 2, 3...) inside a client's plan."""
     if not isinstance(t, dict):
-        return (9, 999999, "")
+        return default_index
+    if t.get("post_number") is not None:
+        try:
+            return int(t.get("post_number"))
+        except Exception:
+            pass
     title = str(t.get("title") or "")
     caption = str(t.get("caption") or "")
-    task_id = str(t.get("task_id") or "")
-    
     m = re.search(r'(?:بوست|منشور|post|item|تاسك|مهمة|#)\s*(\d+)', title, re.I)
     if not m:
         m = re.search(r'(?:بوست|منشور|post|item|تاسك|مهمة|#)\s*(\d+)', caption, re.I)
     if not m:
         m = re.search(r'^(\d+)[\.\-\:\s]', title.strip())
     if m:
-        return (1, int(m.group(1)), task_id)
-        
+        return int(m.group(1))
     ord_map = {
         'الاول': 1, 'الاولى': 1, 'الأول': 1, 'الأولى': 1,
         'الثاني': 2, 'الثانية': 2, 'الثالث': 3, 'الثالثة': 3,
@@ -5284,8 +5324,31 @@ def _natural_task_sort_key(t):
     }
     for word, val in ord_map.items():
         if word in title:
-            return (1, val, task_id)
-            
+            return val
+    return default_index
+
+
+def _natural_task_sort_key(t):
+    """Extract natural sequential ordering for a task:
+    1. Explicit post_number or extracted from title
+    2. Arabic textual ordinal: 'الاول', 'الثاني', 'الثالث'...
+    3. TASK-xxxx number
+    4. Publish Date / Time
+    """
+    if not isinstance(t, dict):
+        return (9, 999999, "")
+    task_id = str(t.get("task_id") or "")
+    
+    if t.get("post_number") is not None:
+        try:
+            return (0, int(t.get("post_number")), task_id)
+        except Exception:
+            pass
+
+    resolved = _resolve_post_number(t, default_index=None)
+    if resolved is not None:
+        return (1, resolved, task_id)
+
     m_tid = re.search(r'TASK-(\d+)', task_id)
     if m_tid:
         return (2, int(m_tid.group(1)), task_id)
@@ -6865,7 +6928,7 @@ def api_tasks_ingest_plan():
         if not extracted_posts:
             extracted_posts = [{"title": "منشور جديد", "caption": plan_text[:500], "visual_idea": "", "post_type": "post", "publish_date": "", "publish_time": "10:00", "delivery_deadline": "", "media_urls": []}]
 
-        for p in extracted_posts:
+        for p_idx, p in enumerate(extracted_posts, 1):
             title = (p.get("title") or "منشور جديد").lstrip("-•*✅✍️ ").strip()[:140]
             caption = (p.get("caption") or title).strip()
             visual = (p.get("visual_idea") or "").strip()
@@ -6877,9 +6940,11 @@ def api_tasks_ingest_plan():
             
             ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower() and not u.startswith("data:image/")]
             image_urls = [u for u in media_urls if u not in ref_links]
+            post_num = _resolve_post_number(p, default_index=p_idx)
 
             new_task = {
                 "task_id": f"TASK-{counter:04d}",
+                "post_number": post_num,
                 "client_id": _cid,
                 "file_name": raw_file_name or clean_file_title,
                 "plan_name": clean_file_title,
@@ -7026,7 +7091,7 @@ def api_plan_create():
     counter = max_num + 1
     created = 0
     extracted_posts = _universal_extract_plan_posts(plan_text)
-    for p in extracted_posts:
+    for p_idx, p in enumerate(extracted_posts, 1):
         title = (p.get("title") or "منشور جديد").lstrip("-•*✅✍️ ").strip()[:140]
         caption = (p.get("caption") or title).strip()
         visual = (p.get("visual_idea") or "").strip()
@@ -7038,9 +7103,10 @@ def api_plan_create():
         
         ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower()]
         image_urls = [u for u in media_urls if u not in ref_links]
+        post_num = _resolve_post_number(p, default_index=p_idx)
 
         tasks.insert(0, {
-            "task_id": f"TASK-{counter:04d}", "client_id": client_id, "title": title,
+            "task_id": f"TASK-{counter:04d}", "post_number": post_num, "client_id": client_id, "title": title,
             "description": caption or title, "caption": caption,
             "status": "Pending AM Approval", "scheduled_start_date": "", "publish_date": pub_date,
             "publish_time": pub_time,
@@ -7730,6 +7796,25 @@ def _matches_month(date_str, month_str):
     return False
 
 
+def _sanitize_attendance_records(rows, is_admin_user=False):
+    """Mask sensitive location coordinates based on ATT_HIDE_LOCATION and user role."""
+    cfg = hr_config()
+    hide_loc = bool(cfg.get("hide_location", True))
+    out = []
+    for r in rows:
+        item = dict(r)
+        if hide_loc or not is_admin_user:
+            item.pop("latitude", None)
+            item.pop("longitude", None)
+            d = str(item.get("distance", "")).strip()
+            if d and d not in ("0", "0m", ""):
+                item["distance"] = "داخل النطاق ✅" if hide_loc else d
+            else:
+                item["distance"] = "—"
+        out.append(item)
+    return out
+
+
 @app.route("/api/hr/attendance", methods=["GET"])
 @require_admin
 def api_hr_attendance():
@@ -7778,12 +7863,13 @@ def api_hr_attendance():
                 
     # Sort newest date + time first
     rows.sort(key=lambda r: (str(r.get("date", "")), str(r.get("checkin_time", ""))), reverse=True)
+    sanitized_rows = _sanitize_attendance_records(rows, is_admin())
     
     return jsonify({
         "success": True,
         "month": month,
-        "attendance": rows,
-        "total": len(rows),
+        "attendance": sanitized_rows,
+        "total": len(sanitized_rows),
         "summary": {
             "total": len(rows),
             "present": present_count,
@@ -7996,6 +8082,8 @@ def api_tasks_reindex_and_sort():
         c_tasks = get_client_tasks(cid)
         if c_tasks:
             c_tasks.sort(key=_natural_task_sort_key)
+            for idx, task in enumerate(c_tasks, 1):
+                task["post_number"] = _resolve_post_number(task, default_index=idx)
             save_client_tasks(c_tasks, cid)
             reindexed_count += len(c_tasks)
             
@@ -8022,7 +8110,8 @@ def api_my_attendance():
     if month:
         rows = [r for r in rows if _matches_month(r.get("date", ""), month)]
     rows.sort(key=lambda r: str(r.get("date", "")), reverse=True)
-    return jsonify({"attendance": rows, "employee_id": eid, "total": len(rows)})
+    sanitized_rows = _sanitize_attendance_records(rows, is_admin())
+    return jsonify({"attendance": sanitized_rows, "employee_id": eid, "total": len(sanitized_rows)})
 
 
 @app.route("/api/tasks/<task_id>/assign", methods=["POST"])
@@ -8610,14 +8699,17 @@ def _att_handle_location(emp, chat_id, loc):
     except Exception:
         clat, clon = ATT_DEFAULT_LAT, ATT_DEFAULT_LON
     dist = _haversine_m(float(loc["latitude"]), float(loc["longitude"]), clat, clon)
+    hide_loc = bool(cfg.get("hide_location", True))
     if dist > ATT_GEOFENCE_M:
-        _att_send(chat_id, f"❌ <b>أنت خارج نطاق الشركة</b>\n📍 المسافة: <code>{dist} متر</code>\nلازم تكون في مكان العمل عشان تسجّل.", keyboard=_att_menu())
+        loc_fail = "خارج النطاق المسموح به لمقر الشركة" if hide_loc else f"المسافة: <code>{dist} متر</code>"
+        _att_send(chat_id, f"❌ <b>أنت خارج نطاق الشركة</b>\n📍 {loc_fail}\nلازم تكون في مكان العمل عشان تسجّل.", keyboard=_att_menu())
         return
     recs = _att_today_records(emp.get("employee_id"), today)
     has_in = any(str(r.get("checkin_time", "")).strip() not in ("", "0") for r in recs)
     has_out = any(str(r.get("checkout_time", "")).strip() not in ("", "0") for r in recs)
     emp_id = str(emp.get("employee_id", "")).strip()
     fdist = f"{dist} متر" if dist < 1000 else f"{dist/1000:.2f} كم"
+    loc_display = "📍 تم التحقق: داخل مقر العمل ✅" if hide_loc else f"📍 {fdist}"
     if has_in and has_out:
         _att_send(chat_id, "✅ سجّلت حضورك وانصرافك النهاردة خلاص. شكراً!", keyboard=_att_menu())
         return
@@ -8634,7 +8726,7 @@ def _att_handle_location(emp, chat_id, loc):
              "distance": f"{dist}m", "status": status})
         if ok:
             emoji = "⚠️" if status == "متأخر" else "✅"
-            _att_send(chat_id, f"🟢 <b>تم تسجيل الحضور بنجاح!</b>\n👤 {emp.get('name','')}\n📅 {today}\n⏰ {now_t}\n{emoji} الحالة: {status}\n📍 {fdist}", keyboard=_att_menu())
+            _att_send(chat_id, f"🟢 <b>تم تسجيل الحضور بنجاح!</b>\n👤 {emp.get('name','')}\n📅 {today}\n⏰ {now_t}\n{emoji} الحالة: {status}\n{loc_display}", keyboard=_att_menu())
             _att_notify_owner(f"🟢 حضور: {emp.get('name','')} — {now_t} ({status})")
         else:
             _att_send(chat_id, "⚠️ حصل خطأ في حفظ الحضور. حاول تاني.", keyboard=_att_menu())
@@ -8653,7 +8745,7 @@ def _att_handle_location(emp, chat_id, loc):
             {"employee_id": emp_id, "date": today},
             {"checkout_time": now_t, "hours": hours})
         if ok:
-            _att_send(chat_id, f"🔴 <b>تم تسجيل الانصراف بنجاح!</b>\n👤 {emp.get('name','')}\n📅 {today}\n⏰ {now_t}\n⌛ ساعات العمل: {hours}\n📍 {fdist}", keyboard=_att_menu())
+            _att_send(chat_id, f"🔴 <b>تم تسجيل الانصراف بنجاح!</b>\n👤 {emp.get('name','')}\n📅 {today}\n⏰ {now_t}\n⌛ ساعات العمل: {hours}\n{loc_display}", keyboard=_att_menu())
             _att_notify_owner(f"🔴 انصراف: {emp.get('name','')} — {now_t} ({hours}h)")
         else:
             _att_send(chat_id, "⚠️ حصل خطأ في حفظ الانصراف. حاول تاني.", keyboard=_att_menu())
@@ -9140,8 +9232,9 @@ def _task_card_text(t, cid):
     eid = str(t.get("assigned_employee_id") or "")
     if not name or name == eid:
         name = _sheet_emp(eid).get("name", name) or eid
+    post_num = _resolve_post_number(t)
     lines = [
-        "📋 <b>مهمة</b>",
+        f"📋 <b>بوست #{post_num}</b>  (<code>{t.get('task_id','')}</code>)",
         f"👤 {name}",
         f"🏢 {_client_name(cid)}",
         f"📝 <b>{t.get('title','')}</b>",
