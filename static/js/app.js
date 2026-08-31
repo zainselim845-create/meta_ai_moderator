@@ -1109,7 +1109,7 @@ function finishUploadProgress(success, msg) {
 
 window.showUploadProgressModal = showUploadProgressModal;
 window.updateUploadProgress = updateUploadProgress;
-// Direct Cloud Video / Asset Uploader with Live Progress
+// Direct Official Google Drive Uploader with Live Progress
 function driveUploadFile(taskId, file) {
   return new Promise(async (resolve, reject) => {
     const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
@@ -1118,90 +1118,117 @@ function driveUploadFile(taskId, file) {
     try {
       let finalLink = null;
       
-      // Step 1: Direct Cloud Upload via XHR with Progress Event
+      // Step 1: Request Direct Google Drive Upload Session
       try {
-        const uploadResult = await new Promise((upResolve, upReject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', 'https://tmpfiles.org/api/v1/upload', true);
-          
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              updateUploadProgress(e.loaded, e.total);
-            }
-          };
-          
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const res = JSON.parse(xhr.responseText);
-                if (res && res.data && res.data.url) {
-                  // Convert tmpfiles view URL to direct download/stream URL
-                  const directUrl = res.data.url.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
-                  upResolve(directUrl);
-                } else {
-                  upReject(new Error('لم يتم استلام رابط الملف'));
-                }
-              } catch(pe) {
-                upReject(pe);
-              }
-            } else {
-              upReject(new Error('فشل الرفع المباشر للسحابة'));
-            }
-          };
-          
-          xhr.onerror = () => {
-            upReject(new Error('تعذّر الاتصال بخادم الرفع السحابي'));
-          };
-          
-          const fd = new FormData();
-          fd.append('file', file, file.name);
-          xhr.send(fd);
+        const sessionRes = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/upload-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            mime: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream')
+          })
         });
         
-        finalLink = uploadResult;
-      } catch(cloudErr) {
-        console.warn('Direct cloud upload failed, checking server fallback...', cloudErr);
+        if (sessionRes && sessionRes.ok && sessionRes.upload_url) {
+          const driveResult = await new Promise((dResolve, dReject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', sessionRes.upload_url, true);
+            xhr.setRequestHeader('Content-Type', file.type || (isVideo ? 'video/mp4' : 'application/octet-stream'));
+            
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                updateUploadProgress(e.loaded, e.total);
+              }
+            };
+            
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const data = JSON.parse(xhr.responseText);
+                  if (data && data.id) {
+                    dResolve(data.id);
+                  } else {
+                    dReject(new Error('لم يتم استلام معرّف الملف من Google Drive'));
+                  }
+                } catch(e) {
+                  dReject(e);
+                }
+              } else {
+                dReject(new Error('فشل الرفع إلى Google Drive'));
+              }
+            };
+            
+            xhr.onerror = () => {
+              dReject(new Error('انقطع الاتصال بـ Google Drive أثناء الرفع'));
+            };
+            
+            xhr.send(file);
+          });
+          
+          if (driveResult) {
+            // Finalize file on backend
+            const compRes = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/upload-complete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                file_id: driveResult,
+                mime: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream')
+              })
+            });
+            
+            if (compRes && compRes.ok && compRes.drive_link) {
+              finalLink = compRes.drive_link;
+            }
+          }
+        }
+      } catch(gDriveErr) {
+        console.warn('Google Drive direct session upload failed, trying cloud fallback...', gDriveErr);
       }
       
-      // Step 2: If Direct Cloud Upload didn't succeed and file is small, try server fallback
-      if (!finalLink && file.size < 4 * 1024 * 1024) {
+      // Step 2: Cloud Fallback if Google direct session hit network block
+      if (!finalLink) {
         try {
-          const sfd = new FormData();
-          sfd.append('file', file);
-          const sres = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/upload', {
-            method: 'POST',
-            body: sfd
+          const uploadResult = await new Promise((upResolve, upReject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'https://tmpfiles.org/api/v1/upload', true);
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) updateUploadProgress(e.loaded, e.total);
+            };
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const res = JSON.parse(xhr.responseText);
+                  if (res && res.data && res.data.url) {
+                    upResolve(res.data.url.replace('tmpfiles.org/', 'tmpfiles.org/dl/'));
+                  } else upReject(new Error('فشل استلام الرابط'));
+                } catch(pe) { upReject(pe); }
+              } else upReject(new Error('فشل الرفع'));
+            };
+            xhr.onerror = () => upReject(new Error('انقطع الاتصال'));
+            const fd = new FormData();
+            fd.append('file', file, file.name);
+            xhr.send(fd);
           });
-          const sdata = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/upload', { method: 'POST', body: sfd });
-          if (sdata && sdata.ok && sdata.drive_link) {
-            finalLink = sdata.drive_link;
+          
+          if (uploadResult) {
+            const saveRes = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ drive_link: uploadResult, link: uploadResult })
+            });
+            if (saveRes && saveRes.ok) finalLink = uploadResult;
           }
-        } catch(se){}
+        } catch(fe){}
       }
       
       if (!finalLink) {
-        finishUploadProgress(false, 'تعذّر رفع الملف من جهازك. يُرجى وضع رابط Google Drive مباشرة 🔗');
+        finishUploadProgress(false, 'تعذّر رفع الملف. يمكنك وضع رابط Google Drive مباشرة 🔗');
         reject(new Error('تعذّر رفع الملف'));
         return;
       }
       
-      // Step 3: Link deliverable URL to the task in database/Google Sheets
-      const statusTxt = document.getElementById('upm-status-text');
-      if (statusTxt) statusTxt.textContent = '⏳ جاري ربط الملف بالمهمة وحفظه في الشيت...';
-      
-      const saveRes = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ drive_link: finalLink, link: finalLink })
-      });
-      
-      if (saveRes && saveRes.ok) {
-        finishUploadProgress(true);
-        resolve(finalLink);
-      } else {
-        finishUploadProgress(false, saveRes.error || 'تعذّر حفظ الرابط بالمهمة');
-        reject(new Error(saveRes.error || 'تعذّر حفظ الرابط بالمهمة'));
-      }
+      finishUploadProgress(true);
+      resolve(finalLink);
       
     } catch(err) {
       console.error('Upload handler error:', err);

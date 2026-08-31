@@ -5654,7 +5654,7 @@ TELEGRAM_TASKS_BOT_TOKEN = os.environ.get("TELEGRAM_TASKS_BOT_TOKEN", "")
 TELEGRAM_ATTENDANCE_BOT_TOKEN = os.environ.get("TELEGRAM_ATTENDANCE_BOT_TOKEN", "")
 
 def get_google_drive_credentials():
-    """Retrieve Google Drive OAuth credentials from env vars or Supabase app_settings."""
+    """Retrieve Google Drive OAuth credentials from env vars, local config, or Supabase app_settings."""
     cid = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
     sec = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
     rt = os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN", "").strip()
