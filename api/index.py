@@ -3905,7 +3905,40 @@ def api_reset_password():
     push_setting("meta_ai_users", USERS_DB)
     if target_email:
         send_credentials_email(target_email, target_user, new_password, action="reset")
-    return jsonify({"ok": True, "message": "لو الحساب موجود، هيتم إرسال كلمة مرور جديدة على بريده."})
+@app.route("/api/auth/change-password", methods=["POST"])
+@auth_guard
+def api_change_password():
+    sync_from_supabase()
+    data = request.get_json() or {}
+    new_password = (data.get("new_password") or data.get("password") or "").strip()
+    target_user = (data.get("username") or current_username() or "admin").strip()
+    
+    if not new_password:
+        return jsonify({"error": "يرجى كتابة كلمة المرور الجديدة"}), 400
+    if len(new_password) < 4:
+        return jsonify({"error": "كلمة المرور يجب أن تكون 4 أحرف أو أرقام على الأقل"}), 400
+        
+    if target_user != current_username() and not is_admin():
+        return jsonify({"error": "غير مصرح لك بتغيير كلمة مرور مستخدم آخر"}), 403
+        
+    user_rec = USERS_DB.get(target_user)
+    if not user_rec:
+        for k, v in USERS_DB.items():
+            if isinstance(v, dict) and (str(k).lower() == target_user.lower() or str(v.get("username") or "").lower() == target_user.lower()):
+                user_rec = v
+                target_user = k
+                break
+    if not user_rec:
+        user_rec = {"username": target_user, "role": "admin" if target_user == "admin" else "employee"}
+        
+    user_rec["password"] = hash_password(new_password)
+    user_rec["password_plain"] = new_password
+    if target_user.lower() == "admin":
+        user_rec["role"] = "admin"
+        user_rec["custom_pass"] = True
+    USERS_DB[target_user] = user_rec
+    push_setting("meta_ai_users", USERS_DB)
+    return jsonify({"ok": True, "message": f"تم تغيير كلمة مرور {target_user} بنجاح ✅"})
 
 
 @app.route("/api/auth/users", methods=["GET"])

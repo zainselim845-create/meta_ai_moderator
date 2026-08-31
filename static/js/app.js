@@ -1074,6 +1074,7 @@ async function renderMembers() {
           <span class="text-[11px] text-slate-400">${esc(u.email||'')}</span>
         </div>
         <div class="flex items-center gap-1">
+          <button onclick="changeUserPassword('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition">✏️ تغيير الباسورد</button>
           <button onclick="resendCreds('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 text-slate-600">إرسال بيانات جديدة</button>
           ${u.is_primary?'<span class="text-[10px] text-slate-400">المدير الرئيسي</span>':`<button onclick="deleteMember('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600">حذف</button>`}
         </div>
@@ -1145,6 +1146,31 @@ async function resendCreds(username) {
   const r = await fetch('/api/auth/send-credentials', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username})});
   const d = await r.json();
   showToast(d.ok ? 'تم إرسال بيانات دخول جديدة على بريده ✅' : (d.error||d.message||'تعذّر الإرسال'), d.ok?'success':'error');
+}
+
+async function changeUserPassword(username) {
+  const newPass = prompt(`أدخل كلمة المرور الجديدة للحساب (${username}):`);
+  if (!newPass) return;
+  if (newPass.trim().length < 4) {
+    showToast('كلمة المرور يجب أن تكون 4 أحرف أو أرقام على الأقل', 'error');
+    return;
+  }
+  try {
+    const r = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ username: username, new_password: newPass.trim() })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      showToast(d.error || 'تعذّر تغيير كلمة المرور', 'error');
+      return;
+    }
+    showToast(d.message || 'تم تغيير كلمة المرور بنجاح ✅', 'success');
+    renderMembers();
+  } catch(e) {
+    showToast('خطأ في الاتصال بالسيرفر', 'error');
+  }
 }
 
 // ---- Per-client auto/manual reply-mode panel (v-mode) ----
