@@ -3172,3 +3172,71 @@ function goToTaskOnBoard() {
 window.openTaskDetailsModal = openTaskDetailsModal;
 window.closeTaskDetailsModal = closeTaskDetailsModal;
 window.goToTaskOnBoard = goToTaskOnBoard;
+
+// Google Drive Integration Manager in Settings
+async function checkGoogleDriveStatus() {
+    var badge = document.getElementById('gdrive-status-badge');
+    if (!badge) return;
+    try {
+        var res = await fetch('/api/settings/google-drive');
+        var d = await res.json();
+        if (d.connected) {
+            badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800';
+            badge.textContent = '🟢 متصل بـ Google Drive بنجاح';
+        } else if (d.has_credentials) {
+            badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800';
+            badge.textContent = '⚠️ البيانات مدخلة لكن يلزم تجديد الـ Token';
+        } else {
+            badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
+            badge.textContent = '🟡 غير متصل - أدخل بيانات Drive';
+        }
+        if (d.client_id) {
+            var cidInput = document.getElementById('gdrive-client-id');
+            if (cidInput && !cidInput.value) cidInput.value = d.client_id;
+        }
+    } catch(e) {
+        badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-rose-100 text-rose-800';
+        badge.textContent = '❌ تعذّر فحص الاتصال';
+    }
+}
+
+async function saveGoogleDriveSettings() {
+    var cid = (document.getElementById('gdrive-client-id') || {}).value || '';
+    var sec = (document.getElementById('gdrive-client-secret') || {}).value || '';
+    var rt = (document.getElementById('gdrive-refresh-token') || {}).value || '';
+    var resDiv = document.getElementById('gdrive-save-result');
+    
+    if (!cid.trim() || !sec.trim() || !rt.trim()) {
+        showToast('يرجى ملء جميع حقول Google Drive', 'error');
+        return;
+    }
+    
+    showToast('جاري حفظ واختبار اتصال Google Drive... ⏳');
+    try {
+        var res = await fetch('/api/settings/google-drive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client_id: cid.trim(), client_secret: sec.trim(), refresh_token: rt.trim() })
+        });
+        var d = await res.json();
+        if (res.ok && d.ok) {
+            showToast('تم تفعيل وحفظ Google Drive بنجاح! 🎉', 'success');
+            if (resDiv) {
+                resDiv.className = 'text-xs p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 font-bold block';
+                resDiv.textContent = '✅ ' + (d.message || 'تم الاتصال بنجاح!');
+            }
+            checkGoogleDriveStatus();
+        } else {
+            showToast(d.error || 'تعذّر الاتصال بـ Google Drive', 'error');
+            if (resDiv) {
+                resDiv.className = 'text-xs p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-900 font-bold block';
+                resDiv.textContent = '❌ ' + (d.error || 'فشل الاتصال');
+            }
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+
+window.checkGoogleDriveStatus = checkGoogleDriveStatus;
+window.saveGoogleDriveSettings = saveGoogleDriveSettings;

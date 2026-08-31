@@ -1677,6 +1677,7 @@ async function loadSettings() {
     const ta = document.getElementById('system-prompt-input');
     if (ta && d.prompt) { ta.value = d.prompt; updatePromptCharCount(); }
   } catch(e) {}
+  if (typeof checkGoogleDriveStatus === 'function') checkGoogleDriveStatus();
 }
 
 // Scheduler helpers

@@ -835,6 +835,55 @@
       </div>
      </div>
 
+     <!-- Google Drive Integration & Storage Card (Admins Only) -->
+     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4" id="google-drive-panel">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+        <i class="w-5 h-5 text-emerald-600" data-lucide="cloud"></i>
+        <span>تكامل وتخزين Google Drive السحابي</span>
+       </h3>
+       <span id="gdrive-status-badge" class="text-xs font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600 font-mono">
+        جارِ فحص الاتصال...
+       </span>
+      </div>
+
+      <div class="text-xs text-slate-600 leading-relaxed bg-emerald-50/70 border border-emerald-100 rounded-xl p-3.5 space-y-1">
+       <div class="font-bold text-emerald-950 flex items-center gap-1.5">
+        <span>📁 التنظيم التلقائي لمجلدات Google Drive:</span>
+       </div>
+       <p>• <b>مجلدات الموظفين:</b> <code>Domya — الموظف [الاسم] / [الشهر] / [الخطة]</code> (تُحفظ فيها فيديوهات وتصميمات الموظف تلقائياً).</p>
+       <p>• <b>مجلدات العملاء:</b> <code>Domya — [اسم العميل] / [الشهر]</code> (تُربط بها تسليمات العميل ومخرجاته فورياً).</p>
+      </div>
+
+      <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+       <div class="font-bold text-xs text-slate-800">بيانات Google Drive API OAuth2:</div>
+       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+         <label class="block text-[11px] font-bold text-slate-700 mb-1">Google Client ID:</label>
+         <input id="gdrive-client-id" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" placeholder="مثال: 123456789-abc.apps.googleusercontent.com"/>
+        </div>
+        <div>
+         <label class="block text-[11px] font-bold text-slate-700 mb-1">Google Client Secret:</label>
+         <input id="gdrive-client-secret" type="password" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" placeholder="GOCSPX-xxxxxxxxxxxxxxxx"/>
+        </div>
+       </div>
+       <div>
+        <label class="block text-[11px] font-bold text-slate-700 mb-1">Google Drive Refresh Token:</label>
+        <textarea id="gdrive-refresh-token" rows="2" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" placeholder="1//04xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"></textarea>
+       </div>
+       <div class="flex items-center gap-2 flex-wrap pt-1">
+        <button onclick="saveGoogleDriveSettings()" type="button" class="btn-primary text-xs py-2 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1.5 shadow-xs">
+         <i class="w-4 h-4" data-lucide="check"></i>
+         <span>حفظ وتفعيل Google Drive ✅</span>
+        </button>
+        <button onclick="checkGoogleDriveStatus()" type="button" class="btn-ghost text-xs py-2 px-3 rounded-xl border border-slate-200 font-bold">
+         🔄 فحص الاتصال
+        </button>
+       </div>
+       <div id="gdrive-save-result" class="hidden text-xs p-3 rounded-xl border font-medium"></div>
+      </div>
+     </div>
+
      <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
        <i class="w-5 h-5 text-blue-600" data-lucide="sliders">
@@ -1690,15 +1739,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=9.50">
+  <script src="/static/js/app.js?v=9.51">
   </script>
-  <script src="/static/js/inbox.js?v=9.50">
+  <script src="/static/js/inbox.js?v=9.51">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=9.50">
+  <script src="/static/js/chatwoot_free.js?v=9.51">
   </script>
-  <script src="/static/js/views.js?v=9.50">
+  <script src="/static/js/views.js?v=9.51">
   </script>
-  <script src="/static/js/clients.js?v=9.50">
+  <script src="/static/js/clients.js?v=9.51">
   </script>
  
   <!-- Modal: Add New Connected Account -->

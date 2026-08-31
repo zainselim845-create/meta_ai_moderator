@@ -5653,12 +5653,34 @@ GOOGLE_DRIVE_REFRESH_TOKEN = os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN", "")
 TELEGRAM_TASKS_BOT_TOKEN = os.environ.get("TELEGRAM_TASKS_BOT_TOKEN", "")
 TELEGRAM_ATTENDANCE_BOT_TOKEN = os.environ.get("TELEGRAM_ATTENDANCE_BOT_TOKEN", "")
 
+def get_google_drive_credentials():
+    """Retrieve Google Drive OAuth credentials from env vars or Supabase app_settings."""
+    cid = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    sec = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+    rt = os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN", "").strip()
+    
+    if not (cid and sec and rt):
+        try:
+            cfg = _supabase_get_setting("google_drive_config") or {}
+            if isinstance(cfg, dict):
+                cid = cid or cfg.get("client_id", "").strip()
+                sec = sec or cfg.get("client_secret", "").strip()
+                rt = rt or cfg.get("refresh_token", "").strip()
+            if not rt:
+                rt = rt or str(_supabase_get_setting("GOOGLE_DRIVE_REFRESH_TOKEN") or "").strip()
+        except Exception:
+            pass
+    return cid, sec, rt
+
 def get_google_oauth_access_token():
+    cid, sec, rt = get_google_drive_credentials()
+    if not (cid and sec and rt):
+        return None
     try:
         data = urllib.parse.urlencode({
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "refresh_token": GOOGLE_DRIVE_REFRESH_TOKEN,
+            "client_id": cid,
+            "client_secret": sec,
+            "refresh_token": rt,
             "grant_type": "refresh_token"
         }).encode("utf-8")
 
@@ -5930,6 +5952,40 @@ def drive_upload_bytes(name, data, mime, parent_url=None, parent_id=None):
     except Exception as e:
         print(f"[drive upload] {e}")
         return None
+
+@app.route("/api/settings/google-drive", methods=["GET"])
+@auth_guard
+def api_get_google_drive_status():
+    cid, sec, rt = get_google_drive_credentials()
+    token = get_google_oauth_access_token() if (cid and sec and rt) else None
+    return jsonify({
+        "ok": True,
+        "connected": bool(token),
+        "has_credentials": bool(cid and sec and rt),
+        "client_id": (cid[:6] + "..." + cid[-4:]) if len(cid) > 10 else cid,
+        "refresh_token_set": bool(rt)
+    })
+
+@app.route("/api/settings/google-drive", methods=["POST"])
+@require_admin
+def api_set_google_drive_credentials():
+    data = request.get_json() or {}
+    cid = (data.get("client_id") or "").strip()
+    sec = (data.get("client_secret") or "").strip()
+    rt = (data.get("refresh_token") or "").strip()
+    
+    if not (cid and sec and rt):
+        return jsonify({"error": "يرجى ملء جميع الحقول (Client ID, Client Secret, Refresh Token)"}), 400
+    
+    cfg = {"client_id": cid, "client_secret": sec, "refresh_token": rt}
+    push_setting("google_drive_config", cfg)
+    push_setting("GOOGLE_DRIVE_REFRESH_TOKEN", rt)
+    
+    token = get_google_oauth_access_token()
+    if token:
+        return jsonify({"ok": True, "connected": True, "message": "تم ربط Google Drive بنجاح! ✅"})
+    else:
+        return jsonify({"ok": False, "connected": False, "error": "تعذّر التحقق من بيانات Google Drive. يرجى مراجعة الصلاحيات والـ Refresh Token"}), 400
 
 def send_telegram_bot_notification(chat_id, message_text, bot_token=None):
     tok = bot_token or TELEGRAM_TASKS_BOT_TOKEN
