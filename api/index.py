@@ -9476,7 +9476,8 @@ def _task_card_text(t, cid):
     ]
     if t.get("description"):
         lines.append(f"{t.get('description')[:200]}")
-    lines.append(f"📅 النشر: {t.get('publish_date','-')}  |  ⏰ التسليم: {t.get('delivery_deadline','-')}")
+    deadline = t.get("delivery_deadline") or t.get("publish_date") or "-"
+    lines.append(f"⏰ موعد التسليم: <b>{deadline}</b>")
     lines.append(f"📌 الحالة: <b>{st_ar}</b>")
     return "\n".join(lines)
 

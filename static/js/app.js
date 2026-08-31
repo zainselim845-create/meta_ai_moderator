@@ -713,7 +713,7 @@ async function loadMyPortal() {
               <span class="font-mono font-bold text-[11px] bg-slate-900 text-white px-2 py-0.5 rounded-md">${esc(t.task_id||'')}</span>
               <span class="font-bold text-sm text-slate-900">${esc(t.title||'')}</span>
             </div>
-            <div class="text-[11px] text-slate-500">📅 نزول: ${esc(t.publish_date||'-')} · ⏰ تسليم: ${esc(t.delivery_deadline||'-')}</div>
+            <div class="text-[11px] text-slate-500">⏰ موعد التسليم: <b class="text-amber-800 font-mono">${esc(t.delivery_deadline || t.publish_date || '-')}</b></div>
             ${t.caption ? `<div class="text-[11px] text-slate-600 mt-1 whitespace-pre-line line-clamp-3">${esc(t.caption)}</div>` : ''}
             ${t.review_note ? `<div class="text-[11px] text-amber-700 mt-0.5">📝 ملاحظة المراجعة: ${esc(t.review_note)}</div>` : ''}
             ${refThumbs(t)}

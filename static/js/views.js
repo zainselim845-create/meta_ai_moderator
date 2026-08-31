@@ -1159,8 +1159,7 @@ function renderAMWorkspaceColumns(columns) {
                 '<h5 class="font-bold text-slate-900 leading-snug">' + esc(t.title) + '</h5>' +
                 '<p class="text-[11px] text-slate-600 line-clamp-2">' + esc(t.description || '') + '</p>' +
                 '<div class="bg-slate-50 p-2 rounded-lg border border-slate-100 text-[10px] space-y-1">' +
-                    '<div class="flex justify-between text-blue-700 font-bold"><span>📅 النزول عند الدكتور:</span><span>' + esc(t.publish_date || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
-                    '<div class="flex justify-between text-amber-700 font-bold"><span>⏰ التسليم الداخلي:</span><span>' + esc(t.delivery_deadline || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
+                    '<div class="flex justify-between text-amber-700 font-bold"><span>⏰ موعد التسليم:</span><span>' + esc(t.delivery_deadline || t.publish_date || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
                 '</div>' +
                 '<div class="flex gap-1">' +
                     '<button onclick="toggleTaskTimerAction(\'' + esc(t.task_id) + '\')" class="flex-1 font-bold text-[10px] py-1 px-2 rounded-lg transition ' + timerBtnClass + '">' + timerBtnText + '</button>' +
@@ -1556,18 +1555,15 @@ function renderTaskCard(t) {
 
     // Dates
     var dStart = t.scheduled_start_date || '';
-    var dPub = t.publish_date || '';
-    var tPub = t.publish_time || '10:00';
-    var dDead = t.delivery_deadline || '';
+    var dDead = t.delivery_deadline || t.publish_date || '';
 
     html += '<div class="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200 text-xs space-y-2">' +
         '<div class="grid grid-cols-2 gap-2">' +
-            '<div><label class="text-[10px] text-slate-500 font-bold block mb-0.5">🚀 البدء:</label><input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(dStart) + '" class="w-full text-[11px] px-1.5 py-1 border border-slate-200 rounded-lg bg-white"></div>' +
-            '<div><label class="text-[10px] text-blue-700 font-bold block mb-0.5">📅 النزول:</label><div class="flex gap-1"><input type="date" id="d-pub-' + esc(t.task_id) + '" value="' + esc(dPub) + '" class="w-full text-[11px] px-1.5 py-1 border border-blue-200 rounded-lg bg-white"><input type="time" id="t-pub-' + esc(t.task_id) + '" value="' + esc(tPub) + '" class="text-[11px] px-1 py-1 border border-blue-200 rounded-lg bg-white"></div></div>' +
+            '<div><label class="text-[10px] text-slate-500 font-bold block mb-0.5">🚀 تاريخ البدء:</label><input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(dStart) + '" class="w-full text-[11px] px-1.5 py-1 border border-slate-200 rounded-lg bg-white"></div>' +
+            '<div><label class="text-[10px] text-amber-700 font-bold block mb-0.5">⏰ موعد التسليم:</label><input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="w-full text-[11px] px-1.5 py-1 border border-amber-200 rounded-lg bg-white"></div>' +
         '</div>' +
-        '<div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">' +
-            '<div class="flex-1"><label class="text-[10px] text-amber-700 font-bold block mb-0.5">⏰ التسليم:</label><input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="w-full text-[11px] px-1.5 py-1 border border-amber-200 rounded-lg bg-white"></div>' +
-            '<button onclick="saveTaskDates(\'' + esc(t.task_id) + '\')" class="self-end bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap">💾 حفظ</button>' +
+        '<div class="flex items-center justify-end pt-1 border-t border-slate-100">' +
+            '<button onclick="saveTaskDates(\'' + esc(t.task_id) + '\')" class="bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap shadow-2xs">💾 حفظ المواعيد</button>' +
         '</div>' +
     '</div>';
 
