@@ -7712,6 +7712,7 @@ def api_task_upload_chunk_complete(task_id):
         try:
             link = drive_upload_bytes(safe_name, raw_data, mime, parent_id=target_folder_id)
         except Exception as de:
+            pass
     if not link:
         return jsonify({"error": "تعذّر رفع الملف إلى Google Drive. يرجى لصق رابط Google Drive مباشرة"}), 500
 
