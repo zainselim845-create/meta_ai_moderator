@@ -1012,10 +1012,10 @@ async function renderEmployeesStatus() {
     // real workload across ALL clients (active tasks per employee)
     var load = {}, inprog = {}, tasksByEmp = {};
     try {
-        var d = await (await fetch('/api/employees/workload')).json();
-        load = d.workload || {};
-        inprog = d.in_progress || {};
-        tasksByEmp = d.tasks_by_employee || {};
+        var d = await safeFetchJson('/api/employees/workload');
+        load = (d && d.workload) ? d.workload : {};
+        inprog = (d && d.in_progress) ? d.in_progress : {};
+        tasksByEmp = (d && d.tasks_by_employee) ? d.tasks_by_employee : {};
         employeesWorkloadData = tasksByEmp;
     } catch(e){}
 
@@ -1071,8 +1071,8 @@ async function renderClientTabs() {
     var box = document.getElementById('client-tabs');
     if (!box) return;
     var clients = [], activeId = '';
-    try { var cd = await (await fetch('/api/clients')).json(); clients = Array.isArray(cd) ? cd : (cd.clients || []); } catch(e){}
-    try { var me = await (await fetch('/api/me')).json(); activeId = me.active_client_id || ''; window._me = me; } catch(e){}
+    try { var cd = await safeFetchJson('/api/clients'); clients = Array.isArray(cd) ? cd : ((cd && cd.clients) ? cd.clients : []); } catch(e){}
+    try { var me = await safeFetchJson('/api/me'); activeId = (me && me.active_client_id) ? me.active_client_id : ''; window._me = me; } catch(e){}
     if (!clients.length) { box.innerHTML = '<span class="text-[11px] text-slate-400">لا يوجد عملاء</span>'; return; }
     box.innerHTML = clients.map(function(c){
         var on = c.id === activeId;
@@ -2412,10 +2412,8 @@ async function loadPlanBuilder() {
         });
     }
     try {
-        // dedicated endpoint returns ALL clients for plan-builders (content team isn't
-        // assigned to clients, so /api/clients would return empty for them)
-        var cd = await (await fetch('/api/plan/clients')).json();
-        var clients = Array.isArray(cd) ? cd : (cd.clients || []);
+        var cd = await safeFetchJson('/api/plan/clients');
+        var clients = Array.isArray(cd) ? cd : ((cd && cd.clients) ? cd.clients : []);
         window._planClientsCache = clients;
         if (dlist) {
             dlist.innerHTML = clients.map(function(c){ return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('');
@@ -2425,8 +2423,8 @@ async function loadPlanBuilder() {
         }
     } catch(e){}
     try {
-        var md = await (await fetch('/api/managers')).json();
-        var ms = md.managers || [];
+        var md = await safeFetchJson('/api/managers');
+        var ms = (md && md.managers) ? md.managers : [];
         mSel.innerHTML = '<option value="">— بدون إسناد مباشر —</option>' + ms.map(function(m){ return '<option value="' + esc(m.employee_id) + '">' + esc(m.name) + '</option>'; }).join('');
     } catch(e){}
 }
@@ -2628,7 +2626,7 @@ async function loadTasksIngestFields() {
     try {
         var clients = window.clientsList || [];
         if (!clients.length) {
-            var r = await (await fetch('/api/clients')).json();
+            var r = await safeFetchJson('/api/clients');
             clients = (r && r.clients) ? r.clients : (Array.isArray(r) ? r : []);
             window.clientsList = clients;
         }
@@ -2643,8 +2641,8 @@ async function loadTasksIngestFields() {
     
     // 2. Managers
     try {
-        var md = await (await fetch('/api/managers')).json();
-        var ms = md.managers || [];
+        var md = await safeFetchJson('/api/managers');
+        var ms = (md && md.managers) ? md.managers : [];
         window._managersCache = ms;
         if (amSel) {
             var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';

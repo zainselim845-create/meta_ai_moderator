@@ -24,6 +24,58 @@ function esc(str) {
     .replace(/'/g, '&#039;');
 }
 
+// Universal Safe JSON Fetch (Protects against HTML/500/404 unexpected token errors)
+async function safeFetchJson(url, options) {
+  try {
+    const res = await fetch(url, options);
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      return { ok: res.ok, status: res.status };
+    }
+    const clean = text.trim();
+    if (clean.startsWith('<') || clean.startsWith('<!')) {
+      console.warn('[safeFetchJson] Server returned HTML for:', url, 'status:', res.status);
+      return { ok: false, status: res.status, error: 'استجابة غير صالحة من السيرفر' };
+    }
+    try {
+      const parsed = JSON.parse(clean);
+      if (typeof parsed === 'object' && parsed !== null) {
+        if (!('ok' in parsed) && res.ok) parsed.ok = true;
+      }
+      return parsed;
+    } catch(pe) {
+      console.warn('[safeFetchJson] JSON parse error for:', url, pe);
+      return { ok: false, error: 'تعذر قراءة بيانات السيرفر' };
+    }
+  } catch(e) {
+    console.warn('[safeFetchJson network error]', url, e);
+    return { ok: false, error: e.message || 'خطأ في الاتصال بالسيرفر' };
+  }
+}
+window.safeFetchJson = safeFetchJson;
+
+// Global safety net: patch Response.prototype.json so that *any* res.json()
+// call in the entire app is protected against "Unexpected token '<'" crashes.
+// This covers the ~80 places that still use `const d = await res.json()`.
+(function patchResponseJson() {
+  const _origJson = Response.prototype.json;
+  Response.prototype.json = async function() {
+    try {
+      const text = await this.clone().text();
+      if (!text || !text.trim()) return {};
+      const clean = text.trim();
+      if (clean.startsWith('<')) {
+        console.warn('[Response.json patch] HTML response intercepted, url:', this.url, 'status:', this.status);
+        return { ok: false, status: this.status, error: 'Server returned HTML' };
+      }
+      return JSON.parse(clean);
+    } catch(e) {
+      console.warn('[Response.json patch] Parse error:', e, 'url:', this.url);
+      return { ok: false, error: 'JSON parse error' };
+    }
+  };
+})();
+
 // Non-blocking Toast Notification
 function showToast(msg, type = 'success') {
   let toast = document.getElementById('toast');
@@ -414,8 +466,8 @@ async function loadHR() {
 
   // Summary (payroll + performance)
   try {
-    const d = await (await fetch('/api/hr/summary?month=' + month)).json();
-    const rows = d.summary || [];
+    const d = await safeFetchJson('/api/hr/summary?month=' + month);
+    const rows = (d && d.summary) ? d.summary : [];
     const stats = document.getElementById('hr-stats');
     if (stats) {
       const totalDays = rows.reduce((a,r)=>a+(r.days||0),0);
@@ -703,13 +755,13 @@ async function applyRoleUI() {
 async function loadMyPortal() {
   const nameEl = document.getElementById('myportal-name');
   try {
-    const me = window._me || await (await fetch('/api/me')).json();
+    const me = window._me || await safeFetchJson('/api/me');
     if (nameEl) nameEl.textContent = 'أهلاً ' + (me.username || '') ;
   } catch(e) {}
   // My tasks
   try {
-    const d = await (await fetch('/api/me/tasks')).json();
-    const tasks = d.tasks || [];
+    const d = await safeFetchJson('/api/me/tasks');
+    const tasks = (d && d.tasks) ? d.tasks : [];
     const planSeqMap = {};
     tasks.forEach(t => {
       const pkey = (t.plan_name || t.file_name || 'عام').trim();
@@ -783,8 +835,8 @@ async function loadMyPortal() {
   } catch(e) {}
   // My attendance
   try {
-    const d = await (await fetch('/api/me/attendance')).json();
-    const rows = (d.attendance || []).slice(0,40);
+    const d = await safeFetchJson('/api/me/attendance');
+    const rows = (d && d.attendance ? d.attendance : []).slice(0,40);
     const body = document.getElementById('my-attendance-body');
     if (body) body.innerHTML = rows.length ? rows.map(r => `
       <tr class="hover:bg-slate-50">
@@ -795,7 +847,7 @@ async function loadMyPortal() {
         <td class="p-2">${esc(r.status||r.action||'')}</td>
       </tr>`).join('') : '<tr><td colspan="5" class="p-4 text-center text-slate-400">مفيش سجلات حضور</td></tr>';
   } catch(e) {}
-  if (window.lucide) lucide.createIcons();
+  if (typeof initLucideIcons === 'function') initLucideIcons();
 }
 
 async function startMyTask(id) {
@@ -847,7 +899,7 @@ async function onboardEmployees() {
   listBox.innerHTML = '<div class="text-xs text-slate-400 p-2">جارِ تحميل الموظفين...</div>';
   modal.classList.remove('hidden');
   let emps = [];
-  try { const d = await (await fetch('/api/tasks/employees')).json(); emps = d.employees || []; } catch(e){}
+  try { const d = await safeFetchJson('/api/tasks/employees'); emps = (d && d.employees) ? d.employees : []; } catch(e){}
   if (!emps.length) { listBox.innerHTML = '<div class="text-xs text-slate-400 p-2">لا يوجد موظفون في الشيت.</div>'; return; }
   listBox.innerHTML = emps.map(e => {
     const eid = String(e.employee_id||'').trim();
@@ -883,9 +935,9 @@ async function confirmOnboard() {
   const box = document.getElementById('onboard-result');
   if (box) { box.classList.remove('hidden'); box.textContent = 'جارِ الإرسال...'; }
   try {
-    const d = await (await fetch('/api/employees/onboard', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ employee_ids: ids, include, custom_note })})).json();
-    const rows = d.results || [];
+    const d = await safeFetchJson('/api/employees/onboard', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ employee_ids: ids, include, custom_note })});
+    const rows = (d && d.results) ? d.results : [];
     const sent = rows.filter(r => r.telegram_sent).length;
     const noTg = rows.filter(r => !r.has_telegram);
     if (box) box.innerHTML = `تمت معالجة <b>${d.onboarded}</b> موظف — اتبعت على تليجرام لـ <b>${sent}</b>.`
@@ -918,8 +970,8 @@ async function addEmployeeAndInvite(invite) {
     const newId = empid || saved.employee_id;
     let msg = 'تمت إضافة الموظف ✅';
     if (invite && newId) {
-      const o = await (await fetch('/api/employees/onboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ employee_ids: [newId] }) })).json();
-      const sent = (o.results||[]).filter(x => x.telegram_sent).length;
+      const o = await safeFetchJson('/api/employees/onboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ employee_ids: [newId] }) });
+      const sent = (o && o.results ? o.results : []).filter(x => x.telegram_sent).length;
       msg = sent ? 'تمت الإضافة وإرسال لينك الدخول على التليجرام ✅' : 'تمت الإضافة لكن الرسالة لم تصل (اتأكد إنه عمل /start للبوت).';
     }
     if (box) { box.classList.remove('hidden'); box.textContent = msg; }
@@ -934,8 +986,8 @@ async function renderCompanyEmployees() {
   const box = document.getElementById('company-emps');
   if (!box) return;
   let emps = [], users = [];
-  try { const d = await (await fetch('/api/tasks/employees')).json(); emps = d.employees || []; } catch(e){}
-  try { const d = await (await fetch('/api/users')).json(); users = d.users || []; } catch(e){}
+  try { const d = await safeFetchJson('/api/tasks/employees'); emps = (d && d.employees) ? d.employees : []; } catch(e){}
+  try { const d = await safeFetchJson('/api/users'); users = (d && d.users) ? d.users : []; } catch(e){}
   const roleOf = {};
   users.forEach(u => { if (u.employee_id) roleOf[u.employee_id] = u.role; });
   if (!emps.length) { box.innerHTML = '<div class="text-[11px] text-slate-400">لا يوجد موظفون</div>'; return; }
@@ -1187,12 +1239,12 @@ async function loadTeam() {
   const panel = document.getElementById('team-panel');
   if (!panel) return;
   let me = {};
-  try { me = await (await fetch('/api/me')).json(); } catch(e) {}
-  if (!me.is_admin) { panel.classList.add('hidden'); return; }
+  try { me = await safeFetchJson('/api/me'); } catch(e) {}
+  if (!me || !me.is_admin) { panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
   // client checkboxes for the add form
   let clients = [];
-  try { const r = await fetch('/api/clients'); const d = await r.json(); clients = Array.isArray(d) ? d : (d.clients||[]); } catch(e){}
+  try { const d = await safeFetchJson('/api/clients'); clients = Array.isArray(d) ? d : ((d && d.clients) ? d.clients : []); } catch(e){}
   window._teamClients = clients;
   const box = document.getElementById('nm-clients');
   if (box) box.innerHTML = clients.map(c => `
@@ -1208,8 +1260,8 @@ async function renderMembers() {
   const list = document.getElementById('members-list');
   if (!list) return;
   let users = [], empNames = {};
-  try { const d = await (await fetch('/api/users')).json(); users = d.users || []; } catch(e){}
-  try { const d = await (await fetch('/api/tasks/employees')).json(); (d.employees||[]).forEach(e => { if (e.employee_id) empNames[e.employee_id] = e.name; }); } catch(e){}
+  try { const d = await safeFetchJson('/api/users'); users = (d && d.users) ? d.users : []; } catch(e){}
+  try { const d = await safeFetchJson('/api/tasks/employees'); ((d && d.employees) ? d.employees : []).forEach(e => { if (e.employee_id) empNames[e.employee_id] = e.name; }); } catch(e){}
   const clients = window._teamClients || [];
   const nameOf = id => (clients.find(c => c.id === id)||{}).name || id;
   const roleLabel = r => r==='admin' ? 'مدير' : r==='account_manager' ? 'أكونت مانيجر' : 'موظف';
@@ -1286,8 +1338,8 @@ async function createMember() {
 
 async function toggleAssign(username, clientId, add) {
   try {
-    const d = await (await fetch('/api/users')).json();
-    const u = (d.users||[]).find(x => x.username === username) || {assigned_clients:[]};
+    const d = await safeFetchJson('/api/users');
+    const u = ((d && d.users) ? d.users : []).find(x => x.username === username) || {assigned_clients:[]};
     let set = new Set(u.assigned_clients||[]);
     if (add) set.add(clientId); else set.delete(clientId);
     await fetch(`/api/users/${encodeURIComponent(username)}/clients`, {method:'PUT', headers:{'Content-Type':'application/json'},
