@@ -1743,28 +1743,17 @@ window.addEventListener('hashchange', function() {
   } catch(e){}
 });
 
-// Also trigger immediate tab restore if DOM is already parsed
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
-  if (typeof applyRoleUI === 'function') {
-    applyRoleUI().then(() => restoreActiveTab());
-  } else {
-    restoreActiveTab();
-  }
-}
-
-// Live Permissions & Session Sync: Periodically poll /api/me and on tab focus
-// so permission/role changes made by admin take effect immediately without requiring re-login!
+// Live Permissions & Session Sync: Periodically poll /api/me (every 60s)
 setInterval(function() {
   if (document.visibilityState === 'visible' && window._me && window._me.logged_in) {
-    applyRoleUI();
+    fetch('/api/me').then(r => r.json()).then(me => {
+      if (me && me.logged_in) {
+        window._me = me;
+        applyRoleNavVisibility(me);
+      }
+    }).catch(()=>{});
   }
-}, 15000);
-
-window.addEventListener('focus', function() {
-  if (window._me && window._me.logged_in) {
-    applyRoleUI();
-  }
-});
+}, 60000);
 
 function copyTaskDriveLink(link) {
   if (!link) {

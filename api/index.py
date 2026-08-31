@@ -8169,23 +8169,38 @@ def hr_config():
         out["company_lon"] = float(os.environ.get("ATT_DEFAULT_LON", 31.180022))
     return out
 
-def _gsheet_rows(sheet_id, gid, timeout=12):
-    """Fetch one tab of a link-viewable Google Sheet as a list of dict rows."""
+_GSHEET_CACHE = {}
+
+def _gsheet_rows(sheet_id, gid, timeout=10, force_refresh=False):
+    """Fetch one tab of a link-viewable Google Sheet as a list of dict rows with fast 60s in-memory TTL cache."""
     if not (sheet_id and gid):
         return []
+    
+    cache_key = f"{sheet_id}:{gid}"
+    now = time.time()
+    if not force_refresh and cache_key in _GSHEET_CACHE:
+        cached_time, cached_rows = _GSHEET_CACHE[cache_key]
+        if now - cached_time < 60:
+            return cached_rows
+
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&gid={gid}"
     try:
         r = requests.get(url, timeout=timeout)
         if r.status_code != 200 or "<html" in r.text[:80].lower():
+            if cache_key in _GSHEET_CACHE:
+                return _GSHEET_CACHE[cache_key][1]
             return []
         r.encoding = "utf-8"
         reader = _csv.DictReader(_StringIO(r.text))
         rows = []
         for row in reader:
             rows.append({(k or "").strip(): (v or "").strip() for k, v in row.items()})
+        _GSHEET_CACHE[cache_key] = (now, rows)
         return rows
     except Exception as e:
         print(f"[HR sheet fetch] {e}")
+        if cache_key in _GSHEET_CACHE:
+            return _GSHEET_CACHE[cache_key][1]
         return []
 
 
