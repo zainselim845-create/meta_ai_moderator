@@ -683,6 +683,12 @@ async function loadMyPortal() {
   try {
     const d = await (await fetch('/api/me/tasks')).json();
     const tasks = d.tasks || [];
+    const planSeqMap = {};
+    tasks.forEach(t => {
+      const pkey = (t.plan_name || t.file_name || 'عام').trim();
+      planSeqMap[pkey] = (planSeqMap[pkey] || 0) + 1;
+      t.post_number_in_plan = planSeqMap[pkey];
+    });
     const box = document.getElementById('my-tasks-list');
     const actionBtns = (t) => {
       const s = t.status || '';
@@ -709,7 +715,7 @@ async function loadMyPortal() {
         <div class="flex items-start justify-between gap-3 flex-wrap">
           <div class="flex-1 min-w-[160px]">
             <div class="flex items-center gap-1.5 flex-wrap mb-1">
-              <span class="bg-blue-600 text-white font-bold font-mono text-[11px] px-2 py-0.5 rounded-md shadow-2xs">#${esc(t.post_number || (typeof getTaskSequenceNum === 'function' ? getTaskSequenceNum(t) : 1))}</span>
+              <span class="bg-blue-600 text-white font-bold font-mono text-[11px] px-2 py-0.5 rounded-md shadow-2xs">#${esc(t.post_number_in_plan || t.post_number || 1)}</span>
               <span class="font-mono font-bold text-[11px] bg-slate-900 text-white px-2 py-0.5 rounded-md">${esc(t.task_id||'')}</span>
               <span class="font-bold text-sm text-slate-900">${esc(t.title||'')}</span>
             </div>

@@ -1429,7 +1429,7 @@ function getTaskSequenceNum(t) {
     return 1;
 }
 
-function renderTaskCard(t) {
+function renderTaskCard(t, indexInPlan) {
     var st = t.status || 'Pending AM Approval';
     var statusBadgeClass = st === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
                            st === 'In Progress' ? 'bg-blue-100 text-blue-800' :
@@ -1532,7 +1532,7 @@ function renderTaskCard(t) {
         deliverablesBox += '</div>';
     }
 
-    var postSeq = getTaskSequenceNum(t);
+    var postSeq = (indexInPlan !== undefined && indexInPlan !== null) ? indexInPlan : (t.post_number_in_plan || t.post_number || 1);
     var postBadge = '<span class="bg-blue-600 hover:bg-blue-700 text-white font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg shadow-xs inline-flex items-center gap-0.5 border border-blue-500/50" title="ترتيب البوست في الخطة (بوست #' + postSeq + ')"><span>#</span><span>' + postSeq + '</span></span>';
 
     var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
@@ -2084,11 +2084,10 @@ function renderTasksBoard() {
         groupKeys.forEach(function(k) {
             var grp = fileGroups[k];
             var fTasks = sortTaskList(grp.tasks, currentTaskSort, currentTaskSortDir);
-            // Ensure sequential internal post numbers (1, 2, 3... N) per plan
+            // Strictly assign sequential internal post numbers (1, 2, 3... N) per plan
             fTasks.forEach(function(t, idx) {
-                if (t.post_number === undefined || t.post_number === null || t.post_number === '') {
-                    t.post_number = getTaskSequenceNum(t) || (idx + 1);
-                }
+                t.post_number_in_plan = idx + 1;
+                t.post_number = idx + 1;
             });
             var completedCount = fTasks.filter(function(t){ return t.status === 'Completed'; }).length;
 
@@ -2108,7 +2107,7 @@ function renderTasksBoard() {
                     '<span class="bg-blue-600 text-white text-xs font-mono font-bold px-2.5 py-1 rounded-full shadow-xs shrink-0">' + fTasks.length + ' مهام</span>' +
                 '</div>' +
                 '<div class="space-y-3.5 pt-1 max-h-[850px] overflow-y-auto pr-1">' +
-                    fTasks.map(renderTaskCard).join('') +
+                    fTasks.map(function(t, idx) { return renderTaskCard(t, idx + 1); }).join('') +
                 '</div>' +
             '</div>';
         });
