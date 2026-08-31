@@ -1741,7 +1741,7 @@ function renderTaskCard(t, indexInPlan) {
                 '<span class="flex items-center gap-1.5">📜 سجل كل العمليات والمواعيد <span class="bg-slate-200 text-slate-700 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold">' + logEntries.length + '</span></span>' +
                 '<span id="arrow-' + esc(logId) + '" class="text-slate-400 text-xs transition">▼</span>' +
             '</button>' +
-            '<div id="' + esc(logId) + '" class="hidden mt-1.5 space-y-1.5 bg-slate-50/90 border border-slate-200 rounded-xl p-2.5 max-h-48 overflow-y-auto text-xs">';
+            '<div id="' + esc(logId) + '" class="hidden mt-1.5 space-y-2 bg-slate-50/90 border border-slate-200 rounded-xl p-2.5 max-h-56 overflow-y-auto text-xs">';
             
         logEntries.slice().reverse().forEach(function(l) {
             var icon = l.action === 'created' ? '🟢' :
@@ -3135,16 +3135,66 @@ async function openTaskDetailsModal(taskId) {
     var logsHtml = '';
     var logs = (t.activity_log || []);
     if (logs && logs.length) {
-        logsHtml = '<div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">' +
-            '<div class="font-bold text-xs text-slate-800">📜 سجل كل العمليات والمواعيد (' + logs.length + '):</div>' +
-            '<div class="space-y-1.5 max-h-44 overflow-y-auto pr-1 text-[11px]">';
-        logs.forEach(function(l) {
-            var at = l.at ? l.at.replace('T', ' ').substring(0, 19) : '-';
-            var by = l.by ? ' بواسطة <b>' + esc(l.by) + '</b>' : '';
-            var desc = l.description || l.action || 'عملية';
-            logsHtml += '<div class="bg-white p-2 rounded-xl border border-slate-100 flex items-start justify-between gap-2 shadow-2xs">' +
-                '<div><span class="font-bold text-slate-800">' + esc(desc) + '</span><span class="text-slate-500">' + by + '</span></div>' +
-                '<span class="text-[10px] font-mono text-slate-400 whitespace-nowrap shrink-0">' + at + '</span>' +
+        logsHtml = '<div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5">' +
+            '<div class="font-bold text-xs text-slate-900 flex items-center justify-between">' +
+                '<span>📜 سجل كل العمليات والمواعيد وتاريخ المهمة:</span>' +
+                '<span class="bg-blue-100 text-blue-800 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">' + logs.length + ' عمليات</span>' +
+            '</div>' +
+            '<div class="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">';
+        logs.slice().reverse().forEach(function(l) {
+            var icon = l.action === 'created' ? '🟢' :
+                       l.action === 'assigned' ? '🎯' :
+                       l.action === 'started' ? '⏱️' :
+                       l.action === 'submitted' ? '📦' :
+                       l.action === 'reviewed_reject' ? '↩️' :
+                       l.action === 'reviewed_forward' ? '➡️' :
+                       l.action === 'reviewed_approved' ? '✅' :
+                       l.action === 'recalled' ? '⚠️' :
+                       l.action === 'dates_updated' ? '📅' :
+                       l.action === 'reference_added' ? '🔗' :
+                       l.action === 'asset_uploaded' ? '📤' : '📝';
+
+            var actionTitle = l.action === 'created' ? 'إنشاء وتفريغ المهمة' :
+                              l.action === 'assigned' ? ('إسناد إلى ' + (l.target_employee_name || 'موظف')) :
+                              l.action === 'started' ? 'بدء العمل وتشغيل المؤقت' :
+                              l.action === 'submitted' ? 'تسليم مخرجات العمل' :
+                              l.action === 'reviewed_reject' ? 'طلب تعديل من الموظف' :
+                              l.action === 'reviewed_forward' ? ('تمرير إلى ' + (l.target_employee_name || 'موظف آخر')) :
+                              l.action === 'reviewed_approved' ? 'اعتماد نهائي وجدولة' :
+                              l.action === 'recalled' ? 'سحب المهمة من الموظف' :
+                              l.action === 'dates_updated' ? 'تعديل وتحديد المواعيد' :
+                              l.action === 'reference_added' ? 'إضافة ريفرنس ومراجع' :
+                              l.action === 'asset_uploaded' ? 'رفع ملف على Drive' : (l.note || l.action || 'عملية');
+
+            var timeStr = l.time_cairo || l.timestamp || l.at || l.time || '—';
+            if (timeStr && timeStr.indexOf('T') !== -1) {
+                timeStr = timeStr.replace('T', ' ').substring(0, 19);
+            }
+            var actorName = l.actor_name || l.by || l.actor_type || 'النظام';
+            var noteText = (l.note || l.description || '').trim();
+
+            var d = l.details || {};
+            var detailBadges = [];
+            if (d.delivery_deadline) detailBadges.push('⏰ تسليم: ' + d.delivery_deadline);
+            if (d.publish_date) detailBadges.push('📅 نزول: ' + d.publish_date);
+            if (d.scheduled_start_date) detailBadges.push('🚀 بدء: ' + d.scheduled_start_date);
+            if (d.drive_link) detailBadges.push('<a href="' + esc(d.drive_link) + '" target="_blank" class="text-emerald-700 underline font-bold">📁 ملف Drive</a>');
+            if (d.reason) detailBadges.push('⚠️ سبب: ' + esc(d.reason));
+
+            logsHtml += '<div class="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-2xs space-y-1.5">' +
+                '<div class="flex items-center justify-between gap-1.5 flex-wrap border-b border-slate-100 pb-1">' +
+                    '<div class="flex items-center gap-1.5 font-bold text-slate-900">' +
+                        '<span class="text-sm">' + icon + '</span>' +
+                        '<span>' + esc(actionTitle) + '</span>' +
+                    '</div>' +
+                    '<span class="text-[10px] font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md">' + esc(timeStr) + '</span>' +
+                '</div>' +
+                '<div class="flex items-center justify-between gap-2 text-[11px] text-slate-600 flex-wrap">' +
+                    '<div>بواسطة: <b class="text-slate-800">' + esc(actorName) + '</b></div>' +
+                    (l.target_employee_name ? ('<div>الموظف المعني: <b class="text-indigo-700">' + esc(l.target_employee_name) + '</b></div>') : '') +
+                '</div>' +
+                (noteText && noteText !== actionTitle ? ('<div class="bg-slate-50 p-2 rounded-lg text-[11px] text-slate-700 font-medium whitespace-pre-line">💬 ' + esc(noteText) + '</div>') : '') +
+                (detailBadges.length ? ('<div class="flex items-center gap-1.5 flex-wrap pt-0.5 text-[10px] font-mono font-bold text-slate-600">' + detailBadges.map(function(b){ return '<span class="bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">' + b + '</span>'; }).join('') + '</div>') : '') +
             '</div>';
         });
         logsHtml += '</div></div>';
@@ -3586,7 +3636,7 @@ async function submitPlanBuilder() {
     showToast('جاري إنشاء وتقسيم مهام الخطة بالسيستم... ⏳');
 
     try {
-        var res = await safeFetchJson('/api/tasks/ingest', {
+        var res = await safeFetchJson('/api/tasks/ingest-plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
