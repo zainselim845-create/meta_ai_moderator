@@ -5769,6 +5769,51 @@ def api_task_timer(task_id):
     return jsonify({"success": True, "task_id": task_id, "timer_state": timer_state, "elapsed_minutes": elapsed_mins})
 
 
+def _natural_task_sort_key(t):
+    """Extract natural sequential ordering for a task:
+    1. Title or caption number: 'بوست 1', 'post 2', 'منشور 3', '1. '
+    2. Arabic textual ordinal: 'الاول', 'الثاني', 'الثالث'...
+    3. TASK-xxxx number
+    4. Publish Date / Time
+    """
+    if not isinstance(t, dict):
+        return (9, 999999, "")
+    title = str(t.get("title") or "")
+    caption = str(t.get("caption") or "")
+    task_id = str(t.get("task_id") or "")
+    
+    m = re.search(r'(?:بوست|منشور|post|item|تاسك|مهمة|#)\s*(\d+)', title, re.I)
+    if not m:
+        m = re.search(r'(?:بوست|منشور|post|item|تاسك|مهمة|#)\s*(\d+)', caption, re.I)
+    if not m:
+        m = re.search(r'^(\d+)[\.\-\:\s]', title.strip())
+    if m:
+        return (1, int(m.group(1)), task_id)
+        
+    ord_map = {
+        'الاول': 1, 'الاولى': 1, 'الأول': 1, 'الأولى': 1,
+        'الثاني': 2, 'الثانية': 2, 'الثالث': 3, 'الثالثة': 3,
+        'الرابع': 4, 'الرابعة': 4, 'الخامس': 5, 'الخامسة': 5,
+        'السادس': 6, 'السادسة': 6, 'السابع': 7, 'السابعة': 7,
+        'الثامن': 8, 'الثامنة': 8, 'التاسع': 9, 'التاسعة': 9,
+        'العاشر': 10, 'العاشرة': 10,
+        'الحادي عشر': 11, 'الحادية عشر': 11, 'الثاني عشر': 12, 'الثانية عشر': 12
+    }
+    for word, val in ord_map.items():
+        if word in title:
+            return (1, val, task_id)
+            
+    m_tid = re.search(r'TASK-(\d+)', task_id)
+    if m_tid:
+        return (2, int(m_tid.group(1)), task_id)
+        
+    pub = (t.get("publish_date") or "") + " " + (t.get("publish_time") or "")
+    if pub.strip():
+        return (3, pub, task_id)
+        
+    return (4, 999999, task_id)
+
+
 @app.route("/api/am/workspace", methods=["GET"])
 @auth_guard
 def api_am_workspace():
@@ -5803,10 +5848,7 @@ def api_am_workspace():
 
         # Get client tasks (authoritative from mam_tasks and cache)
         c_tasks = get_client_tasks(cid)
-        def _t_sort_key_am(t):
-            m = re.search(r'TASK-(\d+)', str(t.get("task_id") or ""))
-            return int(m.group(1)) if m else 999999
-        c_tasks.sort(key=_t_sort_key_am)
+        c_tasks.sort(key=_natural_task_sort_key)
         
         # Project team assigned to THIS client (chosen by AM); no fake defaults.
         member_ids = [str(m) for m in (teams_dict.get(cid) or [])]
@@ -6008,10 +6050,7 @@ def api_tasks():
     except Exception:
         pass
 
-    def _t_sort_key(t):
-        m = re.search(r'TASK-(\d+)', str(t.get("task_id") or ""))
-        return int(m.group(1)) if m else 999999
-    tasks.sort(key=_t_sort_key)
+    tasks.sort(key=_natural_task_sort_key)
 
     for t in tasks:
         am_id = str(t.get("am_id") or "").strip()
@@ -6836,10 +6875,7 @@ def api_tasks_ingest_plan():
             counter += 1
             created_count += 1
 
-        def _t_sort_key_ingest(t):
-            m = re.search(r'TASK-(\d+)', str(t.get("task_id") or ""))
-            return int(m.group(1)) if m else 999999
-        tasks.sort(key=_t_sort_key_ingest)
+        tasks.sort(key=_natural_task_sort_key)
         save_client_tasks(tasks, _cid)
         return jsonify({"success": True, "ok": True, "ingested_count": created_count, "tasks": tasks})
     except Exception as e:
