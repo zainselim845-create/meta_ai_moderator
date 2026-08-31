@@ -40,7 +40,7 @@
         var targetPane = 'v-' + tab;
         var style = document.createElement('style');
         style.id = 'tab-instant-boot';
-        style.textContent = '.view { display: none !important; } #' + targetPane + ' { display: flex !important; }';
+        style.textContent = '.view:not(#' + targetPane + ') { display: none !important; }';
         document.head.appendChild(style);
       } catch(e){}
     })();
@@ -1739,15 +1739,15 @@
 
   <div id="toast">
   </div>
-  <script src="/static/js/app.js?v=9.55">
+  <script src="/static/js/app.js?v=9.56">
   </script>
-  <script src="/static/js/inbox.js?v=9.55">
+  <script src="/static/js/inbox.js?v=9.56">
   </script>
-  <script src="/static/js/chatwoot_free.js?v=9.55">
+  <script src="/static/js/chatwoot_free.js?v=9.56">
   </script>
-  <script src="/static/js/views.js?v=9.55">
+  <script src="/static/js/views.js?v=9.56">
   </script>
-  <script src="/static/js/clients.js?v=9.55">
+  <script src="/static/js/clients.js?v=9.56">
   </script>
  
   <!-- Modal: Add New Connected Account -->

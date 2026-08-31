@@ -48,12 +48,23 @@ function showToast(msg, type = 'success') {
   }, 3500);
 }
 
-// Initialize Lucide SVG Icons safely
-function initLucideIcons() {
-  if (window.lucide && typeof window.lucide.createIcons === 'function') {
-    window.lucide.createIcons();
-  }
+// Initialize Lucide SVG Icons safely with fast debounce
+let _lucideDebounce = null;
+function initLucideIcons(root) {
+  clearTimeout(_lucideDebounce);
+  _lucideDebounce = setTimeout(() => {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      try {
+        if (root && root.nodeType === 1) {
+          window.lucide.createIcons({ root: root });
+        } else {
+          window.lucide.createIcons();
+        }
+      } catch(e){}
+    }
+  }, 25);
 }
+window.initLucideIcons = initLucideIcons;
 
 // Sidebar & Mobile Toggle Handlers
 function toggleMobileSidebar() {
