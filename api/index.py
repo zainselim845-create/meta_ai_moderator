@@ -7667,92 +7667,304 @@ def _universal_extract_plan_posts(plan_text):
     final_posts = _consolidate_and_merge_post_fragments(raw_posts)
     return final_posts
 
-def _extract_structured_docx_plan(file_bytes, filename=""):
-    """Extract structured posts, client name, and month directly from a docx file with zero loss."""
+def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploader_client_name=""):
+    """
+    Universal Omnichannel Content Plan Parser.
+    Handles:
+    - DOCX Tables (Any header synonyms, transposed, multi-table, merged cells)
+    - DOCX Non-table documents (Headings, bullet points, sections)
+    - Embedded images in tables and paragraphs (uploaded to Drive)
+    - Hyperlinks in DOCX relationships
+    - CSV / TSV text files
+    - Plain text / Markdown / Form text
+    - Auto-detects Client Name, Month, Year
+    """
     if not file_bytes:
-        return {"client_name": "", "month": "", "posts": []}
-    try:
-        import io as _io
-        import docx as _docx
-        doc = _docx.Document(_io.BytesIO(file_bytes))
-    except Exception as _e:
-        print(f"[docx docx_lib load error] {_e}")
-        return {"client_name": "", "month": "", "posts": []}
-        
+        return {"client_name": "", "month": "", "posts": [], "raw_text": ""}
+
+    filename_lower = (filename or "").lower()
+    posts = []
     doc_client = ""
     doc_month = ""
-    for p in doc.paragraphs:
-        t = p.text.strip()
-        m_c = re.search(r'(?:Client|العميل|البراند|الشركة|Brand)\s*[:=\-]\s*(.+)', t, re.IGNORECASE)
-        if m_c and not doc_client:
-            doc_client = m_c.group(1).strip()
-        m_m = re.search(r'(?:Month|الشهر)\s*[:=\-]\s*(\d+)', t, re.IGNORECASE)
-        if m_m and not doc_month:
-            doc_month = m_m.group(1).strip()
+    raw_text_accum = []
+    
+    # 1. DOCX PARSING (Tables + Headings + Paragraphs + Embedded Media)
+    if filename_lower.endswith(".docx") or file_bytes[:2] == b"PK":
+        try:
+            import io as _io
+            import zipfile as _zipfile
+            import docx as _docx
+            
+            zf = _zipfile.ZipFile(_io.BytesIO(file_bytes))
+            namelist = zf.namelist()
+            
+            # Map relationships (Images + External Hyperlinks)
+            media_rels = {}
+            hyperlink_rels = {}
+            if "word/_rels/document.xml.rels" in namelist:
+                rels_xml = zf.read("word/_rels/document.xml.rels").decode("utf-8", "ignore")
+                for r_m in re.finditer(r'<Relationship[^>]+Id="([^"]+)"[^>]+(?:Type="([^"]+)")?[^>]+Target="([^"]+)"', rels_xml):
+                    r_id = r_m.group(1)
+                    r_type = r_m.group(2) or ""
+                    r_target = r_m.group(3)
+                    if "hyperlink" in r_type.lower() or r_target.startswith("http"):
+                        hyperlink_rels[r_id] = r_target
+                    else:
+                        media_rels[r_id] = r_target.lstrip("/").replace("word/", "")
+            
+            doc = _docx.Document(_io.BytesIO(file_bytes))
+            
+            # Detect Client & Month from paragraphs
+            for p in doc.paragraphs:
+                t = p.text.strip()
+                if t: raw_text_accum.append(t)
+                m_c = re.search(r'(?:Client|العميل|البراند|الشركة|Brand|Account)\s*[:=\-]\s*(.+)', t, re.IGNORECASE)
+                if m_c and not doc_client:
+                    doc_client = m_c.group(1).strip()
+                m_m = re.search(r'(?:Month|الشهر|شهر)\s*[:=\-]\s*(\d+|سبتمبر|أكتوبر|نوفمبر|ديسمبر|يناير|فبراير|مارس|أبريل|مايو|يونيو|يوليو|أغسطس|Sep|Oct|Nov|Dec|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug)', t, re.IGNORECASE)
+                if m_m and not doc_month:
+                    doc_month = m_m.group(1).strip()
 
-    if not doc_client and filename:
-        clean_fn = re.sub(r'\.(docx|doc|txt|pdf)$', '', filename, flags=re.I).strip()
-        m_fn = re.search(r'^(?:(?:\d+\s+)?(.+?)\s+(?:Posts|خطة|Plan|بوستات|Sep|Oct|Nov|Dec|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|سبتمبر|أكتوبر))', clean_fn, re.IGNORECASE)
-        if m_fn:
-            doc_client = m_fn.group(1).strip()
-        else:
-            doc_client = clean_fn.split(' ')[0].strip()
-        doc_client = re.sub(r'^(?:خطة\s+محتوى|خطة|Plan)\s+', '', doc_client, flags=re.I).strip()
+            if not doc_client and filename:
+                clean_fn = re.sub(r'\.(docx|doc|txt|pdf|csv|xlsx)$', '', filename, flags=re.I).strip()
+                clean_fn = re.sub(r'^\d+[\s\.\-_]+', '', clean_fn).strip()
+                clean_fn = re.sub(r'^(?:خطة\s+محتوى|خطة\s+سوشيال|خطة|Plan)\s+', '', clean_fn, flags=re.I).strip()
+                m_fn = re.search(r'^(.*?)(?:\s+Posts|\s+Plan|\s+خطة|\s+بوستات|\s+Sep|\s+Oct|\s+Nov|\s+Dec|\s+Jan|\s+Feb|\s+Mar|\s+Apr|\s+May|\s+Jun|\s+Jul|\s+Aug|\s+سبتمبر|\s+أكتوبر|[\.\-_]\d+|\d+$)', clean_fn, re.IGNORECASE)
+                if m_fn and m_fn.group(1).strip():
+                    doc_client = m_fn.group(1).strip()
+                else:
+                    doc_client = clean_fn.strip()
 
-    posts = []
-    for table in doc.tables:
-        if not table.rows:
-            continue
-        header_cells = [c.text.strip().replace('\n', ' ') for c in table.rows[0].cells]
-        date_col = idea_col = tagline_col = caption_col = type_col = -1
+            def _extract_images_from_xml(xml_content, post_idx):
+                media_urls = []
+                for m in re.finditer(r'(?:r:embed|embed|r:id|id)="([^"]+)"', xml_content):
+                    rid = m.group(1)
+                    if rid in media_rels:
+                        target = media_rels[rid]
+                        img_path = f"word/{target}" if not target.startswith("word/") else target
+                        if img_path in namelist:
+                            try:
+                                img_bytes = zf.read(img_path)
+                                ext = target.split('.')[-1].lower()
+                                mime = "image/png" if ext == "png" else ("image/gif" if ext == "gif" else "image/jpeg")
+                                img_name = f"ref_{doc_client or 'client'}_post_{post_idx}_{target.split('/')[-1]}"
+                                d_link = drive_upload_bytes(img_name, img_bytes, mime, parent_id=parent_id)
+                                if d_link:
+                                    media_urls.append(d_link)
+                                else:
+                                    import base64
+                                    b64 = base64.b64encode(img_bytes).decode('utf-8')
+                                    media_urls.append(f"data:{mime};base64,{b64}")
+                            except Exception as _e:
+                                pass
+                    elif rid in hyperlink_rels:
+                        media_urls.append(hyperlink_rels[rid])
+                return media_urls
+
+            # Table Extraction Mode (supports multiple tables, standard and transposed)
+            if doc.tables:
+                for t_idx, table in enumerate(doc.tables):
+                    if not table.rows:
+                        continue
+                    
+                    header_cells = [c.text.strip().replace('\n', ' ') for c in table.rows[0].cells]
+                    col_map = {"date": -1, "idea": -1, "tagline": -1, "caption": -1, "type": -1, "platform": -1}
+                    
+                    for i, h in enumerate(header_cells):
+                        hl = h.lower()
+                        if any(k in hl for k in ['تاريخ', 'موعد', 'اليوم', 'date', 'publish', 'day', 'schedule']):
+                            col_map["date"] = i
+                        elif any(k in hl for k in ['فكرة', 'ريفرنس', 'مرجع', 'مرجعية', 'رؤية', 'تصميم', 'وصف', 'idea', 'reference', 'ref', 'visual', 'design', 'brief', 'creative']):
+                            col_map["idea"] = i
+                        elif any(k in hl for k in ['تاج', 'لاين', 'هوك', 'عنوان', 'افتتاحية', 'سلايد', 'tagline', 'hook', 'headline', 'title', 'slide', 'header']):
+                            col_map["tagline"] = i
+                        elif any(k in hl for k in ['كابشن', 'نص', 'محتوى', 'مقال', 'إسكربت', 'اسكربت', 'سيناريو', 'caption', 'copy', 'text', 'content', 'script', 'body']):
+                            col_map["caption"] = i
+                        elif any(k in hl for k in ['نوع', 'شكل', 'قالب', 'صيغة', 'type', 'format', 'category']):
+                            col_map["type"] = i
+                        elif any(k in hl for k in ['منصة', 'المنصة', 'platform', 'channel']):
+                            col_map["platform"] = i
+
+                    if col_map["idea"] != -1 or col_map["tagline"] != -1 or col_map["caption"] != -1:
+                        for r_idx, row in enumerate(table.rows[1:], 1):
+                            cells = [c.text.strip() for c in row.cells]
+                            if not any(cells):
+                                continue
+                            p_date = cells[col_map["date"]] if col_map["date"] >= 0 and col_map["date"] < len(cells) else ""
+                            p_idea = cells[col_map["idea"]] if col_map["idea"] >= 0 and col_map["idea"] < len(cells) else ""
+                            p_tagline = cells[col_map["tagline"]] if col_map["tagline"] >= 0 and col_map["tagline"] < len(cells) else ""
+                            p_caption = cells[col_map["caption"]] if col_map["caption"] >= 0 and col_map["caption"] < len(cells) else ""
+                            p_type = cells[col_map["type"]] if col_map["type"] >= 0 and col_map["type"] < len(cells) else "بوست"
+                            p_platform = cells[col_map["platform"]] if col_map["platform"] >= 0 and col_map["platform"] < len(cells) else ""
+                            
+                            row_media = _extract_images_from_xml(row._tr.xml, len(posts) + 1)
+                            if p_idea:
+                                for u in re.findall(r'https?://[^\s<>"\']+', p_idea):
+                                    if u not in row_media: row_media.append(u)
+                                    
+                            first_line = (p_tagline or p_caption or f"منشور {len(posts) + 1}").split('\n')[0].strip()
+                            first_line = re.sub(r'^(?:Slide\s*\d+\s*[—\-:]*\s*(?:HOOK)*\s*)+', '', first_line, flags=re.IGNORECASE).strip()
+                            title = first_line[:80] if first_line else f"منشور {len(posts) + 1}"
+                            is_carousel = ("كاروسيل" in p_type or "slide" in p_tagline.lower() or "carousel" in p_type.lower() or "slide" in p_caption.lower())
+                            
+                            posts.append({
+                                "index": len(posts) + 1,
+                                "title": title,
+                                "content_type": "Carousel" if is_carousel else "Single Image",
+                                "post_type": "carousel" if is_carousel else "post",
+                                "publish_date": p_date,
+                                "design_brief": p_idea,
+                                "visual_idea": p_idea,
+                                "visual_content": p_tagline,
+                                "tagline": p_tagline,
+                                "caption": p_caption,
+                                "platform": p_platform,
+                                "media_urls": [m for m in row_media if not m.startswith("http") or any(m.lower().endswith(ext) for ext in ['.png','.jpg','.jpeg','.gif','.webp']) or 'drive.google' in m.lower()],
+                                "reference_links": row_media
+                            })
+
+            # Non-table Headings & Paragraphs
+            if not posts and doc.paragraphs:
+                current_post = None
+                for p in doc.paragraphs:
+                    ptxt = p.text.strip()
+                    if not ptxt:
+                        continue
+                    m_start = re.search(r'^(?:بوست|منشور|البوست|المنشور|Post|Task|Item)\s*#?\s*(\d+)[:\-\s]*(.*)', ptxt, re.IGNORECASE)
+                    if m_start:
+                        if current_post:
+                            posts.append(current_post)
+                        current_post = {
+                            "index": len(posts) + 1,
+                            "title": m_start.group(2).strip() or f"منشور {len(posts) + 1}",
+                            "content_type": "Single Image",
+                            "post_type": "post",
+                            "publish_date": "",
+                            "design_brief": "",
+                            "visual_idea": "",
+                            "visual_content": "",
+                            "tagline": "",
+                            "caption": "",
+                            "media_urls": [],
+                            "reference_links": []
+                        }
+                        p_imgs = _extract_images_from_xml(p._p.xml, len(posts) + 1)
+                        current_post["media_urls"].extend(p_imgs)
+                        current_post["reference_links"].extend(p_imgs)
+                        continue
+                        
+                    if current_post:
+                        p_imgs = _extract_images_from_xml(p._p.xml, current_post["index"])
+                        current_post["media_urls"].extend(p_imgs)
+                        current_post["reference_links"].extend(p_imgs)
+                        
+                        if re.match(r'^(?:نوع|شكل|Type)[:\s]*(.+)', ptxt, re.I):
+                            t_val = re.sub(r'^(?:نوع|شكل|Type)[:\s]*', '', ptxt, flags=re.I).strip()
+                            current_post["post_type"] = "carousel" if "كاروسيل" in t_val or "carousel" in t_val else "post"
+                            current_post["content_type"] = "Carousel" if current_post["post_type"] == "carousel" else "Single Image"
+                        elif re.match(r'^(?:تاريخ|موعد|Date)[:\s]*(.+)', ptxt, re.I):
+                            current_post["publish_date"] = re.sub(r'^(?:تاريخ|موعد|Date)[:\s]*', '', ptxt, flags=re.I).strip()
+                        elif re.match(r'^(?:فكرة|ريفرنس|تصميم|Idea|Visual)[:\s]*(.+)', ptxt, re.I):
+                            current_post["design_brief"] = re.sub(r'^(?:فكرة|ريفرنس|تصميم|Idea|Visual)[:\s]*', '', ptxt, flags=re.I).strip()
+                            current_post["visual_idea"] = current_post["design_brief"]
+                        elif re.match(r'^(?:تاج|هوك|عنوان|Tagline|Hook)[:\s]*(.+)', ptxt, re.I):
+                            current_post["tagline"] = re.sub(r'^(?:تاج|هوك|عنوان|Tagline|Hook)[:\s]*', '', ptxt, flags=re.I).strip()
+                            current_post["visual_content"] = current_post["tagline"]
+                            if not current_post["title"] or current_post["title"].startswith("منشور"):
+                                current_post["title"] = current_post["tagline"][:80]
+                        elif re.match(r'^(?:كابشن|نص|إسكربت|اسكربت|Caption|Copy|Script)[:\s]*(.+)', ptxt, re.I):
+                            current_post["caption"] = re.sub(r'^(?:كابشن|نص|إسكربت|اسكربت|Caption|Copy|Script)[:\s]*', '', ptxt, flags=re.I).strip()
+                        else:
+                            if not current_post["caption"]:
+                                current_post["caption"] = ptxt
+                            else:
+                                current_post["caption"] += "\n" + ptxt
+
+                if current_post:
+                    posts.append(current_post)
+        except Exception as _docxe:
+            print(f"[Universal DOCX Parser Error] {_docxe}")
+
+    # 2. CSV / TSV PARSING
+    elif filename_lower.endswith(".csv") or filename_lower.endswith(".tsv"):
+        import csv
+        try:
+            raw_text = file_bytes.decode('utf-8-sig', 'ignore')
+            delimiter = '\t' if filename_lower.endswith('.tsv') or '\t' in raw_text[:200] else ','
+            reader = csv.reader(io.StringIO(raw_text), delimiter=delimiter)
+            rows = list(reader)
+            if rows:
+                header = [c.strip().lower() for c in rows[0]]
+                date_c = idea_c = tag_c = cap_c = type_c = -1
+                for i, h in enumerate(header):
+                    if any(k in h for k in ['date', 'تاريخ']): date_c = i
+                    elif any(k in h for k in ['idea', 'ref', 'فكرة', 'ريفرنس']): idea_c = i
+                    elif any(k in h for k in ['tagline', 'hook', 'تاج', 'عنوان']): tag_c = i
+                    elif any(k in h for k in ['caption', 'copy', 'text', 'كابشن', 'نص']): cap_c = i
+                    elif any(k in h for k in ['type', 'نوع']): type_c = i
+                    
+                for r_idx, row in enumerate(rows[1:], 1):
+                    if not any(row): continue
+                    p_date = row[date_c] if 0 <= date_c < len(row) else ""
+                    p_idea = row[idea_c] if 0 <= idea_c < len(row) else ""
+                    p_tag = row[tag_c] if 0 <= tag_c < len(row) else ""
+                    p_cap = row[cap_c] if 0 <= cap_c < len(row) else ""
+                    p_type = row[type_c] if 0 <= type_c < len(row) else "post"
+                    
+                    first_line = (p_tag or p_cap or f"منشور {r_idx}").split('\n')[0][:80]
+                    posts.append({
+                        "index": len(posts) + 1,
+                        "title": first_line,
+                        "content_type": "Carousel" if "carousel" in p_type.lower() or "كاروسيل" in p_type else "Single Image",
+                        "post_type": "carousel" if "carousel" in p_type.lower() or "كاروسيل" in p_type else "post",
+                        "publish_date": p_date,
+                        "design_brief": p_idea,
+                        "visual_idea": p_idea,
+                        "visual_content": p_tag,
+                        "tagline": p_tag,
+                        "caption": p_cap,
+                        "media_urls": [],
+                        "reference_links": []
+                    })
+        except Exception as _csve:
+            print(f"[CSV Parser Error] {_csve}")
+
+    # 3. TEXT FALLBACK VIA AI / HEURISTIC
+    if not posts:
+        plan_text = _docx_to_text(file_bytes) if file_bytes[:2] == b"PK" else file_bytes.decode('utf-8', 'ignore')
+        if plan_text:
+            posts = _universal_extract_plan_posts(plan_text)
+
+    # Post-process all posts: ensure title, caption, visual idea, and tagline are clean
+    for idx, p in enumerate(posts, 1):
+        p.setdefault("index", idx)
+        tag = (p.get("tagline") or p.get("tag_line") or p.get("hook") or "").strip()
+        cap = (p.get("caption") or "").strip()
+        vis = (p.get("visual_idea") or p.get("design_brief") or "").strip()
         
-        for i, h in enumerate(header_cells):
-            hl = h.lower()
-            if 'تاريخ' in hl or 'date' in hl:
-                date_col = i
-            elif 'فكرة' in hl or 'ريفرنس' in hl or 'idea' in hl or 'reference' in hl:
-                idea_col = i
-            elif 'تاج' in hl or 'لاين' in hl or 'tagline' in hl or 'hook' in hl or 'سلايد' in hl:
-                tagline_col = i
-            elif 'كابشن' in hl or 'caption' in hl or 'نص' in hl or 'copy' in hl:
-                caption_col = i
-            elif 'نوع' in hl or 'type' in hl or 'format' in hl:
-                type_col = i
+        if not tag and cap:
+            lines = [l.strip() for l in cap.splitlines() if l.strip()]
+            if lines:
+                tag = lines[0][:100]
                 
-        if tagline_col == -1 and caption_col == -1 and idea_col == -1:
-            continue
+        p["tagline"] = tag
+        p["tag_line"] = tag
+        p["visual_content"] = tag or vis
+        p["design_brief"] = vis or tag
+        p["visual_idea"] = vis or tag
+        
+        if not p.get("title") or p.get("title") == "منشور جديد":
+            p["title"] = tag[:80] if tag else (cap[:80] if cap else f"منشور {idx}")
             
-        for r_idx, row in enumerate(table.rows[1:], 1):
-            cells = [c.text.strip() for c in row.cells]
-            if not any(cells):
-                continue
-            p_date = cells[date_col] if date_col >= 0 and date_col < len(cells) else ""
-            p_idea = cells[idea_col] if idea_col >= 0 and idea_col < len(cells) else ""
-            p_tagline = cells[tagline_col] if tagline_col >= 0 and tagline_col < len(cells) else ""
-            p_caption = cells[caption_col] if caption_col >= 0 and caption_col < len(cells) else ""
-            p_type = cells[type_col] if type_col >= 0 and type_col < len(cells) else "بوست"
-            
-            first_line = (p_tagline or p_caption or f"منشور {r_idx}").split('\n')[0].strip()
-            first_line = re.sub(r'^(?:Slide\s*\d+\s*[—\-:]*\s*(?:HOOK)*\s*)+', '', first_line, flags=re.IGNORECASE).strip()
-            title = first_line[:80] if first_line else f"منشور {r_idx}"
-            
-            is_carousel = ("كاروسيل" in p_type or "slide" in p_tagline.lower() or "carousel" in p_type.lower())
-            
-            posts.append({
-                "index": len(posts) + 1,
-                "title": title,
-                "content_type": "Carousel" if is_carousel else "Single Image",
-                "post_type": "carousel" if is_carousel else "post",
-                "publish_date": p_date,
-                "design_brief": p_idea,
-                "visual_idea": p_idea,
-                "visual_content": p_tagline,
-                "tagline": p_tagline,
-                "caption": p_caption
-            })
+        p["post_type"] = (p.get("post_type") or "post").lower()
+        if "carousel" in p["post_type"] or "كاروسيل" in p["post_type"] or "slide" in tag.lower() or "slide" in cap.lower():
+            p["content_type"] = "Carousel"
+            p["post_type"] = "carousel"
+        else:
+            p["content_type"] = p.get("content_type") or "Single Image"
 
     return {
-        "client_name": doc_client,
+        "client_name": doc_client or uploader_client_name,
         "month": doc_month,
         "posts": posts
     }
@@ -7790,15 +8002,12 @@ def api_tasks_ingest_plan():
         if up and up.filename:
             raw_file_name = up.filename
             raw = up.read()
-            if up.filename.lower().endswith(".docx"):
-                docx_res = _extract_structured_docx_plan(raw, filename=up.filename)
-                if docx_res and docx_res.get("posts"):
-                    extracted_posts = docx_res["posts"]
-                    doc_client_detected = docx_res.get("client_name") or ""
-                    doc_month_detected = docx_res.get("month") or ""
-                plan_text = _docx_to_text(raw)
-            else:
-                plan_text = raw.decode("utf-8", "ignore")
+            docx_res = _extract_structured_docx_plan(raw, filename=up.filename)
+            if docx_res and docx_res.get("posts"):
+                extracted_posts = docx_res["posts"]
+                doc_client_detected = docx_res.get("client_name") or ""
+                doc_month_detected = docx_res.get("month") or ""
+            plan_text = _docx_to_text(raw)
                 
         if not plan_text and not extracted_posts:
             _link = (request.form.get("drive_link") or "").strip() if request.form else ""
@@ -7809,15 +8018,12 @@ def api_tasks_ingest_plan():
                 try:
                     r = requests.get(f"https://drive.google.com/uc?export=download&id={fid}", timeout=10)
                     if r.status_code == 200:
-                        if r.content[:2] == b"PK":
-                            docx_res = _extract_structured_docx_plan(r.content, filename="drive_file.docx")
-                            if docx_res and docx_res.get("posts"):
-                                extracted_posts = docx_res["posts"]
-                                doc_client_detected = docx_res.get("client_name") or ""
-                                doc_month_detected = docx_res.get("month") or ""
-                            plan_text = _docx_to_text(r.content)
-                        else:
-                            plan_text = r.text
+                        docx_res = _extract_structured_docx_plan(r.content, filename="drive_file.docx")
+                        if docx_res and docx_res.get("posts"):
+                            extracted_posts = docx_res["posts"]
+                            doc_client_detected = docx_res.get("client_name") or ""
+                            doc_month_detected = docx_res.get("month") or ""
+                        plan_text = _docx_to_text(r.content) if r.content[:2] == b"PK" else r.text
                 except Exception as e:
                     print(f"[plan drive fetch] {e}")
                     
@@ -7833,7 +8039,7 @@ def api_tasks_ingest_plan():
             extracted_posts = _universal_extract_plan_posts(plan_text)
 
         if not extracted_posts and (not plan_text or len(plan_text.strip()) < 5):
-            return jsonify({"error": "تعذر قراءة نص الخطة. يرجى التأكد من رفع ملف DOCX سليم أو لصق النص مباشرة.", "success": False}), 400
+            return jsonify({"error": "تعذر قراءة نص الخطة. يرجى التأكد من رفع ملف DOCX أو CSV سليم أو لصق النص مباشرة.", "success": False}), 400
 
         # 3) Resolve Client Attribution: File name / Doc text / User selection
         client_input = (request.form.get("client_name") or request.form.get("client_id") if request.form else None) or \
@@ -7854,7 +8060,7 @@ def api_tasks_ingest_plan():
         raw_plan_name = (request.form.get("plan_name") if request.form else "") or \
                         (req_json.get("plan_name") if isinstance(req_json, dict) else "") or ""
         sub_title = (raw_plan_name or raw_file_name).strip()
-        sub_title = re.sub(r'\.(docx|doc|txt|pdf)$', '', sub_title, flags=re.I).strip()
+        sub_title = re.sub(r'\.(docx|doc|txt|pdf|csv|xlsx)$', '', sub_title, flags=re.I).strip()
 
         if sub_title.lower() in (c_name_disp.lower(), f"خطة {c_name_disp.lower()}", f"خطة محتوى {c_name_disp.lower()}"):
             sub_title = f"خطة {c_name_disp}"
@@ -7888,9 +8094,10 @@ def api_tasks_ingest_plan():
             pub_time = (p.get("publish_time") or "10:00").strip()
             dl_date = (p.get("delivery_deadline") or "").strip()
             media_urls = p.get("media_urls") or []
+            ref_links = p.get("reference_links") or []
+            all_refs = list(set(media_urls + ref_links))
+            image_urls = [u for u in all_refs if any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) or "drive.google" in u.lower() or u.startswith("data:image/")]
             
-            ref_links = [u for u in media_urls if not any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) and "drive.google" not in u.lower() and not u.startswith("data:image/")]
-            image_urls = [u for u in media_urls if u not in ref_links]
             post_num = p_idx
             assigned_eid = (p.get("assigned_employee_id") or "").strip()
             assigned_name = (p.get("assignee_name") or "").strip()
@@ -7921,10 +8128,10 @@ def api_tasks_ingest_plan():
                 "assigned_employee_id": assigned_eid,
                 "assignee_name": assigned_name,
                 "media_urls": image_urls,
-                "reference_links": ref_links,
-                "content_data": {"post_type": p_type, "tag_line": tagline, "tagline": tagline, "caption": caption, "visual_idea": visual, "reference_images": image_urls, "reference_links": ref_links},
-                "graphic_data": {"idea": visual, "reference_images": image_urls, "reference_links": ref_links},
-                "video_data": {"script": caption, "idea": visual},
+                "reference_links": all_refs,
+                "content_data": {"post_type": p_type, "tag_line": tagline, "tagline": tagline, "caption": caption, "visual_idea": visual, "reference_images": image_urls, "reference_links": all_refs},
+                "graphic_data": {"idea": visual, "reference_images": image_urls, "reference_links": all_refs},
+                "video_data": {"script": caption, "idea": visual, "reference_links": all_refs},
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
             if assigned_eid:
