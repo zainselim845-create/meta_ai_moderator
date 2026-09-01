@@ -1574,13 +1574,13 @@
     <div class="view hidden space-y-6" id="v-tasks">
       <!-- Section 1: Top Bar & Quick Ingest -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+        <div id="tasks-ingest-container" class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
           <div class="flex items-center justify-between flex-wrap gap-2">
             <h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
               <i data-lucide="check-square" class="w-5 h-5 text-blue-600"></i>
               <span>إدارة وتفريغ مهام الفريق والعمليات (Plan → Tasks Engine)</span>
             </h3>
-            <button onclick="sendMonthlyReportAction()" class="btn-primary text-xs px-3.5 py-2 rounded-xl flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition whitespace-nowrap">
+            <button id="btn-tasks-monthly-report" onclick="sendMonthlyReportAction()" class="btn-primary text-xs px-3.5 py-2 rounded-xl flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition whitespace-nowrap">
               <i data-lucide="mail" class="w-4 h-4"></i>
               <span>إرسال التقرير الشهري 📧</span>
             </button>
@@ -1636,14 +1636,14 @@
               <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
               تحديث
             </button>
-            <button onclick="clearAllTasks()" class="btn-ghost text-xs py-2 px-3 sm:px-4 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1">
+            <button id="btn-tasks-clear-all" onclick="clearAllTasks()" class="btn-ghost text-xs py-2 px-3 sm:px-4 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
               مسح كل التاسكات الديمو
             </button>
           </div>
         </div>
 
-        <div class="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3 flex flex-col">
+        <div id="team-workload-widget-box" class="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3 flex flex-col">
           <div class="flex items-center justify-between">
             <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
               <i data-lucide="users" class="w-4 h-4 text-blue-600"></i>
@@ -1760,15 +1760,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.min.js?v=9.87">
+  <script defer src="/static/js/app.min.js?v=9.88">
   </script>
-  <script defer src="/static/js/inbox.min.js?v=9.87">
+  <script defer src="/static/js/inbox.min.js?v=9.88">
   </script>
-  <script defer src="/static/js/chatwoot_free.min.js?v=9.87">
+  <script defer src="/static/js/chatwoot_free.min.js?v=9.88">
   </script>
-  <script defer src="/static/js/views.min.js?v=9.87">
+  <script defer src="/static/js/views.min.js?v=9.88">
   </script>
-  <script defer src="/static/js/clients.min.js?v=9.87">
+  <script defer src="/static/js/clients.min.js?v=9.88">
   </script>
  
   <!-- Modal: Add New Connected Account -->

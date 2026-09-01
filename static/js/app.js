@@ -707,13 +707,23 @@ async function applyRoleUI() {
     if (btnOauth) btnOauth.classList.remove('hidden');
     if (clientSelBox) clientSelBox.classList.remove('hidden');
     ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.remove('hidden'); });
+    
+    // Admin sees team workload and full tools
+    const teamWorkloadBox = document.getElementById('team-workload-widget-box');
+    const tasksIngestBox = document.getElementById('tasks-ingest-container');
+    const btnReport = document.getElementById('btn-tasks-monthly-report');
+    const btnClearTasks = document.getElementById('btn-tasks-clear-all');
+    if (teamWorkloadBox) teamWorkloadBox.classList.remove('hidden');
+    if (tasksIngestBox) tasksIngestBox.className = tasksIngestBox.className.replace('lg:col-span-12', 'lg:col-span-8');
+    if (btnReport) btnReport.classList.remove('hidden');
+    if (btnClearTasks) btnClearTasks.classList.remove('hidden');
     return;
   }
 
   if (!isAdmin && !isMgr) {
     // Employee & Content Creator: locked down to permitted tabs
     const isCreator = me.role === 'content_creator' || me.role === 'content' || (me.job && /content|writer|كاتب|محتوى/i.test(me.job));
-    const defaultAllow = isCreator ? ['myportal', 'tasks', 'plan', 'dash'] : ['myportal'];
+    const defaultAllow = isCreator ? ['myportal', 'tasks', 'plan'] : ['myportal'];
     const allow = new Set(tabs.length ? tabs : defaultAllow);
     allow.add('myportal');
     if (isCreator) {
@@ -722,7 +732,7 @@ async function applyRoleUI() {
     }
     document.querySelectorAll('#sidebar .nb').forEach(b => {
       const k = navKey(b);
-      b.classList.toggle('hidden', !allow.has(k) || b.id === 'nav-permissions');
+      b.classList.toggle('hidden', !allow.has(k) || b.id === 'nav-permissions' || b.id === 'nav-hr');
     });
     // Hide administrative buttons from non-manager header
     if (btnAddAcc) btnAddAcc.classList.add('hidden');
@@ -733,6 +743,21 @@ async function applyRoleUI() {
       const el = document.getElementById(id);
       if (el) el.closest('div')?.classList.toggle('hidden', !allow.has('crm') && !allow.has('accounts'));
     });
+
+    // Content Creator / Regular Employee: HIDE Account Manager workload cards and managerial buttons
+    const teamWorkloadBox = document.getElementById('team-workload-widget-box');
+    const tasksIngestBox = document.getElementById('tasks-ingest-container');
+    const btnReport = document.getElementById('btn-tasks-monthly-report');
+    const btnClearTasks = document.getElementById('btn-tasks-clear-all');
+    if (teamWorkloadBox) teamWorkloadBox.classList.add('hidden');
+    if (tasksIngestBox) {
+      if (tasksIngestBox.className.indexOf('lg:col-span-12') === -1) {
+        tasksIngestBox.className = tasksIngestBox.className.replace('lg:col-span-8', 'lg:col-span-12');
+      }
+    }
+    if (btnReport) btnReport.classList.add('hidden');
+    if (btnClearTasks) btnClearTasks.classList.add('hidden');
+
     const curHash = (window.location.hash || '').replace('#', '').replace('v-', '');
     if (!curHash || !allow.has(curHash)) {
       if (typeof go === 'function') go('myportal');
@@ -762,6 +787,16 @@ async function applyRoleUI() {
       const el = document.getElementById(id);
       if (el) el.closest('div')?.classList.remove('hidden');
     });
+
+    // Account Manager sees team workload widget and reports
+    const teamWorkloadBox = document.getElementById('team-workload-widget-box');
+    const tasksIngestBox = document.getElementById('tasks-ingest-container');
+    const btnReport = document.getElementById('btn-tasks-monthly-report');
+    const btnClearTasks = document.getElementById('btn-tasks-clear-all');
+    if (teamWorkloadBox) teamWorkloadBox.classList.remove('hidden');
+    if (tasksIngestBox) tasksIngestBox.className = tasksIngestBox.className.replace('lg:col-span-12', 'lg:col-span-8');
+    if (btnReport) btnReport.classList.remove('hidden');
+    if (btnClearTasks) btnClearTasks.classList.remove('hidden');
     return;
   }
 }
