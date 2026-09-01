@@ -406,3 +406,39 @@ body {
 #client-tabs::-webkit-scrollbar {
   display: none;
 }
+
+/* Universal Date Input Styling - High Contrast & Crisp */
+input[type="date"],
+input[type="datetime-local"] {
+  color-scheme: light !important;
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  font-family: 'JetBrains Mono', 'Segoe UI', Tahoma, monospace !important;
+  font-weight: 700 !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+input[type="date"]::-webkit-datetime-edit-text {
+  color: #64748b !important;
+  padding: 0 0.2em;
+}
+
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+

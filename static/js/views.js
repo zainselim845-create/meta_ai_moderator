@@ -1897,13 +1897,19 @@ function renderTaskCard(t, indexInPlan) {
     var dStart = t.scheduled_start_date || '';
     var dDead = t.delivery_deadline || t.publish_date || '';
 
-    html += '<div class="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200 text-xs space-y-2">' +
-        '<div class="grid grid-cols-2 gap-2">' +
-            '<div><label class="text-[10px] text-slate-500 font-bold block mb-0.5">🚀 تاريخ البدء:</label><input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(dStart) + '" class="w-full text-[11px] px-1.5 py-1 border border-slate-200 rounded-lg bg-white"></div>' +
-            '<div><label class="text-[10px] text-amber-700 font-bold block mb-0.5">⏰ موعد التسليم:</label><input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="w-full text-[11px] px-1.5 py-1 border border-amber-200 rounded-lg bg-white"></div>' +
+    html += '<div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs space-y-2.5 shadow-2xs">' +
+        '<div class="grid grid-cols-2 gap-2.5">' +
+            '<div>' +
+                '<label class="text-[11px] text-slate-800 font-bold block mb-1">📅 تاريخ النشر:</label>' +
+                '<input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(dStart) + '" class="w-full text-xs font-bold font-mono px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
+            '</div>' +
+            '<div>' +
+                '<label class="text-[11px] text-amber-900 font-bold block mb-1">⏰ موعد التسليم:</label>' +
+                '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="w-full text-xs font-bold font-mono px-2.5 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
+            '</div>' +
         '</div>' +
-        '<div class="flex items-center justify-end pt-1 border-t border-slate-100">' +
-            '<button onclick="saveTaskDates(\'' + esc(t.task_id) + '\')" class="bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap shadow-2xs">💾 حفظ المواعيد</button>' +
+        '<div class="flex items-center justify-end pt-1.5 border-t border-slate-200/80">' +
+            '<button onclick="saveTaskDates(\'' + esc(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition">💾 حفظ المواعيد</button>' +
         '</div>' +
     '</div>';
 
