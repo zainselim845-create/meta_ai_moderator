@@ -1105,20 +1105,61 @@ function renderClientTabs() {
         var pInfo = plans[pName];
         var isSel = (selectedPlanFilter === pName);
         var cleanTitle = esc(pName).replace(/\.(docx|doc|pdf|txt)$/i, '');
-        html += '<button type="button" onclick="filterTasksByPlan(\'' + esc(pName).replace(/'/g, "\\'") + '\')" class="shrink-0 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-2 ' +
-            (isSel ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-300' : 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100') + '">' +
-            '<span>📄 ' + cleanTitle + '</span>' +
-            '<span dir="ltr" class="text-[11px] font-mono ' + (isSel ? 'bg-white/25 text-white' : 'bg-purple-200 text-purple-950') + ' px-2 py-0.5 rounded-lg font-bold">' + pInfo.completed + ' / ' + pInfo.total + '</span>' +
-        '</button>';
+        var escapedPlan = esc(pName).replace(/'/g, "\\'");
+        html += '<div class="shrink-0 inline-flex items-center rounded-xl overflow-hidden shadow-xs transition border ' +
+            (isSel ? 'border-purple-300 bg-purple-600 text-white ring-2 ring-purple-300' : 'border-purple-200 bg-purple-50 text-purple-900 hover:bg-purple-100/80') + '">' +
+            '<button type="button" onclick="filterTasksByPlan(\'' + escapedPlan + '\')" class="text-xs font-bold px-3.5 py-2 flex items-center gap-2 text-inherit">' +
+                '<span>📄 ' + cleanTitle + '</span>' +
+                '<span dir="ltr" class="text-[11px] font-mono ' + (isSel ? 'bg-white/25 text-white' : 'bg-purple-200 text-purple-950') + ' px-2 py-0.5 rounded-lg font-bold">' + pInfo.completed + ' / ' + pInfo.total + '</span>' +
+            '</button>' +
+            '<button type="button" onclick="event.stopPropagation(); deletePlanAction(\'' + escapedPlan + '\')" title="حذف هذه الخطة بالكامل" class="px-2.5 py-2 text-xs font-bold opacity-60 hover:opacity-100 hover:bg-red-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-purple-700 border-r border-purple-200') + '">' +
+                '✕' +
+            '</button>' +
+        '</div>';
     });
     html += '</div>';
 
-    html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5 mr-auto">' +
+    html += '<div class="flex items-center gap-2 mr-auto shrink-0">';
+    if (selectedPlanFilter) {
+        var cleanSelTitle = esc(selectedPlanFilter).replace(/\.(docx|doc|pdf|txt)$/i, '');
+        var escapedSel = esc(selectedPlanFilter).replace(/'/g, "\\'");
+        html += '<button type="button" onclick="deletePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200 shadow-sm transition flex items-center gap-1.5" title="حذف الخطة المحددة">' +
+            '<span>🗑️ حذف خطة «' + cleanSelTitle + '»</span>' +
+        '</button>';
+    }
+    html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5">' +
         '<span>➕ كتابة خطة جديدة بالقالب</span>' +
     '</button>';
     html += '</div>';
+    html += '</div>';
 
     box.innerHTML = html;
+}
+
+async function deletePlanAction(planName) {
+    if (!planName) return;
+    var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '');
+    if (!confirm("⚠️ هل أنت متأكد من حذف الخطة بالكامل: «" + cleanTitle + "» ؟\n\nسيتم حذف جميع المهام التابعة لهذه الخطة نهائياً من قاعدة البيانات وجوجل شيت.")) {
+        return;
+    }
+    if (typeof showToast === 'function') showToast("جاري حذف الخطة ومهامها...", "info");
+    try {
+        var res = await safeFetchJson('/api/plans/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_name: planName })
+        });
+        if (res && (res.success || res.ok)) {
+            if (typeof showToast === 'function') showToast(res.message || "تم حذف الخطة بنجاح 🗑️", "success");
+            if (selectedPlanFilter === planName) selectedPlanFilter = null;
+            await loadTasksEngine();
+        } else {
+            if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر حذف الخطة", "error");
+        }
+    } catch(err) {
+        console.error("Delete plan error:", err);
+        if (typeof showToast === 'function') showToast("حدث خطأ أثناء حذف الخطة", "error");
+    }
 }
 
 function filterTasksByPlan(planName) {

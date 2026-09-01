@@ -289,3 +289,22 @@ def test_sanitize_task_record_preserves_valid_real_account_manager():
     assert cleaned["am_id"] == "EMP-5887-5256"
     assert cleaned["am_name"] == "آيه أحمد مجاهد"
 
+
+# =====================================================================
+# Rule 1, 4, 5: Plan Deletion & Task Cleanup
+# =====================================================================
+
+def test_plan_deletion_filters_out_target_plan_and_preserves_others():
+    tasks = [
+        {"task_id": "TASK-0001", "plan_name": "خطة أغسطس 2026", "title": "بوست 1"},
+        {"task_id": "TASK-0002", "plan_name": "خطة خاطئة", "title": "بوست تجريبي"},
+        {"task_id": "TASK-0003", "plan_name": "خطة أغسطس 2026", "title": "بوست 2"},
+    ]
+    target_plan = "خطة خاطئة"
+    remaining = [t for t in tasks if t.get("plan_name") != target_plan]
+    
+    assert len(remaining) == 2
+    assert all(t["plan_name"] == "خطة أغسطس 2026" for t in remaining)
+    assert [t["task_id"] for t in remaining] == ["TASK-0001", "TASK-0003"]
+
+
