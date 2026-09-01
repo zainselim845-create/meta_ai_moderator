@@ -680,15 +680,21 @@ async function applyRoleUI() {
     return;
   }
 
-  if (isEmp) {
-    // Employee: locked down to myportal plus any explicit allowed tabs
-    const allow = new Set(tabs.length ? tabs : ['myportal']);
+  if (!isAdmin && !isMgr) {
+    // Employee & Content Creator: locked down to permitted tabs
+    const isCreator = me.role === 'content_creator' || me.role === 'content' || (me.job && /content|writer|كاتب|محتوى/i.test(me.job));
+    const defaultAllow = isCreator ? ['myportal', 'tasks', 'plan', 'dash'] : ['myportal'];
+    const allow = new Set(tabs.length ? tabs : defaultAllow);
     allow.add('myportal');
+    if (isCreator) {
+      allow.add('tasks');
+      allow.add('plan');
+    }
     document.querySelectorAll('#sidebar .nb').forEach(b => {
       const k = navKey(b);
       b.classList.toggle('hidden', !allow.has(k) || b.id === 'nav-permissions');
     });
-    // Hide administrative buttons from employee header
+    // Hide administrative buttons from non-manager header
     if (btnAddAcc) btnAddAcc.classList.add('hidden');
     if (btnOauth) btnOauth.classList.add('hidden');
     if (clientSelBox) clientSelBox.classList.add('hidden');
@@ -972,12 +978,17 @@ async function renderCompanyEmployees() {
   const roleOf = {};
   users.forEach(u => { if (u.employee_id) roleOf[u.employee_id] = u.role; });
   if (!emps.length) { box.innerHTML = '<div class="text-[11px] text-slate-400">لا يوجد موظفون</div>'; return; }
-  const roleOpts = (cur) => ['employee','account_manager','admin'].map(r =>
-    `<option value="${r}" ${cur===r?'selected':''}>${r==='admin'?'مدير':r==='account_manager'?'أكونت مانيجر':'موظف'}</option>`).join('');
+  const roleOpts = (cur) => ['employee','content_creator','account_manager','admin'].map(r =>
+    `<option value="${r}" ${cur===r?'selected':''}>${r==='admin'?'مدير':r==='account_manager'?'أكونت مانيجر':r==='content_creator'?'كاتب محتوى (Content)': 'موظف'}</option>`).join('');
   const tabsOf = {};
   users.forEach(u => { if (u.employee_id) tabsOf[u.employee_id] = u.allowed_tabs || []; });
   const TAB_LABELS = { tasks:'المهام', plan:'بناء البلان', hr:'الموظفين والحضور', scheduler:'الجدولة', crm:'العملاء', inbox:'الإنبوكس', analytics:'التحليلات', rules:'القواعد', kb:'المعرفة', mode:'وضع الرد', settings:'الإعدادات', logs:'السجلات', accounts:'الحسابات', myportal:'بوابتي' };
-  const inferRole = (job) => /account\s*manager|أكونت|الحسابات|مدير حسابات/i.test(job || '') ? 'account_manager' : 'employee';
+  const inferRole = (job) => {
+    const j = (job || '').toLowerCase();
+    if (/account\s*manager|أكونت|الحسابات|مدير حسابات/i.test(j)) return 'account_manager';
+    if (/content|writer|كاتب|محتوى/i.test(j)) return 'content_creator';
+    return 'employee';
+  };
   box.innerHTML = emps.map(e => {
     // portal role if they have an account; otherwise infer from their sheet job
     const cur = roleOf[e.employee_id] || inferRole(e.role);
@@ -1266,7 +1277,7 @@ async function renderMembers() {
   try { const d = await safeFetchJson('/api/tasks/employees'); ((d && d.employees) ? d.employees : []).forEach(e => { if (e.employee_id) empNames[e.employee_id] = e.name; }); } catch(e){}
   const clients = window._teamClients || [];
   const nameOf = id => (clients.find(c => c.id === id)||{}).name || id;
-  const roleLabel = r => r==='admin' ? 'مدير' : r==='account_manager' ? 'أكونت مانيجر' : 'موظف';
+  const roleLabel = r => r==='admin' ? 'مدير' : r==='account_manager' ? 'أكونت مانيجر' : r==='content_creator' ? 'كاتب محتوى (Content)' : 'موظف';
   const displayName = u => empNames[u.employee_id] || empNames[u.username] || u.username;
   list.innerHTML = users.map(u => {
     const assigned = (u.assigned_clients||[]).map(nameOf);
@@ -1290,7 +1301,7 @@ async function renderMembers() {
         <div>
           <span class="font-bold text-sm text-slate-900">${esc(nm)}</span>
           ${nm !== u.username ? `<span class="text-[10px] text-slate-400 font-mono">(${esc(u.username)})</span>` : ''}
-          <span class="text-[11px] px-2 py-0.5 rounded-full ${u.role==='admin'?'bg-purple-100 text-purple-700':u.role==='account_manager'?'bg-blue-100 text-blue-700':'bg-slate-100 text-slate-600'} mr-1">${roleLabel(u.role)}</span>
+          <span class="text-[11px] px-2 py-0.5 rounded-full ${u.role==='admin'?'bg-purple-100 text-purple-700':u.role==='account_manager'?'bg-blue-100 text-blue-700':u.role==='content_creator'?'bg-amber-100 text-amber-800 font-bold':'bg-slate-100 text-slate-600'} mr-1">${roleLabel(u.role)}</span>
           <span class="text-[11px] text-slate-400">${esc(u.email||'')}</span>
         </div>
         <div class="flex items-center gap-1">

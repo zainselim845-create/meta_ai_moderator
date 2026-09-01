@@ -737,9 +737,11 @@
        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
         <input id="nm-username" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="اسم المستخدم (للدخول)"/>
         <input id="nm-email" type="email" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="البريد الإلكتروني (تتبعتله البيانات)"/>
-        <select id="nm-role" class="px-3 py-2 border border-slate-200 rounded-lg text-xs">
-         <option value="account_manager">أكونت مانيجر</option>
-         <option value="admin">مدير</option>
+        <select id="nm-role" class="px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
+         <option value="content_creator" selected>✍️ كاتب محتوى (Content Creator)</option>
+         <option value="account_manager">👔 أكونت مانيجر (Account Manager)</option>
+         <option value="employee">👤 موظف (Employee)</option>
+         <option value="admin">👑 مدير (Admin)</option>
         </select>
        </div>
        <div>
@@ -1745,15 +1747,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.min.js?v=9.81">
+  <script defer src="/static/js/app.min.js?v=9.82">
   </script>
-  <script defer src="/static/js/inbox.min.js?v=9.81">
+  <script defer src="/static/js/inbox.min.js?v=9.82">
   </script>
-  <script defer src="/static/js/chatwoot_free.min.js?v=9.81">
+  <script defer src="/static/js/chatwoot_free.min.js?v=9.82">
   </script>
-  <script defer src="/static/js/views.min.js?v=9.81">
+  <script defer src="/static/js/views.min.js?v=9.82">
   </script>
-  <script defer src="/static/js/clients.min.js?v=9.81">
+  <script defer src="/static/js/clients.min.js?v=9.82">
   </script>
  
   <!-- Modal: Add New Connected Account -->
@@ -1995,7 +1997,7 @@
   </div>
 
   <!-- Modal: Content Editor (تحرير نصوص وكابشن البوست لكاتب المحتوى) -->
-  <div id="modal-edit-task-content" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden overflow-y-auto">
+  <div id="modal-edit-task-content" onclick="if(event.target===this) closeTaskContentEditorModal()" role="dialog" aria-modal="true" aria-labelledby="etc-modal-title" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden overflow-y-auto">
     <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
       <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
         <div class="flex items-center gap-3">
@@ -2003,7 +2005,7 @@
             ✍️
           </div>
           <div>
-            <h3 class="font-bold text-base text-slate-900">محرر نصوص البوست (Content Editor)</h3>
+            <h3 id="etc-modal-title" class="font-bold text-base text-slate-900">محرر نصوص البوست (Content Editor)</h3>
             <p class="text-xs text-slate-500" id="etc-task-subtitle">تعديل التاج لاين والكابشن وفكرة الفيجوال</p>
           </div>
         </div>
@@ -2050,7 +2052,7 @@
           <button type="button" onclick="closeTaskContentEditorModal()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200 font-bold">
             إلغاء
           </button>
-          <button type="submit" class="btn-primary text-xs py-2.5 px-6 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold hover:opacity-95 shadow-md flex items-center gap-1.5 transition">
+          <button id="btn-save-task-content" type="submit" class="btn-primary text-xs py-2.5 px-6 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold hover:opacity-95 shadow-md flex items-center gap-1.5 transition">
             <span>💾 حفظ محتوى البوست ✍️</span>
           </button>
         </div>

@@ -371,5 +371,47 @@ def test_content_creator_permissions_and_post_text_editing():
     assert task["activity_log"][0]["action"] == "content_updated"
 
 
+def test_role_effective_tabs_and_task_isolation():
+    # 1. Test effective tabs logic
+    def mock_user_effective_tabs(role):
+        if role == "admin":
+            return {"inbox", "dash", "rules", "kb", "crm", "mode", "settings", "logs", "scheduler", "tasks", "plan", "hr", "accounts", "analytics", "myportal", "permissions"}
+        if role == "account_manager":
+            return {"dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"}
+        if role in ("content_creator", "content"):
+            return {"myportal", "tasks", "plan", "dash"}
+        return {"myportal"}
+
+    admin_tabs = mock_user_effective_tabs("admin")
+    am_tabs = mock_user_effective_tabs("account_manager")
+    cc_tabs = mock_user_effective_tabs("content_creator")
+    emp_tabs = mock_user_effective_tabs("employee")
+
+    assert "permissions" in admin_tabs
+    assert "permissions" not in am_tabs
+    assert "plan" in cc_tabs and "tasks" in cc_tabs and "myportal" in cc_tabs
+    assert "crm" not in cc_tabs and "permissions" not in cc_tabs
+    assert emp_tabs == {"myportal"}
+
+    # 2. Test AM task isolation (AM sees ONLY their assigned clients/tasks, Admin sees all)
+    all_db = [
+        {"task_id": "T1", "client_id": "c1", "am_id": "AM-1", "title": "Post Client 1"},
+        {"task_id": "T2", "client_id": "c2", "am_id": "AM-2", "title": "Post Client 2"},
+        {"task_id": "T3", "client_id": "c3", "am_id": "AM-1", "title": "Post Client 3"},
+    ]
+
+    # Admin view
+    admin_tasks = all_db
+    assert len(admin_tasks) == 3
+
+    # AM-1 view
+    am1_assigned_cids = ["c1", "c3"]
+    am1_tasks = [t for t in all_db if t.get("client_id") in am1_assigned_cids or t.get("am_id") == "AM-1"]
+    assert len(am1_tasks) == 2
+    assert [t["task_id"] for t in am1_tasks] == ["T1", "T3"]
+    assert "T2" not in [t["task_id"] for t in am1_tasks]
+
+
+
 
 

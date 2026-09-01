@@ -4059,6 +4059,13 @@ async function saveTaskContentEditorAction(e) {
         showToast('يرجى كتابة عنوان أو تاج لاين للبوست', 'error');
         return;
     }
+
+    var btn = document.getElementById('btn-save-task-content');
+    var origText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ جاري الحفظ والمزامنة...</span>';
+    }
     
     try {
         var res = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/content', {
@@ -4094,14 +4101,29 @@ async function saveTaskContentEditorAction(e) {
                 }
             }
             renderTasksBoard();
-            if (typeof loadMyTasks === 'function') loadMyTasks();
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast((res && res.error) || 'تعذّر حفظ محتوى البوست', 'error');
         }
     } catch(err) {
         showToast('خطأ أثناء حفظ التعديلات: ' + err.message, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+        }
     }
 }
+
+// Global Escape Key listener to dismiss editor modal
+document.addEventListener('keydown', function(evt) {
+    if (evt.key === 'Escape' || evt.key === 'Esc') {
+        var m = document.getElementById('modal-edit-task-content');
+        if (m && !m.classList.contains('hidden')) {
+            closeTaskContentEditorModal();
+        }
+    }
+});
 
 window.openTaskContentEditorModal = openTaskContentEditorModal;
 window.closeTaskContentEditorModal = closeTaskContentEditorModal;
