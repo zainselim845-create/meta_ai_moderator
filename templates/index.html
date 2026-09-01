@@ -730,121 +730,6 @@
      </div>
     </div>
     <div class="view hidden space-y-6" id="v-settings">
-     <!-- Team & Access (admins only) -->
-     <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 hidden" id="team-panel">
-      <div class="flex items-center justify-between flex-wrap gap-2">
-       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
-        <i class="w-5 h-5 text-blue-600" data-lucide="users"></i>
-        <span>الفريق والصلاحيات</span>
-       </h3>
-       <span class="text-[11px] text-slate-500">المدير يضيف أكونت مانيجرز ويوزّع العملاء عليهم</span>
-      </div>
-
-      <!-- Add member form -->
-      <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
-       <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-        <input id="nm-username" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="اسم المستخدم (للدخول)"/>
-        <input id="nm-email" type="email" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="البريد الإلكتروني (تتبعتله البيانات)"/>
-        <select id="nm-role" class="px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
-         <option value="content_creator" selected>✍️ كاتب محتوى (Content Creator)</option>
-         <option value="account_manager">👔 أكونت مانيجر (Account Manager)</option>
-         <option value="employee">👤 موظف (Employee)</option>
-         <option value="admin">👑 مدير (Admin)</option>
-        </select>
-       </div>
-       <div>
-        <div class="text-[11px] font-bold text-slate-600 mb-1">العملاء المسموح له بيهم:</div>
-        <div id="nm-clients" class="flex flex-wrap gap-2 text-xs"></div>
-       </div>
-       <button onclick="createMember()" class="btn-primary text-xs py-2 px-4 rounded-lg inline-flex items-center gap-1">
-        <i class="w-3.5 h-3.5" data-lucide="user-plus"></i> إضافة عضو وإرسال البيانات
-       </button>
-       <div id="new-member-creds" class="hidden text-[11px] bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-2"></div>
-      </div>
-
-      <!-- Onboard company employees via Telegram -->
-      <div class="border border-emerald-200 bg-emerald-50 rounded-xl p-4 flex items-center justify-between flex-wrap gap-2">
-       <div class="text-xs text-emerald-800">
-        <b>بوابة الموظفين:</b> يبعت لكل موظف (من شيت الشركة) لينك البوابة + بيانات دخوله على تيليجرام، وكل واحد يشوف مهامه وحضوره بس.
-       </div>
-       <button onclick="onboardEmployees()" class="btn-primary text-xs py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1">
-        <i class="w-3.5 h-3.5" data-lucide="send"></i> إرسال لينكات الدخول للموظفين
-       </button>
-      </div>
-      <div id="onboard-result" class="hidden text-[11px] bg-slate-50 border border-slate-200 rounded-lg p-2"></div>
-
-      <!-- Onboard selection modal: choose employees + what the message contains -->
-      <div id="onboard-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-       <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 space-y-4">
-        <div class="flex items-center justify-between">
-         <h3 class="font-bold text-sm text-slate-900">إرسال بيانات الدخول</h3>
-         <button onclick="closeOnboardModal()" class="text-slate-400 hover:text-slate-700 text-lg leading-none">✕</button>
-        </div>
-
-        <div>
-         <div class="flex items-center justify-between mb-1">
-          <span class="text-xs font-bold text-slate-700">اختر الموظفين</span>
-          <span class="text-[11px]">
-           <button onclick="toggleAllOnboard(true)" class="text-blue-600">تحديد الكل</button> /
-           <button onclick="toggleAllOnboard(false)" class="text-slate-500">إلغاء</button>
-          </span>
-         </div>
-         <div id="onboard-emp-list" class="border border-slate-200 rounded-lg p-2 max-h-56 overflow-y-auto"></div>
-        </div>
-
-        <div>
-         <span class="text-xs font-bold text-slate-700">محتوى الرسالة</span>
-         <div class="flex flex-col gap-1 mt-1 text-xs">
-          <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-link" checked/> 🔗 لينك البوابة</label>
-          <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-username" checked/> 👤 اسم المستخدم</label>
-          <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-password" checked/> 🔑 كلمة المرور</label>
-         </div>
-        </div>
-
-        <div>
-         <label class="text-xs font-bold text-slate-700">رسالة مخصّصة (اختياري)</label>
-         <textarea id="onboard-note" rows="2" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="لو سبتها فاضية هتتبعت الرسالة الافتراضية"></textarea>
-        </div>
-
-        <div class="flex items-center justify-end gap-2">
-         <button onclick="closeOnboardModal()" class="text-xs py-2 px-4 rounded-lg border border-slate-200 text-slate-600">إلغاء</button>
-         <button onclick="confirmOnboard()" class="text-xs py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1">
-          <i class="w-3.5 h-3.5" data-lucide="send"></i> إرسال
-         </button>
-        </div>
-       </div>
-      </div>
-
-      <!-- Add a new company employee (linked to the Telegram bot) -->
-      <div class="border border-blue-200 bg-blue-50 rounded-xl p-4 space-y-3">
-       <div class="text-xs text-blue-800 font-bold flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="user-plus"></i> إضافة موظف جديد للفريق (مربوط ببوت التليجرام)</div>
-       <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
-        <input id="ne-name" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="اسم الموظف"/>
-        <input id="ne-role" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="الدور (مصمم / كاتب / مونتير)"/>
-        <input id="ne-telegram" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="Telegram Chat ID"/>
-        <input id="ne-empid" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="كود الموظف (اختياري)"/>
-       </div>
-       <div class="flex items-center gap-2 flex-wrap">
-        <button onclick="addEmployeeAndInvite(false)" class="btn-primary text-xs py-2 px-4 rounded-lg inline-flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="plus"></i> إضافة فقط</button>
-        <button onclick="addEmployeeAndInvite(true)" class="btn-primary text-xs py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold inline-flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="send"></i> إضافة + إرسال لينك الدخول على التليجرام</button>
-       </div>
-       <p class="text-[10px] text-blue-500">لازم الموظف يكون عمل /start للبوت الأول عشان الرسالة توصله.</p>
-       <div id="ne-result" class="hidden text-[11px] bg-white border border-slate-200 rounded-lg p-2"></div>
-      </div>
-
-      <!-- Members list (portal users) -->
-      <div id="members-list" class="space-y-2"></div>
-
-      <!-- Company employees roster (from the sheet) with delete -->
-      <div class="border-t border-slate-200 pt-3 mt-2">
-       <div class="flex items-center justify-between mb-2">
-        <h4 class="font-bold text-sm text-slate-900">👥 موظفو الشركة</h4>
-        <button onclick="renderCompanyEmployees()" class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 text-slate-600">تحديث</button>
-       </div>
-       <div id="company-emps" class="space-y-1.5"></div>
-      </div>
-     </div>
-
      <!-- Google Drive Integration & Storage Card (Admins Only) -->
      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4" id="google-drive-panel">
       <div class="flex items-center justify-between flex-wrap gap-2">
@@ -1524,11 +1409,119 @@
     <!-- Task & Operations Management Engine View -->
     <!-- ============ PERMISSIONS TAB (team roles + send credentials) ============ -->
     <div class="view hidden space-y-6" id="v-permissions">
-      <div class="flex items-center gap-2">
-        <i data-lucide="shield-check" class="w-5 h-5 text-blue-600"></i>
-        <h3 class="font-bold text-lg text-slate-900">الصلاحيات وإدارة الفريق</h3>
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4" id="team-panel">
+       <div class="flex items-center justify-between flex-wrap gap-2">
+        <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+         <i class="w-5 h-5 text-blue-600" data-lucide="shield-check"></i>
+         <span>الفريق والصلاحيات (Permissions & Team)</span>
+        </h3>
+        <span class="text-[11px] text-slate-500">المدير يضيف أكونت مانيجرز ويوزّع العملاء عليهم</span>
+       </div>
+
+       <!-- Add member form -->
+       <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+         <input id="nm-username" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="اسم المستخدم (للدخول)"/>
+         <input id="nm-email" type="email" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="البريد الإلكتروني (تتبعتله البيانات)"/>
+         <select id="nm-role" class="px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
+          <option value="content_creator" selected>✍️ كاتب محتوى (Content Creator)</option>
+          <option value="account_manager">👔 أكونت مانيجر (Account Manager)</option>
+          <option value="employee">👤 موظف (Employee)</option>
+          <option value="admin">👑 مدير (Admin)</option>
+         </select>
+        </div>
+        <div>
+         <div class="text-[11px] font-bold text-slate-600 mb-1">العملاء المسموح له بيهم:</div>
+         <div id="nm-clients" class="flex flex-wrap gap-2 text-xs"></div>
+        </div>
+        <button onclick="createMember()" class="btn-primary text-xs py-2 px-4 rounded-lg inline-flex items-center gap-1 cursor-pointer">
+         <i class="w-3.5 h-3.5" data-lucide="user-plus"></i> إضافة عضو وإرسال البيانات
+        </button>
+        <div id="new-member-creds" class="hidden text-[11px] bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-2"></div>
+       </div>
+
+       <!-- Onboard company employees via Telegram -->
+       <div class="border border-emerald-200 bg-emerald-50 rounded-xl p-4 flex items-center justify-between flex-wrap gap-2">
+        <div class="text-xs text-emerald-800">
+         <b>بوابة الموظفين:</b> يبعت لكل موظف (من شيت الشركة) لينك البوابة + بيانات دخوله على تيليجرام، وكل واحد يشوف مهامه وحضوره بس.
+        </div>
+        <button onclick="onboardEmployees()" class="btn-primary text-xs py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1 cursor-pointer">
+         <i class="w-3.5 h-3.5" data-lucide="send"></i> إرسال لينكات الدخول للموظفين
+        </button>
+       </div>
+       <div id="onboard-result" class="hidden text-[11px] bg-slate-50 border border-slate-200 rounded-lg p-2"></div>
+
+       <!-- Onboard selection modal: choose employees + what the message contains -->
+       <div id="onboard-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 space-y-4">
+         <div class="flex items-center justify-between">
+          <h3 class="font-bold text-sm text-slate-900">إرسال بيانات الدخول</h3>
+          <button onclick="closeOnboardModal()" class="text-slate-400 hover:text-slate-700 text-lg leading-none cursor-pointer">✕</button>
+         </div>
+
+         <div>
+          <div class="flex items-center justify-between mb-1">
+           <span class="text-xs font-bold text-slate-700">اختر الموظفين</span>
+           <span class="text-[11px]">
+            <button onclick="toggleAllOnboard(true)" class="text-blue-600 cursor-pointer">تحديد الكل</button> /
+            <button onclick="toggleAllOnboard(false)" class="text-slate-500 cursor-pointer">إلغاء</button>
+           </span>
+          </div>
+          <div id="onboard-emp-list" class="border border-slate-200 rounded-lg p-2 max-h-56 overflow-y-auto"></div>
+         </div>
+
+         <div>
+          <span class="text-xs font-bold text-slate-700">محتوى الرسالة</span>
+          <div class="flex flex-col gap-1 mt-1 text-xs">
+           <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-link" checked/> 🔗 لينك البوابة</label>
+           <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-username" checked/> 👤 اسم المستخدم</label>
+           <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-password" checked/> 🔑 كلمة المرور</label>
+          </div>
+         </div>
+
+         <div>
+          <label class="text-xs font-bold text-slate-700">رسالة مخصّصة (اختياري)</label>
+          <textarea id="onboard-note" rows="2" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="لو سبتها فاضية هتتبعت الرسالة الافتراضية"></textarea>
+         </div>
+
+         <div class="flex items-center justify-end gap-2">
+          <button onclick="closeOnboardModal()" class="text-xs py-2 px-4 rounded-lg border border-slate-200 text-slate-600 cursor-pointer">إلغاء</button>
+          <button onclick="confirmOnboard()" class="text-xs py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1 cursor-pointer">
+           <i class="w-3.5 h-3.5" data-lucide="send"></i> إرسال
+          </button>
+         </div>
+        </div>
+       </div>
+
+       <!-- Add a new company employee (linked to the Telegram bot) -->
+       <div class="border border-blue-200 bg-blue-50 rounded-xl p-4 space-y-3">
+        <div class="text-xs text-blue-800 font-bold flex items-center gap-1"><i class="w-3.5 h-3.5" data-lucide="user-plus"></i> إضافة موظف جديد للفريق (مربوط ببوت التليجرام)</div>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+         <input id="ne-name" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="اسم الموظف"/>
+         <input id="ne-role" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="الدور (مصمم / كاتب / مونتير)"/>
+         <input id="ne-telegram" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="Telegram Chat ID"/>
+         <input id="ne-empid" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="كود الموظف (اختياري)"/>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+         <button onclick="addEmployeeAndInvite(false)" class="btn-primary text-xs py-2 px-4 rounded-lg inline-flex items-center gap-1 cursor-pointer"><i class="w-3.5 h-3.5" data-lucide="plus"></i> إضافة فقط</button>
+         <button onclick="addEmployeeAndInvite(true)" class="btn-primary text-xs py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold inline-flex items-center gap-1 cursor-pointer"><i class="w-3.5 h-3.5" data-lucide="send"></i> إضافة + إرسال لينك الدخول على التليجرام</button>
+        </div>
+        <p class="text-[10px] text-blue-500">لازم الموظف يكون عمل /start للبوت الأول عشان الرسالة توصله.</p>
+        <div id="ne-result" class="hidden text-[11px] bg-white border border-slate-200 rounded-lg p-2"></div>
+       </div>
+
+       <!-- Members list (portal users) -->
+       <div id="members-list" class="space-y-2"></div>
+
+       <!-- Company employees roster (from the sheet) with delete -->
+       <div class="border-t border-slate-200 pt-3 mt-2">
+        <div class="flex items-center justify-between mb-2">
+         <h4 class="font-bold text-sm text-slate-900">👥 موظفو الشركة</h4>
+         <button onclick="renderCompanyEmployees()" class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 text-slate-600 cursor-pointer">تحديث</button>
+        </div>
+        <div id="company-emps" class="space-y-1.5"></div>
+       </div>
       </div>
-      <div id="permissions-mount"></div>
     </div>
 
     <!-- ============ PLAN BUILDER TAB (own tab, Word-like editor) ============ -->
@@ -1772,15 +1765,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.min.js?v=10.1">
+  <script defer src="/static/js/app.min.js?v=10.2">
   </script>
-  <script defer src="/static/js/inbox.min.js?v=10.1">
+  <script defer src="/static/js/inbox.min.js?v=10.2">
   </script>
-  <script defer src="/static/js/chatwoot_free.min.js?v=10.1">
+  <script defer src="/static/js/chatwoot_free.min.js?v=10.2">
   </script>
-  <script defer src="/static/js/views.min.js?v=10.1">
+  <script defer src="/static/js/views.min.js?v=10.2">
   </script>
-  <script defer src="/static/js/clients.min.js?v=10.1">
+  <script defer src="/static/js/clients.min.js?v=10.2">
   </script>
  
   <!-- Modal: Add New Connected Account -->

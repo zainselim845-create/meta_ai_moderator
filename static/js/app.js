@@ -211,11 +211,6 @@ function go(id, el) {
     }
     if (cleanId === 'plan' && typeof loadPlanBuilder === 'function') loadPlanBuilder();
     if (cleanId === 'permissions') {
-      // relocate the team panel (built once in settings) into the permissions tab
-      var tp = document.getElementById('team-panel');
-      var mount = document.getElementById('permissions-mount');
-      if (tp && mount && tp.parentNode !== mount) mount.appendChild(tp);
-      if (tp) tp.classList.remove('hidden');
       if (typeof loadTeam === 'function') loadTeam();
     }
 
@@ -1336,9 +1331,6 @@ async function uploadMyTaskAsset(taskId, input) {
 async function loadTeam() {
   const panel = document.getElementById('team-panel');
   if (!panel) return;
-  let me = {};
-  try { me = await safeFetchJson('/api/me'); } catch(e) {}
-  if (!me || !me.is_admin) { panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
   // client checkboxes for the add form
   let clients = [];
