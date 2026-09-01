@@ -2464,11 +2464,15 @@ function renderTasksBoard() {
                                 '<span>·</span>' +
                                 '<span dir="ltr" class="font-mono bg-white/20 px-2 py-0.5 rounded-md text-white font-bold">' + completedCount + ' / ' + fTasks.length + ' منجز</span>' +
                             '</div>' +
-                        '</div>' +
                     '</div>' +
-                    (selectedPlanFilter ? ('<button type="button" onclick="filterTasksByPlan(null)" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 transition flex items-center gap-1.5">' +
-                        '<span>📑 عرض جميع الخطط الأخرى</span>' +
-                    '</button>') : '') +
+                    '<div class="flex items-center gap-2 flex-wrap">' +
+                        '<button type="button" onclick="sharePlanWithClient(\'' + esc(grp.clientName) + '\', \'' + esc(grp.fileName) + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">' +
+                            '<span>🔗 مشاركة الخطة مع العميل</span>' +
+                        '</button>' +
+                        (selectedPlanFilter ? ('<button type="button" onclick="filterTasksByPlan(null)" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 transition flex items-center gap-1.5 cursor-pointer">' +
+                            '<span>📑 عرض جميع الخطط الأخرى</span>' +
+                        '</button>') : '') +
+                    '</div>' +
                 '</div>' +
                 '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">' +
                     fTasks.map(function(t, idx) { return renderTaskCard(t, idx + 1); }).join('') +
@@ -2498,7 +2502,12 @@ function renderTasksBoard() {
                                 '</div>' +
                             '</div>' +
                         '</div>' +
-                        '<span class="bg-blue-600 text-white text-xs font-mono font-bold px-2.5 py-1 rounded-full shadow-xs shrink-0">' + fTasks.length + ' مهام</span>' +
+                        '<div class="flex items-center gap-1.5">' +
+                            '<button type="button" onclick="sharePlanWithClient(\'' + esc(grp.clientName) + '\', \'' + esc(grp.fileName) + '\')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="نسخ رابط مشاركة الخطة للعميل">' +
+                                '<span>🔗 مشاركة</span>' +
+                            '</button>' +
+                            '<span class="bg-blue-600 text-white text-xs font-mono font-bold px-2.5 py-1 rounded-full shadow-xs shrink-0">' + fTasks.length + ' مهام</span>' +
+                        '</div>' +
                     '</div>' +
                     '<div class="space-y-3.5 pt-1 max-h-[850px] overflow-y-auto pr-1">' +
                         fTasks.map(function(t, idx) { return renderTaskCard(t, idx + 1); }).join('') +
@@ -4177,6 +4186,78 @@ function highlightTaskCard(taskId) {
     }, 200);
 }
 
+async function sharePlanWithClient(clientName, planName) {
+    try {
+        var cInput = clientName || (window._me && window._me.active_client_name) || (typeof selectedClientFilter !== 'undefined' ? selectedClientFilter : '') || '';
+        var pInput = planName || '';
+        showToast('جاري تجهيز رابط مشاركة الخطة للعميل... ⏳');
+        var res = await fetch('/api/plan/share-link?client=' + encodeURIComponent(cInput) + '&plan=' + encodeURIComponent(pInput));
+        var data = await res.json();
+        if (!res.ok || !data.ok || !data.share_url) {
+            showToast(data.error || 'تعذّر إنشاء رابط المشاركة', 'error');
+            return;
+        }
+
+        var shareUrl = data.share_url;
+        var cName = data.client_name || cInput || 'العميل';
+        var pName = data.plan_name || pInput || 'خطة المحتوى';
+        var total = data.total_posts || 0;
+
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+        } catch(e) {}
+
+        var waText = 'مرحباً ' + cName + ' 👋\nيسعدنا مشاركة خطة المحتوى والتسويق الخاصة بكم مع التفاصيل الكاملة للمنشورات ومواعيد النشر:\n' + shareUrl + '\n\nيمكنكم الاطلاع على الخطة واعتمادها مباشرة من الرابط 🚀';
+        var waUrl = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(waText);
+
+        var modalId = 'modal-share-plan-dialog';
+        var existingModal = document.getElementById(modalId);
+        if (existingModal) existingModal.remove();
+
+        var modalHtml = '<div id="' + modalId + '" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn" onclick="if(event.target===this) this.remove()">' +
+            '<div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-right" dir="rtl">' +
+                '<div class="flex items-center justify-between border-b border-slate-100 pb-3">' +
+                    '<div class="flex items-center gap-2.5">' +
+                        '<span class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl font-bold shadow-2xs">🔗</span>' +
+                        '<div>' +
+                            '<h3 class="font-bold text-base text-slate-900">مشاركة الخطة مع العميل</h3>' +
+                            '<p class="text-xs text-slate-500">🏢 ' + esc(cName) + ' · ' + esc(pName) + ' (' + total + ' بوست)</p>' +
+                        '</div>' +
+                    '</div>' +
+                    '<button type="button" onclick="document.getElementById(\'' + modalId + '\').remove()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-sm font-bold transition cursor-pointer">✕</button>' +
+                '</div>' +
+
+                '<div class="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 font-medium flex items-center gap-2">' +
+                    '<span class="text-lg shrink-0">✅</span>' +
+                    '<span>تم نسخ رابط الخطة المخصص للعميل إلى الحافظة تلقائياً! يمكنك إرساله له الآن على واتساب أو تليجرام.</span>' +
+                '</div>' +
+
+                '<div class="space-y-1.5">' +
+                    '<label class="text-xs font-bold text-slate-700 block">رابط المعاينة المباشر للعميل:</label>' +
+                    '<div class="flex gap-2">' +
+                        '<input id="share-plan-input-url" type="text" readonly value="' + esc(shareUrl) + '" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 select-all font-bold">' +
+                        '<button type="button" onclick="navigator.clipboard.writeText(\'' + esc(shareUrl) + '\'); showToast(\'تم نسخ الرابط بنجاح! 📋\');" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs whitespace-nowrap cursor-pointer">📋 نسخ</button>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">' +
+                    '<a href="' + waUrl + '" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 text-center cursor-pointer">' +
+                        '<span>💬 إرسال WhatsApp</span>' +
+                    '</a>' +
+                    '<a href="' + esc(shareUrl) + '" target="_blank" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-3 rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 text-center cursor-pointer">' +
+                        '<span>👁️ معاينة صفحة العميل ↗️</span>' +
+                    '</a>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        showToast('🎉 تم نسخ رابط الخطة المخصص للعميل! 📋', 'success');
+    } catch(e) {
+        showToast('خطأ في إعداد رابط المشاركة', 'error');
+    }
+}
+
 window.highlightTaskCard = highlightTaskCard;
 window.setEmployeesDeptFilter = setEmployeesDeptFilter;
 window.openTaskContentEditorModal = openTaskContentEditorModal;
@@ -4184,6 +4265,7 @@ window.closeTaskContentEditorModal = closeTaskContentEditorModal;
 window.saveTaskContentEditorAction = saveTaskContentEditorAction;
 window.renderEmployeesStatus = renderEmployeesStatus;
 window.loadTasksEngine = loadTasksEngine;
+window.sharePlanWithClient = sharePlanWithClient;
 
 // Auto-initialize Tasks & Team availability immediately when views.js loads
 (function autoBootViewsEngine() {
