@@ -100,7 +100,10 @@ window.initLucideIcons = initLucideIcons;
 function toggleMobileSidebar() {
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('mobile-overlay');
-  if (sidebar) sidebar.classList.toggle('open');
+  if (sidebar) {
+    if (typeof applyRoleUI === 'function') applyRoleUI();
+    sidebar.classList.toggle('open');
+  }
   if (overlay) overlay.classList.toggle('open');
 }
 
@@ -117,23 +120,18 @@ function go(id, el) {
     var bootStyle = document.getElementById('tab-instant-boot');
     if (bootStyle) bootStyle.remove();
 
-    let cleanId = (id || '').replace('v-', '').replace('#', '').split('?')[0].split(':')[0].trim();
-    // Canonical aliases
+    let cleanId = (id || '').replace('v-', '').trim();
     if (cleanId === 'clients') cleanId = 'crm';
-    if (cleanId === 'prompt') cleanId = 'settings';
-    if (cleanId === 'schedule') cleanId = 'scheduler';
-    if (cleanId === 'accounts' || cleanId === 'chatwoot') cleanId = 'accounts';
-    if (cleanId === 'automation' || cleanId === 'rules') cleanId = 'rules';
-    if (cleanId === 'help' || cleanId === 'dash') cleanId = 'dash';
 
-    // Hard block: a restricted user can ONLY open their allowed tabs.
+    // Strict Role-Based View Guard
     const _me = window._me;
     if (_me && !_me.is_admin) {
-      const allowedSet = new Set((_me.allowed_tabs && _me.allowed_tabs.length) ? _me.allowed_tabs : (_me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : ['myportal']));
+      const allowedSet = new Set((_me.allowed_tabs && _me.allowed_tabs.length) ? _me.allowed_tabs : (_me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : (_me.role === 'content_creator' ? ['myportal', 'tasks', 'plan', 'dash'] : ['myportal'])));
       allowedSet.add('myportal');
       const canon = cleanId === 'chatwoot' ? 'accounts' : cleanId;
       if (!allowedSet.has(canon)) {
         console.warn('[RBAC] Blocked unpermitted view:', canon);
+        showToast('غير مصرح لك بفتح هذا القسم', 'error');
         if (cleanId !== 'myportal') {
           go('myportal');
         }
@@ -330,6 +328,13 @@ async function handleLogin(e) {
       const overlay = document.getElementById('login-modal-overlay');
       if (overlay) overlay.style.display = 'none';
       showToast('تم تسجيل الدخول بنجاح 🔓');
+      
+      // Immediately enforce role and allowed tabs
+      window._me = null;
+      if (typeof applyRoleUI === 'function') {
+        await applyRoleUI();
+      }
+      restoreActiveTab();
       if (typeof loadAccounts === 'function') loadAccounts();
     } else {
       if (errEl) {
@@ -340,16 +345,19 @@ async function handleLogin(e) {
       }
     }
   } catch(err) {
-    // Never grant access on a network error — show it and keep the login up.
     if (errEl) { errEl.textContent = 'تعذّر الاتصال بالخادم، حاول تاني'; errEl.classList.remove('hidden'); }
     else showToast('تعذّر الاتصال بالخادم', 'error');
   }
 }
 
-function handleLogout() {
+async function handleLogout() {
+  try {
+    await fetch('/api/logout', { method: 'POST' });
+  } catch(e){}
   localStorage.removeItem('domya_auth');
-  checkAuth();
-  showToast('تم تسجيل الخروج');
+  localStorage.removeItem('active_tab');
+  window._me = null;
+  window.location.reload();
 }
 
 // Dynamic Lead Scoring Calculator Engine
@@ -643,11 +651,27 @@ async function applyRoleUI() {
   let me = {};
   try {
     const res = await fetch('/api/me');
-    if (!res.ok) return;
+    if (!res.ok) {
+      const overlay = document.getElementById('login-modal-overlay');
+      if (overlay) overlay.style.display = 'flex';
+      document.querySelectorAll('#sidebar .nb').forEach(b => b.classList.add('hidden'));
+      return;
+    }
     me = await res.json();
-  } catch(e) { return; }
-  if (!me.logged_in) return;
+  } catch(e) {
+    return;
+  }
+  if (!me.logged_in) {
+    const overlay = document.getElementById('login-modal-overlay');
+    if (overlay) overlay.style.display = 'flex';
+    document.querySelectorAll('#sidebar .nb').forEach(b => b.classList.add('hidden'));
+    return;
+  }
   
+  // Hide login overlay if logged in
+  const overlay = document.getElementById('login-modal-overlay');
+  if (overlay) overlay.style.display = 'none';
+
   window._me = me;
 
   const isEmp = me.role === 'employee';
@@ -1777,24 +1801,21 @@ async function saveScheduledPost() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  checkAuth();
+document.addEventListener('DOMContentLoaded', async () => {
+  // 1. Fetch user role and apply UI permissions immediately
+  if (typeof applyRoleUI === 'function') {
+    try {
+      await applyRoleUI();
+    } catch(e){}
+  }
   
-  // Show the page IMMEDIATELY with last-known tab (no blocking API call)
+  // 2. Restore active tab safely based on confirmed role
   restoreActiveTab();
   initLucideIcons();
   
   // Set today's date as default for scheduler
   const dateInput = document.getElementById('post-date');
   if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
-  
-  // Background: fetch role data and apply UI restrictions (non-blocking)
-  if (typeof applyRoleUI === 'function') {
-    applyRoleUI().then(() => {
-      // Re-apply tab after role is known (may redirect employee to myportal)
-      restoreActiveTab();
-    }).catch(() => {});
-  }
   
   // Populate the header account switcher from real connected accounts
   if (typeof populateAccountSwitcher === 'function') populateAccountSwitcher();
@@ -1804,15 +1825,17 @@ document.addEventListener('DOMContentLoaded', () => {
 function restoreActiveTab() {
   try {
     const me = window._me;
-    let defaultTab = (me && me.role === 'employee') ? 'myportal' : 'inbox';
+    const isEmp = me && me.role === 'employee';
+    const isCreator = me && (me.role === 'content_creator' || me.role === 'content');
+    let defaultTab = isEmp ? 'myportal' : (isCreator ? 'tasks' : 'inbox');
     const hash = (window.location.hash || '').replace('#', '').trim();
     let saved = hash || localStorage.getItem('active_tab') || defaultTab;
     
     if (me && !me.is_admin) {
-      const allowed = new Set((me.allowed_tabs && me.allowed_tabs.length) ? me.allowed_tabs : (me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : ['myportal']));
+      const allowed = new Set((me.allowed_tabs && me.allowed_tabs.length) ? me.allowed_tabs : (me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : (isCreator ? ['myportal', 'tasks', 'plan', 'dash'] : ['myportal'])));
       allowed.add('myportal');
       if (!allowed.has(saved)) {
-        saved = (me.role === 'employee') ? 'myportal' : 'dash';
+        saved = isEmp ? 'myportal' : (isCreator ? 'tasks' : 'dash');
       }
     }
     if (saved) {

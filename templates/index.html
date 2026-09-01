@@ -30,21 +30,23 @@
     (function() {
       try {
         var raw = (window.location.hash || '').replace('#', '').split('?')[0].split(':')[0].trim();
-        var tab = raw || localStorage.getItem('active_tab') || 'inbox';
-        if (tab === 'clients') tab = 'crm';
-        if (tab === 'accounts' || tab === 'chatwoot') tab = 'accounts';
-        if (tab === 'automation' || tab === 'rules') tab = 'rules';
-        if (tab === 'prompt') tab = 'settings';
-        if (tab === 'schedule') tab = 'scheduler';
-        
-        var targetPane = 'v-' + tab;
-        var style = document.createElement('style');
-        style.id = 'tab-instant-boot';
-        style.textContent = '.view:not(#' + targetPane + ') { display: none !important; }';
-        document.head.appendChild(style);
+        var tab = raw || localStorage.getItem('active_tab');
+        if (tab) {
+          if (tab === 'clients') tab = 'crm';
+          if (tab === 'accounts' || tab === 'chatwoot') tab = 'accounts';
+          if (tab === 'automation' || tab === 'rules') tab = 'rules';
+          if (tab === 'prompt') tab = 'settings';
+          if (tab === 'schedule') tab = 'scheduler';
+          
+          var targetPane = 'v-' + tab;
+          var style = document.createElement('style');
+          style.id = 'tab-instant-boot';
+          style.textContent = '.view:not(#' + targetPane + ') { display: none !important; }';
+          document.head.appendChild(style);
+        }
       } catch(e){}
     })();
-   </script>
+  </script>
  </head>
  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen text-sm">
   <div class="fixed inset-0 bg-slate-900/40 z-30 hidden" id="mobile-overlay" onclick="closeMobileSidebar()">
@@ -73,7 +75,7 @@
      <i class="w-4 h-4 text-blue-600" data-lucide="user"></i>
      <span class="flex-1 text-right">بوابتي (مهامي وحضوري)</span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-inbox" onclick="go('inbox',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-inbox" onclick="go('inbox',this)">
      <i class="w-4 h-4 text-blue-600" data-lucide="message-square">
      </i>
      <span class="flex-1 text-right">
@@ -83,35 +85,35 @@
       0
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-dash" onclick="go('dash',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-dash" onclick="go('dash',this)">
      <i class="w-4 h-4" data-lucide="activity">
      </i>
      <span class="flex-1 text-right">
       النشاط
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-rules" onclick="go('rules',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-rules" onclick="go('rules',this)">
      <i class="w-4 h-4" data-lucide="target">
      </i>
      <span class="flex-1 text-right">
       القواعد
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-kb" onclick="go('kb',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-kb" onclick="go('kb',this)">
      <i class="w-4 h-4" data-lucide="book-open">
      </i>
      <span class="flex-1 text-right">
       المعرفة
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-crm" onclick="go('crm',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-crm" onclick="go('crm',this)">
      <i class="w-4 h-4" data-lucide="users">
      </i>
      <span class="flex-1 text-right">
       العملاء
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-mode" onclick="go('mode',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-mode" onclick="go('mode',this)">
      <i class="w-4 h-4" data-lucide="toggle-right">
      </i>
      <span class="flex-1 text-right">
@@ -125,28 +127,28 @@
       اختبار AI
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-settings" onclick="go('settings',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-settings" onclick="go('settings',this)">
      <i class="w-4 h-4" data-lucide="settings">
      </i>
      <span class="flex-1 text-right">
       الإعدادات
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-logs" onclick="go('logs',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-logs" onclick="go('logs',this)">
      <i class="w-4 h-4" data-lucide="list">
      </i>
      <span class="flex-1 text-right">
       السجلات
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-scheduler" onclick="go('scheduler',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-scheduler" onclick="go('scheduler',this)">
      <i class="w-4 h-4" data-lucide="calendar">
      </i>
      <span class="flex-1 text-right">
       الجدولة
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-tasks" onclick="go('tasks',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-tasks" onclick="go('tasks',this)">
      <i class="w-4 h-4 text-blue-600" data-lucide="check-square">
      </i>
      <span class="flex-1 text-right">
@@ -161,18 +163,24 @@
      <i class="w-4 h-4" data-lucide="shield-check"></i>
      <span class="flex-1 text-right">الصلاحيات</span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-hr" onclick="go('hr',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-hr" onclick="go('hr',this)">
      <i class="w-4 h-4 text-blue-600" data-lucide="user-check"></i>
      <span class="flex-1 text-right">الموظفين والحضور</span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-chatwoot" onclick="go('chatwoot',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-chatwoot" onclick="go('chatwoot',this)">
      <i class="w-4 h-4" data-lucide="link">
      </i>
      <span class="flex-1 text-right">
       الحسابات
      </span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-analytics" onclick="go('analytics',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-analytics" onclick="go('analytics',this)">
+     <i class="w-4 h-4" data-lucide="bar-chart-2">
+     </i>
+     <span class="flex-1 text-right">
+      التحليلات
+     </span>
+    </button>
      <i class="w-4 h-4" data-lucide="bar-chart-2">
      </i>
      <span class="flex-1 text-right">
@@ -1752,15 +1760,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.min.js?v=9.86">
+  <script defer src="/static/js/app.min.js?v=9.87">
   </script>
-  <script defer src="/static/js/inbox.min.js?v=9.86">
+  <script defer src="/static/js/inbox.min.js?v=9.87">
   </script>
-  <script defer src="/static/js/chatwoot_free.min.js?v=9.86">
+  <script defer src="/static/js/chatwoot_free.min.js?v=9.87">
   </script>
-  <script defer src="/static/js/views.min.js?v=9.86">
+  <script defer src="/static/js/views.min.js?v=9.87">
   </script>
-  <script defer src="/static/js/clients.min.js?v=9.86">
+  <script defer src="/static/js/clients.min.js?v=9.87">
   </script>
  
   <!-- Modal: Add New Connected Account -->
