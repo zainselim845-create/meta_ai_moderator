@@ -191,7 +191,13 @@ function go(id, el) {
     if (cleanId === 'scheduler' && typeof loadScheduledPosts === 'function') loadScheduledPosts();
     if (cleanId === 'hr' && typeof loadHR === 'function') loadHR();
     if (cleanId === 'myportal' && typeof loadMyPortal === 'function') loadMyPortal();
-    if (cleanId === 'tasks' && typeof loadTasksEngine === 'function') loadTasksEngine();
+    if (cleanId === 'tasks') {
+      if (typeof loadTasksEngine === 'function') {
+        loadTasksEngine();
+      } else {
+        setTimeout(function(){ if (typeof loadTasksEngine === 'function') loadTasksEngine(); }, 150);
+      }
+    }
     if (cleanId === 'plan' && typeof loadPlanBuilder === 'function') loadPlanBuilder();
     if (cleanId === 'permissions') {
       // relocate the team panel (built once in settings) into the permissions tab

@@ -1023,30 +1023,32 @@ async function renderEmployeesStatus() {
     var box = document.getElementById('employees-status-list');
     if (!box) return;
 
-    if (!employeesList || !employeesList.length) {
-        try {
-            var r = await safeFetchJson('/api/tasks/employees');
-            if (r && r.employees && r.employees.length) {
-                employeesList = r.employees;
-            }
-        } catch(e) {
-            console.warn('[renderEmployeesStatus fallback load error]', e);
+    var load = {}, inprog = {}, tasksByEmp = {};
+    try {
+        var needEmps = (!employeesList || !employeesList.length);
+        var p1 = needEmps ? safeFetchJson('/api/tasks/employees') : Promise.resolve({ employees: employeesList });
+        var p2 = safeFetchJson('/api/employees/workload');
+        
+        var results = await Promise.all([p1, p2]);
+        var empRes = results[0] || {};
+        var workRes = results[1] || {};
+
+        if (empRes && empRes.employees && empRes.employees.length) {
+            employeesList = empRes.employees;
         }
+
+        load = (workRes && workRes.workload) ? workRes.workload : {};
+        inprog = (workRes && workRes.in_progress) ? workRes.in_progress : {};
+        tasksByEmp = (workRes && workRes.tasks_by_employee) ? workRes.tasks_by_employee : {};
+        employeesWorkloadData = tasksByEmp;
+    } catch(e) {
+        console.warn('[renderEmployeesStatus load error]', e);
     }
 
     var emps = (employeesList || []).slice();
-    if (!emps.length) { box.innerHTML = '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون متاحون حالياً</div>'; return; }
-
-    // real workload across ALL clients (active tasks per employee)
-    var load = {}, inprog = {}, tasksByEmp = {};
-    try {
-        var d = await safeFetchJson('/api/employees/workload');
-        load = (d && d.workload) ? d.workload : {};
-        inprog = (d && d.in_progress) ? d.in_progress : {};
-        tasksByEmp = (d && d.tasks_by_employee) ? d.tasks_by_employee : {};
-        employeesWorkloadData = tasksByEmp;
-    } catch(e){
-        console.warn('[renderEmployeesStatus workload error]', e);
+    if (!emps.length) {
+        box.innerHTML = '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون متاحون حالياً</div>';
+        return;
     }
 
     function getEmployeeRoleType(roleStr) {
@@ -1062,7 +1064,8 @@ async function renderEmployeesStatus() {
         if (roleType === 'video') return '🎬';
         if (roleType === 'graphic') return '🎨';
         if (roleType === 'content') return '✍️';
-                    return '👤';
+        if (roleType === 'am') return '👔';
+        return '👤';
     }
 
     var deptTabsHtml = '<div class="flex items-center gap-1 overflow-x-auto pb-1.5 mb-2 border-b border-slate-100 text-[11px] font-bold">' +
@@ -4232,5 +4235,27 @@ window.setEmployeesDeptFilter = setEmployeesDeptFilter;
 window.openTaskContentEditorModal = openTaskContentEditorModal;
 window.closeTaskContentEditorModal = closeTaskContentEditorModal;
 window.saveTaskContentEditorAction = saveTaskContentEditorAction;
+window.renderEmployeesStatus = renderEmployeesStatus;
+window.loadTasksEngine = loadTasksEngine;
+
+// Auto-initialize Tasks & Team availability immediately when views.js loads
+(function autoBootViewsEngine() {
+    function tryBoot() {
+        var isTasksActive = (window.location.hash || '').indexOf('tasks') !== -1 ||
+                            localStorage.getItem('active_tab') === 'tasks' ||
+                            (document.getElementById('v-tasks') && !document.getElementById('v-tasks').classList.contains('hidden'));
+        if (isTasksActive) {
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+        } else {
+            if (typeof renderEmployeesStatus === 'function') renderEmployeesStatus();
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', tryBoot);
+    } else {
+        tryBoot();
+    }
+    window.addEventListener('load', tryBoot);
+})();
 
 
