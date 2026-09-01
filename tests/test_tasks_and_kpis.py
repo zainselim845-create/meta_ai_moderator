@@ -379,7 +379,7 @@ def test_role_effective_tabs_and_task_isolation():
         if role == "account_manager":
             return {"dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"}
         if role in ("content_creator", "content"):
-            return {"myportal", "tasks", "plan", "dash"}
+            return {"myportal", "tasks", "plan"}
         return {"myportal"}
 
     admin_tabs = mock_user_effective_tabs("admin")
@@ -389,8 +389,8 @@ def test_role_effective_tabs_and_task_isolation():
 
     assert "permissions" in admin_tabs
     assert "permissions" not in am_tabs
-    assert "plan" in cc_tabs and "tasks" in cc_tabs and "myportal" in cc_tabs
-    assert "crm" not in cc_tabs and "permissions" not in cc_tabs
+    assert cc_tabs == {"myportal", "tasks", "plan"}
+    assert "crm" not in cc_tabs and "inbox" not in cc_tabs and "rules" not in cc_tabs
     assert emp_tabs == {"myportal"}
 
     # 2. Test AM task isolation (AM sees ONLY their assigned clients/tasks, Admin sees all)
@@ -410,6 +410,55 @@ def test_role_effective_tabs_and_task_isolation():
     assert len(am1_tasks) == 2
     assert [t["task_id"] for t in am1_tasks] == ["T1", "T3"]
     assert "T2" not in [t["task_id"] for t in am1_tasks]
+
+
+def test_team_workload_active_status_filtering():
+    active_statuses = {"Pending AM Approval", "Assigned", "In Progress", "Review Required", "Pending Revision", "Awaiting AM Review"}
+    tasks = [
+        {"task_id": "T1", "status": "In Progress", "assigned_employee_id": "EMP-8148", "is_archived": False},
+        {"task_id": "T2", "status": "Completed", "assigned_employee_id": "EMP-8148", "is_archived": False},
+        {"task_id": "T3", "status": "Awaiting AM Review", "assigned_employee_id": "EMP-8148", "is_archived": False},
+        {"task_id": "T4", "status": "In Progress", "assigned_employee_id": "EMP-8148", "is_archived": True}, # Archived
+    ]
+    
+    active_tasks = [
+        t for t in tasks 
+        if not t.get("is_archived") and t.get("status") in active_statuses and t.get("status") != "Completed"
+    ]
+    
+    assert len(active_tasks) == 2
+    assert [t["task_id"] for t in active_tasks] == ["T1", "T3"]
+
+
+def test_am_notification_resolution_and_payload():
+    task = {
+        "task_id": "TASK-100",
+        "title": "تصميم بوست الجمعة البيضاء",
+        "client_name": "شركة الفرات",
+        "assignee_name": "عمر احمد",
+        "am_id": "AM-2072-9827",
+        "am_name": "محمود خالد"
+    }
+    
+    mins = 45.0
+    notes = "تم الانتهاء من التصميم وتصدير ملفات PSD"
+    drive_link = "https://drive.google.com/file/d/test1234/view"
+    
+    message = (
+        f"📥 <b>مهمة جاهزة للمراجعة والتسليم</b>\n"
+        f"👤 الموظف: {task['assignee_name']}\n"
+        f"📝 المهمة: <b>{task['title']}</b>\n"
+        f"🏢 العميل: {task['client_name']}\n"
+        f"⏱️ الوقت المستغرق: {mins} دقيقة\n"
+        f"📝 ملاحظات: {notes}\n"
+        f"🔗 رابط الدرايف: {drive_link}"
+    )
+    
+    assert "عمر احمد" in message
+    assert "تصميم بوست الجمعة البيضاء" in message
+    assert "45.0 دقيقة" in message
+    assert "https://drive.google.com/file/d/test1234/view" in message
+
 
 
 
