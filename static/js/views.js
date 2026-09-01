@@ -1136,19 +1136,28 @@ async function loadTasksEngine() {
     renderClientTabs();
     if (typeof loadTasksIngestFields === 'function') loadTasksIngestFields();
     try {
-        var rTasks = await fetch('/api/tasks');
-        var rEmps = await fetch('/api/tasks/employees');
-        var dataTasks = await rTasks.json();
-        var dataEmps = await rEmps.json();
+        var results = await Promise.all([
+            safeFetchJson('/api/tasks'),
+            safeFetchJson('/api/tasks/employees')
+        ]);
+        var dataTasks = results[0] || {};
+        var dataEmps = results[1] || {};
 
         tasksList = (dataTasks && dataTasks.tasks) ? dataTasks.tasks : [];
         employeesList = (dataEmps && dataEmps.employees) ? dataEmps.employees : [];
 
+        // If selected plan filter doesn't match any task, reset filter
+        if (selectedPlanFilter && !tasksList.some(function(t){
+            var p = (t.plan_name || t.file_name || '').trim();
+            return p === selectedPlanFilter;
+        })) {
+            selectedPlanFilter = null;
+        }
+
         renderClientTabs();
         renderTasksBoard();
         renderEmployeesStatus();
-        loadTaskMonthlyReport();
-        // old multi-client columns board replaced by client tabs — no longer loaded
+        setTimeout(function(){ loadTaskMonthlyReport(); }, 50);
     } catch(e) {
         console.error("Tasks Load Error:", e);
     }
