@@ -5772,7 +5772,7 @@ def _all_tasks_db():
 def get_client_tasks(_cid=None):
     _cid = _cid or current_client_id()
     all_t = _all_tasks_db()
-    client_tasks = [t for t in all_t if (t.get("client_id") or _cid) == _cid]
+    client_tasks = [t for t in all_t if str(t.get("client_id") or "").strip() == str(_cid).strip()]
     client_tasks.sort(key=_natural_task_sort_key)
     return client_tasks
 
@@ -8062,9 +8062,11 @@ def api_tasks_ingest_plan():
         sub_title = (raw_plan_name or raw_file_name).strip()
         sub_title = re.sub(r'\.(docx|doc|txt|pdf|csv|xlsx)$', '', sub_title, flags=re.I).strip()
 
+        # Build clean_file_title — always initialize before using
+        clean_file_title = ""
         if sub_title.lower() in (c_name_disp.lower(), f"خطة {c_name_disp.lower()}", f"خطة محتوى {c_name_disp.lower()}"):
-            sub_title = f"خطة {c_name_disp}"
-        elif sub_title.lower().startswith(c_name_disp.lower()):
+            clean_file_title = f"خطة {c_name_disp}"
+        elif c_name_disp and sub_title and sub_title.lower().startswith(c_name_disp.lower()):
             clean_file_title = sub_title
         elif c_name_disp and sub_title:
             clean_file_title = f"{c_name_disp} - {sub_title}"
@@ -8078,8 +8080,63 @@ def api_tasks_ingest_plan():
         if not clean_file_title:
             clean_file_title = f"{c_name_disp} - خطة محتوى"
 
-        system_task_ids = _generate_system_unique_task_ids(len(extracted_posts))
+        # 5) Duplicate Plan Guard — prevent re-ingesting the same plan
         tasks = get_client_tasks(_cid) or []
+        existing_plan_index = {}  # norm_name -> (original_name, count)
+        existing_file_names = {}  # norm_filename -> (original_plan_name, count)
+        for _et in tasks:
+            _ep = str(_et.get("plan_name") or "").strip()
+            _ef = str(_et.get("file_name") or "").strip()
+            if _ep:
+                _ep_norm = _norm_plan_str(_ep)
+                if _ep_norm not in existing_plan_index:
+                    existing_plan_index[_ep_norm] = [_ep, 0]
+                existing_plan_index[_ep_norm][1] += 1
+            if _ef:
+                _ef_norm = _norm_plan_str(_ef)
+                if _ef_norm not in existing_file_names:
+                    existing_file_names[_ef_norm] = [_ep or _ef, 0]
+                existing_file_names[_ef_norm][1] += 1
+        
+        new_title_norm = _norm_plan_str(clean_file_title)
+        new_file_norm = _norm_plan_str(raw_file_name) if raw_file_name else ""
+        dup_plan_name = ""
+        dup_count = 0
+        
+        # Strategy A: Exact normalized plan name match
+        if new_title_norm in existing_plan_index:
+            dup_plan_name, dup_count = existing_plan_index[new_title_norm]
+        # Strategy B: Raw file name matches an existing plan's file_name
+        elif new_file_norm and new_file_norm in existing_file_names:
+            dup_plan_name, dup_count = existing_file_names[new_file_norm]
+        # Strategy C: Core-words fuzzy match — if the new plan's words are ALL in an existing plan
+        else:
+            new_words = set(new_title_norm.split())
+            file_words = set(new_file_norm.split()) if new_file_norm else set()
+            for ex_norm, (ex_orig, ex_cnt) in existing_plan_index.items():
+                ex_words = set(ex_norm.split())
+                # If the incoming name's words are a subset of existing (or vice versa) and share 2+ words
+                shared = new_words & ex_words
+                if len(shared) >= 2 and (new_words <= ex_words or ex_words <= new_words):
+                    dup_plan_name, dup_count = ex_orig, ex_cnt
+                    break
+                # Also check filename words against existing plan
+                if file_words:
+                    shared_f = file_words & ex_words
+                    if len(shared_f) >= 2 and (file_words <= ex_words or ex_words <= file_words):
+                        dup_plan_name, dup_count = ex_orig, ex_cnt
+                        break
+        
+        if dup_plan_name and dup_count > 0:
+            return jsonify({
+                "success": False,
+                "error": f"الخطة «{dup_plan_name}» موجودة بالفعل ({dup_count} مهمة). لو عايز تعيد رفعها، احذف الخطة القديمة الأول من تبويب الخطط.",
+                "duplicate": True,
+                "existing_plan_name": dup_plan_name,
+                "existing_task_count": dup_count
+            }), 409
+
+        system_task_ids = _generate_system_unique_task_ids(len(extracted_posts))
         created_count = 0
 
         for p_idx, p in enumerate(extracted_posts, 1):
@@ -9161,7 +9218,8 @@ def api_plans_delete():
             continue
         p = str(t.get("plan_name") or t.get("file_name") or "").strip()
         p_norm = _norm_plan_str(p)
-        if p == raw_plan_name or p_norm == target_norm or (target_norm and target_norm in p_norm) or (p_norm and p_norm in target_norm):
+        # EXACT match only — never substring — to prevent accidental cross-plan deletion
+        if p == raw_plan_name or p_norm == target_norm:
             deleted_tasks.append(t)
         else:
             remaining.append(t)
@@ -9212,7 +9270,7 @@ def api_plans_archive():
             continue
         p = str(t.get("plan_name") or t.get("file_name") or "").strip()
         p_norm = _norm_plan_str(p)
-        if p == raw_plan_name or p_norm == target_norm or (target_norm and target_norm in p_norm) or (p_norm and p_norm in target_norm):
+        if p == raw_plan_name or p_norm == target_norm:
             t["is_archived"] = True
             t["archived_at"] = now_iso
             _append_task_log(t, "archived",
@@ -9279,7 +9337,7 @@ def api_plans_unarchive():
             continue
         p = str(t.get("plan_name") or t.get("file_name") or "").strip()
         p_norm = _norm_plan_str(p)
-        if p == raw_plan_name or p_norm == target_norm or (target_norm and target_norm in p_norm) or (p_norm and p_norm in target_norm):
+        if p == raw_plan_name or p_norm == target_norm:
             t["is_archived"] = False
             t.pop("archived_at", None)
             _append_task_log(t, "unarchived",
