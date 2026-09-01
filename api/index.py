@@ -9603,7 +9603,13 @@ def _sanitize_attendance_records(rows, is_admin_user=False):
 @require_admin
 def api_hr_attendance():
     cfg = hr_config()
-    rows = _gsheet_rows(cfg["sheet_id"], cfg["attendance_gid"])
+    # Read FRESH directly from Sheets API
+    header, raw_rows = _sheets_get_all(cfg["sheet_id"], cfg["attendance_gid"])
+    if header and raw_rows:
+        idx = {h: i for i, h in enumerate(header)}
+        rows = [{h: (r[idx[h]] if idx[h] < len(r) else "") for h in header} for r in raw_rows]
+    else:
+        rows = _gsheet_rows(cfg["sheet_id"], cfg["attendance_gid"], force_refresh=True)
     month = (request.args.get("month") or "").strip() # YYYY-MM
     emp_id = (request.args.get("employee_id") or "").strip()
     status_filter = (request.args.get("status") or "").strip()
@@ -9965,8 +9971,20 @@ def api_my_attendance():
         if not eid:
             return jsonify({"attendance": [], "note": "no linked employee_id", "total": 0})
         cfg = hr_config()
-        rows = [r for r in _gsheet_rows(cfg["sheet_id"], cfg["attendance_gid"])
-                if str(r.get("employee_id", "")).strip() == eid]
+        
+        # Read FRESH directly from Sheets API to avoid GViz CDN caching lag
+        header, raw_rows = _sheets_get_all(cfg["sheet_id"], cfg["attendance_gid"])
+        if header and raw_rows:
+            idx = {h: i for i, h in enumerate(header)}
+            rows = []
+            for r in raw_rows:
+                row_dict = {h: (r[idx[h]] if idx[h] < len(r) else "") for h in header}
+                if str(row_dict.get("employee_id", "")).strip() == eid:
+                    rows.append(row_dict)
+        else:
+            rows = [r for r in _gsheet_rows(cfg["sheet_id"], cfg["attendance_gid"], force_refresh=True)
+                    if str(r.get("employee_id", "")).strip() == eid]
+                    
         month = (request.args.get("month") or "").strip()
         if month:
             rows = [r for r in rows if _matches_month(r.get("date", ""), month)]
@@ -10631,6 +10649,22 @@ def _sheets_update_match(spreadsheet_id, gid, match, updates):
     header, rows = _sheets_get_all(spreadsheet_id, gid)
     if not header:
         return False
+        
+    # Auto-expand header if an update key is missing from sheet columns
+    missing_cols = [k for k in updates.keys() if k not in header]
+    if missing_cols:
+        for mc in missing_cols:
+            col_letter = chr(ord('A') + len(header))
+            try:
+                url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{urllib.parse.quote(title)}!{col_letter}1?valueInputOption=USER_ENTERED"
+                req = _urlreq.Request(url, data=json.dumps({"values": [[mc]]}).encode("utf-8"),
+                                      headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                                      method="PUT")
+                _urlreq.urlopen(req, timeout=10).read()
+                header.append(mc)
+            except Exception as _e:
+                print(f"[auto-expand header] {_e}")
+
     idx = {h: i for i, h in enumerate(header)}
     for r_i, row in enumerate(rows):
         ok = True
@@ -10654,6 +10688,7 @@ def _sheets_update_match(spreadsheet_id, gid, match, updates):
                                   headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                                   method="PUT")
             _urlreq.urlopen(req, timeout=15).read()
+            _GSHEET_CACHE.clear()
             return True
         except Exception as e:
             print(f"[sheets update] {e}")
