@@ -2742,16 +2742,30 @@ async function loadTasksIngestFields() {
     } catch(e){}
     
     // 2. Managers
+    var defaultAMs = [
+        { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
+        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' }
+    ];
+    if (amSel) {
+        var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
+        var optHtml = '';
+        defaultAMs.forEach(function(m) {
+            var isMe = myEmpId && String(m.employee_id) === String(myEmpId);
+            optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '>👤 ' + esc(m.name) + ' — ' + esc(m.role) + (isMe ? ' (أنا 🙋‍♂️)' : '') + '</option>';
+        });
+        amSel.innerHTML = optHtml;
+    }
     try {
         var md = await safeFetchJson('/api/managers');
-        var ms = (md && md.managers) ? md.managers : [];
+        var ms = (md && md.managers && md.managers.length) ? md.managers : defaultAMs;
+        ms = ms.filter(function(m){ return (m.name || '').indexOf('روضة') === -1; });
         window._managersCache = ms;
-        if (amSel) {
+        if (amSel && ms.length) {
             var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
-            var optHtml = '<option value="">— اختر الأكونت مانيجر —</option>';
+            var optHtml = '';
             ms.forEach(function(m) {
                 var isMe = myEmpId && String(m.employee_id) === String(myEmpId);
-                optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '>' + esc(m.name) + (isMe ? ' (أنا 🙋‍♂️)' : '') + '</option>';
+                optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '>👤 ' + esc(m.name) + ' — ' + esc(m.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '') + '</option>';
             });
             amSel.innerHTML = optHtml;
         }
@@ -3505,24 +3519,34 @@ async function openPlanBuilderModal() {
         { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' }
     ];
 
-    try {
-        var mgrData = await safeFetchJson('/api/managers');
-        if (mgrData && mgrData.managers && mgrData.managers.length) {
-            realAMs = mgrData.managers.filter(function(m){
-                return (m.name || '').indexOf('روضة') === -1;
-            });
-        }
-    } catch(e){}
-
-    if (amSelect) {
+    function fillAMSelect(list) {
+        if (!amSelect) return;
+        var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
         amSelect.innerHTML = '';
-        realAMs.forEach(function(a){
+        list.forEach(function(a){
             var opt = document.createElement('option');
             opt.value = a.employee_id || a.id;
-            opt.textContent = '👤 ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager');
+            var isMe = myEmpId && String(opt.value) === String(myEmpId);
+            opt.textContent = '👤 ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '');
+            if (isMe || opt.value === 'AM-2072-9827') opt.selected = true;
             amSelect.appendChild(opt);
         });
     }
+
+    fillAMSelect(realAMs);
+
+    try {
+        var mgrData = await safeFetchJson('/api/managers');
+        if (mgrData && mgrData.managers && mgrData.managers.length) {
+            var filtered = mgrData.managers.filter(function(m){
+                return (m.name || '').indexOf('روضة') === -1;
+            });
+            if (filtered.length) {
+                realAMs = filtered;
+                fillAMSelect(realAMs);
+            }
+        }
+    } catch(e){}
 
     var container = document.getElementById('pb-posts-container');
     if (container && container.children.length === 0) {
