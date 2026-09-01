@@ -2527,67 +2527,7 @@ async function clearAllTasks() {
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
-async function uploadTaskAsset(taskId, input) {
-    var file = (input && input.files && input.files[0]) ? input.files[0] : null;
-    if (!file) return;
-    try {
-        await driveUploadFile(taskId, file);
-        showToast('🎉 تم رفع الفيديو/الملف وربطه بالتاسك على Google Drive بنجاح! ✅', 'success');
-        loadTasksEngine();
-    } catch(e) {
-        showToast('تعذّر الرفع: ' + (e.message || ''), 'error');
-    }
-    if (input) input.value = '';
-}
 
-async function uploadTaskReferenceFile(taskId, input) {
-    var file = (input && input.files && input.files[0]) ? input.files[0] : null;
-    if (!file) return;
-    var isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm)$/i.test(file.name);
-    if (typeof showUploadProgressModal === 'function') {
-        showUploadProgressModal(file.name, file.size, isVideo);
-    }
-    try {
-        var fd = new FormData();
-        fd.append('file', file);
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/tasks/' + encodeURIComponent(taskId) + '/references', true);
-        
-        xhr.upload.onprogress = function(e) {
-            if (e.lengthComputable && typeof updateUploadProgress === 'function') {
-                updateUploadProgress(e.loaded, e.total);
-            }
-        };
-        
-        xhr.onload = function() {
-            try {
-                var data = JSON.parse(xhr.responseText || '{}');
-                if (xhr.status >= 200 && xhr.status < 300 && data.ok) {
-                    if (typeof finishUploadProgress === 'function') finishUploadProgress(true);
-                    showToast('تمت إضافة الريفرانس بنجاح ✅', 'success');
-                    loadTasksEngine();
-                } else {
-                    if (typeof finishUploadProgress === 'function') finishUploadProgress(false, data.error || 'تعذّرت الإضافة');
-                    showToast(data.error || 'تعذّرت إضافة الريفرانس', 'error');
-                }
-            } catch(pe) {
-                if (typeof finishUploadProgress === 'function') finishUploadProgress(false, 'خطأ في معالجة الرد');
-                showToast('خطأ في معالجة الرد', 'error');
-            }
-        };
-        
-        xhr.onerror = function() {
-            if (typeof finishUploadProgress === 'function') finishUploadProgress(false, 'انقطع الاتصال بالسيرفر');
-            showToast('انقطع الاتصال بالسيرفر', 'error');
-        };
-        
-        xhr.send(fd);
-    } catch(e) {
-        if (typeof finishUploadProgress === 'function') finishUploadProgress(false, e.message || 'خطأ');
-        showToast('خطأ في رفع الملف: ' + (e.message || ''), 'error');
-    }
-    if (input) input.value = '';
-}
 
 async function deleteTaskAction(taskId) {
     if (!confirm('حذف المهمة ' + taskId + ' نهائياً؟')) return;
@@ -2907,57 +2847,8 @@ async function extractTextFromDocxClient(file) {
         var parser = new DOMParser();
         var doc = parser.parseFromString(xmlStr, "application/xml");
 
-        // Map relationships (rId -> media/imageX.png)
-        var relsMap = {};
-        var relsFile = contents.file("word/_rels/document.xml.rels");
-        if (relsFile) {
-            try {
-                var relsXmlStr = await relsFile.async("text");
-                var relsDoc = parser.parseFromString(relsXmlStr, "application/xml");
-                var relEls = relsDoc.getElementsByTagName("Relationship");
-                for (var ri = 0; ri < relEls.length; ri++) {
-                    var rId = relEls[ri].getAttribute("Id");
-                    var target = relEls[ri].getAttribute("Target");
-                    if (rId && target) {
-                        relsMap[rId] = target.replace(/^word\//, '').replace(/^\//, '');
-                    }
-                }
-            } catch(re) { console.warn("Rels parse warning:", re); }
-        }
-
-        // Cache base64 data URIs for all images in the docx
-        var imgDataCache = {};
-        for (var rid in relsMap) {
-            var mediaPath = relsMap[rid];
-            var zf = contents.file("word/" + mediaPath) || contents.file(mediaPath);
-            if (zf) {
-                try {
-                    var b64 = await zf.async("base64");
-                    var ext = mediaPath.split('.').pop().toLowerCase();
-                    var mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-                    imgDataCache[rid] = "data:" + mime + ";base64," + b64;
-                } catch(ie) {}
-            }
-        }
-
-        // Helper to extract embedded images in an XML node
-        function getImagesInElement(elem) {
-            var imgUrls = [];
-            var blips = elem.getElementsByTagName("a:blip");
-            for (var bi = 0; bi < blips.length; bi++) {
-                var embedId = blips[bi].getAttribute("r:embed") || blips[bi].getAttribute("embed");
-                if (embedId && imgDataCache[embedId] && !imgUrls.includes(imgDataCache[embedId])) {
-                    imgUrls.push(imgDataCache[embedId]);
-                }
-            }
-            var vImages = elem.getElementsByTagName("v:imagedata");
-            for (var vi = 0; vi < vImages.length; vi++) {
-                var vId = vImages[vi].getAttribute("r:id") || vImages[vi].getAttribute("id");
-                if (vId && imgDataCache[vId] && !imgUrls.includes(imgDataCache[vId])) {
-                    imgUrls.push(imgDataCache[vId]);
-                }
-            }
-            return imgUrls;
+        function hasImage(elem) {
+            return (elem.getElementsByTagName("a:blip").length > 0 || elem.getElementsByTagName("v:imagedata").length > 0);
         }
         
         // 1. Check for tables (<w:tbl>)
@@ -2968,7 +2859,6 @@ async function extractTextFromDocxClient(file) {
             for (var t = 0; t < tables.length; t++) {
                 var rows = tables[t].getElementsByTagName("w:tr");
                 for (var r = 0; r < rows.length; r++) {
-                    var rowImages = getImagesInElement(rows[r]);
                     var cells = rows[r].getElementsByTagName("w:tc");
                     var cellTexts = [];
                     for (var c = 0; c < cells.length; c++) {
@@ -2980,8 +2870,8 @@ async function extractTextFromDocxClient(file) {
                         }
                         cellTexts.push(cellParTexts.join(" "));
                     }
-                    if (rowImages.length > 0) {
-                        cellTexts.push(rowImages.join("\t"));
+                    if (hasImage(rows[r])) {
+                        cellTexts.push("[صورة مرفقة]");
                     }
                     var rowLine = cellTexts.filter(function(x){ return x.length > 0; }).join("\t").trim();
                     if (rowLine) extractedRows.push(rowLine);
@@ -2997,10 +2887,9 @@ async function extractTextFromDocxClient(file) {
         var paras = doc.getElementsByTagName("w:p");
         var paraTexts = [];
         for (var i = 0; i < paras.length; i++) {
-            var pImgs = getImagesInElement(paras[i]);
             var txt = (paras[i].textContent || '').trim();
             if (txt) paraTexts.push(txt);
-            if (pImgs.length > 0) paraTexts.push(pImgs.join("\n"));
+            if (hasImage(paras[i])) paraTexts.push("[صورة مرفقة]");
         }
         return paraTexts.join("\n");
     } catch(e) {
