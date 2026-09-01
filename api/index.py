@@ -9948,6 +9948,27 @@ def api_my_attendance():
     return jsonify({"attendance": sanitized_rows, "employee_id": eid, "total": len(sanitized_rows)})
 
 
+@app.route("/api/me/attendance/note", methods=["POST"])
+@auth_guard
+def api_my_attendance_note():
+    eid = _my_employee_id()
+    if not eid:
+        return jsonify({"error": "حسابك غير مربوط بكود موظف"}), 400
+    data = request.get_json() or {}
+    note_text = str(data.get("note") or data.get("notes") or "").strip()
+    if not note_text:
+        return jsonify({"error": "يرجى كتابة نص الملاحظة"}), 400
+        
+    cfg = hr_config()
+    today, _ = _cairo_now_parts()
+    ok = _sheets_update_match(cfg["sheet_id"], cfg["attendance_gid"],
+                              {"employee_id": eid, "date": today},
+                              {"notes": note_text, "note": note_text, "ملاحظات": note_text})
+    emp_info = _sheet_emp(eid)
+    _att_notify_owner(f"📝 ملاحظة انصراف عبر البوابة من {emp_info.get('name', eid)}:\n«{note_text}»")
+    return jsonify({"ok": True, "message": "تم حفظ ملاحظتك بنجاح"})
+
+
 @app.route("/api/tasks/<task_id>/assign", methods=["POST", "PUT"])
 @require_manager
 def api_tasks_assign(task_id):
@@ -10726,7 +10747,17 @@ def _att_handle_location(emp, chat_id, loc):
                                   {"employee_id": emp_id, "date": today},
                                   {"checkout_time": now_t, "hours": hours})
         if ok:
-            _att_send(chat_id, f"<b>تم تسجيل الانصراف بنجاح!</b>\nالموظف: {emp.get('name','')}\nالتاريخ: {today}\nالوقت: {now_t}\nساعات العمل: <b>{hours} ساعة</b>\n{loc_display}", keyboard=_att_menu())
+            cache[f"att_pending_note_{chat_id}"] = {"employee_id": emp_id, "date": today, "name": emp.get("name", "")}
+            msg_ok = (
+                f"<b>تم تسجيل الانصراف بنجاح!</b>\n"
+                f"الموظف: {emp.get('name','')}\n"
+                f"التاريخ: {today}\n"
+                f"الوقت: {now_t}\n"
+                f"ساعات العمل: <b>{hours} ساعة</b>\n{loc_display}\n\n"
+                f"📝 <b>ملاحظة أو ملخص عمل اليوم (اختياري):</b>\n"
+                f"لو حابب تسيب أي ملاحظة أو تقرير مختصر لشغلك النهاردة، اكتبها في رسالة الآن وهتتسجل تلقائياً مع انصرافك."
+            )
+            _att_send(chat_id, msg_ok, keyboard=_att_menu())
             _att_notify_owner(f"انصراف: {emp.get('name','')} — {now_t} ({hours}h)")
         else:
             _att_send(chat_id, "حصل خطأ في حفظ الانصراف. حاول مرة أخرى.", keyboard=_att_menu())
@@ -10944,7 +10975,16 @@ def telegram_attendance_webhook():
         elif text in ("تسجيل غياب", " تسجيل غياب"):
             _att_absent(emp, chat_id)
         else:
-            _att_send(chat_id, f"أهلاً {emp.get('name','')}! اختر من القائمة:", keyboard=_att_menu())
+            pending_note = cache.pop(f"att_pending_note_{chat_id}", None)
+            if pending_note and text.strip():
+                cfg = hr_config()
+                _sheets_update_match(cfg["sheet_id"], cfg["attendance_gid"],
+                                     {"employee_id": pending_note["employee_id"], "date": pending_note["date"]},
+                                     {"notes": text.strip(), "note": text.strip(), "ملاحظات": text.strip()})
+                _att_send(chat_id, "تم حفظ ملاحظتك مع تقرير الانصراف بنجاح. شكراً لك!", keyboard=_att_menu())
+                _att_notify_owner(f"📝 ملاحظة انصراف من {pending_note.get('name','')}:\n«{text.strip()}»")
+            else:
+                _att_send(chat_id, f"أهلاً {emp.get('name','')}! اختر من القائمة:", keyboard=_att_menu())
         return jsonify({"ok": True})
     except Exception as e:
         print(f"[att webhook] {e}")
