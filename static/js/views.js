@@ -1022,8 +1022,21 @@ function setEmployeesDeptFilter(dept) {
 async function renderEmployeesStatus() {
     var box = document.getElementById('employees-status-list');
     if (!box) return;
+
+    if (!employeesList || !employeesList.length) {
+        try {
+            var r = await safeFetchJson('/api/tasks/employees');
+            if (r && r.employees && r.employees.length) {
+                employeesList = r.employees;
+            }
+        } catch(e) {
+            console.warn('[renderEmployeesStatus fallback load error]', e);
+        }
+    }
+
     var emps = (employeesList || []).slice();
-    if (!emps.length) { box.innerHTML = '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون</div>'; return; }
+    if (!emps.length) { box.innerHTML = '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون متاحون حالياً</div>'; return; }
+
     // real workload across ALL clients (active tasks per employee)
     var load = {}, inprog = {}, tasksByEmp = {};
     try {
@@ -1049,15 +1062,14 @@ async function renderEmployeesStatus() {
         if (roleType === 'video') return '🎬';
         if (roleType === 'graphic') return '🎨';
         if (roleType === 'content') return '✍️';
-        if (roleType === 'am') return '👔';
-        return '👤';
+                    return '👤';
     }
 
     var deptTabsHtml = '<div class="flex items-center gap-1 overflow-x-auto pb-1.5 mb-2 border-b border-slate-100 text-[11px] font-bold">' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'all\')" class="px-2.5 py-1 rounded-lg transition ' + (currentEmployeesDeptFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🌟 الكل</button>' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'video\')" class="px-2.5 py-1 rounded-lg transition ' + (currentEmployeesDeptFilter === 'video' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🎬 فيديو</button>' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'graphic\')" class="px-2.5 py-1 rounded-lg transition ' + (currentEmployeesDeptFilter === 'graphic' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🎨 جرافيك</button>' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'content\')" class="px-2.5 py-1 rounded-lg transition ' + (currentEmployeesDeptFilter === 'content' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">✍️ كونتنت</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'all\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🌟 الكل (' + emps.length + ')</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'video\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'video' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🎬 فيديو</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'graphic\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'graphic' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🎨 جرافيك</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'content\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'content' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">✍️ كونتنت</button>' +
     '</div>';
 
     var filteredEmps = emps.filter(function(e) {
@@ -1070,27 +1082,59 @@ async function renderEmployeesStatus() {
         var enm = String(e.name || '').trim();
         var rType = getEmployeeRoleType(e.role);
         var rIcon = getRoleIcon(rType);
-        var n = (typeof load[eid] !== 'undefined') ? load[eid] : (typeof load[enm] !== 'undefined' ? load[enm] : 0);
-        if (!n && tasksByEmp) {
-            var empTasks = tasksByEmp[eid] || tasksByEmp[enm] || [];
-            n = empTasks.filter(function(t){ return t.status !== 'Completed'; }).length;
+        
+        var empTasks = (tasksByEmp[eid] || tasksByEmp[enm] || []).slice();
+        var activeTasks = empTasks.filter(function(t){ return t.status !== 'Completed'; });
+        var n = (typeof load[eid] !== 'undefined') ? load[eid] : (typeof load[enm] !== 'undefined' ? load[enm] : activeTasks.length);
+        if (!n && activeTasks.length) {
+            n = activeTasks.length;
         }
-        var working = ((inprog[eid] || inprog[enm] || 0) > 0);
+
+        var working = ((inprog[eid] || inprog[enm] || 0) > 0) || activeTasks.some(function(t){ return t.status === 'In Progress'; });
         var isSelected = (selectedEmployeeFilter === eid || (selectedEmployeeName && selectedEmployeeName === enm));
         var dot = n === 0 ? 'bg-emerald-500' : (working ? 'bg-amber-500 animate-pulse' : 'bg-blue-500');
         var label = n === 0 ? 'متاح' : (n + ' مهمة' + (working ? ' · شغّال 🚀' : ''));
-        var bgClass = isSelected ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500/20 shadow-sm' : 'hover:bg-slate-50 border-transparent';
-        
-        return '<button type="button" onclick="toggleEmployeeFilter(\'' + esc(eid) + '\', \'' + esc(enm || eid) + '\')" ' +
-            'title="اضغط لعرض مهام الموظف" class="w-full text-right p-2 rounded-xl transition border flex items-center justify-between text-slate-700 ' + bgClass + '">' +
-            '<span class="flex items-center gap-2 min-w-0">' +
-                '<span class="w-2 h-2 rounded-full flex-shrink-0 ' + dot + '"></span>' +
-                '<span class="text-xs">' + rIcon + '</span>' +
-                '<span class="font-bold text-xs truncate">' + esc(enm || eid) + '</span>' +
-                '<span class="text-[10px] text-slate-400 truncate">(' + esc(e.role||'موظف') + ')</span>' +
-            '</span>' +
-            '<span class="bg-slate-100 px-2 py-0.5 rounded-md text-[11px] font-mono flex-shrink-0 ' + (n===0?'text-emerald-700 font-bold':(working?'text-amber-700 font-bold':'text-blue-700')) + '">' + label + '</span>' +
-        '</button>';
+        var bgClass = isSelected ? 'bg-blue-50/90 border-blue-300 ring-2 ring-blue-500/20 shadow-xs' : 'bg-white hover:bg-slate-50 border-slate-200/80';
+
+        var headlinesHtml = '';
+        if (activeTasks.length > 0) {
+            headlinesHtml = '<div class="mt-2 pt-2 border-t border-slate-100 space-y-1.5 text-[10px]">' +
+                '<div class="font-bold text-[10px] text-slate-500 flex items-center justify-between">' +
+                    '<span>📋 عناوين المهام الحالية (' + activeTasks.length + '):</span>' +
+                '</div>' +
+                activeTasks.map(function(t){
+                    var pType = (t.post_type || '').toLowerCase();
+                    var pTypeIcon = pType === 'carousel' ? '📚' : (pType === 'reel' ? '🎬' : (pType === 'story' ? '📱' : '🖼️'));
+                    var stClass = t.status === 'In Progress' ? 'bg-amber-100 text-amber-800' :
+                                  t.status === 'Review Required' || t.status === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+                    var cNameBadge = t.client_name ? '<span class="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium border border-slate-200">🏢 ' + esc(t.client_name) + '</span>' : '';
+                    var titleText = esc(t.title || t.tagline || 'مهمة بدون عنوان');
+                    
+                    return '<div onclick="event.stopPropagation(); highlightTaskCard(\'' + esc(t.task_id) + '\')" ' +
+                        'title="اضغط للانتقال إلى المهمة" class="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-slate-50/90 hover:bg-blue-50 hover:border-blue-200 border border-slate-200/60 transition group cursor-pointer text-right">' +
+                        '<div class="flex items-center gap-1.5 min-w-0 flex-1">' +
+                            '<span class="flex-shrink-0 text-xs">' + pTypeIcon + '</span>' +
+                            '<span class="font-bold text-slate-800 truncate group-hover:text-blue-700 leading-tight">' + titleText + '</span>' +
+                            cNameBadge +
+                        '</div>' +
+                        '<span class="text-[9px] px-1.5 py-0.5 rounded-md font-bold flex-shrink-0 ' + stClass + '">' + esc(t.status) + '</span>' +
+                    '</div>';
+                }).join('') +
+            '</div>';
+        }
+
+        return '<div class="rounded-xl border p-2.5 transition text-slate-700 ' + bgClass + '">' +
+            '<div onclick="toggleEmployeeFilter(\'' + esc(eid) + '\', \'' + esc(enm || eid) + '\')" class="flex items-center justify-between cursor-pointer">' +
+                '<span class="flex items-center gap-2 min-w-0">' +
+                    '<span class="w-2 h-2 rounded-full flex-shrink-0 ' + dot + '"></span>' +
+                    '<span class="text-xs">' + rIcon + '</span>' +
+                    '<span class="font-bold text-xs truncate">' + esc(enm || eid) + '</span>' +
+                    '<span class="text-[10px] text-slate-400 truncate">(' + esc(e.role||'موظف') + ')</span>' +
+                '</span>' +
+                '<span class="bg-slate-100 px-2 py-0.5 rounded-md text-[11px] font-mono flex-shrink-0 ' + (n===0?'text-emerald-700 font-bold':(working?'text-amber-700 font-bold':'text-blue-700')) + '">' + label + '</span>' +
+            '</div>' +
+            headlinesHtml +
+        '</div>';
     }).join('');
 
     if (selectedEmployeeFilter) {
@@ -4168,6 +4212,23 @@ document.addEventListener('keydown', function(evt) {
     }
 });
 
+function highlightTaskCard(taskId) {
+    if (!taskId) return;
+    if (typeof go === 'function') go('tasks');
+    setTimeout(function(){
+        var card = document.getElementById('task-card-' + taskId) || document.querySelector('[data-task-id="' + taskId + '"]');
+        if (card) {
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.classList.add('ring-4', 'ring-blue-500', 'animate-pulse');
+            setTimeout(function(){ card.classList.remove('ring-4', 'ring-blue-500', 'animate-pulse'); }, 3000);
+        } else {
+            showToast('المهمة في عميل آخر أو خاضعة لفلتر حالي', 'info');
+        }
+    }, 200);
+}
+
+window.highlightTaskCard = highlightTaskCard;
+window.setEmployeesDeptFilter = setEmployeesDeptFilter;
 window.openTaskContentEditorModal = openTaskContentEditorModal;
 window.closeTaskContentEditorModal = closeTaskContentEditorModal;
 window.saveTaskContentEditorAction = saveTaskContentEditorAction;
