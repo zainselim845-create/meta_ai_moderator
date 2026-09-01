@@ -1025,8 +1025,9 @@ async function renderEmployeesStatus() {
         load = (d && d.workload) ? d.workload : {};
         inprog = (d && d.in_progress) ? d.in_progress : {};
         tasksByEmp = (d && d.tasks_by_employee) ? d.tasks_by_employee : {};
-        employeesWorkloadData = tasksByEmp;
-    } catch(e){}
+    } catch(e){
+        console.warn('[renderEmployeesStatus workload error]', e);
+    }
 
     var html = emps.map(function(e){
         var eid = String(e.employee_id || '').trim();
@@ -1193,6 +1194,18 @@ function renderClientTabs() {
     box.innerHTML = html;
 }
 
+function _optimisticallyRemovePlanTasks(planName, cleanTitle) {
+    var targetNorm = (cleanTitle || planName).replace(/\.(docx|doc|pdf|txt)$/i, '').trim().toLowerCase();
+    tasksList = (tasksList || []).filter(function(t){
+        var p = (t.plan_name || t.file_name || '').trim();
+        var pNorm = p.replace(/\.(docx|doc|pdf|txt)$/i, '').trim().toLowerCase();
+        return p !== planName && pNorm !== targetNorm;
+    });
+    if (selectedPlanFilter === planName || (selectedPlanFilter && selectedPlanFilter.replace(/\.(docx|doc|pdf|txt)$/i, '').trim() === (cleanTitle || planName))) {
+        selectedPlanFilter = null;
+    }
+}
+
 async function archivePlanAction(planName) {
     if (!planName) return;
     var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '').trim();
@@ -1201,15 +1214,7 @@ async function archivePlanAction(planName) {
     }
     
     // Optimistic removal from active list
-    var targetNorm = cleanTitle.toLowerCase();
-    tasksList = (tasksList || []).filter(function(t){
-        var p = (t.plan_name || t.file_name || '').trim();
-        var pNorm = p.replace(/\.(docx|doc|pdf|txt)$/i, '').trim().toLowerCase();
-        return p !== planName && pNorm !== targetNorm;
-    });
-    if (selectedPlanFilter === planName || (selectedPlanFilter && selectedPlanFilter.replace(/\.(docx|doc|pdf|txt)$/i, '').trim() === cleanTitle)) {
-        selectedPlanFilter = null;
-    }
+    _optimisticallyRemovePlanTasks(planName, cleanTitle);
     tasksArchivedCount++;
     renderClientTabs();
     renderTasksBoard();
@@ -1268,15 +1273,7 @@ async function deletePlanAction(planName) {
     }
     
     // 1. Optimistic removal from local state for instant responsiveness
-    var targetNorm = cleanTitle.toLowerCase();
-    tasksList = (tasksList || []).filter(function(t){
-        var p = (t.plan_name || t.file_name || '').trim();
-        var pNorm = p.replace(/\.(docx|doc|pdf|txt)$/i, '').trim().toLowerCase();
-        return p !== planName && pNorm !== targetNorm;
-    });
-    if (selectedPlanFilter === planName || (selectedPlanFilter && selectedPlanFilter.replace(/\.(docx|doc|pdf|txt)$/i, '').trim() === cleanTitle)) {
-        selectedPlanFilter = null;
-    }
+    _optimisticallyRemovePlanTasks(planName, cleanTitle);
     renderClientTabs();
     renderTasksBoard();
     if (typeof showToast === 'function') showToast("تم حذف الخطة محلياً وجاري المزامنة مع السيرفر 🗑️", "info");
