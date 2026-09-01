@@ -1012,11 +1012,17 @@ var employeesList = [];
 var selectedEmployeeFilter = null;
 var selectedEmployeeName = '';
 var employeesWorkloadData = {};
+var currentEmployeesDeptFilter = 'all';
+
+function setEmployeesDeptFilter(dept) {
+    currentEmployeesDeptFilter = dept;
+    renderEmployeesStatus();
+}
 
 async function renderEmployeesStatus() {
     var box = document.getElementById('employees-status-list');
     if (!box) return;
-    var emps = employeesList || [];
+    var emps = (employeesList || []).slice();
     if (!emps.length) { box.innerHTML = '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون</div>'; return; }
     // real workload across ALL clients (active tasks per employee)
     var load = {}, inprog = {}, tasksByEmp = {};
@@ -1025,14 +1031,50 @@ async function renderEmployeesStatus() {
         load = (d && d.workload) ? d.workload : {};
         inprog = (d && d.in_progress) ? d.in_progress : {};
         tasksByEmp = (d && d.tasks_by_employee) ? d.tasks_by_employee : {};
+        employeesWorkloadData = tasksByEmp;
     } catch(e){
         console.warn('[renderEmployeesStatus workload error]', e);
     }
 
-    var html = emps.map(function(e){
+    function getEmployeeRoleType(roleStr) {
+        var r = (roleStr || '').toLowerCase();
+        if (/فيديو|video|edit|مونت/i.test(r)) return 'video';
+        if (/جرافيك|graphic|design|ديزاين/i.test(r)) return 'graphic';
+        if (/content|writer|كاتب|محتوى|script/i.test(r)) return 'content';
+        if (/account|أكونت|حسابات/i.test(r)) return 'am';
+        return 'other';
+    }
+
+    function getRoleIcon(roleType) {
+        if (roleType === 'video') return '🎬';
+        if (roleType === 'graphic') return '🎨';
+        if (roleType === 'content') return '✍️';
+        if (roleType === 'am') return '👔';
+        return '👤';
+    }
+
+    var deptTabsHtml = '<div class="flex items-center gap-1 overflow-x-auto pb-1.5 mb-2 border-b border-slate-100 text-[11px] font-bold">' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'all\')" class="px-2.5 py-1 rounded-lg transition ' + (currentEmployeesDeptFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🌟 الكل</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'video\')" class="px-2.5 py-1 rounded-lg transition ' + (currentEmployeesDeptFilter === 'video' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🎬 فيديو</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'graphic\')" class="px-2.5 py-1 rounded-lg transition ' + (currentEmployeesDeptFilter === 'graphic' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🎨 جرافيك</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'content\')" class="px-2.5 py-1 rounded-lg transition ' + (currentEmployeesDeptFilter === 'content' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">✍️ كونتنت</button>' +
+    '</div>';
+
+    var filteredEmps = emps.filter(function(e) {
+        if (currentEmployeesDeptFilter === 'all') return true;
+        return getEmployeeRoleType(e.role) === currentEmployeesDeptFilter;
+    });
+
+    var itemsHtml = filteredEmps.map(function(e){
         var eid = String(e.employee_id || '').trim();
         var enm = String(e.name || '').trim();
+        var rType = getEmployeeRoleType(e.role);
+        var rIcon = getRoleIcon(rType);
         var n = (typeof load[eid] !== 'undefined') ? load[eid] : (typeof load[enm] !== 'undefined' ? load[enm] : 0);
+        if (!n && tasksByEmp) {
+            var empTasks = tasksByEmp[eid] || tasksByEmp[enm] || [];
+            n = empTasks.filter(function(t){ return t.status !== 'Completed'; }).length;
+        }
         var working = ((inprog[eid] || inprog[enm] || 0) > 0);
         var isSelected = (selectedEmployeeFilter === eid || (selectedEmployeeName && selectedEmployeeName === enm));
         var dot = n === 0 ? 'bg-emerald-500' : (working ? 'bg-amber-500 animate-pulse' : 'bg-blue-500');
@@ -1042,7 +1084,8 @@ async function renderEmployeesStatus() {
         return '<button type="button" onclick="toggleEmployeeFilter(\'' + esc(eid) + '\', \'' + esc(enm || eid) + '\')" ' +
             'title="اضغط لعرض مهام الموظف" class="w-full text-right p-2 rounded-xl transition border flex items-center justify-between text-slate-700 ' + bgClass + '">' +
             '<span class="flex items-center gap-2 min-w-0">' +
-                '<span class="w-2.5 h-2.5 rounded-full flex-shrink-0 ' + dot + '"></span>' +
+                '<span class="w-2 h-2 rounded-full flex-shrink-0 ' + dot + '"></span>' +
+                '<span class="text-xs">' + rIcon + '</span>' +
                 '<span class="font-bold text-xs truncate">' + esc(enm || eid) + '</span>' +
                 '<span class="text-[10px] text-slate-400 truncate">(' + esc(e.role||'موظف') + ')</span>' +
             '</span>' +

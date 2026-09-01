@@ -1635,12 +1635,17 @@
           </div>
         </div>
 
-        <div class="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
-          <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
-            <i data-lucide="users" class="w-4 h-4 text-blue-600"></i>
-            <span>حالة وتوفر فريق العمل</span>
-          </h3>
-          <div id="employees-status-list" class="space-y-2 text-xs divide-y divide-slate-100 max-h-48 overflow-y-auto">
+        <div class="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3 flex flex-col">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+              <i data-lucide="users" class="w-4 h-4 text-blue-600"></i>
+              <span>حالة وتوفر فريق العمل</span>
+            </h3>
+            <button type="button" onclick="renderEmployeesStatus()" title="تحديث حالة الموظفين" class="text-slate-400 hover:text-blue-600 transition text-xs p-1 rounded-lg hover:bg-slate-100">
+              🔄
+            </button>
+          </div>
+          <div id="employees-status-list" class="space-y-1.5 text-xs max-h-72 overflow-y-auto pr-1">
             <div class="pt-2 text-slate-400 text-center">جاري التحميل...</div>
           </div>
         </div>
@@ -1747,15 +1752,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.min.js?v=9.82">
+  <script defer src="/static/js/app.min.js?v=9.83">
   </script>
-  <script defer src="/static/js/inbox.min.js?v=9.82">
+  <script defer src="/static/js/inbox.min.js?v=9.83">
   </script>
-  <script defer src="/static/js/chatwoot_free.min.js?v=9.82">
+  <script defer src="/static/js/chatwoot_free.min.js?v=9.83">
   </script>
-  <script defer src="/static/js/views.min.js?v=9.82">
+  <script defer src="/static/js/views.min.js?v=9.83">
   </script>
-  <script defer src="/static/js/clients.min.js?v=9.82">
+  <script defer src="/static/js/clients.min.js?v=9.83">
   </script>
  
   <!-- Modal: Add New Connected Account -->
