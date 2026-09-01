@@ -5851,19 +5851,51 @@ def _drive_set_anyone_reader(token, fid):
         print(f"[drive perm] {e}")
         return False
 
+EMPLOYEES_ROOT_FOLDER_ID = "1S7CloOEaInC747soIwNZdsttesZ3ithO"  # مجلدات الموظفين الرسمية
+CLIENTS_ROOT_FOLDER_ID = "1mmAdHhUiaxz9soJGoYUG9gE1ntolbCkV"    # مجلدات العملاء والبراندات
+
+
+def _drive_find_folder_by_name(parent_id, name_prefix):
+    """Find an existing non-trashed folder inside parent_id matching name_prefix."""
+    token = get_google_oauth_access_token()
+    if not token or not name_prefix:
+        return None
+    try:
+        clean_prefix = str(name_prefix).strip()
+        q = urllib.parse.quote(f"trashed = false and mimeType = 'application/vnd.google-apps.folder' and '{parent_id}' in parents and name contains '{clean_prefix}'")
+        req = urllib.request.Request(
+            f"https://www.googleapis.com/drive/v3/files?q={q}&fields=files(id,name)&pageSize=1",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        res = json.loads(urllib.request.urlopen(req, timeout=10).read().decode('utf-8'))
+        files = res.get("files", [])
+        if files:
+            return files[0].get("id")
+    except Exception as e:
+        print(f"[_drive_find_folder error] {e}")
+    return None
+
+
 def client_drive_folder_id(cid):
-    """Get-or-create a Drive folder for this client (so all its assets live in one
-    place). The folder is shared anyone-with-link, and its id is cached/persisted."""
+    """Get-or-create EXACTLY ONE canonical Drive folder for this client inside CLIENTS_ROOT_FOLDER_ID."""
     folders = cache.get("client_folders") or {}
     fid = folders.get(str(cid))
     if fid:
         return fid
+    cname = _client_name(cid)
+    # Search Google Drive directly to avoid duplicate folder creation across lambdas
+    existing_fid = _drive_find_folder_by_name(CLIENTS_ROOT_FOLDER_ID, cname)
+    if existing_fid:
+        folders[str(cid)] = existing_fid
+        cache["client_folders"] = folders
+        return existing_fid
+
     token = get_google_oauth_access_token()
     if not token:
         return None
-    name = f"Domya — {_client_name(cid)}"
+    name = f"Domya — {cname}"
     try:
-        meta = {"name": name, "mimeType": "application/vnd.google-apps.folder"}
+        meta = {"name": name, "mimeType": "application/vnd.google-apps.folder", "parents": [CLIENTS_ROOT_FOLDER_ID]}
         req = urllib.request.Request(
             "https://www.googleapis.com/drive/v3/files?fields=id",
             data=json.dumps(meta).encode("utf-8"),
@@ -5880,9 +5912,9 @@ def client_drive_folder_id(cid):
         print(f"[client folder] {e}")
         return None
 
+
 def client_month_folder_id(cid, month=None):
-    """Get-or-create a monthly subfolder (YYYY-MM) inside the client's Drive folder,
-    so data is organised: Client / 2026-08 / files. A new folder appears each month."""
+    """Get-or-create a monthly subfolder (YYYY-MM) inside the client's Drive folder."""
     parent = client_drive_folder_id(cid)
     if not parent:
         return None
@@ -5895,6 +5927,11 @@ def client_month_folder_id(cid, month=None):
     mf = cache.get("client_month_folders") or {}
     if mf.get(key):
         return mf[key]
+    existing_fid = _drive_find_folder_by_name(parent, month)
+    if existing_fid:
+        mf[key] = existing_fid
+        cache["client_month_folders"] = mf
+        return existing_fid
     token = get_google_oauth_access_token()
     if not token:
         return parent
@@ -5918,20 +5955,30 @@ def client_month_folder_id(cid, month=None):
 
 
 def employee_drive_folder_id(eid, name=None):
-    """Get-or-create a dedicated root Drive folder for an employee."""
+    """Get-or-create EXACTLY ONE canonical Drive folder for an employee inside EMPLOYEES_ROOT_FOLDER_ID."""
     if not eid:
         return None
     folders = cache.get("employee_folders") or {}
     if folders.get(str(eid)):
         return folders[str(eid)]
+
+    emp_info = _sheet_emp(eid)
+    emp_name = name or emp_info.get("name") or eid
+    # 1. Search Google Drive directly so duplicates are NEVER created
+    existing_fid = _drive_find_folder_by_name(EMPLOYEES_ROOT_FOLDER_ID, eid)
+    if not existing_fid and emp_name and len(emp_name) > 3:
+        existing_fid = _drive_find_folder_by_name(EMPLOYEES_ROOT_FOLDER_ID, emp_name.split()[0])
+    if existing_fid:
+        folders[str(eid)] = existing_fid
+        cache["employee_folders"] = folders
+        return existing_fid
+
     token = get_google_oauth_access_token()
     if not token:
         return None
-    emp_info = _sheet_emp(eid)
-    emp_name = name or emp_info.get("name") or eid
-    folder_name = f"Domya — الموظف {emp_name} ({eid})"
+    folder_name = f"{emp_name} ({eid})"
     try:
-        meta = {"name": folder_name, "mimeType": "application/vnd.google-apps.folder"}
+        meta = {"name": folder_name, "mimeType": "application/vnd.google-apps.folder", "parents": [EMPLOYEES_ROOT_FOLDER_ID]}
         req = urllib.request.Request(
             "https://www.googleapis.com/drive/v3/files?fields=id",
             data=json.dumps(meta).encode("utf-8"),
@@ -5941,6 +5988,19 @@ def employee_drive_folder_id(eid, name=None):
         if not fid:
             return None
         _drive_set_anyone_reader(token, fid)
+        
+        # Create standard subfolders inside this employee folder
+        for sub_name in ["🎨 التصاميم والملفات الأصلية", "🎬 تسليمات الفيديو والتعديلات"]:
+            try:
+                sub_meta = {"name": sub_name, "mimeType": "application/vnd.google-apps.folder", "parents": [fid]}
+                urllib.request.urlopen(urllib.request.Request(
+                    "https://www.googleapis.com/drive/v3/files",
+                    data=json.dumps(sub_meta).encode("utf-8"),
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                ), timeout=10)
+            except Exception:
+                pass
+                
         folders[str(eid)] = fid
         cache["employee_folders"] = folders
         push_setting("meta_ai_employee_folders", folders)
