@@ -212,7 +212,7 @@
        <div id="header-client-selector-box" class="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-inner max-w-[150px] sm:max-w-[220px] truncate">
         <i class="w-3.5 h-3.5 text-blue-600 flex-shrink-0" data-lucide="layers"></i>
         <select class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer truncate w-full" id="header-account-select" onchange="switchActiveClient(this.value)">
-         <option value="">🌐 جميع العملاء</option>
+         <option value=""> جميع العملاء</option>
         </select>
        </div>
        <span class="bg-slate-100 text-slate-600 text-[11px] px-2.5 py-0.5 rounded-2xl font-bold hidden lg:inline border border-slate-200" id="bot-status-badge">
@@ -243,7 +243,7 @@
      <!-- Employee Dedicated Google Drive Folder Card -->
      <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap shadow-xs">
       <div class="flex items-center gap-3 min-w-0">
-       <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">📁</div>
+       <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0"></div>
        <div class="min-w-0">
         <h4 class="font-bold text-sm text-emerald-950 truncate">مجلد تسليماتي على Google Drive</h4>
         <p class="text-xs text-emerald-700 mt-0.5">كل شغلك وتصميماتك بتترتب تلقائياً داخل فولدر خاص بيك مقسّم بالشهور والخطط.</p>
@@ -254,7 +254,7 @@
         <span>↗️ فتح مجلدي على Drive</span>
        </button>
        <button type="button" onclick="copyMyDriveFolder()" class="bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs px-3 py-2 rounded-xl transition inline-flex items-center gap-1 shadow-xs">
-        <span>📋 نسخ الرابط</span>
+        <span> نسخ الرابط</span>
        </button>
       </div>
      </div>
@@ -633,7 +633,7 @@
          </div>
          <div>
           <h4 class="font-bold text-base text-slate-900">
-           ⚡ الرد التلقائي الفوري
+            الرد التلقائي الفوري
           </h4>
           <span class="text-xs text-blue-600 font-bold">
            Auto Responder
@@ -657,7 +657,7 @@
          </div>
          <div>
           <h4 class="font-bold text-base text-slate-900">
-           👨‍💼 مراجعة بشرية أولًا
+           ‍ مراجعة بشرية أولًا
           </h4>
           <span class="text-xs text-slate-500 font-bold">
            Human Approval Mode
@@ -744,7 +744,7 @@
 
       <div class="text-xs text-slate-600 leading-relaxed bg-emerald-50/70 border border-emerald-100 rounded-xl p-3.5 space-y-1">
        <div class="font-bold text-emerald-950 flex items-center gap-1.5">
-        <span>📁 التنظيم التلقائي لمجلدات Google Drive:</span>
+        <span> التنظيم التلقائي لمجلدات Google Drive:</span>
        </div>
        <p>• <b>مجلدات الموظفين:</b> <code>Domya — الموظف [الاسم] / [الشهر] / [الخطة]</code> (تُحفظ فيها فيديوهات وتصميمات الموظف تلقائياً).</p>
        <p>• <b>مجلدات العملاء:</b> <code>Domya — [اسم العميل] / [الشهر]</code> (تُربط بها تسليمات العميل ومخرجاته فورياً).</p>
@@ -769,10 +769,10 @@
        <div class="flex items-center gap-2 flex-wrap pt-1">
         <button onclick="saveGoogleDriveSettings()" type="button" class="btn-primary text-xs py-2 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1.5 shadow-xs">
          <i class="w-4 h-4" data-lucide="check"></i>
-         <span>حفظ وتفعيل Google Drive ✅</span>
+         <span>حفظ وتفعيل Google Drive </span>
         </button>
         <button onclick="checkGoogleDriveStatus()" type="button" class="btn-ghost text-xs py-2 px-3 rounded-xl border border-slate-200 font-bold">
-         🔄 فحص الاتصال
+          فحص الاتصال
         </button>
        </div>
        <div id="gdrive-save-result" class="hidden text-xs p-3 rounded-xl border font-medium"></div>
@@ -828,7 +828,7 @@
       <div class="flex items-center justify-between flex-wrap gap-2">
        <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
         <i class="w-5 h-5 text-emerald-600" data-lucide="activity"></i>
-        <span>🩺 تشخيص وصحة النظام والاتصال السحابي (Cloud Diagnostics)</span>
+        <span> تشخيص وصحة النظام والاتصال السحابي (Cloud Diagnostics)</span>
        </h3>
        <button onclick="runSystemDiagnostics()" class="btn-primary text-xs px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1.5 transition">
         <i class="w-3.5 h-3.5" data-lucide="refresh-cw"></i>
@@ -906,11 +906,11 @@
         <div class="flex items-center gap-2 mt-2">
          <span class="text-[11px] font-bold text-slate-600">نوع المحتوى:</span>
          <select class="text-xs px-2 py-1 border border-slate-200 rounded-lg" id="post-media-type" onchange="updatePostPreview()">
-          <option value="image">📷 صورة (Post)</option>
-          <option value="video">🎬 فيديو</option>
-          <option value="reel">🎞️ ريلز (Reel)</option>
-          <option value="story">⭕ استوري (Story)</option>
-          <option value="carousel">🖼️ كاروسيل (عدة صور/فيديو)</option>
+          <option value="image"> صورة (Post)</option>
+          <option value="video"> فيديو</option>
+          <option value="reel">️ ريلز (Reel)</option>
+          <option value="story"> استوري (Story)</option>
+          <option value="carousel">️ كاروسيل (عدة صور/فيديو)</option>
          </select>
         </div>
        </div>
@@ -1235,14 +1235,14 @@
      <div class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-5 shadow-sm space-y-4">
       <div class="flex items-center justify-between flex-wrap gap-2">
        <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-400/30 text-blue-400 flex items-center justify-center font-bold text-base">📍</div>
+        <div class="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-400/30 text-blue-400 flex items-center justify-center font-bold text-base"></div>
         <div>
          <h4 class="font-bold text-sm text-white">إعدادات النطاق الجغرافي وحماية الموقع (Geofence Settings)</h4>
          <p class="text-xs text-slate-300 mt-0.5">تحديد أقصى مسافة مسموح بها للموظف لتسجيل الحضور من مقر الشركة وإخفاء الإحداثيات.</p>
         </div>
        </div>
        <button type="button" onclick="saveHrGeofenceSettings()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs inline-flex items-center gap-1.5">
-        <span>💾 حفظ إعدادات النطاق</span>
+        <span> حفظ إعدادات النطاق</span>
        </button>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -1268,7 +1268,7 @@
         <label class="font-bold text-slate-200 block">حماية خصوصية اللوكيشن:</label>
         <label class="inline-flex items-center gap-2 cursor-pointer pt-1">
          <input type="checkbox" id="hr-cfg-hide-loc" class="w-4 h-4 rounded text-blue-600"/>
-         <span class="text-xs text-slate-300 font-bold">إخفاء الأرقام من الموظفين 🔒</span>
+         <span class="text-xs text-slate-300 font-bold">إخفاء الأرقام من الموظفين </span>
         </label>
        </div>
       </div>
@@ -1331,7 +1331,7 @@
          التالي ▶
         </button>
         <button type="button" onclick="setHrAttCurrentMonth()" class="text-xs px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 shadow-2xs transition">
-         الشهر الحالي 📅
+         الشهر الحالي 
         </button>
         <button type="button" onclick="loadHrAttendanceTable()" class="text-xs px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-2xs transition inline-flex items-center gap-1">
          <i class="w-3.5 h-3.5" data-lucide="refresh-cw"></i> تحديث
@@ -1342,22 +1342,22 @@
       <!-- Filters Bar: Employee, Status, Search -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-slate-50/70 p-3 rounded-xl border border-slate-200">
        <div>
-        <label class="text-[11px] font-bold text-slate-600 block mb-1">👤 تصفية بالموظف:</label>
+        <label class="text-[11px] font-bold text-slate-600 block mb-1"> تصفية بالموظف:</label>
         <select id="hr-att-emp-select" onchange="renderHrAttendanceTable()" class="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-slate-800">
          <option value="">كل الموظفين</option>
         </select>
        </div>
        <div>
-        <label class="text-[11px] font-bold text-slate-600 block mb-1">📊 حالة الحضور:</label>
+        <label class="text-[11px] font-bold text-slate-600 block mb-1"> حالة الحضور:</label>
         <select id="hr-att-status-select" onchange="renderHrAttendanceTable()" class="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-slate-800">
          <option value="">كل الحالات</option>
-         <option value="حاضر">حاضر في الموعد ✅</option>
-         <option value="متأخر">متأخر 🟡</option>
-         <option value="غياب">غياب 🔴</option>
+         <option value="حاضر">حاضر في الموعد </option>
+         <option value="متأخر">متأخر </option>
+         <option value="غياب">غياب </option>
         </select>
        </div>
        <div>
-        <label class="text-[11px] font-bold text-slate-600 block mb-1">🔍 بحث سريع:</label>
+        <label class="text-[11px] font-bold text-slate-600 block mb-1"> بحث سريع:</label>
         <input type="text" id="hr-att-search" oninput="renderHrAttendanceTable()" placeholder="ابحث بالاسم أو التاريخ..." class="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white text-slate-800"/>
        </div>
       </div>
@@ -1424,10 +1424,10 @@
          <input id="nm-username" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="اسم المستخدم (للدخول)"/>
          <input id="nm-email" type="email" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="البريد الإلكتروني (تتبعتله البيانات)"/>
          <select id="nm-role" class="px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
-          <option value="content_creator" selected>✍️ كاتب محتوى (Content Creator)</option>
-          <option value="account_manager">👔 أكونت مانيجر (Account Manager)</option>
-          <option value="employee">👤 موظف (Employee)</option>
-          <option value="admin">👑 مدير (Admin)</option>
+          <option value="content_creator" selected>️ كاتب محتوى (Content Creator)</option>
+          <option value="account_manager"> أكونت مانيجر (Account Manager)</option>
+          <option value="employee"> موظف (Employee)</option>
+          <option value="admin"> مدير (Admin)</option>
          </select>
         </div>
         <div>
@@ -1456,7 +1456,7 @@
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 space-y-4">
          <div class="flex items-center justify-between">
           <h3 class="font-bold text-sm text-slate-900">إرسال بيانات الدخول</h3>
-          <button onclick="closeOnboardModal()" class="text-slate-400 hover:text-slate-700 text-lg leading-none cursor-pointer">✕</button>
+          <button onclick="closeOnboardModal()" class="text-slate-400 hover:text-slate-700 text-lg leading-none cursor-pointer"></button>
          </div>
 
          <div>
@@ -1473,9 +1473,9 @@
          <div>
           <span class="text-xs font-bold text-slate-700">محتوى الرسالة</span>
           <div class="flex flex-col gap-1 mt-1 text-xs">
-           <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-link" checked/> 🔗 لينك البوابة</label>
-           <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-username" checked/> 👤 اسم المستخدم</label>
-           <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-password" checked/> 🔑 كلمة المرور</label>
+           <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-link" checked/> لينك البوابة</label>
+           <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-username" checked/> اسم المستخدم</label>
+           <label class="flex items-center gap-2"><input type="checkbox" id="onboard-inc-password" checked/> كلمة المرور</label>
           </div>
          </div>
 
@@ -1516,7 +1516,7 @@
        <!-- Company employees roster (from the sheet) with delete -->
        <div class="border-t border-slate-200 pt-3 mt-2">
         <div class="flex items-center justify-between mb-2">
-         <h4 class="font-bold text-sm text-slate-900">👥 موظفو الشركة</h4>
+         <h4 class="font-bold text-sm text-slate-900"> موظفو الشركة</h4>
          <button onclick="renderCompanyEmployees()" class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 text-slate-600 cursor-pointer">تحديث</button>
         </div>
         <div id="company-emps" class="space-y-1.5"></div>
@@ -1534,30 +1534,30 @@
         <p class="text-xs text-slate-500">اكتب البلان بالتنسيق اللي تحبه، اختر العميل والأكونت مانيجر، وابعته — وهتاخد لينك تعرضه لأي حد برا السيستم.</p>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label class="block text-[11px] font-bold text-slate-700 mb-1">🏢 اسم العميل (اختر أو اكتب عميل جديد):</label>
+            <label class="block text-[11px] font-bold text-slate-700 mb-1"> اسم العميل (اختر أو اكتب عميل جديد):</label>
             <input id="pb-client" list="pb-clients-list" type="text" placeholder="اكتب اسم العميل (جديد أو موجود)..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white font-bold text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500" autocomplete="off" />
             <datalist id="pb-clients-list"></datalist>
           </div>
           <div>
-            <label class="block text-[11px] font-bold text-slate-700 mb-1">🏷️ اسم البلان / الملف (اختياري):</label>
+            <label class="block text-[11px] font-bold text-slate-700 mb-1">️ اسم البلان / الملف (اختياري):</label>
             <input id="pb-plan-name" type="text" placeholder="مثال: خطة شهر سبتمبر 2026..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500" />
           </div>
           <div>
-            <label class="block text-[11px] font-bold text-slate-700 mb-1">👤 الأكونت مانيجر:</label>
+            <label class="block text-[11px] font-bold text-slate-700 mb-1"> الأكونت مانيجر:</label>
             <select id="pb-am" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"></select>
           </div>
         </div>
         <div>
           <div class="flex items-center justify-between mb-1">
             <label class="block text-[11px] font-bold text-slate-600">محتوى البلان</label>
-            <label class="cursor-pointer text-[11px] bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-bold px-2 py-1 rounded-lg">🖼️ ارفع صورة مرجع
+            <label class="cursor-pointer text-[11px] bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-bold px-2 py-1 rounded-lg">️ ارفع صورة مرجع
               <input type="file" accept="image/*" multiple class="hidden" onchange="uploadPlanImage(this)"></label>
           </div>
           <div id="pb-editor" style="min-height:260px;background:#fff" class="rounded-b-xl"></div>
           <p class="text-[10px] text-slate-400 mt-1">تلميح: ابدأ كل بوست برقم (1) 2) 3)…) وحط "تاج لاين:" للعنوان و"التخيل:" لفكرة الجرافيك. الصور اللي ترفعها بتتحط كمرجع للبوست.</p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-          <button onclick="createPlan()" class="btn-primary text-sm py-2.5 px-6 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold">🚀 إنشاء وإرسال للأكونت مانيجر</button>
+          <button onclick="createPlan()" class="btn-primary text-sm py-2.5 px-6 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold"> إنشاء وإرسال للأكونت مانيجر</button>
           <button onclick="loadPlanBuilder()" class="text-xs py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600">تحديث القوائم</button>
         </div>
         <div id="pb-result" class="hidden text-[13px] bg-emerald-50 border border-emerald-200 rounded-xl p-4"></div>
@@ -1575,28 +1575,28 @@
             </h3>
             <button id="btn-tasks-monthly-report" onclick="sendMonthlyReportAction()" class="btn-primary text-xs px-3.5 py-2 rounded-xl flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition whitespace-nowrap">
               <i data-lucide="mail" class="w-4 h-4"></i>
-              <span>إرسال التقرير الشهري 📧</span>
+              <span>إرسال التقرير الشهري </span>
             </button>
           </div>
           <!-- Client & AM & Plan Name Controls -->
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/90">
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 mb-1">🏢 اسم العميل (اختر أو اكتب جديد):</label>
+              <label class="block text-[11px] font-bold text-slate-700 mb-1"> اسم العميل (اختر أو اكتب جديد):</label>
               <input id="tasks-ingest-client" list="tasks-ingest-clients-list" type="text" placeholder="اكتب أو اختر اسم العميل..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white font-bold text-slate-900 focus:border-blue-500 focus:outline-none" autocomplete="off" />
               <datalist id="tasks-ingest-clients-list"></datalist>
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
-                <label class="block text-[11px] font-bold text-slate-700">👤 الأكونت مانيجر المسند إليه:</label>
-                <button type="button" onclick="setTasksIngestSelfAM()" class="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer">🙋‍♂️ أنا الأكونت مانيجر</button>
+                <label class="block text-[11px] font-bold text-slate-700"> الأكونت مانيجر المسند إليه:</label>
+                <button type="button" onclick="setTasksIngestSelfAM()" class="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer">‍️ أنا الأكونت مانيجر</button>
               </div>
               <select id="tasks-ingest-am" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white font-bold text-slate-900 focus:border-blue-500 focus:outline-none">
-                <option value="AM-2072-9827" selected>👤 محمود خالد — Account Manager</option>
-                <option value="EMP-5887-5256">👤 آيه أحمد مجاهد — Account Manager</option>
+                <option value="AM-2072-9827" selected> محمود خالد — Account Manager</option>
+                <option value="EMP-5887-5256"> آيه أحمد مجاهد — Account Manager</option>
               </select>
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 mb-1">🏷️ اسم الخطة / الشهر (اختياري):</label>
+              <label class="block text-[11px] font-bold text-slate-700 mb-1">️ اسم الخطة / الشهر (اختياري):</label>
               <input id="tasks-ingest-plan-name" type="text" placeholder="مثال: خطة سبتمبر 2026..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:border-blue-500 focus:outline-none" />
             </div>
           </div>
@@ -1609,21 +1609,21 @@
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">📄 ارفع ملف الخطة (Word / DOCX):</label>
+              <label class="block text-xs font-bold text-slate-700 mb-1"> ارفع ملف الخطة (Word / DOCX):</label>
               <input id="plan-ingest-file" type="file" accept=".docx,.txt" class="w-full text-xs file:ml-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:font-bold">
               <p class="text-[10px] text-slate-400 mt-1">بيسحب النصوص + الصور والريفرانس ويحطهم في كل تاسك تلقائياً</p>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">🔗 أو رابط Google Drive للملف:</label>
+              <label class="block text-xs font-bold text-slate-700 mb-1"> أو رابط Google Drive للملف:</label>
               <input id="plan-ingest-drive" type="url" placeholder="https://drive.google.com/file/d/..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
             </div>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <button type="button" onclick="openPlanBuilderModal()" class="text-xs py-2 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold hover:opacity-95 shadow-sm flex items-center gap-1.5 transition">
-              <span>✍️ كتابة وتصميم خطة جديدة بالقالب (Plan Builder)</span>
+              <span>️ كتابة وتصميم خطة جديدة بالقالب (Plan Builder)</span>
             </button>
             <button onclick="ingestPlanAction(event)" class="btn-primary text-xs py-2 px-4 sm:px-5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition">
-              🚀 تفريغ وتقسيم الملف لمهام
+               تفريغ وتقسيم الملف لمهام
             </button>
             <button onclick="loadTasksEngine()" class="btn-ghost text-xs py-2 px-3 sm:px-4 rounded-xl border border-slate-200 flex items-center gap-1">
               <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
@@ -1643,7 +1643,7 @@
               <span>حالة وتوفر فريق العمل</span>
             </h3>
             <button type="button" onclick="renderEmployeesStatus()" title="تحديث حالة الموظفين" class="text-slate-400 hover:text-blue-600 transition text-xs p-1 rounded-lg hover:bg-slate-100">
-              🔄
+              
             </button>
           </div>
           <div id="employees-status-list" class="space-y-1.5 text-xs max-h-72 overflow-y-auto pr-1">
@@ -1690,10 +1690,10 @@
           <div class="flex items-center gap-2 flex-wrap">
             <input type="month" id="monthly-report-month" onchange="loadTaskMonthlyReport()" class="text-xs px-2.5 py-1.5 border border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-emerald-500 shadow-2xs">
             <button onclick="loadTaskMonthlyReport()" class="btn-ghost text-xs px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-1 shadow-2xs">
-              <span>تحديث 🔄</span>
+              <span>تحديث </span>
             </button>
             <button onclick="exportMonthlyReportCsv()" class="btn-ghost text-xs px-3 py-1.5 rounded-xl border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 font-bold flex items-center gap-1 shadow-2xs transition">
-              <span>تصدير Excel / CSV 📊</span>
+              <span>تصدير Excel / CSV </span>
             </button>
           </div>
         </div>
@@ -1737,11 +1737,11 @@
      <div class="flex items-center justify-between text-[11px] text-slate-600 px-1">
        <label class="flex items-center gap-1.5 cursor-pointer select-none">
          <input type="checkbox" id="auth-remember-me" checked class="rounded text-blue-600 focus:ring-blue-500"/>
-         <span>تذكرني دائماً على هذا الجهاز (حفظ الجلسة) 🔒</span>
+         <span>تذكرني دائماً على هذا الجهاز (حفظ الجلسة) </span>
        </label>
      </div>
      <button class="w-full btn-primary text-xs py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition shadow-sm cursor-pointer" type="submit">
-      تسجيل الدخول 🔓
+      تسجيل الدخول 
      </button>
      <div class="text-xs text-red-600 font-bold hidden text-center pt-1" id="auth-error">
      </div>
@@ -1765,15 +1765,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.min.js?v=10.2">
+  <script defer src="/static/js/app.min.js?v=11.0">
   </script>
-  <script defer src="/static/js/inbox.min.js?v=10.2">
+  <script defer src="/static/js/inbox.min.js?v=11.0">
   </script>
-  <script defer src="/static/js/chatwoot_free.min.js?v=10.2">
+  <script defer src="/static/js/chatwoot_free.min.js?v=11.0">
   </script>
-  <script defer src="/static/js/views.min.js?v=10.2">
+  <script defer src="/static/js/views.min.js?v=11.0">
   </script>
-  <script defer src="/static/js/clients.min.js?v=10.2">
+  <script defer src="/static/js/clients.min.js?v=11.0">
   </script>
  
   <!-- Modal: Add New Connected Account -->
@@ -1817,11 +1817,11 @@
      </div>
      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div>
-       <label class="block text-xs font-bold text-slate-700 mb-1">🔵 معرف صفحة الفيسبوك (Page ID):</label>
+       <label class="block text-xs font-bold text-slate-700 mb-1"> معرف صفحة الفيسبوك (Page ID):</label>
        <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="acc-page-id" placeholder="100821894800009" type="text"/>
       </div>
       <div>
-       <label class="block text-xs font-bold text-slate-700 mb-1">🟣 معرف حساب الإنستجرام (IG Account ID):</label>
+       <label class="block text-xs font-bold text-slate-700 mb-1"> معرف حساب الإنستجرام (IG Account ID):</label>
        <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="acc-ig-id" placeholder="17841413562796856" type="text"/>
       </div>
      </div>
@@ -1848,10 +1848,10 @@
         <div class="flex items-center gap-2 flex-wrap min-w-0" id="tdm-header-badges">
           <span class="bg-blue-600 text-white font-bold font-mono text-xs px-2.5 py-1 rounded-lg" id="tdm-post-seq">#1</span>
           <span class="font-mono font-bold text-xs bg-slate-900 text-white px-2.5 py-1 rounded-lg" id="tdm-task-id">TASK-0000</span>
-          <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800" id="tdm-status">معتمد ✅</span>
+          <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800" id="tdm-status">معتمد </span>
           <span class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md" id="tdm-client">العميل</span>
         </div>
-        <button onclick="closeTaskDetailsModal()" class="text-slate-400 hover:text-slate-700 font-bold text-xl p-1 leading-none rounded-lg hover:bg-slate-200 transition">✕</button>
+        <button onclick="closeTaskDetailsModal()" class="text-slate-400 hover:text-slate-700 font-bold text-xl p-1 leading-none rounded-lg hover:bg-slate-200 transition"></button>
       </div>
       <div class="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs" id="tdm-body">
         <div class="text-center py-8 text-slate-400">جارِ تحميل تفاصيل المهمة...</div>
@@ -1859,7 +1859,7 @@
       <div class="border-t border-slate-100 p-3 sm:p-4 bg-slate-50 flex items-center justify-between gap-2 flex-wrap">
         <div class="flex items-center gap-2" id="tdm-footer-actions">
           <button onclick="goToTaskOnBoard()" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 shadow-sm transition">
-            <span>📋 عرض في لوحة المهام</span>
+            <span> عرض في لوحة المهام</span>
           </button>
         </div>
         <button onclick="closeTaskDetailsModal()" class="text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 transition">
@@ -1874,18 +1874,18 @@
     <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
       <div class="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 bg-slate-50/80">
         <div class="flex items-center gap-2">
-          <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base">📦</span>
+          <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base"></span>
           <h3 class="font-bold text-sm text-slate-900" id="tdm-submit-title">تسليم مخرجات المهمة / الفيديو</h3>
         </div>
-        <button onclick="closeDeliverableModal()" class="text-slate-400 hover:text-slate-700 font-bold text-xl p-1 leading-none rounded-lg hover:bg-slate-200 transition">✕</button>
+        <button onclick="closeDeliverableModal()" class="text-slate-400 hover:text-slate-700 font-bold text-xl p-1 leading-none rounded-lg hover:bg-slate-200 transition"></button>
       </div>
       
       <div class="p-5 sm:p-6 space-y-4">
         <!-- Option 1: Direct Google Drive Link (Fastest & Most Reliable) -->
         <div class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 space-y-2.5">
           <div class="flex items-center gap-2 text-emerald-950 font-bold text-xs flex-wrap">
-            <span>🔗 رابط Google Drive المباشر للفيديو / الملف:</span>
-            <span class="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-bold">الأسرع والموصى به 🚀</span>
+            <span> رابط Google Drive المباشر للفيديو / الملف:</span>
+            <span class="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-bold">الأسرع والموصى به </span>
           </div>
           <p class="text-[11px] text-emerald-800 leading-relaxed">
             انسخ رابط الفيديو أو مجلد التسليم من تطبيق Google Drive والصقه هنا:
@@ -1893,7 +1893,7 @@
           <div class="space-y-2">
             <input type="url" id="deliv-drive-input" class="w-full px-3 py-2 border border-emerald-300 rounded-xl text-xs font-mono bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="https://drive.google.com/file/d/... أو أي رابط سحابي" dir="ltr"/>
             <button type="button" onclick="submitDriveLinkDeliverable()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5">
-              <span>✅ حفظ وتأكيد رابط التسليم</span>
+              <span> حفظ وتأكيد رابط التسليم</span>
             </button>
           </div>
         </div>
@@ -1907,10 +1907,10 @@
         <!-- Option 2: Upload File From Device -->
         <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-2.5">
           <div class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-            <span>📂 رفع ملف فيديو أو تصميم من الجهاز</span>
+            <span> رفع ملف فيديو أو تصميم من الجهاز</span>
           </div>
           <label class="w-full cursor-pointer border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 bg-white transition group">
-            <span class="text-2xl group-hover:scale-110 transition">📤</span>
+            <span class="text-2xl group-hover:scale-110 transition"></span>
             <span class="text-xs font-bold text-slate-700">اضغط لاختيار فيديو أو صورة من جهازك</span>
             <span class="text-[10px] text-slate-400">يدعم MP4, MOV, WEBM, PNG, JPG</span>
             <input type="file" id="deliv-file-input" accept="image/*,video/*" class="hidden" onchange="handleModalFileUpload(this)">
@@ -1925,7 +1925,7 @@
 
         <!-- Option 3: Direct Submit No File -->
         <button type="button" onclick="submitTaskDirectlyNoFile()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 px-4 rounded-2xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer">
-          <span>✅ تم إنهاء الشغل وتسليم المهمة للمراجعة فوراً (وشكراً)</span>
+          <span> تم إنهاء الشغل وتسليم المهمة للمراجعة فوراً (وشكراً)</span>
         </button>
       </div>
     </div>
@@ -1936,7 +1936,7 @@
     <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
       <div class="flex items-center gap-3">
         <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-2xl text-blue-600 shrink-0" id="upm-icon">
-          🎬
+          
         </div>
         <div class="min-w-0 flex-1">
           <h4 class="font-bold text-sm text-slate-900 truncate" id="upm-title">جاري رفع الفيديو...</h4>
@@ -1953,7 +1953,7 @@
         </div>
       </div>
       <div class="text-center text-[11px] text-slate-500 font-medium bg-slate-50 p-2.5 rounded-xl border border-slate-100" id="upm-status-text">
-        🚀 جاري الرفع المباشر إلى Google Drive... يرجى الانتظار
+         جاري الرفع المباشر إلى Google Drive... يرجى الانتظار
       </div>
     </div>
   </div>
@@ -1966,7 +1966,7 @@
       <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-purple-50 via-indigo-50 to-white">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center text-xl shadow-md">
-            ✍️
+            ️
           </div>
           <div>
             <h3 class="font-bold text-base text-slate-900">منشئ وقالب كتابة الخطة التسويقية (Plan Builder)</h3>
@@ -1975,10 +1975,10 @@
         </div>
         <div class="flex items-center gap-2">
           <button type="button" onclick="loadSamplePlanTemplate()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold py-1.5 px-3 rounded-xl transition flex items-center gap-1">
-            <span>📑 تعبئة نموذج تجريبي</span>
+            <span> تعبئة نموذج تجريبي</span>
           </button>
           <button type="button" onclick="closePlanBuilderModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center font-bold transition">
-            ✕
+            
           </button>
         </div>
       </div>
@@ -1986,18 +1986,18 @@
       <!-- Plan Metadata Bar -->
       <div class="p-4 bg-slate-50 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
         <div>
-          <label class="block font-bold text-slate-700 mb-1">🏢 اسم العميل / البراند:</label>
+          <label class="block font-bold text-slate-700 mb-1"> اسم العميل / البراند:</label>
           <input id="pb-client-name" type="text" placeholder="اسم العميل أو البراند..." class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-purple-500 focus:outline-none" />
         </div>
         <div>
-          <label class="block font-bold text-slate-700 mb-1">📅 اسم الخطة / الشهر:</label>
+          <label class="block font-bold text-slate-700 mb-1"> اسم الخطة / الشهر:</label>
           <input id="pb-plan-name" type="text" placeholder="مثال: خطة سبتمبر 2026..." class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-purple-500 focus:outline-none" />
         </div>
         <div>
-          <label class="block font-bold text-slate-700 mb-1">👤 الأكونت مانيجر المشرف:</label>
+          <label class="block font-bold text-slate-700 mb-1"> الأكونت مانيجر المشرف:</label>
           <select id="pb-am-select" class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-purple-500 focus:outline-none">
-            <option value="AM-2072-9827" selected>👤 محمود خالد — Account Manager</option>
-            <option value="EMP-5887-5256">👤 آيه أحمد مجاهد — Account Manager</option>
+            <option value="AM-2072-9827" selected> محمود خالد — Account Manager</option>
+            <option value="EMP-5887-5256"> آيه أحمد مجاهد — Account Manager</option>
           </select>
         </div>
       </div>
@@ -2010,14 +2010,14 @@
       <!-- Footer Controls -->
       <div class="p-4 border-t border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3">
         <button type="button" onclick="addPlanBuilderRow()" class="bg-white hover:bg-slate-100 text-purple-700 border border-purple-200 font-bold text-xs py-2 px-4 rounded-xl shadow-xs flex items-center gap-1.5 transition">
-          <span>➕ إضافة بوست جديد بالقالب</span>
+          <span> إضافة بوست جديد بالقالب</span>
         </button>
         <div class="flex items-center gap-2">
           <button type="button" onclick="closePlanBuilderModal()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200 font-bold">
             إلغاء
           </button>
           <button type="button" onclick="submitPlanBuilder()" class="btn-primary text-xs py-2.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold hover:opacity-95 shadow-md flex items-center gap-1.5 transition">
-            <span>🚀 إنشاء الخطة وتحويلها لمهام بالسيستم</span>
+            <span> إنشاء الخطة وتحويلها لمهام بالسيستم</span>
           </button>
         </div>
       </div>
@@ -2031,7 +2031,7 @@
       <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xl shadow-md">
-            ✍️
+            ️
           </div>
           <div>
             <h3 id="etc-modal-title" class="font-bold text-base text-slate-900">محرر نصوص البوست (Content Editor)</h3>
@@ -2039,7 +2039,7 @@
           </div>
         </div>
         <button type="button" onclick="closeTaskContentEditorModal()" class="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-500 flex items-center justify-center font-bold transition shadow-xs">
-          ✕
+          
         </button>
       </div>
 
@@ -2047,33 +2047,33 @@
         <input type="hidden" id="etc-task-id" />
         
         <div>
-          <label class="block font-bold text-slate-700 mb-1">🏷️ العنوان / التاج لاين (Hook & Headline):</label>
+          <label class="block font-bold text-slate-700 mb-1">️ العنوان / التاج لاين (Hook & Headline):</label>
           <input id="etc-task-title" type="text" placeholder="عنوان أو هوك البوست..." class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-amber-500 focus:outline-none" required />
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block font-bold text-slate-700 mb-1">📌 نوع المنشور (Post Type):</label>
+            <label class="block font-bold text-slate-700 mb-1"> نوع المنشور (Post Type):</label>
             <select id="etc-task-post-type" class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-amber-500 focus:outline-none">
-              <option value="post">🖼️ بوست جرافيك (Single Image)</option>
-              <option value="carousel">📚 كاروسيل شرائح (Carousel)</option>
-              <option value="reel">🎬 فيديو ريلز (Reel / Short)</option>
-              <option value="story">📱 ستوري (Story)</option>
+              <option value="post">️ بوست جرافيك (Single Image)</option>
+              <option value="carousel"> كاروسيل شرائح (Carousel)</option>
+              <option value="reel"> فيديو ريلز (Reel / Short)</option>
+              <option value="story"> ستوري (Story)</option>
             </select>
           </div>
           <div>
-            <label class="block font-bold text-slate-700 mb-1">🔗 روابط المراجع والريفرنس (إن وجد):</label>
+            <label class="block font-bold text-slate-700 mb-1"> روابط المراجع والريفرنس (إن وجد):</label>
             <input id="etc-task-reference-links" type="text" placeholder="روابط مفصولة بفواصل..." class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white text-slate-800 focus:border-amber-500 focus:outline-none" />
           </div>
         </div>
 
         <div>
-          <label class="block font-bold text-slate-700 mb-1">💡 فكرة الفيجوال والتصميم للمصمم/المونتير (Visual Idea):</label>
+          <label class="block font-bold text-slate-700 mb-1"> فكرة الفيجوال والتصميم للمصمم/المونتير (Visual Idea):</label>
           <textarea id="etc-task-visual-idea" rows="2" placeholder="وصف التصميم، توزيع العناصر، ألوان أو حركة الفيديو..." class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white text-slate-800 focus:border-amber-500 focus:outline-none"></textarea>
         </div>
 
         <div>
-          <label class="block font-bold text-slate-700 mb-1">📝 الكابشن والاسكريبت الكامل للبوست (Full Caption & Copy):</label>
+          <label class="block font-bold text-slate-700 mb-1"> الكابشن والاسكريبت الكامل للبوست (Full Caption & Copy):</label>
           <textarea id="etc-task-caption" rows="6" placeholder="اكتب نص الكابشن الكامل والهاشتاجات..." class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white text-slate-800 font-medium leading-relaxed focus:border-amber-500 focus:outline-none"></textarea>
         </div>
 
@@ -2082,7 +2082,7 @@
             إلغاء
           </button>
           <button id="btn-save-task-content" type="submit" class="btn-primary text-xs py-2.5 px-6 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold hover:opacity-95 shadow-md flex items-center gap-1.5 transition">
-            <span>💾 حفظ محتوى البوست ✍️</span>
+            <span> حفظ محتوى البوست ️</span>
           </button>
         </div>
       </form>

@@ -115,8 +115,8 @@ async function setAccountMode(accId, kind, mode){
         const d = await res.json();
         if (d.ok) {
             showToast(kind === 'comment_mode'
-                ? (mode === 'auto' ? 'الكومنتات: رد تلقائي ✅' : 'الكومنتات: مراجعة يدوية 👨‍💼')
-                : (mode === 'auto' ? 'الرسائل: رد تلقائي ✅' : 'الرسائل: مراجعة يدوية 👨‍💼'));
+                ? (mode === 'auto' ? 'الكومنتات: رد تلقائي ' : 'الكومنتات: مراجعة يدوية ‍')
+                : (mode === 'auto' ? 'الرسائل: رد تلقائي ' : 'الرسائل: مراجعة يدوية ‍'));
             loadAccounts();
         } else {
             showToast('تعذّر تغيير الوضع', 'error');
@@ -139,8 +139,8 @@ async function loadAccounts(){
         if (headerSelect) {
             let selectHtml = '';
             clientsList.forEach(c => {
-                const fbOk = c.fb_connected ? '🔵' : '⚪';
-                const igOk = c.ig_connected ? '🟣' : '⚪';
+                const fbOk = c.fb_connected ? '' : '';
+                const igOk = c.ig_connected ? '' : '';
                 selectHtml += `<option value="${esc(c.id)}">${fbOk}${igOk} ${esc(c.name)}</option>`;
             });
             headerSelect.innerHTML = selectHtml || '<option value="">لا يوجد عملاء</option>';
@@ -160,7 +160,7 @@ async function loadAccounts(){
                 sideAccountsList.innerHTML = accs.map(a => `
                     <div class="py-2.5 flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-base">${a.platform === 'facebook' ? '🔵' : '🟣'}</span>
+                            <span class="text-base">${a.platform === 'facebook' ? '' : ''}</span>
                             <div>
                                 <strong class="font-bold text-slate-800">${esc(a.name)}</strong>
                                 <span class="text-[10px] text-slate-400 block font-mono">ID: ${esc(a.id)}</span>
@@ -272,15 +272,15 @@ async function loadAccounts(){
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div class="p-3 rounded-xl border ${fbAcc ? 'border-blue-200 bg-blue-50/50' : 'border-dashed border-slate-300 bg-slate-50/30'}">
                         <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-bold ${fbAcc ? 'text-blue-700' : 'text-slate-400'}">🔵 فيسبوك Page</span>
-                            ${fbAcc ? '<span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">✅ متصل</span>' : '<span class="text-[10px] font-bold text-slate-400">غير مرتبط</span>'}
+                            <span class="text-xs font-bold ${fbAcc ? 'text-blue-700' : 'text-slate-400'}"> فيسبوك Page</span>
+                            ${fbAcc ? '<span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded"> متصل</span>' : '<span class="text-[10px] font-bold text-slate-400">غير مرتبط</span>'}
                         </div>
                         ${fbAcc ? `<p class="text-[11px] text-slate-700 font-bold">${esc(fbAcc.name)}</p><p class="text-[10px] text-slate-500 font-mono">ID: ${esc(fbAcc.id)}</p>` : '<p class="text-[11px] text-slate-400">لم يتم ربط صفحة فيسبوك بعد</p>'}
                     </div>
                     <div class="p-3 rounded-xl border ${igAcc ? 'border-purple-200 bg-purple-50/50' : 'border-dashed border-slate-300 bg-slate-50/30'}">
                         <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-bold ${igAcc ? 'text-purple-700' : 'text-slate-400'}">🟣 إنستجرام Business</span>
-                            ${igAcc ? '<span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">✅ متصل</span>' : '<span class="text-[10px] font-bold text-slate-400">غير مرتبط</span>'}
+                            <span class="text-xs font-bold ${igAcc ? 'text-purple-700' : 'text-slate-400'}"> إنستجرام Business</span>
+                            ${igAcc ? '<span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded"> متصل</span>' : '<span class="text-[10px] font-bold text-slate-400">غير مرتبط</span>'}
                         </div>
                         ${igAcc ? `<p class="text-[11px] text-slate-700 font-bold">${esc(igAcc.name)}</p><p class="text-[10px] text-slate-500 font-mono">ID: ${esc(igAcc.id)}</p>` : '<p class="text-[11px] text-slate-400">لم يتم ربط حساب إنستجرام بعد</p>'}
                     </div>
@@ -299,7 +299,7 @@ async function loadAccounts(){
                 <h5 class="text-xs font-bold text-slate-500 mb-2">حسابات غير مرتبطة بعميل:</h5>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2">`;
             orphanAccs.forEach(a => {
-                const icon = a.platform === 'facebook' ? '🔵' : '🟣';
+                const icon = a.platform === 'facebook' ? '' : '';
                 html += `
                 <div class="p-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-between text-xs">
                     <span>${icon} ${esc(a.name)} (${esc(a.id)})</span>
@@ -487,7 +487,7 @@ function renderScheduledPosts() {
     const el = document.getElementById('scheduled-posts-list');
     if (!el) return;
     if (!scheduledPosts || scheduledPosts.length === 0) {
-        el.innerHTML = '<div class="p-4 text-center text-xs text-slate-500">لا توجد منشورات مجدولة بعد 📅</div>';
+        el.innerHTML = '<div class="p-4 text-center text-xs text-slate-500">لا توجد منشورات مجدولة بعد </div>';
         return;
     }
     el.innerHTML = scheduledPosts.map(p => {
@@ -496,7 +496,7 @@ function renderScheduledPosts() {
         var preview = media
           ? (isVideo
               ? '<a href="' + esc(media) + '" target="_blank" class="flex items-center justify-center w-24 h-24 rounded-lg bg-slate-900 text-white text-2xl shrink-0">▶️</a>'
-              : '<a href="' + esc(media) + '" target="_blank"><img src="' + esc(driveThumb(media)) + '" class="w-24 h-24 rounded-lg object-cover border border-slate-200 shrink-0" loading="lazy" onerror="this.outerHTML=\'<div class=&quot;w-24 h-24 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs&quot;>🖼️</div>\'"></a>')
+              : '<a href="' + esc(media) + '" target="_blank"><img src="' + esc(driveThumb(media)) + '" class="w-24 h-24 rounded-lg object-cover border border-slate-200 shrink-0" loading="lazy" onerror="this.outerHTML=\'<div class=&quot;w-24 h-24 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-xs&quot;>️</div>\'"></a>')
           : '<div class="w-24 h-24 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 text-xs shrink-0">لا ميديا</div>';
         var done = p.status && (String(p.status).includes('تم') || p.status === 'published');
         return `
@@ -505,14 +505,14 @@ function renderScheduledPosts() {
             <div class="space-y-2 flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="font-bold text-blue-600">${esc(p.typeLabel || p.target || 'منشور')}</span>
-                    <span class="px-2 py-0.5 rounded-md font-bold ${done ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${esc(done ? 'منشور ✓' : 'مجدول')}</span>
+                    <span class="px-2 py-0.5 rounded-md font-bold ${done ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${esc(done ? 'منشور ' : 'مجدول')}</span>
                     ${p.from_task ? '<span class="text-[10px] text-slate-400 font-mono">' + esc(p.from_task) + '</span>' : ''}
                 </div>
                 <p class="text-slate-800 font-medium line-clamp-2">${esc(p.caption)}</p>
                 <div class="flex items-center gap-1 flex-wrap">
                     <input type="date" id="sp-date-${esc(p.id)}" value="${esc(p.date || '')}" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md">
                     <input type="time" id="sp-time-${esc(p.id)}" value="${esc(p.time || '10:00')}" class="text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md">
-                    <button onclick="reschedulePost('${esc(p.id)}')" class="text-[11px] bg-blue-600 text-white font-bold px-2 py-1 rounded-md">💾 حفظ الموعد</button>
+                    <button onclick="reschedulePost('${esc(p.id)}')" class="text-[11px] bg-blue-600 text-white font-bold px-2 py-1 rounded-md"> حفظ الموعد</button>
                     <button onclick="deleteScheduledPost('${esc(p.id)}')" class="text-[11px] text-red-600 border border-red-200 px-2 py-1 rounded-md">حذف</button>
                 </div>
             </div>
@@ -530,7 +530,7 @@ async function reschedulePost(id) {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: d, time: t })
         });
         var data = await res.json();
-        if (res.ok && data.ok) { showToast('اتحفظ موعد النشر ✅'); loadScheduledPosts(); }
+        if (res.ok && data.ok) { showToast('اتحفظ موعد النشر '); loadScheduledPosts(); }
         else showToast(data.error || 'تعذّر الحفظ', 'error');
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -829,7 +829,7 @@ async function deleteClient(clientId, clientName) {
         });
         const d = await res.json();
         if (d.ok) {
-            showToast('تم حذف العميل وجميع حساباته بنجاح 🗑️');
+            showToast('تم حذف العميل وجميع حساباته بنجاح ️');
             loadAccounts();
         } else {
             showToast(d.error || 'حدث خطأ أثناء الحذف', 'error');
@@ -879,7 +879,7 @@ async function saveDirectAccount(e) {
                     return;
                 }
             }
-            showToast(`تم تسجيل العميل: ${name} بنجاح! 🚀`);
+            showToast(`تم تسجيل العميل: ${name} بنجاح! `);
         } else {
             showToast(d.error || 'حدث خطأ أثناء التسجيل', 'error');
         }
@@ -918,7 +918,7 @@ async function loadRules() {
                 tableBody.innerHTML = ruleList.map(r => `
                     <tr class="hover:bg-slate-50">
                         <td class="p-3 font-bold text-slate-900">${esc(r.trigger || '* (كل الكومنتات)')}</td>
-                        <td class="p-3 text-slate-600">${r.post_url ? `<span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono text-[11px] block truncate max-w-[150px]" title="${esc(r.post_url)}">🔗 ${esc(r.post_url)}</span>` : '<span class="text-slate-400">🌐 جميع المنشورات</span>'}</td>
+                        <td class="p-3 text-slate-600">${r.post_url ? `<span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono text-[11px] block truncate max-w-[150px]" title="${esc(r.post_url)}"> ${esc(r.post_url)}</span>` : '<span class="text-slate-400"> جميع المنشورات</span>'}</td>
                         <td class="p-3 text-slate-600">${esc(r.match_type || 'contains')}</td>
                         <td class="p-3 text-slate-800">${esc(r.response || '-')}</td>
                         <td class="p-3 text-slate-800">${esc(r.private_response || '-')}</td>
@@ -941,7 +941,7 @@ async function loadRules() {
                     <div class="p-3 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between gap-3 text-xs mb-2">
                         <div class="space-y-1 flex-1">
                             <h4 class="font-bold text-slate-900"><i data-lucide="target" class="w-4 h-4 text-blue-600 inline"></i> الكلمة: "${esc(r.trigger)}" (${esc(r.match_type)})</h4>
-                            ${r.post_url ? `<p class="text-blue-600 font-mono text-[11px]">🔗 البوست المستهدف: ${esc(r.post_url)}</p>` : ''}
+                            ${r.post_url ? `<p class="text-blue-600 font-mono text-[11px]"> البوست المستهدف: ${esc(r.post_url)}</p>` : ''}
                             <p class="text-slate-700">الرد العام: ${esc(r.response)} ${r.private_response ? ' | الرد الخاص: ' + esc(r.private_response) : ''}</p>
                         </div>
                         <button onclick="deleteRule(${r.id})" class="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition inline-flex items-center gap-1">
@@ -976,7 +976,7 @@ async function addRule(e) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({trigger: trigger || '*', post_url, post_id: post_url, match_type, response, private_response})
         });
-        showToast('تم حفظ وتفعيل القاعدة بنجاح 🎯');
+        showToast('تم حفظ وتفعيل القاعدة بنجاح ');
         if (triggerEl) triggerEl.value = '';
         if (postUrlEl) postUrlEl.value = '';
         if (responseEl) responseEl.value = '';
@@ -999,7 +999,7 @@ async function loadKb() {
         grid.innerHTML = kbList.map(item => `
             <div class="p-3 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between gap-3 text-xs mb-2">
                 <div class="space-y-1 flex-1">
-                    <h4 class="font-bold text-slate-900">❓ ${esc(item.question)}</h4>
+                    <h4 class="font-bold text-slate-900"> ${esc(item.question)}</h4>
                     <p class="text-slate-700">${esc(item.answer)}</p>
                 </div>
                 <button onclick="deleteKb(${item.id})" class="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm transition inline-flex items-center gap-1">
@@ -1070,18 +1070,18 @@ async function renderEmployeesStatus() {
     }
 
     function getRoleIcon(roleType) {
-        if (roleType === 'video') return '🎬';
-        if (roleType === 'graphic') return '🎨';
-        if (roleType === 'content') return '✍️';
-        if (roleType === 'am') return '👔';
-        return '👤';
+        if (roleType === 'video') return '';
+        if (roleType === 'graphic') return '';
+        if (roleType === 'content') return '️';
+        if (roleType === 'am') return '';
+        return '';
     }
 
     var deptTabsHtml = '<div class="flex items-center gap-1 overflow-x-auto pb-1.5 mb-2 border-b border-slate-100 text-[11px] font-bold">' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'all\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🌟 الكل (' + emps.length + ')</button>' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'video\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'video' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🎬 فيديو</button>' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'graphic\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'graphic' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">🎨 جرافيك</button>' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'content\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'content' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">✍️ كونتنت</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'all\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '"> الكل (' + emps.length + ')</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'video\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'video' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '"> فيديو</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'graphic\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'graphic' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '"> جرافيك</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'content\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'content' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">️ كونتنت</button>' +
     '</div>';
 
     var filteredEmps = emps.filter(function(e) {
@@ -1105,21 +1105,21 @@ async function renderEmployeesStatus() {
         var working = ((inprog[eid] || inprog[enm] || 0) > 0) || activeTasks.some(function(t){ return t.status === 'In Progress'; });
         var isSelected = (selectedEmployeeFilter === eid || (selectedEmployeeName && selectedEmployeeName === enm));
         var dot = n === 0 ? 'bg-emerald-500' : (working ? 'bg-amber-500 animate-pulse' : 'bg-blue-500');
-        var label = n === 0 ? 'متاح' : (n + ' مهمة' + (working ? ' · شغّال 🚀' : ''));
+        var label = n === 0 ? 'متاح' : (n + ' مهمة' + (working ? ' · شغّال ' : ''));
         var bgClass = isSelected ? 'bg-blue-50/90 border-blue-300 ring-2 ring-blue-500/20 shadow-xs' : 'bg-white hover:bg-slate-50 border-slate-200/80';
 
         var headlinesHtml = '';
         if (activeTasks.length > 0) {
             headlinesHtml = '<div class="mt-2 pt-2 border-t border-slate-100 space-y-1.5 text-[10px]">' +
                 '<div class="font-bold text-[10px] text-slate-500 flex items-center justify-between">' +
-                    '<span>📋 عناوين المهام الحالية (' + activeTasks.length + '):</span>' +
+                    '<span> عناوين المهام الحالية (' + activeTasks.length + '):</span>' +
                 '</div>' +
                 activeTasks.map(function(t){
                     var pType = (t.post_type || '').toLowerCase();
-                    var pTypeIcon = pType === 'carousel' ? '📚' : (pType === 'reel' ? '🎬' : (pType === 'story' ? '📱' : '🖼️'));
+                    var pTypeIcon = pType === 'carousel' ? '' : (pType === 'reel' ? '' : (pType === 'story' ? '' : '️'));
                     var stClass = t.status === 'In Progress' ? 'bg-amber-100 text-amber-800' :
                                   t.status === 'Review Required' || t.status === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
-                    var cNameBadge = t.client_name ? '<span class="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium border border-slate-200">🏢 ' + esc(t.client_name) + '</span>' : '';
+                    var cNameBadge = t.client_name ? '<span class="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium border border-slate-200"> ' + esc(t.client_name) + '</span>' : '';
                     var titleText = esc(t.title || t.tagline || 'مهمة بدون عنوان');
                     
                     return '<div onclick="event.stopPropagation(); highlightTaskCard(\'' + esc(t.task_id) + '\')" ' +
@@ -1153,8 +1153,8 @@ async function renderEmployeesStatus() {
 
     if (selectedEmployeeFilter) {
         html = '<div class="pb-2 flex items-center justify-between border-b border-blue-100 mb-1">' +
-            '<span class="text-[11px] text-blue-700 font-bold flex items-center gap-1">🎯 فلترة: <b>' + esc(selectedEmployeeName) + '</b></span>' +
-            '<button type="button" onclick="clearEmployeeFilter()" class="text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-0.5 rounded-md font-bold transition">إلغاء ✕</button>' +
+            '<span class="text-[11px] text-blue-700 font-bold flex items-center gap-1"> فلترة: <b>' + esc(selectedEmployeeName) + '</b></span>' +
+            '<button type="button" onclick="clearEmployeeFilter()" class="text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-0.5 rounded-md font-bold transition">إلغاء </button>' +
         '</div>' + html;
     }
 
@@ -1213,14 +1213,14 @@ function renderClientTabs() {
     // Archive / Active View Mode Switcher Button
     html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 ' +
         (tasksArchiveMode ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-300' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '" title="' + (tasksArchiveMode ? 'الرجوع للمهام والخطط النشطة' : 'عرض الخطط المؤرشفة') + '">' +
-        '<span>' + (tasksArchiveMode ? '📦 الأرشيف (مفعّل)' : '📦 الأرشيف') + '</span>' +
+        '<span>' + (tasksArchiveMode ? ' الأرشيف (مفعّل)' : ' الأرشيف') + '</span>' +
         '<span dir="ltr" class="' + (tasksArchiveMode ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-900') + ' text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">' + tasksArchivedCount + '</span>' +
     '</button>';
 
     // All Plans filter button
     html += '<button type="button" onclick="filterTasksByPlan(null)" class="shrink-0 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-2 ' +
         (!selectedPlanFilter ? (tasksArchiveMode ? 'bg-amber-700 text-white shadow-sm ring-2 ring-amber-400' : 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300') : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '">' +
-        '<span>' + (tasksArchiveMode ? '📦 جميع الخطط المؤرشفة' : '📑 جميع الخطط النشطة') + '</span>' +
+        '<span>' + (tasksArchiveMode ? ' جميع الخطط المؤرشفة' : ' جميع الخطط النشطة') + '</span>' +
         '<span dir="ltr" class="' + (!selectedPlanFilter ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-800') + ' text-[11px] px-2 py-0.5 rounded-full font-mono font-bold">' + allTasks.length + '</span>' +
     '</button>';
 
@@ -1236,25 +1236,25 @@ function renderClientTabs() {
 
         html += '<div class="shrink-0 inline-flex items-center rounded-xl overflow-hidden shadow-xs transition border ' + pillColor + '">' +
             '<button type="button" onclick="filterTasksByPlan(\'' + escapedPlan + '\')" class="text-xs font-bold px-3 py-2 flex items-center gap-2 text-inherit">' +
-                '<span>' + (tasksArchiveMode ? '📦 ' : '📄 ') + cleanTitle + '</span>' +
+                '<span>' + (tasksArchiveMode ? ' ' : ' ') + cleanTitle + '</span>' +
                 '<span dir="ltr" class="text-[11px] font-mono ' + (isSel ? 'bg-white/25 text-white' : (tasksArchiveMode ? 'bg-amber-200 text-amber-950' : 'bg-purple-200 text-purple-950')) + ' px-2 py-0.5 rounded-lg font-bold">' + pInfo.completed + ' / ' + pInfo.total + '</span>' +
             '</button>';
 
         if (!tasksArchiveMode) {
             // Archive Button on active pill
             html += '<button type="button" onclick="event.stopPropagation(); archivePlanAction(\'' + escapedPlan + '\')" title="أرشفة هذه الخطة (نقلها للأرشيف)" class="px-2 py-2 text-xs font-bold opacity-70 hover:opacity-100 hover:bg-amber-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-amber-700 border-r border-purple-200') + '">' +
-                '📦' +
+                '' +
             '</button>';
         } else {
             // Restore Button on archived pill
             html += '<button type="button" onclick="event.stopPropagation(); unarchivePlanAction(\'' + escapedPlan + '\')" title="استعادة هذه الخطة للوحة النشطة" class="px-2 py-2 text-xs font-bold opacity-70 hover:opacity-100 hover:bg-emerald-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-emerald-700 border-r border-amber-200') + '">' +
-                '♻️' +
+                '️' +
             '</button>';
         }
 
         // Delete Button
         html += '<button type="button" onclick="event.stopPropagation(); deletePlanAction(\'' + escapedPlan + '\')" title="حذف هذه الخطة بالكامل" class="px-2 py-2 text-xs font-bold opacity-60 hover:opacity-100 hover:bg-red-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-purple-700 border-r border-purple-200') + '">' +
-            '✕' +
+            '' +
         '</button>' +
         '</div>';
     });
@@ -1267,26 +1267,26 @@ function renderClientTabs() {
         
         if (!tasksArchiveMode) {
             html += '<button type="button" onclick="archivePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-600 hover:text-white border border-amber-200 shadow-sm transition flex items-center gap-1.5" title="أرشفة الخطة المحددة">' +
-                '<span>📦 أرشفة الخطة</span>' +
+                '<span> أرشفة الخطة</span>' +
             '</button>';
         } else {
             html += '<button type="button" onclick="unarchivePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-600 hover:text-white border border-emerald-200 shadow-sm transition flex items-center gap-1.5" title="استعادة الخطة للوحة النشطة">' +
-                '<span>♻️ استعادة الخطة للوحة النشطة</span>' +
+                '<span>️ استعادة الخطة للوحة النشطة</span>' +
             '</button>';
         }
 
         html += '<button type="button" onclick="deletePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200 shadow-sm transition flex items-center gap-1.5" title="حذف الخطة المحددة">' +
-            '<span>🗑️ حذف «' + cleanSelTitle + '»</span>' +
+            '<span>️ حذف «' + cleanSelTitle + '»</span>' +
         '</button>';
     }
     
     if (!tasksArchiveMode) {
         html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5">' +
-            '<span>➕ كتابة خطة جديدة بالقالب</span>' +
+            '<span> كتابة خطة جديدة بالقالب</span>' +
         '</button>';
     } else {
         html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-slate-800 text-white hover:bg-slate-900 shadow-sm transition flex items-center gap-1.5">' +
-            '<span>⚡ العودة للخطط النشطة</span>' +
+            '<span> العودة للخطط النشطة</span>' +
         '</button>';
     }
     html += '</div>';
@@ -1310,7 +1310,7 @@ function _optimisticallyRemovePlanTasks(planName, cleanTitle) {
 async function archivePlanAction(planName) {
     if (!planName) return;
     var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '').trim();
-    if (!confirm("📦 هل أنت متأكد من أرشفة خطة «" + cleanTitle + "» ونقلها إلى الأرشيف؟\n\nستختفي من اللوحة اليومية لتتمكن من العمل على خطط الشهر الجديد، وتبقى محفوظة بكافة ملفاتها وسجلاتها في الأرشيف للرجوع إليها بأي وقت.")) {
+    if (!confirm(" هل أنت متأكد من أرشفة خطة «" + cleanTitle + "» ونقلها إلى الأرشيف؟\n\nستختفي من اللوحة اليومية لتتمكن من العمل على خطط الشهر الجديد، وتبقى محفوظة بكافة ملفاتها وسجلاتها في الأرشيف للرجوع إليها بأي وقت.")) {
         return;
     }
     
@@ -1319,7 +1319,7 @@ async function archivePlanAction(planName) {
     tasksArchivedCount++;
     renderClientTabs();
     renderTasksBoard();
-    if (typeof showToast === 'function') showToast("جاري نقل الخطة للأرشيف... 📦", "info");
+    if (typeof showToast === 'function') showToast("جاري نقل الخطة للأرشيف... ", "info");
 
     try {
         var res = await safeFetchJson('/api/plans/archive', {
@@ -1328,7 +1328,7 @@ async function archivePlanAction(planName) {
             body: JSON.stringify({ plan_name: planName })
         });
         if (res && (res.success || res.ok)) {
-            if (typeof showToast === 'function') showToast(res.message || "تمت أرشفة الخطة بنجاح 📦✨", "success");
+            if (typeof showToast === 'function') showToast(res.message || "تمت أرشفة الخطة بنجاح ", "success");
         } else {
             if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر تأكيد الأرشفة", "error");
         }
@@ -1342,11 +1342,11 @@ async function archivePlanAction(planName) {
 async function unarchivePlanAction(planName) {
     if (!planName) return;
     var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '').trim();
-    if (!confirm("♻️ هل ترغب في استعادة خطة «" + cleanTitle + "» من الأرشيف وإعادتها للوحة المهام النشطة؟")) {
+    if (!confirm("️ هل ترغب في استعادة خطة «" + cleanTitle + "» من الأرشيف وإعادتها للوحة المهام النشطة؟")) {
         return;
     }
 
-    if (typeof showToast === 'function') showToast("جاري استعادة الخطة للوحة النشطة... ♻️", "info");
+    if (typeof showToast === 'function') showToast("جاري استعادة الخطة للوحة النشطة... ️", "info");
 
     try {
         var res = await safeFetchJson('/api/plans/unarchive', {
@@ -1355,7 +1355,7 @@ async function unarchivePlanAction(planName) {
             body: JSON.stringify({ plan_name: planName })
         });
         if (res && (res.success || res.ok)) {
-            if (typeof showToast === 'function') showToast(res.message || "تمت استعادة الخطة بنجاح ♻️✨", "success");
+            if (typeof showToast === 'function') showToast(res.message || "تمت استعادة الخطة بنجاح ️", "success");
         } else {
             if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر استعادة الخطة", "error");
         }
@@ -1369,7 +1369,7 @@ async function unarchivePlanAction(planName) {
 async function deletePlanAction(planName) {
     if (!planName) return;
     var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '').trim();
-    if (!confirm("⚠️ هل أنت متأكد من حذف الخطة بالكامل: «" + cleanTitle + "» ؟\n\nسيتم حذف جميع المهام التابعة لهذه الخطة نهائياً من قاعدة البيانات وجوجل شيت.")) {
+    if (!confirm("️ هل أنت متأكد من حذف الخطة بالكامل: «" + cleanTitle + "» ؟\n\nسيتم حذف جميع المهام التابعة لهذه الخطة نهائياً من قاعدة البيانات وجوجل شيت.")) {
         return;
     }
     
@@ -1377,7 +1377,7 @@ async function deletePlanAction(planName) {
     _optimisticallyRemovePlanTasks(planName, cleanTitle);
     renderClientTabs();
     renderTasksBoard();
-    if (typeof showToast === 'function') showToast("تم حذف الخطة محلياً وجاري المزامنة مع السيرفر 🗑️", "info");
+    if (typeof showToast === 'function') showToast("تم حذف الخطة محلياً وجاري المزامنة مع السيرفر ️", "info");
 
     // 2. Sync with Backend
     try {
@@ -1387,7 +1387,7 @@ async function deletePlanAction(planName) {
             body: JSON.stringify({ plan_name: planName, clean_name: cleanTitle })
         });
         if (res && (res.success || res.ok)) {
-            if (typeof showToast === 'function') showToast(res.message || "تم حذف الخطة نهائياً من السيرفر بنجاح 🗑️", "success");
+            if (typeof showToast === 'function') showToast(res.message || "تم حذف الخطة نهائياً من السيرفر بنجاح ️", "success");
         } else {
             if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر تأكيد الحذف من السيرفر", "error");
         }
@@ -1461,14 +1461,14 @@ function renderAMWorkspaceColumns(columns) {
     if (!container) return;
 
     if (!columns || columns.length === 0) {
-        container.innerHTML = '<div class="p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl w-full">لا توجد عملاء أو مشاريع مسندة لحسابك حالياً. تواصل مع الأدمن لإسناد العملاء 🎯</div>';
+        container.innerHTML = '<div class="p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl w-full">لا توجد عملاء أو مشاريع مسندة لحسابك حالياً. تواصل مع الأدمن لإسناد العملاء </div>';
         return;
     }
 
     container.innerHTML = columns.map(function(col) {
         var teamHtml = col.team_members && col.team_members.length ?
             col.team_members.map(function(m) { 
-                return '<span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100">👤 ' + esc(m.name) + ' (' + esc(m.role) + ')</span>'; 
+                return '<span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100"> ' + esc(m.name) + ' (' + esc(m.role) + ')</span>'; 
             }).join(' ') :
             '<span class="text-[10px] text-slate-400">لم يتم تحديد فريق</span>';
 
@@ -1480,11 +1480,11 @@ function renderAMWorkspaceColumns(columns) {
                               t.status === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800';
 
             var isTimerRunning = t.timer_state && t.timer_state.is_running;
-            var timerBtnText = isTimerRunning ? '⏸️ إيقاف وتثبيت الوقت' : '🚀 بدء التوقيت الحي';
+            var timerBtnText = isTimerRunning ? '️ إيقاف وتثبيت الوقت' : ' بدء التوقيت الحي';
             var timerBtnClass = isTimerRunning ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200';
 
             var driveBtn = t.drive_link ?
-                '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] py-1 px-2 rounded-lg border border-emerald-200 transition">📁 فتح الملف في Google Drive (أعلى جودة 🚀)</a>' :
+                '<a href="' + esc(t.drive_link) + '" target="_blank" class="block text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] py-1 px-2 rounded-lg border border-emerald-200 transition"> فتح الملف في Google Drive (أعلى جودة )</a>' :
                 '<button onclick="promptLinkDrive(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 transition">+ ربط ملف Google Drive عالي الجودة</button>';
 
             return '<div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm space-y-2 text-xs">' +
@@ -1495,7 +1495,7 @@ function renderAMWorkspaceColumns(columns) {
                 '<h5 class="font-bold text-slate-900 leading-snug">' + esc(t.title) + '</h5>' +
                 '<p class="text-[11px] text-slate-600 line-clamp-2">' + esc(t.description || '') + '</p>' +
                 '<div class="bg-slate-50 p-2 rounded-lg border border-slate-100 text-[10px] space-y-1">' +
-                    '<div class="flex justify-between text-amber-700 font-bold"><span>⏰ موعد التسليم:</span><span>' + esc(t.delivery_deadline || t.publish_date || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
+                    '<div class="flex justify-between text-amber-700 font-bold"><span> موعد التسليم:</span><span>' + esc(t.delivery_deadline || t.publish_date || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
                 '</div>' +
                 '<div class="flex gap-1">' +
                     '<button onclick="toggleTaskTimerAction(\'' + esc(t.task_id) + '\')" class="flex-1 font-bold text-[10px] py-1 px-2 rounded-lg transition ' + timerBtnClass + '">' + timerBtnText + '</button>' +
@@ -1509,11 +1509,11 @@ function renderAMWorkspaceColumns(columns) {
                 '<div class="flex items-center justify-between">' +
                     '<h4 class="font-bold text-sm text-slate-900 flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span> ' + esc(col.client_name) + '</h4>' +
                     '<div class="flex gap-1">' +
-                        '<span class="bg-amber-100 text-amber-800 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">⏱️ ' + (col.total_hours_spent || 0) + 'h</span>' +
+                        '<span class="bg-amber-100 text-amber-800 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">️ ' + (col.total_hours_spent || 0) + 'h</span>' +
                         '<span class="bg-blue-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">' + col.completed_tasks + '/' + col.total_tasks + '</span>' +
                     '</div>' +
                 '</div>' +
-                '<div><button onclick="promptUploadStrategy(\'' + esc(col.client_id) + '\')" class="w-full text-center bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[11px] py-1 px-2 rounded-lg border border-purple-200 transition">📄 ' + esc(stratTitle) + '</button></div>' +
+                '<div><button onclick="promptUploadStrategy(\'' + esc(col.client_id) + '\')" class="w-full text-center bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[11px] py-1 px-2 rounded-lg border border-purple-200 transition"> ' + esc(stratTitle) + '</button></div>' +
                 '<div class="flex flex-wrap gap-1">' + teamHtml + '</div>' +
             '</div>' +
             '<div class="space-y-3 flex-1 overflow-y-auto max-h-[550px] pr-1">' + tasksHtml + '</div>' +
@@ -1538,7 +1538,7 @@ async function promptUploadStrategy(clientId) {
         });
         var data = await res.json();
         if (data.success) {
-            showToast('تم حفظ وتفعيل استراتيجية العميل في الـ AI RAG بنجاح 🎉');
+            showToast('تم حفظ وتفعيل استراتيجية العميل في الـ AI RAG بنجاح ');
             loadAMWorkspace();
         } else {
             showToast(data.error || 'خطأ في حفظ الاستراتيجية', 'error');
@@ -1557,7 +1557,7 @@ async function toggleTaskTimerAction(taskId) {
         });
         var data = await res.json();
         if (data.success) {
-            showToast(data.timer_state.is_running ? '⏱️ تم بدء تسجيل وقت المهمة!' : '⏸️ تم إيقاف وتثبيت الوقت بنجاح');
+            showToast(data.timer_state.is_running ? '️ تم بدء تسجيل وقت المهمة!' : '️ تم إيقاف وتثبيت الوقت بنجاح');
             loadTasksEngine();
         } else {
             showToast(data.error || 'خطأ في تشغيل المؤشر', 'error');
@@ -1579,7 +1579,7 @@ async function promptLinkDrive(taskId) {
         });
         var data = await res.json();
         if (data.success) {
-            showToast('تم ربط ملف Google Drive بنجاح 🎉');
+            showToast('تم ربط ملف Google Drive بنجاح ');
             loadTasksEngine();
         } else {
             showToast(data.error || 'خطأ في ربط الملف', 'error');
@@ -1639,7 +1639,7 @@ function copyTaskDriveLink(link) {
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(link).then(function() {
-            if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح 📋');
+            if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح ');
         }).catch(function() {
             fallbackCopyText(link);
         });
@@ -1655,7 +1655,7 @@ function fallbackCopyText(text) {
     ta.select();
     try {
         document.execCommand('copy');
-        if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح 📋');
+        if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح ');
     } catch(e) {}
     document.body.removeChild(ta);
 }
@@ -1673,7 +1673,7 @@ async function saveTaskDates(taskId) {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
         var data = await res.json();
-        if (res.ok && data.ok) { showToast('اتحفظت المواعيد ✅'); loadTasksEngine(); }
+        if (res.ok && data.ok) { showToast('اتحفظت المواعيد '); loadTasksEngine(); }
         else showToast(data.error || 'تعذّر الحفظ', 'error');
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -1773,20 +1773,20 @@ function renderTaskCard(t, indexInPlan) {
                            st === 'In Progress' ? 'bg-blue-100 text-blue-800' :
                            isSubmitted ? 'bg-purple-100 text-purple-800 font-bold animate-pulse' :
                            st === 'Assigned' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800';
-    var stLabel = isCompleted ? 'مكتملة ومعتمدة ✅' : st === 'In Progress' ? 'جاري العمل ⏳' :
-                  isSubmitted ? 'تم التسليم / بانتظار مراجعتك 🎬' : st === 'Assigned' ? 'مُسندة 👤' : 'بانتظار الإسناد 📝';
+    var stLabel = isCompleted ? 'مكتملة ومعتمدة ' : st === 'In Progress' ? 'جاري العمل ' :
+                  isSubmitted ? 'تم التسليم / بانتظار مراجعتك ' : st === 'Assigned' ? 'مُسندة ' : 'بانتظار الإسناد ';
 
     var cleanAM = (t.am_name || '').trim();
     if (!cleanAM || cleanAM === 'EMP-001' || cleanAM === 'EMP-001-AM' || t.am_id === 'EMP-001' || t.am_id === 'EMP-001-AM') {
         cleanAM = 'محمود خالد';
     }
     var amTag = '<div class="flex items-center gap-1 text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md font-bold">' +
-        '<span>👔 AM:</span> <span class="text-indigo-900">' + esc(cleanAM) + '</span>' +
+        '<span> AM:</span> <span class="text-indigo-900">' + esc(cleanAM) + '</span>' +
     '</div>';
 
     var clientTag = (selectedEmployeeFilter && t.client_name) ?
         '<div class="text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">' +
-            '<span>🏢 ' + esc(t.client_name) + '</span>' +
+            '<span> ' + esc(t.client_name) + '</span>' +
         '</div>' : '';
 
     // reference images (from docx or uploaded)
@@ -1794,7 +1794,7 @@ function renderTaskCard(t, indexInPlan) {
     var refsHtml = refs.length ? '<div class="flex gap-1.5 flex-wrap pt-0.5">' + refs.slice(0, 4).map(function(u) {
         var isData = u.startsWith('data:image/');
         var thumbSrc = isData ? u : driveThumb(u);
-        return '<a href="' + esc(u) + '" target="_blank" class="block w-14 h-14 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 shadow-xs hover:opacity-90 transition"><img src="' + esc(thumbSrc) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
+        return '<a href="' + esc(u) + '" target="_blank" class="block w-14 h-14 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 shadow-xs hover:opacity-90 transition"><img src="' + esc(thumbSrc) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'️\'"></a>';
     }).join('') + (refs.length > 4 ? '<span class="text-[10px] text-slate-400 self-center font-bold">+' + (refs.length - 4) + '</span>' : '') + '</div>' : '';
 
     // reference links
@@ -1802,10 +1802,10 @@ function renderTaskCard(t, indexInPlan) {
     var links = refLinks.length ?
         '<div class="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">' +
         refLinks.slice(0, 3).map(function(u, idx) {
-            var label = u.includes('drive.google') ? '📁 ملف Drive' :
-                        u.includes('pinterest') ? '📌 Pinterest' :
-                        u.includes('youtube') || u.includes('youtu.be') ? '🎥 فيديو' :
-                        u.includes('behance') ? '🎨 Behance' : ('🔗 ريفرنس ' + (idx + 1));
+            var label = u.includes('drive.google') ? ' ملف Drive' :
+                        u.includes('pinterest') ? ' Pinterest' :
+                        u.includes('youtube') || u.includes('youtu.be') ? ' فيديو' :
+                        u.includes('behance') ? ' Behance' : (' ريفرنس ' + (idx + 1));
             return '<a href="' + esc(u) + '" target="_blank" class="inline-flex items-center gap-1 bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-violet-200 transition">' + esc(label) + ' ↗</a>';
         }).join('') + '</div>' : '';
 
@@ -1813,7 +1813,7 @@ function renderTaskCard(t, indexInPlan) {
     var visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || '').trim();
     var visHtml = (visIdea && visIdea !== t.title && visIdea !== t.caption) ?
         '<div class="bg-amber-50/90 border border-amber-200/80 rounded-xl p-2.5 text-xs text-amber-950 space-y-0.5 shadow-2xs">' +
-            '<div class="font-bold text-[10px] text-amber-800 flex items-center gap-1">🎨 فكرة / ريفرنس التصميم:</div>' +
+            '<div class="font-bold text-[10px] text-amber-800 flex items-center gap-1"> فكرة / ريفرنس التصميم:</div>' +
             '<div class="leading-relaxed text-[11px] whitespace-pre-wrap">' + esc(visIdea) + '</div>' +
         '</div>' : '';
 
@@ -1837,12 +1837,12 @@ function renderTaskCard(t, indexInPlan) {
     var deliverablesBox = '';
     if (rawNotes || driveLink || isTimerRunning || elapsedMins > 0 || t.submitted_at || t.started_at || st === 'Awaiting AM Review') {
         var timerTag = isTimerRunning ?
-            '<span class="bg-amber-500 text-white animate-pulse px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">⏱️ جاري العمل الآن</span>' :
-            (elapsedMins > 0 ? '<span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-mono font-bold text-[10px]">⏱️ ' + elapsedMins + ' دقيقة</span>' : '');
+            '<span class="bg-amber-500 text-white animate-pulse px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">️ جاري العمل الآن</span>' :
+            (elapsedMins > 0 ? '<span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-mono font-bold text-[10px]">️ ' + elapsedMins + ' دقيقة</span>' : '');
 
         deliverablesBox = '<div class="bg-gradient-to-br from-indigo-50/70 to-purple-50/70 border border-indigo-200/80 rounded-xl p-2.5 text-xs space-y-1.5 shadow-xs">' +
             '<div class="flex items-center justify-between font-bold text-[11px] text-indigo-900 border-b border-indigo-100 pb-1">' +
-                '<span class="flex items-center gap-1">📦 تسليمات وإنجاز الموظف:</span>' +
+                '<span class="flex items-center gap-1"> تسليمات وإنجاز الموظف:</span>' +
                 timerTag +
             '</div>';
 
@@ -1851,15 +1851,15 @@ function renderTaskCard(t, indexInPlan) {
             var isVid = (t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(driveLink) || viewUrl.includes('/file/d/'));
             deliverablesBox += '<div class="bg-emerald-50/90 border border-emerald-200 rounded-xl p-2.5 space-y-2 shadow-2xs">' +
                 '<div class="flex items-center justify-between gap-1 flex-wrap">' +
-                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">' + (isVid ? '🎬 فيديو المخرجات على Drive:' : '📁 رابط تسليمات المهمة:') + '</span>' +
-                    '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">جاهز للشاهدة ✅</span>' +
+                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">' + (isVid ? ' فيديو المخرجات على Drive:' : ' رابط تسليمات المهمة:') + '</span>' +
+                    '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">جاهز للشاهدة </span>' +
                 '</div>' +
                 '<div class="flex items-center gap-1.5">' +
                     '<a href="' + esc(viewUrl) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3 rounded-lg transition flex items-center justify-center gap-1.5 shadow-xs">' +
                         '<span>' + (isVid ? '▶️ تشغيل الفيديو على Google Drive ↗️' : '↗️ فتح ملف التسليم ↗️') + '</span>' +
                     '</a>' +
                     '<button type="button" onclick="copyTaskDriveLink(\'' + esc(viewUrl) + '\')" class="bg-white hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-1.5 px-3 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-xs">' +
-                        '<span>📋 نسخ الرابط</span>' +
+                        '<span> نسخ الرابط</span>' +
                     '</button>' +
                 '</div>' +
                 '<div class="text-[10px] font-mono text-slate-500 truncate bg-white/80 p-1.5 rounded-md border border-emerald-100 select-all" title="' + esc(viewUrl) + '">' + esc(viewUrl) + '</div>' +
@@ -1889,7 +1889,7 @@ function renderTaskCard(t, indexInPlan) {
             '</div>' +
             '<div class="flex items-center gap-1.5">' +
                 amTag +
-                '<button onclick="deleteTaskAction(\'' + escJs(t.task_id) + '\')" class="text-slate-300 hover:text-red-600 transition text-sm p-1 cursor-pointer">✕</button>' +
+                '<button onclick="deleteTaskAction(\'' + escJs(t.task_id) + '\')" class="text-slate-300 hover:text-red-600 transition text-sm p-1 cursor-pointer"></button>' +
             '</div>' +
         '</div>' +
         '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
@@ -1898,7 +1898,7 @@ function renderTaskCard(t, indexInPlan) {
         refsHtml + links +
         '<div class="pt-1">' +
             '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
-                '<span>✍️ تعديل نصوص وكابشن البوست (Content Editor)</span>' +
+                '<span>️ تعديل نصوص وكابشن البوست (Content Editor)</span>' +
             '</button>' +
         '</div>';
 
@@ -1909,16 +1909,16 @@ function renderTaskCard(t, indexInPlan) {
     html += '<div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs space-y-2.5 shadow-2xs">' +
         '<div class="grid grid-cols-2 gap-2.5">' +
             '<div>' +
-                '<label class="text-[11px] text-slate-800 font-bold block mb-1">📅 تاريخ النشر:</label>' +
+                '<label class="text-[11px] text-slate-800 font-bold block mb-1"> تاريخ النشر:</label>' +
                 '<input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(dStart) + '" class="w-full text-xs font-bold font-mono px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
             '</div>' +
             '<div>' +
-                '<label class="text-[11px] text-amber-900 font-bold block mb-1">⏰ موعد التسليم:</label>' +
+                '<label class="text-[11px] text-amber-900 font-bold block mb-1"> موعد التسليم:</label>' +
                 '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="w-full text-xs font-bold font-mono px-2.5 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
             '</div>' +
         '</div>' +
         '<div class="flex items-center justify-end pt-1.5 border-t border-slate-200/80">' +
-            '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition">💾 حفظ المواعيد</button>' +
+            '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition"> حفظ المواعيد</button>' +
         '</div>' +
     '</div>';
 
@@ -1931,22 +1931,22 @@ function renderTaskCard(t, indexInPlan) {
     html += '<div class="space-y-1.5 pt-1">' +
         '<div class="grid grid-cols-2 gap-1.5">' +
             '<button type="button" onclick="openDeliverableModal(\'' + escJs(t.task_id) + '\', \'' + escJs(driveLink||'') + '\')" class="text-center bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-sky-200 shadow-xs flex items-center justify-center gap-1 transition cursor-pointer">' +
-                '<span>📤 تسليم فيديو / Drive</span>' +
+                '<span> تسليم فيديو / Drive</span>' +
             '</button>' +
             '<label class="text-center cursor-pointer bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-violet-200 shadow-xs flex items-center justify-center gap-1 transition">' +
-                '<span>➕ ريفرانس من الجهاز</span>' +
+                '<span> ريفرانس من الجهاز</span>' +
                 '<input type="file" accept="image/*,video/*,.pdf,.doc,.docx" class="hidden" onchange="uploadTaskReferenceFile(\'' + escJs(t.task_id) + '\', this)">' +
             '</label>' +
         '</div>' +
         '<div class="text-center">' +
             '<button type="button" onclick="promptAddLinkReference(\'' + escJs(t.task_id) + '\')" class="text-[10px] text-violet-600 hover:text-violet-800 hover:underline font-bold transition cursor-pointer">' +
-                '🔗 أو إضافة رابط ريفرانس خارجي' +
+                ' أو إضافة رابط ريفرانس خارجي' +
             '</button>' +
         '</div>' +
     '</div>';
 
     if (t.review_note) {
-        html += '<div class="bg-purple-50 p-2 rounded-xl text-[11px] text-purple-700 border border-purple-100">📝 ملاحظة المراجعة السابقة: ' + esc(t.review_note) + '</div>';
+        html += '<div class="bg-purple-50 p-2 rounded-xl text-[11px] text-purple-700 border border-purple-100"> ملاحظة المراجعة السابقة: ' + esc(t.review_note) + '</div>';
     }
 
     // Activity Log & Timeline (سجل النشاط وحساب الـ KPIs)
@@ -2024,21 +2024,21 @@ function renderTaskCard(t, indexInPlan) {
         }
 
         var kpiBadge = isOnTime === true ?
-            '<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0">✅ تم التسليم في الموعد</span>' :
+            '<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0"> تم التسليم في الموعد</span>' :
             (isOnTime === false ?
-                '<span class="bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0">⚠️ تأخير عن موعد التسليم</span>' : '');
+                '<span class="bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0">️ تأخير عن موعد التسليم</span>' : '');
 
         kpisHtml = '<div class="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-2.5 text-xs space-y-1.5 shadow-2xs">' +
             '<div class="flex items-center justify-between font-bold text-[11px] text-indigo-900 border-b border-indigo-100 pb-1">' +
-                '<span class="flex items-center gap-1">📊 تقرير الـ KPIs والسرعة:</span>' +
+                '<span class="flex items-center gap-1"> تقرير الـ KPIs والسرعة:</span>' +
                 kpiBadge +
             '</div>' +
             '<div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-700 pt-0.5">' +
-                '<div>👔 المسلم: <b class="text-indigo-950">' + esc(t.am_name || 'مدير الحساب') + '</b></div>' +
-                '<div>👤 المستلم: <b class="text-indigo-950">' + esc(t.assignee_name || 'غير محدد') + '</b></div>' +
-                (t.assigned_at ? '<div>📅 تاريخ الإسناد: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.assigned_at)) + '</span></div>' : '') +
-                (t.submitted_at ? '<div>📦 تاريخ التسليم: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.submitted_at)) + '</span></div>' : '') +
-                (turnaroundText ? '<div class="col-span-2 text-indigo-900 font-bold bg-white/80 px-2 py-1 rounded-lg border border-indigo-100 flex items-center justify-between mt-1"><span>⏱️ مدة إنجاز الموظف:</span><span class="font-mono text-xs text-indigo-700">' + turnaroundText + '</span></div>' : '') +
+                '<div> المسلم: <b class="text-indigo-950">' + esc(t.am_name || 'مدير الحساب') + '</b></div>' +
+                '<div> المستلم: <b class="text-indigo-950">' + esc(t.assignee_name || 'غير محدد') + '</b></div>' +
+                (t.assigned_at ? '<div> تاريخ الإسناد: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.assigned_at)) + '</span></div>' : '') +
+                (t.submitted_at ? '<div> تاريخ التسليم: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.submitted_at)) + '</span></div>' : '') +
+                (turnaroundText ? '<div class="col-span-2 text-indigo-900 font-bold bg-white/80 px-2 py-1 rounded-lg border border-indigo-100 flex items-center justify-between mt-1"><span>️ مدة إنجاز الموظف:</span><span class="font-mono text-xs text-indigo-700">' + turnaroundText + '</span></div>' : '') +
             '</div>' +
         '</div>';
     }
@@ -2048,23 +2048,23 @@ function renderTaskCard(t, indexInPlan) {
         var logId = 'log-box-' + esc(t.task_id);
         timelineLogHtml = '<div class="pt-0.5">' +
             '<button type="button" onclick="toggleTaskTimeline(\'' + esc(logId) + '\')" class="w-full text-right bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-slate-200 flex items-center justify-between transition">' +
-                '<span class="flex items-center gap-1.5">📜 سجل كل العمليات والمواعيد <span class="bg-slate-200 text-slate-700 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold">' + logEntries.length + '</span></span>' +
+                '<span class="flex items-center gap-1.5"> سجل كل العمليات والمواعيد <span class="bg-slate-200 text-slate-700 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold">' + logEntries.length + '</span></span>' +
                 '<span id="arrow-' + esc(logId) + '" class="text-slate-400 text-xs transition">▼</span>' +
             '</button>' +
             '<div id="' + esc(logId) + '" class="hidden mt-1.5 space-y-2 bg-slate-50/90 border border-slate-200 rounded-xl p-2.5 max-h-56 overflow-y-auto text-xs">';
             
         logEntries.slice().reverse().forEach(function(l) {
-            var icon = l.action === 'created' ? '🟢' :
-                       l.action === 'assigned' ? '🎯' :
-                       l.action === 'started' ? '⏱️' :
-                       l.action === 'submitted' ? '📦' :
+            var icon = l.action === 'created' ? '' :
+                       l.action === 'assigned' ? '' :
+                       l.action === 'started' ? '️' :
+                       l.action === 'submitted' ? '' :
                        l.action === 'reviewed_reject' ? '↩️' :
-                       l.action === 'reviewed_forward' ? '➡️' :
-                       l.action === 'reviewed_approved' ? '✅' :
-                       l.action === 'recalled' ? '⚠️' :
-                       l.action === 'dates_updated' ? '📅' :
-                       l.action === 'reference_added' ? '🔗' :
-                       l.action === 'asset_uploaded' ? '📤' : '📝';
+                       l.action === 'reviewed_forward' ? '️' :
+                       l.action === 'reviewed_approved' ? '' :
+                       l.action === 'recalled' ? '️' :
+                       l.action === 'dates_updated' ? '' :
+                       l.action === 'reference_added' ? '' :
+                       l.action === 'asset_uploaded' ? '' : '';
             
             var actionTitle = l.action === 'created' ? 'إنشاء المهمة' :
                               l.action === 'assigned' ? ('إسناد إلى ' + (l.target_employee_name || 'موظف')) :
@@ -2113,7 +2113,7 @@ function renderTaskCard(t, indexInPlan) {
         var subBoxId = 'sub-box-' + esc(t.task_id);
         historyArchiveHtml = '<div class="pt-0.5">' +
             '<button type="button" onclick="toggleTaskTimeline(\'' + esc(subBoxId) + '\')" class="w-full text-right bg-emerald-50/80 hover:bg-emerald-100/80 text-emerald-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-emerald-200 flex items-center justify-between transition shadow-2xs">' +
-                '<span class="flex items-center gap-1.5">📦 أرشيف وسجل التسليمات السابقة <span class="bg-emerald-200 text-emerald-900 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold">' + subHistory.length + '</span></span>' +
+                '<span class="flex items-center gap-1.5"> أرشيف وسجل التسليمات السابقة <span class="bg-emerald-200 text-emerald-900 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold">' + subHistory.length + '</span></span>' +
                 '<span id="arrow-' + esc(subBoxId) + '" class="text-emerald-700 text-xs transition">▼</span>' +
             '</button>' +
             '<div id="' + esc(subBoxId) + '" class="hidden mt-1.5 space-y-2 bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-2.5 max-h-56 overflow-y-auto text-xs">';
@@ -2141,7 +2141,7 @@ function renderTaskCard(t, indexInPlan) {
                         '<span>↗️ فتح في Google Drive</span>' +
                     '</a>' +
                     '<button type="button" onclick="copyTaskDriveLink(\'' + esc(subDrive) + '\')" class="bg-white hover:bg-emerald-50 text-emerald-800 font-bold text-[10px] py-1 px-2 rounded border border-emerald-200 transition flex items-center gap-1">' +
-                        '<span>📋 نسخ الرابط</span>' +
+                        '<span> نسخ الرابط</span>' +
                     '</button>' +
                 '</div>';
             }
@@ -2167,27 +2167,27 @@ function renderTaskCard(t, indexInPlan) {
     html += '<div class="flex flex-col gap-1.5 pt-1 border-t border-slate-100">';
     if (st === 'Pending AM Approval') {
         html += '<div class="flex gap-1"><select id="emp-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1">' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
-            '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">إسناد 🎯</button></div>';
+            '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">إسناد </button></div>';
     }
     if (st === 'Assigned' || st === 'In Progress') {
         html += '<div class="grid grid-cols-2 gap-1.5 pt-1">' +
             '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-2 rounded-lg shadow-sm flex items-center justify-center gap-1 transition">↩️ سحب المهمة</button>' +
-            '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[11px] py-1.5 px-2 rounded-lg flex items-center justify-center gap-1">📤 إرسال للتليجرام</button>' +
+            '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[11px] py-1.5 px-2 rounded-lg flex items-center justify-center gap-1"> إرسال للتليجرام</button>' +
             '</div>' +
             '<div class="flex gap-1 pt-1"><select id="reassign-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">تحويل لموظف آخر...</option>' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
-            '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap">تحويل 🔄</button></div>';
+            '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap">تحويل </button></div>';
     }
     if (isSubmitted) {
         html += '<div class="grid grid-cols-2 gap-1 pt-1">' +
             '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1">↩️ طلب تعديل</button>' +
-            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1">✅ اعتماد واكتمال</button>' +
+            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1"> اعتماد واكتمال</button>' +
             '</div>' +
             '<div class="flex gap-1 pt-1"><select id="fwd-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">مرّرها للي بعده...</option>' + empOptionsHtml('') + '</select>' +
-            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">مرّر ➡️</button></div>' +
+            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">مرّر ️</button></div>' +
             '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-1.5 rounded-lg shadow-sm mt-1">↩️ سحب المهمة من الموظف</button>';
     }
     if (isCompleted) {
-        html += '<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-center text-xs font-bold text-emerald-800 flex items-center justify-center gap-1">✓ مكتملة ومعتمدة بنجاح ✅</div>';
+        html += '<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-center text-xs font-bold text-emerald-800 flex items-center justify-center gap-1"> مكتملة ومعتمدة بنجاح </div>';
     }
     html += '</div></div>';
     return html;
@@ -2332,7 +2332,7 @@ function renderTasksBoard() {
         if (isUserAdmin && amList.length > 1 && !selectedEmployeeFilter) {
             amBarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex items-center justify-between flex-wrap gap-2 shadow-xs mb-1">' +
                 '<div class="flex items-center gap-2 flex-wrap">' +
-                    '<span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">👔 فلترة حسب مدير الحساب (AM):</span>' +
+                    '<span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"> فلترة حسب مدير الحساب (AM):</span>' +
                     '<button type="button" onclick="clearAMFilter()" class="text-xs px-3 py-1 rounded-xl font-bold transition ' +
                         (!selectedAMFilter ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                         'الكل (' + allTasks.length + ')' +
@@ -2341,11 +2341,11 @@ function renderTasksBoard() {
                         var isSel = selectedAMFilter === am.id;
                         return '<button type="button" onclick="toggleAMFilter(\'' + esc(am.id) + '\', \'' + esc(am.name) + '\')" class="text-xs px-3 py-1 rounded-xl font-bold transition ' +
                             (isSel ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                            '👔 ' + esc(am.name) + ' <span class="text-[10px] opacity-80 font-mono">(' + am.count + ')</span>' +
+                            ' ' + esc(am.name) + ' <span class="text-[10px] opacity-80 font-mono">(' + am.count + ')</span>' +
                         '</button>';
                     }).join('') +
                 '</div>' +
-                (selectedAMFilter ? '<button type="button" onclick="clearAMFilter()" class="text-[11px] text-indigo-700 font-bold hover:underline">إلغاء فلترة AM ✕</button>' : '') +
+                (selectedAMFilter ? '<button type="button" onclick="clearAMFilter()" class="text-[11px] text-indigo-700 font-bold hover:underline">إلغاء فلترة AM </button>' : '') +
             '</div>';
         }
 
@@ -2356,7 +2356,7 @@ function renderTasksBoard() {
 
             filterBannerHtml = '<div class="col-span-full bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 shadow-sm">' +
                 '<div class="flex items-center gap-3">' +
-                    '<div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm">👤</div>' +
+                    '<div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm"></div>' +
                     '<div>' +
                         '<div class="font-bold text-sm text-blue-900 flex items-center gap-2">' +
                             '<span>كل مهام الموظف: <b>' + esc(selectedEmployeeName) + '</b> عبر جميع العملاء والمشاريع</span>' +
@@ -2367,7 +2367,7 @@ function renderTasksBoard() {
                     '</div>' +
                 '</div>' +
                 '<button type="button" onclick="clearEmployeeFilter()" class="text-xs bg-white hover:bg-blue-100 text-blue-800 font-bold border border-blue-300 px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5">' +
-                    '<span>عرض كل مهام الفريق ✕</span>' +
+                    '<span>عرض كل مهام الفريق </span>' +
                 '</button>' +
             '</div>';
         }
@@ -2375,40 +2375,40 @@ function renderTasksBoard() {
         var sortToolbarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 shadow-2xs space-y-2.5 mb-1">' +
             '<div class="flex items-center justify-between gap-2 flex-wrap">' +
                 '<div class="flex items-center gap-1.5 flex-wrap">' +
-                    '<span class="text-xs font-bold text-slate-800 flex items-center gap-1">📊 ترتيب حسب:</span>' +
+                    '<span class="text-xs font-bold text-slate-800 flex items-center gap-1"> ترتيب حسب:</span>' +
                     '<button type="button" onclick="setTaskSort(\'sequence\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'sequence' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>🔢 رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                        '<span> رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'pub_date\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'pub_date' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>📅 تاريخ النشر</span>' + (currentTaskSort === 'pub_date' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                        '<span> تاريخ النشر</span>' + (currentTaskSort === 'pub_date' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'deadline\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'deadline' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>⏰ موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                        '<span> موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'status\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'status' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>📋 الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                        '<span> الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'task_id\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'task_id' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>🏷️ الكود</span>' + (currentTaskSort === 'task_id' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                        '<span>️ الكود</span>' + (currentTaskSort === 'task_id' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'created_at\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'created_at' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>⏱️ الأحدث</span>' + (currentTaskSort === 'created_at' ? (currentTaskSortDir === 'desc' ? ' ↓' : ' ↑') : '') +
+                        '<span>️ الأحدث</span>' + (currentTaskSort === 'created_at' ? (currentTaskSortDir === 'desc' ? ' ↓' : ' ↑') : '') +
                     '</button>' +
                 '</div>' +
                 '<div class="flex items-center gap-2 w-full sm:w-auto">' +
                     '<div class="relative w-full">' +
-                        '<input type="text" value="' + esc(taskSearchQuery) + '" oninput="onTaskSearchInput(this.value)" placeholder="🔍 بحث في المهام..." class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-blue-500 shadow-2xs">' +
-                        (taskSearchQuery ? '<button type="button" onclick="onTaskSearchInput(\'\')" class="absolute left-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-700">✕</button>' : '') +
+                        '<input type="text" value="' + esc(taskSearchQuery) + '" oninput="onTaskSearchInput(this.value)" placeholder=" بحث في المهام..." class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-blue-500 shadow-2xs">' +
+                        (taskSearchQuery ? '<button type="button" onclick="onTaskSearchInput(\'\')" class="absolute left-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-700"></button>' : '') +
                     '</div>' +
                 '</div>' +
             '</div>' +
             '<div class="flex items-center gap-1.5 flex-wrap border-t border-slate-200/60 pt-2">' +
                 '<span class="text-[11px] font-bold text-slate-500">تصفية الحالة:</span>' +
                 '<button type="button" onclick="setTaskStatusFilter(\'all\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200') + '">الكل (' + allTasks.length + ')</button>' +
-                '<button type="button" onclick="setTaskStatusFilter(\'in_progress\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'in_progress' ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-200') + '">⏱️ جاري العمل (' + allTasks.filter(function(t){ return t.status==='In Progress'||t.status==='Assigned'; }).length + ')</button>' +
-                '<button type="button" onclick="setTaskStatusFilter(\'review\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'review' ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-200') + '">📝 بانتظار المراجعة (' + allTasks.filter(function(t){ return t.status==='Awaiting AM Review'; }).length + ')</button>' +
-                '<button type="button" onclick="setTaskStatusFilter(\'pending\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'pending' ? 'bg-amber-600 text-white' : 'bg-white text-amber-700 border border-amber-200') + '">🎯 بانتظار الإسناد (' + allTasks.filter(function(t){ return !t.status || t.status==='Pending AM Approval'; }).length + ')</button>' +
-                '<button type="button" onclick="setTaskStatusFilter(\'completed\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'completed' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 border border-emerald-200') + '">✅ مكتملة (' + allTasks.filter(function(t){ return t.status==='Completed'; }).length + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'in_progress\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'in_progress' ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-200') + '">️ جاري العمل (' + allTasks.filter(function(t){ return t.status==='In Progress'||t.status==='Assigned'; }).length + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'review\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'review' ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-200') + '"> بانتظار المراجعة (' + allTasks.filter(function(t){ return t.status==='Awaiting AM Review'; }).length + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'pending\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'pending' ? 'bg-amber-600 text-white' : 'bg-white text-amber-700 border border-amber-200') + '"> بانتظار الإسناد (' + allTasks.filter(function(t){ return !t.status || t.status==='Pending AM Approval'; }).length + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'completed\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'completed' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 border border-emerald-200') + '"> مكتملة (' + allTasks.filter(function(t){ return t.status==='Completed'; }).length + ')</button>' +
             '</div>' +
         '</div>';
 
@@ -2417,9 +2417,9 @@ function renderTasksBoard() {
         if (!displayTasks || displayTasks.length === 0) {
             board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' +
                 (taskSearchQuery ? 'لا توجد نتائج تطابق بحثك: <b>' + esc(taskSearchQuery) + '</b>' :
-                 selectedEmployeeFilter ? 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> حالياً 🎯' : 
-                 selectedAMFilter ? 'لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b> في هذا العميل 🎯' :
-                 'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 🚀') +
+                 selectedEmployeeFilter ? 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> حالياً ' : 
+                 selectedAMFilter ? 'لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b> في هذا العميل ' :
+                 'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة ') +
                 '</div>';
             return;
         }
@@ -2468,24 +2468,24 @@ function renderTasksBoard() {
             columnsHtml = '<div class="col-span-full space-y-4">' +
                 '<div class="bg-gradient-to-r from-slate-900 via-purple-950 to-indigo-950 text-white rounded-3xl p-4 sm:p-5 shadow-sm flex items-center justify-between flex-wrap gap-3">' +
                     '<div class="flex items-center gap-3">' +
-                        '<div class="w-12 h-12 rounded-2xl bg-white/15 text-white flex items-center justify-center font-bold text-xl shadow-inner shrink-0">📄</div>' +
+                        '<div class="w-12 h-12 rounded-2xl bg-white/15 text-white flex items-center justify-center font-bold text-xl shadow-inner shrink-0"></div>' +
                         '<div>' +
                             '<div class="flex items-center gap-2 flex-wrap">' +
                                 '<h3 class="font-bold text-base sm:text-lg text-white">خطة: ' + esc(grp.fileName) + '</h3>' +
                                 '<span class="bg-purple-500/30 text-purple-200 text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border border-purple-400/30">' + fTasks.length + ' بوست بالخطة</span>' +
                             '</div>' +
                             '<div class="flex items-center gap-2 text-xs text-purple-200 mt-1">' +
-                                '<span class="font-bold text-white">🏢 ' + esc(grp.clientName) + '</span>' +
+                                '<span class="font-bold text-white"> ' + esc(grp.clientName) + '</span>' +
                                 '<span>·</span>' +
                                 '<span dir="ltr" class="font-mono bg-white/20 px-2 py-0.5 rounded-md text-white font-bold">' + completedCount + ' / ' + fTasks.length + ' منجز</span>' +
                             '</div>' +
                     '</div>' +
                     '<div class="flex items-center gap-2 flex-wrap">' +
                         '<button type="button" onclick="sharePlanWithClient(\'' + esc(grp.clientName) + '\', \'' + esc(grp.fileName) + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">' +
-                            '<span>🔗 مشاركة الخطة مع العميل</span>' +
+                            '<span> مشاركة الخطة مع العميل</span>' +
                         '</button>' +
                         (selectedPlanFilter ? ('<button type="button" onclick="filterTasksByPlan(null)" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 transition flex items-center gap-1.5 cursor-pointer">' +
-                            '<span>📑 عرض جميع الخطط الأخرى</span>' +
+                            '<span> عرض جميع الخطط الأخرى</span>' +
                         '</button>') : '') +
                     '</div>' +
                 '</div>' +
@@ -2507,11 +2507,11 @@ function renderTasksBoard() {
                 columnsHtml += '<div class="w-88 sm:w-[420px] shrink-0 bg-slate-100/90 border border-slate-200/90 rounded-3xl p-4 shadow-sm space-y-3.5 flex flex-col">' +
                     '<div class="flex items-center justify-between border-b border-slate-200/90 pb-3 bg-white -m-4 mb-0 p-4 rounded-t-3xl shadow-xs">' +
                         '<div class="flex items-center gap-2.5 min-w-0">' +
-                            '<div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">📄</div>' +
+                            '<div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0"></div>' +
                             '<div class="min-w-0">' +
                                 '<h4 class="font-bold text-sm text-slate-900 truncate" title="' + esc(grp.fileName) + '">ملف: ' + esc(grp.fileName) + '</h4>' +
                                 '<div class="flex items-center gap-1.5 text-xs mt-0.5">' +
-                                    '<span class="text-blue-700 font-bold truncate">🏢 ' + esc(grp.clientName) + '</span>' +
+                                    '<span class="text-blue-700 font-bold truncate"> ' + esc(grp.clientName) + '</span>' +
                                     '<span class="text-slate-300">·</span>' +
                                     '<span dir="ltr" class="text-slate-500 font-mono text-[11px] whitespace-nowrap font-bold">' + completedCount + ' / ' + fTasks.length + '</span>' +
                                 '</div>' +
@@ -2519,7 +2519,7 @@ function renderTasksBoard() {
                         '</div>' +
                         '<div class="flex items-center gap-1.5">' +
                             '<button type="button" onclick="sharePlanWithClient(\'' + esc(grp.clientName) + '\', \'' + esc(grp.fileName) + '\')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="نسخ رابط مشاركة الخطة للعميل">' +
-                                '<span>🔗 مشاركة</span>' +
+                                '<span> مشاركة</span>' +
                             '</button>' +
                             '<span class="bg-blue-600 text-white text-xs font-mono font-bold px-2.5 py-1 rounded-full shadow-xs shrink-0">' + fTasks.length + ' مهام</span>' +
                         '</div>' +
@@ -2547,7 +2547,7 @@ async function clearAllTasks() {
         var res = await fetch('/api/tasks/clear', { method: 'POST' });
         var data = await res.json();
         if (res.ok && data.success) {
-            showToast('تم مسح ' + (data.removed || 0) + ' مهمة 🗑️ — ابدأ برفع الخطة');
+            showToast('تم مسح ' + (data.removed || 0) + ' مهمة ️ — ابدأ برفع الخطة');
             loadTasksEngine();
         } else { showToast(data.error || 'تعذّر المسح', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
@@ -2561,7 +2561,7 @@ async function deleteTaskAction(taskId) {
         var res = await fetch('/api/tasks/' + encodeURIComponent(taskId), { method: 'DELETE' });
         var data = await res.json();
         if (res.ok && (data.success !== false)) {
-            showToast('تم حذف المهمة 🗑️');
+            showToast('تم حذف المهمة ️');
             loadTasksEngine();
         } else { showToast(data.error || 'تعذّر الحذف', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
@@ -2592,7 +2592,7 @@ async function reviewTaskDecision(taskId, action) {
         });
         var data = await res.json();
         if (res.ok && data.success !== false) {
-            showToast(action === 'finalize' ? 'تم اعتماد واكتمال المهمة بنجاح ✅' : action === 'forward' ? 'تم تمرير المهمة للموظف التالي ➡️' : 'تم إرجاع المهمة للموظف ↩️');
+            showToast(action === 'finalize' ? 'تم اعتماد واكتمال المهمة بنجاح ' : action === 'forward' ? 'تم تمرير المهمة للموظف التالي ️' : 'تم إرجاع المهمة للموظف ↩️');
             loadTasksEngine();
         } else { showToast(data.error || 'تعذّر تنفيذ المراجعة', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
@@ -2611,7 +2611,7 @@ async function assignTaskFromBoard(taskId) {
         });
         var data = await res.json();
         if (res.ok && data.ok) {
-            showToast(data.telegram_sent ? 'اتسند واتبعت للموظف على التليجرام ✅' : 'اتسند ✅ (الموظف مالوش تليجرام أو معملش Start للبوت)');
+            showToast(data.telegram_sent ? 'اتسند واتبعت للموظف على التليجرام ' : 'اتسند (الموظف مالوش تليجرام أو معملش Start للبوت)');
             loadTasksEngine();
         } else { showToast(data.error || 'تعذّر الإسناد', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
@@ -2650,7 +2650,7 @@ async function reassignTaskFromBoard(taskId) {
         });
         var data = await res.json();
         if (res.ok && data.ok) {
-            showToast(data.telegram_sent ? 'تم تحويل المهمة وإشعار الموظف على تليجرام 🎯' : 'تم تحويل المهمة بنجاح ✅');
+            showToast(data.telegram_sent ? 'تم تحويل المهمة وإشعار الموظف على تليجرام ' : 'تم تحويل المهمة بنجاح ');
             loadTasksEngine();
         } else {
             showToast(data.error || 'تعذّر تحويل المهمة', 'error');
@@ -2663,10 +2663,10 @@ async function reassignTaskFromBoard(taskId) {
 async function uploadTaskAsset(taskId, input) {
     var file = (input && input.files && input.files[0]) ? input.files[0] : null;
     if (!file) return;
-    showToast('جاري الرفع على Google Drive... ⏳');
+    showToast('جاري الرفع على Google Drive... ');
     try {
-        await driveUploadFile(taskId, file);  // shared: direct for large, server for small
-        showToast('اترفع على Drive واتربط بالتاسك ✅');
+        await driveUploadFile(taskId, file); // shared: direct for large, server for small
+        showToast('اترفع على Drive واتربط بالتاسك ');
         loadTasksEngine();
     } catch(e) { showToast('تعذّر الرفع: ' + (e.message || ''), 'error'); }
     if (input) input.value = '';
@@ -2675,7 +2675,7 @@ async function uploadTaskAsset(taskId, input) {
 async function uploadTaskReferenceFile(taskId, input) {
     var file = (input && input.files && input.files[0]) ? input.files[0] : null;
     if (!file) return;
-    showToast('جاري رفع الريفرانس من الجهاز... ⏳');
+    showToast('جاري رفع الريفرانس من الجهاز... ');
     try {
         var fd = new FormData();
         fd.append('file', file);
@@ -2685,7 +2685,7 @@ async function uploadTaskReferenceFile(taskId, input) {
         });
         var data = await res.json();
         if (res.ok && data.ok) {
-            showToast('تمت إضافة الريفرانس من الجهاز بنجاح ✅');
+            showToast('تمت إضافة الريفرانس من الجهاز بنجاح ');
             loadTasksEngine();
         } else {
             showToast(data.error || 'تعذّرت إضافة الريفرانس', 'error');
@@ -2707,7 +2707,7 @@ async function promptAddLinkReference(taskId) {
         });
         var data = await res.json();
         if (res.ok && data.ok) {
-            showToast('تمت إضافة الرابط بنجاح ✅');
+            showToast('تمت إضافة الرابط بنجاح ');
             loadTasksEngine();
         } else {
             showToast(data.error || 'تعذّرت إضافة الرابط', 'error');
@@ -2726,7 +2726,7 @@ async function resendTaskCard(taskId) {
         var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/resend', { method: 'POST' });
         var data = await res.json();
         if (res.ok && data.ok) {
-            showToast(data.telegram_sent ? 'اتبعت الكارت للموظف على التليجرام ✅' : 'الموظف مالوش تليجرام أو معملش Start لبوت المهام', data.telegram_sent ? 'success' : 'error');
+            showToast(data.telegram_sent ? 'اتبعت الكارت للموظف على التليجرام ' : 'الموظف مالوش تليجرام أو معملش Start لبوت المهام', data.telegram_sent ? 'success' : 'error');
         } else { showToast(data.error || 'تعذّر الإرسال', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -2746,7 +2746,7 @@ async function updateTaskStatusAction(taskId, newStatus, empId, notes) {
         });
         var data = await res.json();
         if (data.success) {
-            showToast('تم تحديث حالة المهمة بنجاح ✅');
+            showToast('تم تحديث حالة المهمة بنجاح ');
             loadTasksEngine();
         } else {
             showToast(data.error || 'حدث خطأ في التحديث', 'error');
@@ -2791,7 +2791,7 @@ async function uploadPlanImage(input) {
     var files = input && input.files ? Array.from(input.files) : [];
     if (!files.length) return;
     var clientInput = ((document.getElementById('pb-client') || {}).value || '').trim();
-    showToast('جاري رفع الصورة على Drive... ⏳');
+    showToast('جاري رفع الصورة على Drive... ');
     for (var i = 0; i < files.length; i++) {
         var fd = new FormData();
         fd.append('file', files[i]);
@@ -2805,7 +2805,7 @@ async function uploadPlanImage(input) {
                     var len = _planQuill.getLength();
                     _planQuill.insertText(len - 1, '\n' + data.url + '\n');
                 }
-                showToast('اترفعت الصورة واتحطت في البلان ✅');
+                showToast('اترفعت الصورة واتحطت في البلان ');
             } else { showToast(data.error || 'تعذّر رفع الصورة', 'error'); }
         } catch(e) { showToast('خطأ في رفع الصورة', 'error'); }
     }
@@ -2826,7 +2826,7 @@ async function createPlan() {
     });
     var clientId = matchedClient ? matchedClient.id : clientInput;
     
-    showToast('جاري إنشاء البلان وإدراجه في دورة العمل... ⏳');
+    showToast('جاري إنشاء البلان وإدراجه في دورة العمل... ');
     try {
         var res = await fetch('/api/plan/create', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2843,17 +2843,17 @@ async function createPlan() {
             var box = document.getElementById('pb-result');
             if (box) {
                 box.classList.remove('hidden');
-                var amMsg = data.am_notified ? ('واتبعت للأكونت مانيجر <b>' + esc(data.am_name || '') + '</b> على التليجرام ✅')
-                    : (data.am_has_telegram === false ? ('⚠️ الأكونت مانيجر <b>' + esc(data.am_name || '') + '</b> مالوش تليجرام في الشيت')
-                    : ('⚠️ اتعمل البلان بس الرسالة موصلتش لـ <b>' + esc(data.am_name || '') + '</b> (لازم يعمل Start لبوت المهام)'));
-                box.innerHTML = '🎉 تم إنشاء البلان بنجاح: <b>' + data.created + '</b> بوست للعميل <b>' + esc(data.client_name || clientInput) + '</b>، ' + amMsg + '<br>' +
-                    '<div class="mt-2 flex items-center gap-2 flex-wrap"><span class="text-slate-500 text-xs font-bold">🔗 لينك المشاركة برا السيستم:</span>' +
+                var amMsg = data.am_notified ? ('واتبعت للأكونت مانيجر <b>' + esc(data.am_name || '') + '</b> على التليجرام ')
+                    : (data.am_has_telegram === false ? ('️ الأكونت مانيجر <b>' + esc(data.am_name || '') + '</b> مالوش تليجرام في الشيت')
+                    : ('️ اتعمل البلان بس الرسالة موصلتش لـ <b>' + esc(data.am_name || '') + '</b> (لازم يعمل Start لبوت المهام)'));
+                box.innerHTML = ' تم إنشاء البلان بنجاح: <b>' + data.created + '</b> بوست للعميل <b>' + esc(data.client_name || clientInput) + '</b>، ' + amMsg + '<br>' +
+                    '<div class="mt-2 flex items-center gap-2 flex-wrap"><span class="text-slate-500 text-xs font-bold"> لينك المشاركة برا السيستم:</span>' +
                     '<input value="' + esc(data.share_url) + '" readonly class="flex-1 min-w-[200px] px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono" onclick="this.select()">' +
-                    '<button onclick="navigator.clipboard.writeText(\'' + esc(data.share_url) + '\');showToast(\'تم نسخ الرابط ✅\')" class="text-xs px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition">نسخ الرابط</button></div>';
+                    '<button onclick="navigator.clipboard.writeText(\'' + esc(data.share_url) + '\');showToast(\'تم نسخ الرابط \')" class="text-xs px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition">نسخ الرابط</button></div>';
             }
             if (_planQuill) _planQuill.setText('');
             if (document.getElementById('pb-plan-name')) document.getElementById('pb-plan-name').value = '';
-            showToast('تم إنشاء البلان وإدراج المهام بنجاح! 🚀', 'success');
+            showToast('تم إنشاء البلان وإدراج المهام بنجاح! ', 'success');
             if (typeof loadClientsList === 'function') loadClientsList();
             if (typeof loadPlanBuilder === 'function') loadPlanBuilder();
             if (typeof loadTasksEngine === 'function') loadTasksEngine();
@@ -2956,7 +2956,7 @@ async function loadTasksIngestFields() {
         var optHtml = '';
         defaultAMs.forEach(function(m) {
             var isMe = myEmpId && String(m.employee_id) === String(myEmpId);
-            optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '>👤 ' + esc(m.name) + ' — ' + esc(m.role) + (isMe ? ' (أنا 🙋‍♂️)' : '') + '</option>';
+            optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '> ' + esc(m.name) + ' — ' + esc(m.role) + (isMe ? ' (أنا ‍️)' : '') + '</option>';
         });
         amSel.innerHTML = optHtml;
     }
@@ -2970,7 +2970,7 @@ async function loadTasksIngestFields() {
             var optHtml = '';
             ms.forEach(function(m) {
                 var isMe = myEmpId && String(m.employee_id) === String(myEmpId);
-                optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '>👤 ' + esc(m.name) + ' — ' + esc(m.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '') + '</option>';
+                optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '> ' + esc(m.name) + ' — ' + esc(m.role || 'Account Manager') + (isMe ? ' (أنا ‍️)' : '') + '</option>';
             });
             amSel.innerHTML = optHtml;
         }
@@ -2995,7 +2995,7 @@ function setTasksIngestSelfAM() {
     if (!found && amSel.options.length > 1) {
         amSel.selectedIndex = 1;
     }
-    showToast('تم تحديد حسابك كـ Account Manager ✅');
+    showToast('تم تحديد حسابك كـ Account Manager ');
 }
 
 window.loadTasksIngestFields = loadTasksIngestFields;
@@ -3041,7 +3041,7 @@ async function ingestPlanAction(ev) {
     var opts;
 
     if (file) {
-        showToast('جاري قراءة واستخراج نص الملف فورياً... ⏳');
+        showToast('جاري قراءة واستخراج نص الملف فورياً... ');
         var clientText = await extractTextFromDocxClient(file);
         if (clientText && clientText.length > 10) {
             // Strip base64-embedded images — they bloat payload beyond Vercel limits
@@ -3101,7 +3101,7 @@ async function ingestPlanAction(ev) {
         };
     }
 
-    showToast('جاري تفريغ الخطة وتقسيم المهام بالذكاء الاصطناعي... ⏳');
+    showToast('جاري تفريغ الخطة وتقسيم المهام بالذكاء الاصطناعي... ');
     try {
         var res = await fetch('/api/tasks/ingest-plan', opts);
         var data;
@@ -3111,8 +3111,8 @@ async function ingestPlanAction(ev) {
             data = { error: 'تعذر قراءة رد الخادم (' + res.status + ')' };
         }
         if (res.ok && data.success) {
-            var amNotice = data.am_notified ? ' وتم إرسال تنبيه للأكونت مانيجر على التليجرام ✅' : '';
-            showToast('تم تفريغ وإنشاء ' + (data.ingested_count || 0) + ' مهمة للعميل ' + (data.client_name || '') + amNotice + ' 🎉', 'success');
+            var amNotice = data.am_notified ? ' وتم إرسال تنبيه للأكونت مانيجر على التليجرام ' : '';
+            showToast('تم تفريغ وإنشاء ' + (data.ingested_count || 0) + ' مهمة للعميل ' + (data.client_name || '') + amNotice + ' ', 'success');
             if (el) el.value = '';
             if (fileEl) fileEl.value = '';
             if (driveEl) driveEl.value = '';
@@ -3160,14 +3160,14 @@ async function loadTaskMonthlyReport() {
             if (r.notes && r.notes.length) {
                 notesHtml = r.notes.map(function(n) {
                     if (typeof n === 'object' && n && n.task_id) {
-                        var stBadge = (n.status === 'Awaiting AM Review') ? ' <span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full font-bold">بانتظار مراجعة AM</span>' : ((n.status === 'Completed') ? ' <span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">معتمد ✅</span>' : '');
+                        var stBadge = (n.status === 'Awaiting AM Review') ? ' <span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full font-bold">بانتظار مراجعة AM</span>' : ((n.status === 'Completed') ? ' <span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">معتمد </span>' : '');
                         return '<div onclick="openTaskDetailsModal(\'' + esc(n.task_id) + '\')" class="mb-1.5 p-1.5 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-lg cursor-pointer transition shadow-2xs flex items-center justify-between gap-1.5 flex-wrap group" title="اضغط لعرض تفاصيل المهمة ومرفقاتها">' +
                             '<div class="flex items-center gap-1 min-w-0">' +
                                 '<span class="font-mono font-bold text-xs bg-slate-900 text-white px-1.5 py-0.5 rounded group-hover:bg-blue-600 transition">' + esc(n.task_id) + '</span>' +
                                 stBadge +
                                 '<span class="text-slate-700 text-xs font-semibold truncate">: ' + esc(n.note || 'مكتملة') + '</span>' +
                             '</div>' +
-                            '<span class="text-[10px] text-blue-600 font-bold bg-white px-1.5 py-0.5 rounded border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition shrink-0">👁️ عرض</span>' +
+                            '<span class="text-[10px] text-blue-600 font-bold bg-white px-1.5 py-0.5 rounded border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition shrink-0">️ عرض</span>' +
                         '</div>';
                     }
                     var s = String(n || '').replace(/<[^>]*>/g, '');
@@ -3184,7 +3184,7 @@ async function loadTaskMonthlyReport() {
 
             return '<tr>' +
                 '<td class="p-3 font-bold text-slate-900 flex items-center gap-2">' +
-                    '<span class="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 border border-slate-200">👤</span>' +
+                    '<span class="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 border border-slate-200"></span>' +
                     '<div>' + esc(r.employee) + ' <div class="text-[10px] font-normal text-slate-500">(' + esc(r.role) + ')</div></div>' +
                 '</td>' +
                 '<td class="p-3 font-mono font-bold text-slate-800 text-center">' + r.assigned + '</td>' +
@@ -3238,14 +3238,14 @@ function exportMonthlyReportCsv() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    showToast('تم تصدير التقرير الشهري بنجاح 📊');
+    showToast('تم تصدير التقرير الشهري بنجاح ');
 }
 
 async function sendMonthlyReportAction() {
     var targetEmail = prompt("أدخل البريد الإلكتروني لاستلام التقرير الشهري:", "agencydomya@gmail.com");
     if (!targetEmail) return;
     try {
-        showToast("جاري تجهيز وإرسال التقرير للإيميل... ⏳");
+        showToast("جاري تجهيز وإرسال التقرير للإيميل... ");
         var res = await fetch('/api/tasks/send-monthly-report', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3253,7 +3253,7 @@ async function sendMonthlyReportAction() {
         });
         var data = await res.json();
         if (data.success) {
-            showToast(data.message || 'تم إرسال التقرير بنجاح 📧');
+            showToast(data.message || 'تم إرسال التقرير بنجاح ');
         } else {
             showToast(data.error || 'خطأ في إرسال التقرير', 'error');
         }
@@ -3281,31 +3281,31 @@ async function runSystemDiagnostics() {
 
         var items = [
             {
-                title: '🗄️ قاعدة بيانات Supabase',
+                title: '️ قاعدة بيانات Supabase',
                 ok: s.supabase && s.supabase.ok,
                 desc: s.supabase && s.supabase.ok ? 'متصل بنجاح (' + (s.supabase.latency_ms || 0) + 'ms)' : (s.supabase ? s.supabase.error : 'غير متصل'),
                 fix: 'تأكد من صحة SUPABASE_KEY في Vercel'
             },
             {
-                title: '🧠 محرك الذكاء الاصطناعي (Groq LLaMA)',
+                title: ' محرك الذكاء الاصطناعي (Groq LLaMA)',
                 ok: s.groq_llm && s.groq_llm.ok,
                 desc: s.groq_llm && s.groq_llm.ok ? 'متصل ونشط (Fast Inference)' : (s.groq_llm ? s.groq_llm.error : 'غير متصل'),
                 fix: 'تأكد من ضبط GROQ_API_KEY في Vercel'
             },
             {
-                title: '🤖 بوت تيليجرام (Staff Bot)',
+                title: ' بوت تيليجرام (Staff Bot)',
                 ok: s.telegram && s.telegram.ok,
                 desc: s.telegram && s.telegram.ok ? 'متصل: @' + esc(s.telegram.bot_username || '') : (s.telegram ? s.telegram.error : 'غير متصل'),
                 fix: 'تأكد من TELEGRAM_BOT_TOKEN'
             },
             {
-                title: '🔵 Meta Graph API v21.0',
+                title: ' Meta Graph API v21.0',
                 ok: s.meta_graph && s.meta_graph.ok,
                 desc: s.meta_graph && s.meta_graph.ok ? 'متصل: ' + esc(s.meta_graph.name || 'حساب مفعل') : (s.meta_graph ? s.meta_graph.error : 'غير متصل'),
                 fix: 'أعد ربط الصفحة عبر OAuth أو جدد التوكن'
             },
             {
-                title: '🔐 مفاتيح الأمان في Vercel',
+                title: ' مفاتيح الأمان في Vercel',
                 ok: env.admin_pass_set && env.secret_key_set,
                 desc: env.admin_pass_set && env.secret_key_set ? 'مثبتة بنجاح (Persistent Sessions)' : 'تحذير: بعض المفاتيح مفقودة في Environment Variables',
                 fix: 'اضبط ADMIN_PASS و SECRET_KEY في Vercel Dashboard'
@@ -3315,14 +3315,14 @@ async function runSystemDiagnostics() {
         box.innerHTML = items.map(function(item) {
             var color = item.ok ? 'emerald' : 'amber';
             var bg = item.ok ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900';
-            var badge = item.ok ? '<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">🟢 متصل</span>' : '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">⚠️ تنبيه</span>';
+            var badge = item.ok ? '<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold"> متصل</span>' : '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">️ تنبيه</span>';
             return '<div class="p-4 rounded-xl border ' + bg + ' flex flex-col justify-between gap-2 shadow-sm">' +
                 '<div class="flex items-center justify-between">' +
                     '<span class="font-bold text-xs">' + item.title + '</span>' +
                     badge +
                 '</div>' +
                 '<p class="text-[11px] opacity-90">' + esc(item.desc) + '</p>' +
-                (!item.ok ? '<span class="text-[10px] text-amber-800 font-semibold mt-1">💡 الحل: ' + esc(item.fix) + '</span>' : '') +
+                (!item.ok ? '<span class="text-[10px] text-amber-800 font-semibold mt-1"> الحل: ' + esc(item.fix) + '</span>' : '') +
             '</div>';
         }).join('');
 
@@ -3341,7 +3341,7 @@ async function promptSetDriveLink(taskId, currentLink) {
         return;
     }
     try {
-        showToast("جاري حفظ رابط الدرايف... ⏳");
+        showToast("جاري حفظ رابط الدرايف... ");
         var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3349,7 +3349,7 @@ async function promptSetDriveLink(taskId, currentLink) {
         });
         var data = await res.json();
         if (res.ok && (data.ok || data.success)) {
-            showToast("تم حفظ رابط جوجل درايف بنجاح 🎉");
+            showToast("تم حفظ رابط جوجل درايف بنجاح ");
             loadTasksEngine();
         } else {
             showToast(data.error || "تعذر حفظ الرابط", "error");
@@ -3363,7 +3363,7 @@ async function promptSetTaskNotes(taskId, currentNotes) {
     var val = prompt("أدخل ملاحظات الموظف / تفاصيل المخرجات للمهمة:", currentNotes || "");
     if (val === null) return;
     try {
-        showToast("جاري حفظ الملاحظات... ⏳");
+        showToast("جاري حفظ الملاحظات... ");
         var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3371,7 +3371,7 @@ async function promptSetTaskNotes(taskId, currentNotes) {
         });
         var data = await res.json();
         if (res.ok && data.success) {
-            showToast("تم حفظ الملاحظات بنجاح 📝");
+            showToast("تم حفظ الملاحظات بنجاح ");
             loadTasksEngine();
         } else {
             showToast(data.error || "تعذر حفظ الملاحظات", "error");
@@ -3425,16 +3425,16 @@ async function openTaskDetailsModal(taskId) {
     } catch(e) { console.error("fetch task error:", e); }
     
     if (!t) {
-        if (bodyEl) bodyEl.innerHTML = '<div class="py-12 text-center text-red-500 font-bold">⚠️ تعذّر العثور على بيانات المهمة (' + esc(taskId) + ')</div>';
+        if (bodyEl) bodyEl.innerHTML = '<div class="py-12 text-center text-red-500 font-bold">️ تعذّر العثور على بيانات المهمة (' + esc(taskId) + ')</div>';
         return;
     }
     
     var postSeq = t.post_number_in_plan || t.post_number || (typeof getTaskSequenceNum === 'function' ? getTaskSequenceNum(t) : 1);
     var st = t.status || 'Pending AM Approval';
-    var stLabel = (st === 'Completed') ? 'معتمد ومكتمل ✅' :
-                  (st === 'Awaiting AM Review') ? 'بانتظار مراجعة AM ⏳' :
-                  (st === 'In Progress') ? 'جاري العمل 🚀' :
-                  (st === 'Assigned') ? 'مسندة للموظف 👤' : 'بانتظار موافقة AM 📌';
+    var stLabel = (st === 'Completed') ? 'معتمد ومكتمل ' :
+                  (st === 'Awaiting AM Review') ? 'بانتظار مراجعة AM ' :
+                  (st === 'In Progress') ? 'جاري العمل ' :
+                  (st === 'Assigned') ? 'مسندة للموظف ' : 'بانتظار موافقة AM ';
     var stBadgeClass = (st === 'Completed') ? 'bg-emerald-100 text-emerald-800' :
                        (st === 'In Progress') ? 'bg-blue-100 text-blue-800' :
                        (st === 'Awaiting AM Review') ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700';
@@ -3447,7 +3447,7 @@ async function openTaskDetailsModal(taskId) {
     }
     if (clientEl) {
         var cName = clientName || (typeof _clientNameMap === 'function' ? _clientNameMap(t.client_id) : (t.client_name || t.client_id || ''));
-        clientEl.textContent = '🏢 ' + cName;
+        clientEl.textContent = ' ' + cName;
     }
     
     var driveLink = (t.drive_link || t.google_drive_link || t.submission_link || t.drive_url || '').trim();
@@ -3456,15 +3456,15 @@ async function openTaskDetailsModal(taskId) {
     var delivHtml = '';
     if (driveLink || rawNotes || (t.delivery_files && t.delivery_files.length)) {
         delivHtml = '<div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 space-y-2.5">' +
-            '<div class="flex items-center justify-between"><span class="font-bold text-xs text-emerald-900 flex items-center gap-1.5">📦 تسليمات وإنجاز الموظف:</span><span class="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Google Drive</span></div>';
+            '<div class="flex items-center justify-between"><span class="font-bold text-xs text-emerald-900 flex items-center gap-1.5"> تسليمات وإنجاز الموظف:</span><span class="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Google Drive</span></div>';
         if (driveLink) {
             delivHtml += '<div class="flex items-center gap-2 flex-wrap">' +
-                '<a href="' + esc(driveLink) + '" target="_blank" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl shadow-xs transition text-xs"><span>📁 فتح مجلد / ملف التسليم على Drive ↗️</span></a>' +
-                '<button onclick="navigator.clipboard.writeText(\'' + esc(driveLink) + '\');showToast(\'تم نسخ الرابط ✅\')" class="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-xl font-bold transition text-xs"><span>📋 نسخ الرابط</span></button>' +
+                '<a href="' + esc(driveLink) + '" target="_blank" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl shadow-xs transition text-xs"><span> فتح مجلد / ملف التسليم على Drive ↗️</span></a>' +
+                '<button onclick="navigator.clipboard.writeText(\'' + esc(driveLink) + '\');showToast(\'تم نسخ الرابط \')" class="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-xl font-bold transition text-xs"><span> نسخ الرابط</span></button>' +
             '</div>';
         }
         if (rawNotes) {
-            delivHtml += '<div class="bg-white/90 p-2.5 rounded-xl border border-emerald-100 text-slate-800 space-y-0.5"><div class="text-[10px] text-slate-500 font-bold">📝 ملاحظات الموظف عند التسليم:</div><div class="font-semibold whitespace-pre-line">' + esc(rawNotes) + '</div></div>';
+            delivHtml += '<div class="bg-white/90 p-2.5 rounded-xl border border-emerald-100 text-slate-800 space-y-0.5"><div class="text-[10px] text-slate-500 font-bold"> ملاحظات الموظف عند التسليم:</div><div class="font-semibold whitespace-pre-line">' + esc(rawNotes) + '</div></div>';
         }
         delivHtml += '</div>';
     }
@@ -3474,22 +3474,22 @@ async function openTaskDetailsModal(taskId) {
     if (logs && logs.length) {
         logsHtml = '<div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5">' +
             '<div class="font-bold text-xs text-slate-900 flex items-center justify-between">' +
-                '<span>📜 سجل كل العمليات والمواعيد وتاريخ المهمة:</span>' +
+                '<span> سجل كل العمليات والمواعيد وتاريخ المهمة:</span>' +
                 '<span class="bg-blue-100 text-blue-800 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">' + logs.length + ' عمليات</span>' +
             '</div>' +
             '<div class="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">';
         logs.slice().reverse().forEach(function(l) {
-            var icon = l.action === 'created' ? '🟢' :
-                       l.action === 'assigned' ? '🎯' :
-                       l.action === 'started' ? '⏱️' :
-                       l.action === 'submitted' ? '📦' :
+            var icon = l.action === 'created' ? '' :
+                       l.action === 'assigned' ? '' :
+                       l.action === 'started' ? '️' :
+                       l.action === 'submitted' ? '' :
                        l.action === 'reviewed_reject' ? '↩️' :
-                       l.action === 'reviewed_forward' ? '➡️' :
-                       l.action === 'reviewed_approved' ? '✅' :
-                       l.action === 'recalled' ? '⚠️' :
-                       l.action === 'dates_updated' ? '📅' :
-                       l.action === 'reference_added' ? '🔗' :
-                       l.action === 'asset_uploaded' ? '📤' : '📝';
+                       l.action === 'reviewed_forward' ? '️' :
+                       l.action === 'reviewed_approved' ? '' :
+                       l.action === 'recalled' ? '️' :
+                       l.action === 'dates_updated' ? '' :
+                       l.action === 'reference_added' ? '' :
+                       l.action === 'asset_uploaded' ? '' : '';
 
             var actionTitle = l.action === 'created' ? 'إنشاء وتفريغ المهمة' :
                               l.action === 'assigned' ? ('إسناد إلى ' + (l.target_employee_name || 'موظف')) :
@@ -3512,11 +3512,11 @@ async function openTaskDetailsModal(taskId) {
 
             var d = l.details || {};
             var detailBadges = [];
-            if (d.delivery_deadline) detailBadges.push('⏰ تسليم: ' + d.delivery_deadline);
-            if (d.publish_date) detailBadges.push('📅 نزول: ' + d.publish_date);
-            if (d.scheduled_start_date) detailBadges.push('🚀 بدء: ' + d.scheduled_start_date);
-            if (d.drive_link) detailBadges.push('<a href="' + esc(d.drive_link) + '" target="_blank" class="text-emerald-700 underline font-bold">📁 ملف Drive</a>');
-            if (d.reason) detailBadges.push('⚠️ سبب: ' + esc(d.reason));
+            if (d.delivery_deadline) detailBadges.push(' تسليم: ' + d.delivery_deadline);
+            if (d.publish_date) detailBadges.push(' نزول: ' + d.publish_date);
+            if (d.scheduled_start_date) detailBadges.push(' بدء: ' + d.scheduled_start_date);
+            if (d.drive_link) detailBadges.push('<a href="' + esc(d.drive_link) + '" target="_blank" class="text-emerald-700 underline font-bold"> ملف Drive</a>');
+            if (d.reason) detailBadges.push('️ سبب: ' + esc(d.reason));
 
             logsHtml += '<div class="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-2xs space-y-1.5">' +
                 '<div class="flex items-center justify-between gap-1.5 flex-wrap border-b border-slate-100 pb-1">' +
@@ -3530,7 +3530,7 @@ async function openTaskDetailsModal(taskId) {
                     '<div>بواسطة: <b class="text-slate-800">' + esc(actorName) + '</b></div>' +
                     (l.target_employee_name ? ('<div>الموظف المعني: <b class="text-indigo-700">' + esc(l.target_employee_name) + '</b></div>') : '') +
                 '</div>' +
-                (noteText && noteText !== actionTitle ? ('<div class="bg-slate-50 p-2 rounded-lg text-[11px] text-slate-700 font-medium whitespace-pre-line">💬 ' + esc(noteText) + '</div>') : '') +
+                (noteText && noteText !== actionTitle ? ('<div class="bg-slate-50 p-2 rounded-lg text-[11px] text-slate-700 font-medium whitespace-pre-line"> ' + esc(noteText) + '</div>') : '') +
                 (detailBadges.length ? ('<div class="flex items-center gap-1.5 flex-wrap pt-0.5 text-[10px] font-mono font-bold text-slate-600">' + detailBadges.map(function(b){ return '<span class="bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">' + b + '</span>'; }).join('') + '</div>') : '') +
             '</div>';
         });
@@ -3541,7 +3541,7 @@ async function openTaskDetailsModal(taskId) {
     var imgs = (t.media_urls || []);
     if (imgs && imgs.length) {
         refHtml = '<div class="space-y-1.5">' +
-            '<div class="font-bold text-xs text-slate-700">🖼️ صور ومراجع البوست:</div>' +
+            '<div class="font-bold text-xs text-slate-700">️ صور ومراجع البوست:</div>' +
             '<div class="flex gap-2 flex-wrap">';
         imgs.forEach(function(img) {
             var thumb = (typeof driveThumb === 'function') ? driveThumb(img) : img;
@@ -3556,32 +3556,32 @@ async function openTaskDetailsModal(taskId) {
         '<div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">' +
             '<div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">عنوان المنشور / البوست:</div>' +
             '<h3 class="font-bold text-base text-slate-900 leading-snug">' + esc(t.title || 'بدون عنوان') + '</h3>' +
-            (t.plan_name ? ('<div class="text-xs text-blue-600 font-bold">📄 الخطة: ' + esc(t.plan_name) + '</div>') : '') +
+            (t.plan_name ? ('<div class="text-xs text-blue-600 font-bold"> الخطة: ' + esc(t.plan_name) + '</div>') : '') +
         '</div>' +
         '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' +
             '<div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl space-y-1">' +
-                '<div class="text-[10px] text-slate-500 font-bold">👤 الموظف المسند إليه:</div>' +
+                '<div class="text-[10px] text-slate-500 font-bold"> الموظف المسند إليه:</div>' +
                 '<div class="font-bold text-xs text-slate-800">' + esc(t.assignee_name || 'غير مسند بعد') + '</div>' +
             '</div>' +
             '<div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl space-y-1">' +
-                '<div class="text-[10px] text-slate-500 font-bold">⏰ موعد التسليم:</div>' +
+                '<div class="text-[10px] text-slate-500 font-bold"> موعد التسليم:</div>' +
                 '<div class="font-mono font-bold text-xs text-amber-800">' + esc(t.delivery_deadline || t.publish_date || 'غير محدد') + '</div>' +
             '</div>' +
         '</div>' +
         ((t.tagline || (t.content_data && t.content_data.tagline) || (t.content_data && t.content_data.tag_line)) ? ('<div class="bg-amber-50/90 border border-amber-200 rounded-2xl p-3.5 space-y-1">' +
-            '<div class="text-[10px] text-amber-900 font-bold flex items-center gap-1">🏷️ التاج لاين / الهوك الجذاب (Tagline / Hook):</div>' +
+            '<div class="text-[10px] text-amber-900 font-bold flex items-center gap-1">️ التاج لاين / الهوك الجذاب (Tagline / Hook):</div>' +
             '<div class="text-xs font-bold text-amber-950 leading-relaxed">' + esc(t.tagline || t.content_data.tagline || t.content_data.tag_line) + '</div>' +
         '</div>') : '') +
         (t.caption ? ('<div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-1.5">' +
-            '<div class="text-[10px] text-slate-500 font-bold flex items-center gap-1">✍️ نص الكونتنت والكابشن الكامل (Caption):</div>' +
+            '<div class="text-[10px] text-slate-500 font-bold flex items-center gap-1">️ نص الكونتنت والكابشن الكامل (Caption):</div>' +
             '<div class="text-xs text-slate-800 whitespace-pre-line leading-relaxed">' + esc(t.caption) + '</div>' +
         '</div>') : '') +
         (t.visual_idea ? ('<div class="bg-purple-50/70 border border-purple-200 rounded-2xl p-3.5 space-y-1">' +
-            '<div class="text-[10px] text-purple-900 font-bold">🎨 التخيل / فكرة الجرافيك (Visual Idea):</div>' +
+            '<div class="text-[10px] text-purple-900 font-bold"> التخيل / فكرة الجرافيك (Visual Idea):</div>' +
             '<div class="text-xs text-purple-950 whitespace-pre-line">' + esc(t.visual_idea) + '</div>' +
         '</div>') : '') +
         (t.review_note ? ('<div class="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 space-y-1">' +
-            '<div class="text-[10px] text-amber-900 font-bold">📝 ملاحظة مراجعة الأكونت مانيجر:</div>' +
+            '<div class="text-[10px] text-amber-900 font-bold"> ملاحظة مراجعة الأكونت مانيجر:</div>' +
             '<div class="text-xs text-amber-950 whitespace-pre-line">' + esc(t.review_note) + '</div>' +
         '</div>') : '') +
         delivHtml +
@@ -3622,13 +3622,13 @@ async function checkGoogleDriveStatus() {
         var d = await res.json();
         if (d.connected) {
             badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800';
-            badge.textContent = '🟢 متصل بـ Google Drive بنجاح';
+            badge.textContent = ' متصل بـ Google Drive بنجاح';
         } else if (d.has_credentials) {
             badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800';
-            badge.textContent = '⚠️ البيانات مدخلة لكن يلزم تجديد الـ Token';
+            badge.textContent = '️ البيانات مدخلة لكن يلزم تجديد الـ Token';
         } else {
             badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
-            badge.textContent = '🟡 غير متصل - أدخل بيانات Drive';
+            badge.textContent = ' غير متصل - أدخل بيانات Drive';
         }
         if (d.client_id) {
             var cidInput = document.getElementById('gdrive-client-id');
@@ -3636,7 +3636,7 @@ async function checkGoogleDriveStatus() {
         }
     } catch(e) {
         badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-rose-100 text-rose-800';
-        badge.textContent = '❌ تعذّر فحص الاتصال';
+        badge.textContent = ' تعذّر فحص الاتصال';
     }
 }
 
@@ -3651,7 +3651,7 @@ async function saveGoogleDriveSettings() {
         return;
     }
     
-    showToast('جاري حفظ واختبار اتصال Google Drive... ⏳');
+    showToast('جاري حفظ واختبار اتصال Google Drive... ');
     try {
         var res = await fetch('/api/settings/google-drive', {
             method: 'POST',
@@ -3660,17 +3660,17 @@ async function saveGoogleDriveSettings() {
         });
         var d = await res.json();
         if (res.ok && d.ok) {
-            showToast('تم تفعيل وحفظ Google Drive بنجاح! 🎉', 'success');
+            showToast('تم تفعيل وحفظ Google Drive بنجاح! ', 'success');
             if (resDiv) {
                 resDiv.className = 'text-xs p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 font-bold block';
-                resDiv.textContent = '✅ ' + (d.message || 'تم الاتصال بنجاح!');
+                resDiv.textContent = ' ' + (d.message || 'تم الاتصال بنجاح!');
             }
             checkGoogleDriveStatus();
         } else {
             showToast(d.error || 'تعذّر الاتصال بـ Google Drive', 'error');
             if (resDiv) {
                 resDiv.className = 'text-xs p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-900 font-bold block';
-                resDiv.textContent = '❌ ' + (d.error || 'فشل الاتصال');
+                resDiv.textContent = ' ' + (d.error || 'فشل الاتصال');
             }
         }
     } catch(e) {
@@ -3711,7 +3711,7 @@ async function submitDriveLinkDeliverable() {
         showToast('يرجى لصق رابط Google Drive أو الملف أولاً', 'error');
         return;
     }
-    showToast('جاري حفظ وربط الرابط بالمهمة... ⏳');
+    showToast('جاري حفظ وربط الرابط بالمهمة... ');
     try {
         var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/drive-link', {
             method: 'POST',
@@ -3721,7 +3721,7 @@ async function submitDriveLinkDeliverable() {
         var d = await res.json();
         if (res.ok && d.ok) {
             closeDeliverableModal();
-            showToast('🎉 تم حفظ وربط رابط Google Drive بالتاسك بنجاح! ✅', 'success');
+            showToast(' تم حفظ وربط رابط Google Drive بالتاسك بنجاح! ', 'success');
             if (typeof loadTasksEngine === 'function') loadTasksEngine();
             if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
@@ -3739,7 +3739,7 @@ async function handleModalFileUpload(input) {
     closeDeliverableModal();
     try {
         await driveUploadFile(taskId, file);
-        showToast('🎉 تم رفع الملف بنجاح وربطه بالمهمة! ✅', 'success');
+        showToast(' تم رفع الملف بنجاح وربطه بالمهمة! ', 'success');
         if (typeof loadTasksEngine === 'function') loadTasksEngine();
         if (typeof loadMyPortal === 'function') loadMyPortal();
     } catch(e) {
@@ -3752,7 +3752,7 @@ async function submitTaskDirectlyNoFile() {
     var taskId = window._activeDeliverableTaskId;
     if (!taskId) return;
     closeDeliverableModal();
-    showToast('جاري تسليم المهمة لمدير الحساب... ⏳');
+    showToast('جاري تسليم المهمة لمدير الحساب... ');
     try {
         var res = await fetch('/api/me/tasks/' + encodeURIComponent(taskId) + '/submit', {
             method: 'POST',
@@ -3761,7 +3761,7 @@ async function submitTaskDirectlyNoFile() {
         });
         var data = await res.json();
         if (res.ok) {
-            showToast('🎉 تم تسليم المهمة بنجاح للمراجعة والاعتماد! ✅', 'success');
+            showToast(' تم تسليم المهمة بنجاح للمراجعة والاعتماد! ', 'success');
             if (typeof loadTasksEngine === 'function') loadTasksEngine();
             if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
@@ -3825,7 +3825,7 @@ async function openPlanBuilderModal() {
             var opt = document.createElement('option');
             opt.value = a.employee_id || a.id;
             var isMe = myEmpId && String(opt.value) === String(myEmpId);
-            opt.textContent = '👤 ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '');
+            opt.textContent = ' ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager') + (isMe ? ' (أنا ‍️)' : '');
             if (isMe || opt.value === 'AM-2072-9827') opt.selected = true;
             amSelect.appendChild(opt);
         });
@@ -3873,7 +3873,7 @@ function addPlanBuilderRow(postData) {
         { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' }
     ];
 
-    var assigneeOptions = '<option value="">👤 اسناد لموظف محدد (اختياري)...</option>';
+    var assigneeOptions = '<option value=""> اسناد لموظف محدد (اختياري)...</option>';
     team.forEach(function(e){
         var isSel = (data.assigned_employee_id === e.employee_id || (data.assignee_name && data.assignee_name === e.name));
         assigneeOptions += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + ' (' + esc(e.role) + ')</option>';
@@ -3888,11 +3888,11 @@ function addPlanBuilderRow(postData) {
             '<div class="flex items-center gap-2 flex-wrap">' +
                 '<span class="bg-purple-600 text-white font-mono font-bold text-xs px-2.5 py-1 rounded-xl shadow-2xs">بوست #' + idx + '</span>' +
                 '<select class="pb-post-type text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-800 focus:outline-none focus:border-purple-500">' +
-                    '<option value="reel"' + (data.post_type === 'reel' ? ' selected' : '') + '>🎬 ريلز / فيديو قصير (Reels)</option>' +
-                    '<option value="post"' + (data.post_type === 'post' ? ' selected' : '') + '>📝 منشور صورة مفردة (Single Post)</option>' +
-                    '<option value="carousel"' + (data.post_type === 'carousel' ? ' selected' : '') + '>🖼️ كاروسيل / سلايدات (Carousel)</option>' +
-                    '<option value="story"' + (data.post_type === 'story' ? ' selected' : '') + '>📱 ستوري / قصة (Story)</option>' +
-                    '<option value="motion"' + (data.post_type === 'motion' ? ' selected' : '') + '>💫 موشن جرافيك (Motion Graphic)</option>' +
+                    '<option value="reel"' + (data.post_type === 'reel' ? ' selected' : '') + '> ريلز / فيديو قصير (Reels)</option>' +
+                    '<option value="post"' + (data.post_type === 'post' ? ' selected' : '') + '> منشور صورة مفردة (Single Post)</option>' +
+                    '<option value="carousel"' + (data.post_type === 'carousel' ? ' selected' : '') + '>️ كاروسيل / سلايدات (Carousel)</option>' +
+                    '<option value="story"' + (data.post_type === 'story' ? ' selected' : '') + '> ستوري / قصة (Story)</option>' +
+                    '<option value="motion"' + (data.post_type === 'motion' ? ' selected' : '') + '> موشن جرافيك (Motion Graphic)</option>' +
                 '</select>' +
                 '<select class="pb-assignee text-xs font-bold bg-purple-50/70 border border-purple-200 rounded-xl px-2.5 py-1 text-purple-900 focus:outline-none focus:border-purple-500">' +
                     assigneeOptions +
@@ -3900,28 +3900,28 @@ function addPlanBuilderRow(postData) {
             '</div>' +
             '<div class="flex items-center gap-2">' +
                 '<div class="flex items-center gap-1.5">' +
-                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 موعد النشر (اختياري):</label>' +
+                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline"> موعد النشر (اختياري):</label>' +
                     '<input type="date" class="pb-publish-date text-xs px-2 py-1 border border-slate-200 rounded-xl bg-slate-50 font-bold" value="' + esc(data.publish_date || '') + '" title="اختياري - يمكنك تركه فارغاً" />' +
                 '</div>' +
                 '<button type="button" onclick="removePlanBuilderRow(this)" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center font-bold text-xs transition" title="حذف هذا البوست">' +
-                    '✕' +
+                    '' +
                 '</button>' +
             '</div>' +
         '</div>' +
 
         '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">' +
             '<div>' +
-                '<label class="block text-[11px] font-bold text-amber-900 mb-1 flex items-center gap-1">🏷️ التاج لاين / الهوك الجذاب (Tagline / Hook):</label>' +
+                '<label class="block text-[11px] font-bold text-amber-900 mb-1 flex items-center gap-1">️ التاج لاين / الهوك الجذاب (Tagline / Hook):</label>' +
                 '<input type="text" class="pb-tagline w-full px-3 py-2 border border-amber-200 rounded-xl bg-amber-50/40 text-xs font-bold text-amber-950 focus:bg-white focus:border-amber-400 focus:outline-none" placeholder="مثال: 3 أخطاء بتضيع ميزانية إعلاناتك..." value="' + esc(data.tagline || data.title || '') + '" />' +
             '</div>' +
             '<div>' +
-                '<label class="block text-[11px] font-bold text-purple-900 mb-1 flex items-center gap-1">🎨 فكرة الفيجوال / اسكربت الفيديو (Visual Idea / Script):</label>' +
+                '<label class="block text-[11px] font-bold text-purple-900 mb-1 flex items-center gap-1"> فكرة الفيجوال / اسكربت الفيديو (Visual Idea / Script):</label>' +
                 '<input type="text" class="pb-visual w-full px-3 py-2 border border-purple-200 rounded-xl bg-purple-50/40 text-xs text-purple-950 focus:bg-white focus:border-purple-400 focus:outline-none" placeholder="مثال: تصوير الموديل مع ظهور عناوين موشن وتأثير صوتي..." value="' + esc(data.visual_idea || '') + '" />' +
             '</div>' +
         '</div>' +
 
         '<div>' +
-            '<label class="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">📝 نص الكونتنت والكابشن الكامل (Full Copy / Caption / Script):</label>' +
+            '<label class="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1"> نص الكونتنت والكابشن الكامل (Full Copy / Caption / Script):</label>' +
             '<textarea rows="3" class="pb-caption w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 leading-relaxed focus:border-purple-500 focus:outline-none" placeholder="اكتب نص البوست الكامل هنا مع التفاصيل والـ CTA والهاشتاجات...">' + esc(data.caption || '') + '</textarea>' +
         '</div>';
 
@@ -3950,22 +3950,22 @@ function loadSamplePlanTemplate() {
     var samples = [
         {
             post_type: 'reel',
-            tagline: 'سر واحد هيضاعف مبيعاتك في 30 يوم 🚀',
-            caption: 'أغلب البراندات بتركز على الإعلانات وبتنسى أهم خطوة: تجربة العميل بعد أول نقرة!\n\nفي الفيديو ده هنوضح 3 خطوات عملية تقدر تطبقهم النهاردة عشان ترفع نسبة التحويل.\n\n💬 ابعتلنا كلمة (مبيعات) في الرسائل وهنبعتلك الدليل المجاني فوراً!\n\n#تسويق_إلكتروني #مبيعات #ريلز #سوشيال_ميديا',
+            tagline: 'سر واحد هيضاعف مبيعاتك في 30 يوم ',
+            caption: 'أغلب البراندات بتركز على الإعلانات وبتنسى أهم خطوة: تجربة العميل بعد أول نقرة!\n\nفي الفيديو ده هنوضح 3 خطوات عملية تقدر تطبقهم النهاردة عشان ترفع نسبة التحويل.\n\n ابعتلنا كلمة (مبيعات) في الرسائل وهنبعتلك الدليل المجاني فوراً!\n\n#تسويق_إلكتروني #مبيعات #ريلز #سوشيال_ميديا',
             visual_idea: 'فيديو ريلز عمودي 9:16 مع هوك في أول 3 ثواني وظهور التاج لاين بخط واضح ومؤثرات صوتية حماسية',
             publish_date: new Date(Date.now() + 86400000).toISOString().split('T')[0]
         },
         {
             post_type: 'carousel',
-            tagline: '5 أدوات مجانية لازم كل صانع محتوى يستخدمها 🛠️',
-            caption: 'لو بتضيع وقت في التصميم والمونتاج، البوست ده هيوفر عليك ساعات كل أسبوع!\n\nسلايد 1: أداة التغذية البصرية\nسلايد 2: أداة تحسين جودة الصوت\nسلايد 3: أداة استخراج الهاشتاجات\n\n📌 احفظ البوست عشان ترجعله وقت ما تحتاجه!\n\n#صناع_المحتوى #تصميم #جرافيك',
+            tagline: '5 أدوات مجانية لازم كل صانع محتوى يستخدمها ️',
+            caption: 'لو بتضيع وقت في التصميم والمونتاج، البوست ده هيوفر عليك ساعات كل أسبوع!\n\nسلايد 1: أداة التغذية البصرية\nسلايد 2: أداة تحسين جودة الصوت\nسلايد 3: أداة استخراج الهاشتاجات\n\n احفظ البوست عشان ترجعله وقت ما تحتاجه!\n\n#صناع_المحتوى #تصميم #جرافيك',
             visual_idea: 'كاروسيل 5 سلايدات بتدرج ألوان البراند مع أيقونات بارزة لكل أداة وسهم تنقل سلس',
             publish_date: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]
         },
         {
             post_type: 'post',
-            tagline: 'عرض خاص لنهاية الأسبوع — خصم 30% على كل التشكيلة 🔥',
-            caption: 'العرض الأقوى وصل! استمتع بخصم 30% على كل المنتجات الجديدة لفترة محدودة.\n\n🚚 التوصيل مجاني للطلبات فوق 500 جنيه.\n\n🛒 اطلب الآن من خلال اللينك في البايو أو تواصل معنا عبر رسائل الصفحة.',
+            tagline: 'عرض خاص لنهاية الأسبوع — خصم 30% على كل التشكيلة ',
+            caption: 'العرض الأقوى وصل! استمتع بخصم 30% على كل المنتجات الجديدة لفترة محدودة.\n\n التوصيل مجاني للطلبات فوق 500 جنيه.\n\n اطلب الآن من خلال اللينك في البايو أو تواصل معنا عبر رسائل الصفحة.',
             visual_idea: 'تصميم جرافيك احترافي يبرز صورة المنتج الرئيسي مع بادج الخصم 30% بخط جريء',
             publish_date: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0]
         }
@@ -3975,7 +3975,7 @@ function loadSamplePlanTemplate() {
         addPlanBuilderRow(s);
     });
 
-    showToast('تمت تعبئة النموذج التجريبي بنجاح! يمكنك التعديل عليه كما تحب 📑✨');
+    showToast('تمت تعبئة النموذج التجريبي بنجاح! يمكنك التعديل عليه كما تحب ');
 }
 
 async function submitPlanBuilder() {
@@ -4040,7 +4040,7 @@ async function submitPlanBuilder() {
 
     var fullPlanText = clientTextBlocks.join('\n\n');
 
-    showToast('جاري إنشاء وحفظ مهام الخطة بالسيستم... ⏳');
+    showToast('جاري إنشاء وحفظ مهام الخطة بالسيستم... ');
 
     try {
         var res = await safeFetchJson('/api/tasks/ingest-plan', {
@@ -4058,7 +4058,7 @@ async function submitPlanBuilder() {
 
         if (res && (res.ok || res.success)) {
             closePlanBuilderModal();
-            showToast('🎉 تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة بنجاح! 🚀', 'success');
+            showToast(' تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة بنجاح! ', 'success');
             
             // Set plan filter to new plan so user sees it instantly
             if (res.plan_name) {
@@ -4150,7 +4150,7 @@ async function saveTaskContentEditorAction(e) {
     var origText = btn ? btn.innerHTML : '';
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span>⏳ جاري الحفظ والمزامنة...</span>';
+        btn.innerHTML = '<span> جاري الحفظ والمزامنة...</span>';
     }
     
     try {
@@ -4170,7 +4170,7 @@ async function saveTaskContentEditorAction(e) {
         
         if (res && (res.success || res.ok)) {
             closeTaskContentEditorModal();
-            showToast('🎉 تم تحديث محتوى البوست ونصوصه بنجاح! ✍️✨', 'success');
+            showToast(' تم تحديث محتوى البوست ونصوصه بنجاح! ️', 'success');
             
             // Update local memory state
             if (tasksList) {
@@ -4230,7 +4230,7 @@ async function sharePlanWithClient(clientName, planName) {
     try {
         var cInput = clientName || (window._me && window._me.active_client_name) || (typeof selectedClientFilter !== 'undefined' ? selectedClientFilter : '') || '';
         var pInput = planName || '';
-        showToast('جاري تجهيز رابط مشاركة الخطة للعميل... ⏳');
+        showToast('جاري تجهيز رابط مشاركة الخطة للعميل... ');
         var res = await fetch('/api/plan/share-link?client=' + encodeURIComponent(cInput) + '&plan=' + encodeURIComponent(pInput));
         var data = await res.json();
         if (!res.ok || !data.ok || !data.share_url) {
@@ -4247,7 +4247,7 @@ async function sharePlanWithClient(clientName, planName) {
             await navigator.clipboard.writeText(shareUrl);
         } catch(e) {}
 
-        var waText = 'مرحباً ' + cName + ' 👋\nيسعدنا مشاركة خطة المحتوى والتسويق الخاصة بكم مع التفاصيل الكاملة للمنشورات ومواعيد النشر:\n' + shareUrl + '\n\nيمكنكم الاطلاع على الخطة واعتمادها مباشرة من الرابط 🚀';
+        var waText = 'مرحباً ' + cName + ' \nيسعدنا مشاركة خطة المحتوى والتسويق الخاصة بكم مع التفاصيل الكاملة للمنشورات ومواعيد النشر:\n' + shareUrl + '\n\nيمكنكم الاطلاع على الخطة واعتمادها مباشرة من الرابط ';
         var waUrl = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(waText);
 
         var modalId = 'modal-share-plan-dialog';
@@ -4258,17 +4258,17 @@ async function sharePlanWithClient(clientName, planName) {
             '<div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-right" dir="rtl">' +
                 '<div class="flex items-center justify-between border-b border-slate-100 pb-3">' +
                     '<div class="flex items-center gap-2.5">' +
-                        '<span class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl font-bold shadow-2xs">🔗</span>' +
+                        '<span class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl font-bold shadow-2xs"></span>' +
                         '<div>' +
                             '<h3 class="font-bold text-base text-slate-900">مشاركة الخطة مع العميل</h3>' +
-                            '<p class="text-xs text-slate-500">🏢 ' + esc(cName) + ' · ' + esc(pName) + ' (' + total + ' بوست)</p>' +
+                            '<p class="text-xs text-slate-500"> ' + esc(cName) + ' · ' + esc(pName) + ' (' + total + ' بوست)</p>' +
                         '</div>' +
                     '</div>' +
-                    '<button type="button" onclick="document.getElementById(\'' + modalId + '\').remove()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-sm font-bold transition cursor-pointer">✕</button>' +
+                    '<button type="button" onclick="document.getElementById(\'' + modalId + '\').remove()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-sm font-bold transition cursor-pointer"></button>' +
                 '</div>' +
 
                 '<div class="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 font-medium flex items-center gap-2">' +
-                    '<span class="text-lg shrink-0">✅</span>' +
+                    '<span class="text-lg shrink-0"></span>' +
                     '<span>تم نسخ رابط الخطة المخصص للعميل إلى الحافظة تلقائياً! يمكنك إرساله له الآن على واتساب أو تليجرام.</span>' +
                 '</div>' +
 
@@ -4276,23 +4276,23 @@ async function sharePlanWithClient(clientName, planName) {
                     '<label class="text-xs font-bold text-slate-700 block">رابط المعاينة المباشر للعميل:</label>' +
                     '<div class="flex gap-2">' +
                         '<input id="share-plan-input-url" type="text" readonly value="' + esc(shareUrl) + '" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 select-all font-bold">' +
-                        '<button type="button" onclick="navigator.clipboard.writeText(\'' + esc(shareUrl) + '\'); showToast(\'تم نسخ الرابط بنجاح! 📋\');" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs whitespace-nowrap cursor-pointer">📋 نسخ</button>' +
+                        '<button type="button" onclick="navigator.clipboard.writeText(\'' + esc(shareUrl) + '\'); showToast(\'تم نسخ الرابط بنجاح! \');" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs whitespace-nowrap cursor-pointer"> نسخ</button>' +
                     '</div>' +
                 '</div>' +
 
                 '<div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">' +
                     '<a href="' + waUrl + '" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 text-center cursor-pointer">' +
-                        '<span>💬 إرسال WhatsApp</span>' +
+                        '<span> إرسال WhatsApp</span>' +
                     '</a>' +
                     '<a href="' + esc(shareUrl) + '" target="_blank" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-3 rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 text-center cursor-pointer">' +
-                        '<span>👁️ معاينة صفحة العميل ↗️</span>' +
+                        '<span>️ معاينة صفحة العميل ↗️</span>' +
                     '</a>' +
                 '</div>' +
             '</div>' +
         '</div>';
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-        showToast('🎉 تم نسخ رابط الخطة المخصص للعميل! 📋', 'success');
+        showToast(' تم نسخ رابط الخطة المخصص للعميل! ', 'success');
     } catch(e) {
         showToast('خطأ في إعداد رابط المشاركة', 'error');
     }

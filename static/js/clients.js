@@ -28,7 +28,7 @@ function renderClientSelector() {
 }
 
 function renderActiveClientBar() {
-    const nameEl   = document.getElementById('bar-client-name');
+    const nameEl = document.getElementById('bar-client-name');
     const statusEl = document.getElementById('bar-channel-status');
     if (!nameEl || !statusEl) return;
 
@@ -161,7 +161,7 @@ function openEditClient(id) {
         }).catch(() => showToast('خطأ في التحديث', 'error'));
         return;
     }
-    document.getElementById('c-name').value    = c.name || '';
+    document.getElementById('c-name').value = c.name || '';
     document.getElementById('c-company').value = c.company || '';
     document.getElementById('c-package').value = c.package || 'Business Pro';
     if (document.getElementById('c-page-id')) document.getElementById('c-page-id').value = c.page_id || '';
@@ -234,7 +234,7 @@ async function addNewClientQuick() {
 }
 
 async function saveNewClient() {
-    const modal  = document.getElementById('client-modal');
+    const modal = document.getElementById('client-modal');
     if (!modal) { return addNewClientQuick(); }
     const editId = modal.dataset.editId;
     
@@ -247,7 +247,7 @@ async function saveNewClient() {
 
     if (!name) { showToast('أدخل اسم العميل', 'error'); return; }
 
-    const url    = editId ? `/api/clients/${editId}` : '/api/clients';
+    const url = editId ? `/api/clients/${editId}` : '/api/clients';
     const method = editId ? 'PUT' : 'POST';
 
     try {
@@ -318,11 +318,11 @@ window.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('DOMContentLoaded', () => {
     const p = new URLSearchParams(location.search);
     const o = p.get('oauth');
-    if (o === 'select_page')  showPagePicker();
-    else if (o === 'error')   showToast(oauthErrorMsg(p.get('reason')), 'error');
+    if (o === 'select_page') showPagePicker();
+    else if (o === 'error') showToast(oauthErrorMsg(p.get('reason')), 'error');
     else if (o === 'success') {
         const n = p.get('linked') || '';
-        showToast('تم ربط ' + (n ? n + ' ' : '') + 'صفحة بنجاح ✅');
+        showToast('تم ربط ' + (n ? n + ' ' : '') + 'صفحة بنجاح ');
         setTimeout(() => {
             if (typeof loadClients === 'function') loadClients();
             if (typeof loadAccounts === 'function') loadAccounts();
@@ -335,9 +335,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function oauthErrorMsg(r) {
     return ({
-        denied:  'تم إلغاء الربط من فيسبوك',
-        state:   'انتهت صلاحية الجلسة — أعد المحاولة',
-        token:   'تعذّر الحصول على صلاحية الوصول',
+        denied: 'تم إلغاء الربط من فيسبوك',
+        state: 'انتهت صلاحية الجلسة — أعد المحاولة',
+        token: 'تعذّر الحصول على صلاحية الوصول',
         nopages: 'لم نعثر على صفحات — تأكد أنك مدير على صفحة فيسبوك',
     })[r] || 'فشل الربط';
 }

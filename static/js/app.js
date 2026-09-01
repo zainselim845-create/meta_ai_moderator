@@ -341,7 +341,7 @@ async function handleLogin(e) {
       if (d.username) localStorage.setItem('domya_username', d.username);
       const overlay = document.getElementById('login-modal-overlay');
       if (overlay) overlay.style.display = 'none';
-      showToast('تم تسجيل الدخول بنجاح 🔓');
+      showToast('تم تسجيل الدخول بنجاح ');
       
       // Immediately enforce role and allowed tabs
       window._me = null;
@@ -454,7 +454,7 @@ function setApprovalMode(mode) {
   }
   if (sel) sel.value = mode;
   fetch('/api/settings/mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode})}).catch(()=>{});
-  showToast(mode === 'auto' ? 'تم تفعيل الرد التلقائي الفوري ⚡' : 'تم تفعيل وضع المراجعة البشرية 👨‍💼');
+  showToast(mode === 'auto' ? 'تم تفعيل الرد التلقائي الفوري ' : 'تم تفعيل وضع المراجعة البشرية ‍');
 }
 
 window._hrAttendanceData = [];
@@ -512,7 +512,7 @@ async function loadHrAttendanceTable(customMonth) {
   if (monthEl) monthEl.value = month;
 
   const tbody = document.getElementById('hr-attendance-body');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">جارِ تحميل سجلات شهر ' + esc(month) + '... ⏳</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">جارِ تحميل سجلات شهر ' + esc(month) + '... </td></tr>';
 
   try {
     const res = await fetch('/api/hr/attendance?month=' + encodeURIComponent(month));
@@ -608,18 +608,18 @@ function renderHrAttendanceTable(serverSummary) {
     const st = String(r.status || r.action || 'حاضر');
     let stBadge = '<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold text-[10px]">' + esc(st) + '</span>';
     if (st.includes('حاضر')) {
-      stBadge = '<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold text-[10px]">حاضر ✅</span>';
+      stBadge = '<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold text-[10px]">حاضر </span>';
     } else if (st.includes('متأخر') || st.includes('تاخير')) {
-      stBadge = '<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold text-[10px]">متأخر 🟡</span>';
+      stBadge = '<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold text-[10px]">متأخر </span>';
     } else if (st.includes('غياب')) {
-      stBadge = '<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold text-[10px]">غياب 🔴</span>';
+      stBadge = '<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold text-[10px]">غياب </span>';
     }
 
     const isMaskedOrVerified = r.distance && (r.distance.includes('داخل') || r.distance.includes('محمي') || r.distance.includes('نطاق'));
     const dist = (r.distance && r.distance !== '0m' && r.distance !== '0' && r.distance !== '—') ?
       (isMaskedOrVerified ?
-        `<span class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">📍 ${esc(r.distance)}</span>` :
-        `<span class="text-[10px] text-slate-500 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">📍 ${esc(r.distance)}</span>`
+        `<span class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200"> ${esc(r.distance)}</span>` :
+        `<span class="text-[10px] text-slate-500 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200"> ${esc(r.distance)}</span>`
       ) : '<span class="text-slate-400">—</span>';
 
     const empName = esc(r.name || r.employee_id || 'موظف');
@@ -835,10 +835,10 @@ async function loadMyPortal() {
     const box = document.getElementById('my-tasks-list');
     const actionBtns = (t) => {
       const s = t.status || '';
-      if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs">🚀 بدأت العمل</button>`;
-      if (/In Progress/i.test(s)) return `<button onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs">📤 تسليم المهمة ✅</button>`;
-      if (/Awaiting|Submitted|Review/i.test(s)) return `<span class="text-[11px] bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-full font-bold">⏳ عند مراجعة AM</span>`;
-      if (/Completed|مكتمل|Approved/i.test(s)) return `<span class="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-bold">✅ معتمدة ومكتملة</span>`;
+      if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs"> بدأت العمل</button>`;
+      if (/In Progress/i.test(s)) return `<button onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs"> تسليم المهمة </button>`;
+      if (/Awaiting|Submitted|Review/i.test(s)) return `<span class="text-[11px] bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-full font-bold"> عند مراجعة AM</span>`;
+      if (/Completed|مكتمل|Approved/i.test(s)) return `<span class="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-bold"> معتمدة ومكتملة</span>`;
       return '';
     };
     const driveThumb = (u) => {
@@ -862,9 +862,9 @@ async function loadMyPortal() {
               <span class="font-mono font-bold text-[11px] bg-slate-900 text-white px-2 py-0.5 rounded-md">${esc(t.task_id||'')}</span>
               <span class="font-bold text-sm text-slate-900">${esc(t.title||'')}</span>
             </div>
-            <div class="text-[11px] text-slate-500">⏰ موعد التسليم: <b class="text-amber-800 font-mono">${esc(t.delivery_deadline || t.publish_date || '-')}</b></div>
+            <div class="text-[11px] text-slate-500"> موعد التسليم: <b class="text-amber-800 font-mono">${esc(t.delivery_deadline || t.publish_date || '-')}</b></div>
             ${t.caption ? `<div class="text-[11px] text-slate-600 mt-1 whitespace-pre-line line-clamp-3">${esc(t.caption)}</div>` : ''}
-            ${t.review_note ? `<div class="text-[11px] text-amber-700 mt-0.5">📝 ملاحظة المراجعة: ${esc(t.review_note)}</div>` : ''}
+            ${t.review_note ? `<div class="text-[11px] text-amber-700 mt-0.5"> ملاحظة المراجعة: ${esc(t.review_note)}</div>` : ''}
             ${refThumbs(t)}
           </div>
           <div class="flex flex-col items-end gap-2">
@@ -875,15 +875,15 @@ async function loadMyPortal() {
         ${t.drive_link ? `
           <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 space-y-1.5 shadow-2xs">
             <div class="flex items-center justify-between text-xs font-bold text-emerald-900">
-              <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '🎬 مخرجات الفيديو المسلّمة:' : '📁 ملف التسليم المسجّل:'}</span>
-              <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">محفوظ بالملف ✅</span>
+              <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? ' مخرجات الفيديو المسلّمة:' : ' ملف التسليم المسجّل:'}</span>
+              <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">محفوظ بالملف </span>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
               <a href="${esc(t.drive_link)}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xs transition flex items-center gap-1">
-                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '▶️ فتح / تشغيل الفيديو ↗️' : '📁 فتح ملف التسليم ↗️'}</span>
+                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '▶️ فتح / تشغيل الفيديو ↗️' : ' فتح ملف التسليم ↗️'}</span>
               </a>
               <button type="button" onclick="copyTaskDriveLink('${esc(t.drive_link)}')" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-lg shadow-2xs transition flex items-center gap-1">
-                <span>📋 نسخ الرابط</span>
+                <span> نسخ الرابط</span>
               </button>
             </div>
           </div>
@@ -891,11 +891,11 @@ async function loadMyPortal() {
         <div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2">
           ${canWork(t) ? `
             <button type="button" onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold py-1.5 px-3 rounded-xl border border-sky-200 shadow-2xs transition flex items-center gap-1.5">
-              <span>📤 تسليم شغلك (فيديو / رابط Google Drive)</span>
+              <span> تسليم شغلك (فيديو / رابط Google Drive)</span>
             </button>
           ` : ''}
           <button type="button" onclick="openTaskContentEditorModal('${esc(t.task_id)}')" class="bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold py-1.5 px-3 rounded-xl border border-amber-200 shadow-2xs transition flex items-center gap-1.5">
-            <span>✍️ تعديل نصوص وكابشن البوست (Content Editor)</span>
+            <span>️ تعديل نصوص وكابشن البوست (Content Editor)</span>
           </button>
         </div>
       </div>`).join('') : '<div class="p-4 text-center text-xs text-slate-400">مفيش مهام مسندة ليك حالياً</div>';
@@ -921,7 +921,7 @@ async function startMyTask(id) {
   try {
     const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/start`, {method:'POST'});
     if (!r.ok) { showToast('تعذّر البدء', 'error'); return; }
-    showToast('بالتوفيق! ابدأ شغلك 🚀'); loadMyPortal();
+    showToast('بالتوفيق! ابدأ شغلك '); loadMyPortal();
   } catch(e) { showToast('خطأ', 'error'); }
 }
 async function submitMyTask(id) {
@@ -935,7 +935,7 @@ async function submitMyTask(id) {
     });
     const d = await r.json();
     if (!r.ok) { showToast(d.error||'تعذّر التسليم', 'error'); return; }
-    showToast('تم التسليم للمراجعة بنجاح ✅');
+    showToast('تم التسليم للمراجعة بنجاح ');
     loadMyPortal();
     if (typeof loadTasksEngine === 'function') loadTasksEngine();
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
@@ -947,14 +947,14 @@ async function reviewTask(id, approve) {
   try {
     const r = await fetch(`/api/tasks/${encodeURIComponent(id)}/review`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action: approve?'approve':'reject', note})});
     if (!r.ok) { showToast('تعذّرت المراجعة', 'error'); return; }
-    showToast(approve ? 'تم الاعتماد ✅' : 'رجعت للموظف للتعديل');
+    showToast(approve ? 'تم الاعتماد ' : 'رجعت للموظف للتعديل');
     if (typeof loadTasksEngine === 'function') loadTasksEngine();
   } catch(e) { showToast('خطأ', 'error'); }
 }
 
 // Copy any text to clipboard.
 async function copyText(t) {
-  try { await navigator.clipboard.writeText(t); showToast('تم النسخ ✅'); }
+  try { await navigator.clipboard.writeText(t); showToast('تم النسخ '); }
   catch(e){ showToast('تعذّر النسخ', 'error'); }
 }
 
@@ -975,7 +975,7 @@ async function onboardEmployees() {
       <input type="checkbox" class="onboard-emp-cb" value="${esc(eid)}" ${tg?'checked':''}/>
       <span class="font-bold">${esc(e.name||eid)}</span>
       <span class="text-slate-400 font-mono">(${esc(eid)})</span>
-      ${tg ? '<span class="text-emerald-600 text-[10px]">تيليجرام ✓</span>' : '<span class="text-amber-600 text-[10px]">بدون تيليجرام</span>'}
+      ${tg ? '<span class="text-emerald-600 text-[10px]">تيليجرام </span>' : '<span class="text-amber-600 text-[10px]">بدون تيليجرام</span>'}
     </label>`;
   }).join('');
 }
@@ -1009,7 +1009,7 @@ async function confirmOnboard() {
     const noTg = rows.filter(r => !r.has_telegram);
     if (box) box.innerHTML = `تمت معالجة <b>${d.onboarded}</b> موظف — اتبعت على تليجرام لـ <b>${sent}</b>.`
       + (noTg.length ? `<div class="mt-1 text-amber-700">بدون تليجرام (سلّمهم يدوي): ${noTg.map(r=>esc(r.name)+' ('+esc(r.username)+'/'+esc(r.password||'')+')').join(' — ')}</div>` : '');
-    showToast(`تم إرسال بيانات الدخول لـ ${sent} موظف ✅`);
+    showToast(`تم إرسال بيانات الدخول لـ ${sent} موظف `);
     if (typeof renderMembers === 'function') renderMembers();
   } catch(e) {
     if (box) box.textContent = 'تعذّر الإرسال.';
@@ -1035,11 +1035,11 @@ async function addEmployeeAndInvite(invite) {
     // find the id we just saved (server may have generated it)
     const saved = (d.employees||[]).find(e => e.name === name) || {};
     const newId = empid || saved.employee_id;
-    let msg = 'تمت إضافة الموظف ✅';
+    let msg = 'تمت إضافة الموظف ';
     if (invite && newId) {
       const o = await safeFetchJson('/api/employees/onboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ employee_ids: [newId] }) });
       const sent = (o && o.results ? o.results : []).filter(x => x.telegram_sent).length;
-      msg = sent ? 'تمت الإضافة وإرسال لينك الدخول على التليجرام ✅' : 'تمت الإضافة لكن الرسالة لم تصل (اتأكد إنه عمل /start للبوت).';
+      msg = sent ? 'تمت الإضافة وإرسال لينك الدخول على التليجرام ' : 'تمت الإضافة لكن الرسالة لم تصل (اتأكد إنه عمل /start للبوت).';
     }
     if (box) { box.classList.remove('hidden'); box.textContent = msg; }
     showToast(msg);
@@ -1080,19 +1080,19 @@ async function renderCompanyEmployees() {
       <div class="flex items-center justify-between gap-2 flex-wrap">
         <div class="text-xs min-w-[130px]">
           <span class="font-bold text-slate-900">${esc(e.name||e.employee_id)}</span>
-          <span class="block text-[10px] text-slate-500">${esc(e.role||'')} ${e.telegram_id?'· تليجرام ✓':'· بدون تليجرام'}</span>
+          <span class="block text-[10px] text-slate-500">${esc(e.role||'')} ${e.telegram_id?'· تليجرام ':'· بدون تليجرام'}</span>
         </div>
         <div class="flex items-center gap-1 flex-wrap">
           <select onchange="setEmployeeRole('${esc(e.employee_id)}',this.value)" class="text-[11px] px-2 py-1 border border-slate-200 rounded-lg bg-white">${roleOpts(cur)}</select>
-          <button onclick="document.getElementById('tabs-${esc(e.employee_id)}').classList.toggle('hidden')" class="text-[11px] px-2 py-1 rounded-lg border border-violet-200 text-violet-700">🎛️ التبويبات</button>
-          <button onclick="sendEmployeeCreds('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">📤 إرسال بياناته</button>
+          <button onclick="document.getElementById('tabs-${esc(e.employee_id)}').classList.toggle('hidden')" class="text-[11px] px-2 py-1 rounded-lg border border-violet-200 text-violet-700">️ التبويبات</button>
+          <button onclick="sendEmployeeCreds('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold"> إرسال بياناته</button>
           <button onclick="deleteCompanyEmployee('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">حذف</button>
         </div>
       </div>
       <div id="tabs-${esc(e.employee_id)}" class="hidden bg-slate-50 border border-slate-100 rounded-lg p-2 space-y-2">
         <div class="text-[10px] text-slate-500">اختر التبويبات اللي هيشوفها بس (لو مفيش أي اختيار = الافتراضي حسب صلاحيته):</div>
         <div class="flex flex-wrap gap-1">${tabChecks}</div>
-        <button onclick="saveEmployeeTabs('${esc(e.employee_id)}')" class="text-[11px] px-3 py-1 rounded-lg bg-violet-600 text-white font-bold">💾 حفظ التبويبات</button>
+        <button onclick="saveEmployeeTabs('${esc(e.employee_id)}')" class="text-[11px] px-3 py-1 rounded-lg bg-violet-600 text-white font-bold"> حفظ التبويبات</button>
       </div>
     </div>`;
   }).join('');
@@ -1106,7 +1106,7 @@ async function saveEmployeeTabs(empId) {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ tabs: tabs })
     });
     const d = await r.json();
-    if (r.ok && d.ok) showToast('اتحفظت التبويبات ✅ (هتطبق لما يعمل لوجين)');
+    if (r.ok && d.ok) showToast('اتحفظت التبويبات (هتطبق لما يعمل لوجين)');
     else showToast(d.error || 'تعذّر الحفظ', 'error');
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -1117,7 +1117,7 @@ async function setEmployeeRole(empId, role) {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ role: role })
     });
     const d = await r.json();
-    if (r.ok && d.ok) showToast('اتحفظت الصلاحية ✅');
+    if (r.ok && d.ok) showToast('اتحفظت الصلاحية ');
     else showToast(d.error || 'تعذّر الحفظ', 'error');
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -1130,7 +1130,7 @@ async function sendEmployeeCreds(empId, name) {
     });
     const d = await r.json();
     const row = (d.results||[])[0] || {};
-    if (row.telegram_sent) showToast('اتبعت بياناته على تليجرام ✅');
+    if (row.telegram_sent) showToast('اتبعت بياناته على تليجرام ');
     else if (row.has_telegram === false) showToast('الموظف مالوش تليجرام في الشيت', 'error');
     else showToast('اتعمل الأكونت بس الرسالة موصلتش (يعمل Start للبوت)', 'error');
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
@@ -1141,7 +1141,7 @@ async function deleteCompanyEmployee(empId, name) {
   try {
     const r = await fetch('/api/employees/' + encodeURIComponent(empId), { method: 'DELETE' });
     const d = await r.json();
-    if (r.ok && d.ok) { showToast('تم حذف الموظف 🗑️'); renderCompanyEmployees(); }
+    if (r.ok && d.ok) { showToast('تم حذف الموظف ️'); renderCompanyEmployees(); }
     else showToast(d.error || 'تعذّر الحذف', 'error');
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -1161,11 +1161,11 @@ function showUploadProgressModal(filename, totalSize, isVideo) {
   const sizeMB = (totalSize / (1024 * 1024)).toFixed(1);
   if (title) title.textContent = isVideo ? 'جاري رفع الفيديو...' : 'جاري رفع الملف...';
   if (fn) fn.textContent = filename + ' (' + sizeMB + ' MB)';
-  if (icon) icon.textContent = isVideo ? '🎬' : '📁';
+  if (icon) icon.textContent = isVideo ? '' : '';
   if (bar) { bar.style.width = '0%'; bar.className = 'bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-150 ease-out'; }
   if (percent) percent.textContent = '0%';
   if (stats) stats.textContent = '0 MB / ' + sizeMB + ' MB';
-  if (statusTxt) statusTxt.textContent = '🚀 جاري الرفع المباشر إلى Google Drive...';
+  if (statusTxt) statusTxt.textContent = ' جاري الرفع المباشر إلى Google Drive...';
   
   modal.classList.remove('hidden');
   modal.classList.add('flex');
@@ -1184,7 +1184,7 @@ function updateUploadProgress(loaded, total) {
   if (bar) bar.style.width = pct + '%';
   if (percent) percent.textContent = pct + '%';
   if (stats) stats.textContent = loadedMB + ' MB / ' + totalMB + ' MB';
-  if (statusTxt && pct >= 100) statusTxt.textContent = '⏳ جاري المعالجة وتأكيد الربط بـ Google Drive...';
+  if (statusTxt && pct >= 100) statusTxt.textContent = ' جاري المعالجة وتأكيد الربط بـ Google Drive...';
 }
 
 function finishUploadProgress(success, msg) {
@@ -1194,7 +1194,7 @@ function finishUploadProgress(success, msg) {
     bar.className = 'bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-150';
     bar.style.width = '100%';
   }
-  if (statusTxt) statusTxt.textContent = success ? '🎉 اكتمل الرفع بنجاح!' : ('❌ ' + (msg || 'فشل الرفع'));
+  if (statusTxt) statusTxt.textContent = success ? ' اكتمل الرفع بنجاح!' : (' ' + (msg || 'فشل الرفع'));
   setTimeout(() => {
     const modal = document.getElementById('upload-progress-modal');
     if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
@@ -1295,7 +1295,7 @@ function driveUploadFile(taskId, file) {
       }
       
       if (!finalLink) {
-        finishUploadProgress(false, 'تعذّر إتمام الرفع إلى Google Drive. يمكنك لصق رابط Google Drive مباشرة 🔗');
+        finishUploadProgress(false, 'تعذّر إتمام الرفع إلى Google Drive. يمكنك لصق رابط Google Drive مباشرة ');
         reject(new Error('تعذّر رفع الملف إلى Google Drive'));
         return;
       }
@@ -1319,7 +1319,7 @@ async function uploadMyTaskAsset(taskId, input) {
   if (!file) return;
   try {
     const link = await driveUploadFile(taskId, file);
-    showToast('🎉 تم رفع الفيديو/الملف بنجاح وربطه بالمهمة على Google Drive! ✅', 'success');
+    showToast(' تم رفع الفيديو/الملف بنجاح وربطه بالمهمة على Google Drive! ', 'success');
     if (typeof loadMyPortal === 'function') loadMyPortal();
   } catch(e) {
     showToast('تعذّر الرفع: ' + (e.message || ''), 'error');
@@ -1367,10 +1367,10 @@ async function renderMembers() {
     const driveFolderBtn = driveTargetId ? `
       <div class="flex items-center gap-1.5 pt-1">
         <button onclick="openEmployeeDriveFolder('${esc(driveTargetId)}')" class="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs">
-          <span>📁 مجلد Google Drive للموظف ↗️</span>
+          <span> مجلد Google Drive للموظف ↗️</span>
         </button>
         <button onclick="copyEmployeeDriveFolder('${esc(driveTargetId)}')" class="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs">
-          <span>📋 نسخ الرابط</span>
+          <span> نسخ الرابط</span>
         </button>
       </div>` : '';
     return `<div class="border border-slate-200 rounded-xl p-3 flex flex-col gap-2">
@@ -1382,16 +1382,16 @@ async function renderMembers() {
           <span class="text-[11px] text-slate-400">${esc(u.email||'')}</span>
         </div>
         <div class="flex items-center gap-1">
-          <button onclick="changeUserPassword('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition">✏️ تغيير الباسورد</button>
+          <button onclick="changeUserPassword('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition">️ تغيير الباسورد</button>
           <button onclick="resendCreds('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 text-slate-600">إرسال بيانات جديدة</button>
           ${u.is_primary?'<span class="text-[10px] text-slate-400">المدير الرئيسي</span>':`<button onclick="deleteMember('${esc(u.username)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600">حذف</button>`}
         </div>
       </div>
       <div class="flex items-center gap-2 text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-mono w-fit">
-        <span class="text-slate-500">🔑 كلمة المرور:</span>
+        <span class="text-slate-500"> كلمة المرور:</span>
         ${u.password
           ? `<b class="text-slate-800 select-all">${esc(u.password)}</b>
-             <button onclick="copyText('${esc(u.password)}')" title="نسخ" class="text-slate-400 hover:text-slate-700">📋</button>`
+             <button onclick="copyText('${esc(u.password)}')" title="نسخ" class="text-slate-400 hover:text-slate-700"></button>`
           : `<span class="text-slate-400">— (اضغط «إرسال بيانات جديدة» لتوليد كلمة مرور)</span>`}
       </div>
       ${driveFolderBtn}
@@ -1416,10 +1416,10 @@ async function createMember() {
     const info = document.getElementById('new-member-creds');
     if (info) {
       info.classList.remove('hidden');
-      info.innerHTML = `تم إنشاء الحساب ✅ ${d.email_sent ? '(واتبعت على بريده)' : '(الإيميل مش مفعّل — انسخ البيانات وابعتها له)'}
+      info.innerHTML = `تم إنشاء الحساب ${d.email_sent ? '(واتبعت على بريده)' : '(الإيميل مش مفعّل — انسخ البيانات وابعتها له)'}
         <div class="mt-1 font-mono text-slate-800">اسم المستخدم: <b>${esc(d.username)}</b> — كلمة المرور: <b>${esc(d.password||'')}</b></div>`;
     }
-    showToast(d.email_sent ? 'تم إضافة العضو وإرسال البيانات على بريده ✅' : 'تم إضافة العضو — انسخ بيانات الدخول');
+    showToast(d.email_sent ? 'تم إضافة العضو وإرسال البيانات على بريده ' : 'تم إضافة العضو — انسخ بيانات الدخول');
     document.getElementById('nm-username').value=''; document.getElementById('nm-email').value='';
     document.querySelectorAll('.nm-client-cb:checked').forEach(cb=>cb.checked=false);
     renderMembers();
@@ -1445,7 +1445,7 @@ async function deleteMember(username) {
     const r = await fetch('/api/users/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username})});
     const d = await r.json();
     if (!r.ok || !d.ok) { showToast(d.error || 'تعذّر الحذف', 'error'); return; }
-    showToast('تم حذف العضو ✅');
+    showToast('تم حذف العضو ');
   } catch(e) { showToast('خطأ في الشبكة', 'error'); return; }
   renderMembers();
 }
@@ -1453,7 +1453,7 @@ async function deleteMember(username) {
 async function resendCreds(username) {
   const r = await fetch('/api/auth/send-credentials', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username})});
   const d = await r.json();
-  showToast(d.ok ? 'تم إرسال بيانات دخول جديدة على بريده ✅' : (d.error||d.message||'تعذّر الإرسال'), d.ok?'success':'error');
+  showToast(d.ok ? 'تم إرسال بيانات دخول جديدة على بريده ' : (d.error||d.message||'تعذّر الإرسال'), d.ok?'success':'error');
 }
 
 async function changeUserPassword(username) {
@@ -1474,7 +1474,7 @@ async function changeUserPassword(username) {
       showToast(d.error || 'تعذّر تغيير كلمة المرور', 'error');
       return;
     }
-    showToast(d.message || 'تم تغيير كلمة المرور بنجاح ✅', 'success');
+    showToast(d.message || 'تم تغيير كلمة المرور بنجاح ', 'success');
     renderMembers();
   } catch(e) {
     showToast('خطأ في الاتصال بالسيرفر', 'error');
@@ -1496,14 +1496,14 @@ async function loadReplyModes() {
     }
     box.innerHTML = list.map(c => {
       const on = c.mode === 'auto';
-      const ch = (c.fb_connected ? '🔵' : '⚪') + (c.ig_connected ? '🟣' : '⚪');
+      const ch = (c.fb_connected ? '' : '') + (c.ig_connected ? '' : '');
       return `
         <div class="flex items-center justify-between gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50">
           <div class="flex items-center gap-3 min-w-0">
             <div class="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-sm">${ch}</div>
             <div class="min-w-0">
               <div class="font-bold text-sm text-slate-900 truncate">${esc(c.name)}</div>
-              <div class="text-[11px] ${on ? 'text-emerald-600' : 'text-red-500'} font-bold">${on ? '🟢 الرد الآلي شغّال' : '🔴 الرد متوقف (مراجعة يدوية)'}</div>
+              <div class="text-[11px] ${on ? 'text-emerald-600' : 'text-red-500'} font-bold">${on ? ' الرد الآلي شغّال' : ' الرد متوقف (مراجعة يدوية)'}</div>
             </div>
           </div>
           <button onclick="toggleReplyMode('${esc(c.client_id)}', '${on ? 'manual' : 'auto'}')"
@@ -1522,7 +1522,7 @@ async function loadReplyModes() {
 async function toggleReplyMode(clientId, mode) {
   try {
     await fetch('/api/reply-modes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: clientId, mode})});
-    showToast(mode === 'auto' ? 'تم فتح الرد الآلي لهذا العميل ⚡' : 'تم قفل الرد الآلي لهذا العميل 👨‍💼');
+    showToast(mode === 'auto' ? 'تم فتح الرد الآلي لهذا العميل ' : 'تم قفل الرد الآلي لهذا العميل ‍');
     loadReplyModes();
   } catch(e) { showToast('تعذر تغيير الوضع', 'error'); }
 }
@@ -1530,7 +1530,7 @@ async function toggleReplyMode(clientId, mode) {
 async function setAllReplyModes(mode) {
   try {
     await fetch('/api/reply-modes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({all: true, mode})});
-    showToast(mode === 'auto' ? 'تم فتح الرد الآلي لكل العملاء ⚡' : 'تم قفل الرد الآلي لكل العملاء 👨‍💼');
+    showToast(mode === 'auto' ? 'تم فتح الرد الآلي لكل العملاء ' : 'تم قفل الرد الآلي لكل العملاء ‍');
     loadReplyModes();
   } catch(e) { showToast('تعذر تطبيق الوضع على الكل', 'error'); }
 }
@@ -1542,8 +1542,8 @@ async function populateAccountSwitcher() {
     const clients = await res.json();
     const list = Array.isArray(clients) ? clients : (clients.clients || []);
     const opts = list.map(c => {
-      const ch = (c.fb_connected ? '🔵' : '') + (c.ig_connected ? '🟣' : '');
-      return `<option value="${c.id}">🏢 ${c.name}${ch ? ' ' + ch : ' (غير مربوط)'}</option>`;
+      const ch = (c.fb_connected ? '' : '') + (c.ig_connected ? '' : '');
+      return `<option value="${c.id}"> ${c.name}${ch ? ' ' + ch : ' (غير مربوط)'}</option>`;
     }).join('');
 
     window._clientsList = list;
@@ -1594,8 +1594,8 @@ function updateHeaderBadge(clientId) {
   const c = list.find(x => x.id === clientId);
   if (!c) { badge.textContent = '—'; return; }
   const parts = [];
-  parts.push(c.fb_connected ? '🔵 فيسبوك' : '⚪ فيسبوك');
-  parts.push(c.ig_connected ? '🟣 إنستجرام' : '⚪ إنستجرام');
+  parts.push(c.fb_connected ? ' فيسبوك' : ' فيسبوك');
+  parts.push(c.ig_connected ? ' إنستجرام' : ' إنستجرام');
   badge.textContent = parts.join(' · ');
   badge.className = 'text-[11px] px-2.5 py-0.5 rounded-2xl font-bold hidden lg:inline border ' +
     ((c.fb_connected || c.ig_connected) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200');
@@ -1649,10 +1649,10 @@ async function switchActiveClient(clientId) {
   } catch(e) {}
   // Reload every client-scoped view (now that the switch is committed server-side)
   // so ALL brand data changes to the selected client: prompt, KB, rules, inbox, accounts.
-  if (typeof loadSettings === 'function') loadSettings();   // brand AI prompt / business info
-  if (typeof loadKb === 'function') loadKb();                // knowledge base
-  if (typeof loadRules === 'function') loadRules();          // auto-reply rules
-  if (typeof loadAccounts === 'function') loadAccounts();    // connected pages
+  if (typeof loadSettings === 'function') loadSettings(); // brand AI prompt / business info
+  if (typeof loadKb === 'function') loadKb(); // knowledge base
+  if (typeof loadRules === 'function') loadRules(); // auto-reply rules
+  if (typeof loadAccounts === 'function') loadAccounts(); // connected pages
   if (typeof loadInbox === 'function') await loadInbox(true);// messages
   if (typeof loadDashboardStats === 'function') loadDashboardStats();
 }
@@ -1779,7 +1779,7 @@ async function generateAICaption() {
     const res = await fetch('/api/simulate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message:'اكتب كابشن تسويقي احترافي لمنشور إعلاني على فيسبوك وإنستجرام', platform:'facebook'})});
     const d = await res.json();
     const ta = document.getElementById('post-caption-input');
-    if (ta) { ta.value = d.reply || d.generated_reply || '✨ عرض حصري لمتابعينا الكرام! تواصل معنا الآن لمعرفة التفاصيل وأحدث الباقات والعروض.'; updatePostPreview(); updateCaptionCounter(); }
+    if (ta) { ta.value = d.reply || d.generated_reply || ' عرض حصري لمتابعينا الكرام! تواصل معنا الآن لمعرفة التفاصيل وأحدث الباقات والعروض.'; updatePostPreview(); updateCaptionCounter(); }
     showToast('تم توليد الكابشن بنجاح');
   } catch(e) { showToast('تعذر الاتصال بالـ AI', 'error'); }
 }
@@ -1836,7 +1836,7 @@ async function saveScheduledPost() {
       });
       const data = await res.json();
       if(data.success) {
-          showToast('تم حفظ الجدولة في السيرفر بنجاح ✅');
+          showToast('تم حفظ الجدولة في السيرفر بنجاح ');
           if (typeof loadScheduledPosts === 'function') loadScheduledPosts();
           const capInput = document.getElementById('post-caption-input');
           const driveInput = document.getElementById('post-drive-link');
@@ -1921,7 +1921,7 @@ function copyTaskDriveLink(link) {
   }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(link).then(function() {
-      if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح 📋');
+      if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح ');
     }).catch(function() {
       fallbackCopyText(link);
     });
@@ -1937,7 +1937,7 @@ function fallbackCopyText(text) {
   ta.select();
   try {
     document.execCommand('copy');
-    if (typeof showToast === 'function') showToast('تم نسخ الرابط بنجاح 📋');
+    if (typeof showToast === 'function') showToast('تم نسخ الرابط بنجاح ');
   } catch(e) {}
   document.body.removeChild(ta);
 }
@@ -1962,7 +1962,7 @@ async function copyMyDriveFolder() {
     const d = await r.json();
     if (d.folder_url) {
       copyText(d.folder_url);
-      showToast('تم نسخ رابط مجلدك على Google Drive بنجاح 📋');
+      showToast('تم نسخ رابط مجلدك على Google Drive بنجاح ');
     } else {
       showToast(d.error || 'تعذر جلب مجلد Google Drive', 'error');
     }
@@ -1991,7 +1991,7 @@ async function copyEmployeeDriveFolder(eid) {
     const d = await r.json();
     if (d.folder_url) {
       copyText(d.folder_url);
-      showToast('تم نسخ رابط مجلد الموظف على Google Drive بنجاح 📋');
+      showToast('تم نسخ رابط مجلد الموظف على Google Drive بنجاح ');
     } else {
       showToast(d.error || 'تعذر جلب مجلد الموظف على Drive', 'error');
     }
@@ -2039,7 +2039,7 @@ async function saveHrGeofenceSettings() {
     });
     const d = await r.json();
     if (r.ok && d.ok) {
-      showToast('تم حفظ إعدادات النطاق الجغرافي وحماية الموقع بنجاح 💾✅');
+      showToast('تم حفظ إعدادات النطاق الجغرافي وحماية الموقع بنجاح ');
     } else {
       showToast(d.error || 'تعذر حفظ الإعدادات', 'error');
     }

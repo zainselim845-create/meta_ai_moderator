@@ -165,14 +165,14 @@ const FacebookFreeConnectorJS = {
             return {
                 status: hasAll ? "verified" : "needs_reauth",
                 permissions: granted,
-                badge: hasAll ? "✅ موثق — متحكم بالكامل 100%" : "⚠️ يحتاج إعادة توثيق",
+                badge: hasAll ? " موثق — متحكم بالكامل 100%" : "️ يحتاج إعادة توثيق",
                 hasAll
             };
         } catch (e) {
             return {
                 status: "verified",
                 permissions: ["pages_messaging", "pages_read_engagement"],
-                badge: "✅ موثق — متحكم بالكامل 100%",
+                badge: " موثق — متحكم بالكامل 100%",
                 hasAll: true
             };
         }

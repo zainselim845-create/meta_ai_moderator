@@ -12,7 +12,7 @@ var FALLBACK_INBOX_THREADS = [
         "platform": "facebook",
         "customer_type": "lead",
         "lead_score": 85,
-        "lead_badge": "Hot 🔥 85%",
+        "lead_badge": "Hot 85%",
         "sender": "Ahmed Zakaria Zaki",
         "sender_name": "Ahmed Zakaria Zaki",
         "avatar_url": "https://ui-avatars.com/api/?name=Ahmed+Zakaria&background=2563eb&color=fff",
@@ -33,7 +33,7 @@ var FALLBACK_INBOX_THREADS = [
         "platform": "instagram",
         "customer_type": "lead",
         "lead_score": 90,
-        "lead_badge": "Hot 🔥 90%",
+        "lead_badge": "Hot 90%",
         "sender": "Samar Saad",
         "sender_name": "Samar Saad",
         "avatar_url": "https://ui-avatars.com/api/?name=Samar+Saad&background=7c3aed&color=fff",
@@ -54,7 +54,7 @@ var FALLBACK_INBOX_THREADS = [
         "platform": "facebook",
         "customer_type": "lead",
         "lead_score": 75,
-        "lead_badge": "Warm ⚡ 75%",
+        "lead_badge": "Warm 75%",
         "sender": "Mohamed Samir",
         "sender_name": "Mohamed Samir",
         "avatar_url": "https://ui-avatars.com/api/?name=Mohamed+Samir&background=059669&color=fff",
@@ -74,7 +74,7 @@ var FALLBACK_INBOX_THREADS = [
         "platform": "instagram",
         "customer_type": "lead",
         "lead_score": 80,
-        "lead_badge": "Warm ⚡ 80%",
+        "lead_badge": "Warm 80%",
         "sender": "Yassmin Sayed",
         "sender_name": "Yassmin Sayed",
         "avatar_url": "https://ui-avatars.com/api/?name=Yassmin+Sayed&background=ec4899&color=fff",
@@ -97,7 +97,7 @@ async function syncInbox(){
     if (btn) btn.disabled = true;
     try {
         await loadInbox(true);
-        showToast('تم تحديث الإنبوكس ✅');
+        showToast('تم تحديث الإنبوكس ');
     } catch(e) {
         showToast('تعذّر التحديث', 'error');
     } finally {
@@ -195,14 +195,14 @@ function renderInboxList(){
         if (/story\.php|comment_id=|https?:\/\//.test(sSnip)) {
             sSnip = /الرد على تعليق|عرض التعليق|comment_id=/.test(sSnip)
                 ? '↩️ رد على تعليق'
-                : (sSnip.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim() || '🔗 رابط');
+                : (sSnip.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim() || ' رابط');
         }
         const isFB = t.platform === 'facebook' || t.type === 'messenger' || String(t.id).startsWith('fb_');
-        const platBadge = isFB ? '<span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded text-[10px]">🔵 فيسبوك</span>' : '<span class="bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded text-[10px]">🟣 إنستجرام</span>';
+        const platBadge = isFB ? '<span class="bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded text-[10px]"> فيسبوك</span>' : '<span class="bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded text-[10px]"> إنستجرام</span>';
         const isComment = t.channel === 'comment' || String(t.id).startsWith('fb_comment_') || String(t.id).startsWith('ig_comment_');
-        const chanBadge = isComment ? '<span class="bg-amber-50 text-amber-700 font-bold px-1.5 py-0.5 rounded text-[10px]">💬 تعليق</span>' : '<span class="bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded text-[10px]">📩 DM</span>';
+        const chanBadge = isComment ? '<span class="bg-amber-50 text-amber-700 font-bold px-1.5 py-0.5 rounded text-[10px]"> تعليق</span>' : '<span class="bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded text-[10px]"> DM</span>';
         const isClient = t.customer_type === 'client' || (t.lead_badge && t.lead_badge.includes('مشترك'));
-        const typeBadge = isClient ? '<span class="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px]">✨ عميل حالي</span>' : '';
+        const typeBadge = isClient ? '<span class="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px]"> عميل حالي</span>' : '';
         return `
         <div class="thread-item ${activeInboxItem && activeInboxItem.id === t.id ? 'active' : ''}" onclick="selectThread('${esc(t.id)}')">
             <div class="thread-avatar">
@@ -230,14 +230,14 @@ function renderInboxList(){
 const _CP1252 = {0x20AC:0x80,0x201A:0x82,0x0192:0x83,0x201E:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,0x02C6:0x88,0x2030:0x89,0x0160:0x8A,0x2039:0x8B,0x0152:0x8C,0x017D:0x8E,0x2018:0x91,0x2019:0x92,0x201C:0x93,0x201D:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,0x02DC:0x98,0x2122:0x99,0x0161:0x9A,0x203A:0x9B,0x0153:0x9C,0x017E:0x9E,0x0178:0x9F};
 function fixMojibake(s) {
     if (!s || typeof s !== 'string') return s;
-    if (!/[^\x00-\x7F]/.test(s)) return s;   // pure ASCII → nothing to repair
+    if (!/[^\x00-\x7F]/.test(s)) return s; // pure ASCII → nothing to repair
     try {
         const bytes = [];
         for (const ch of s) {
             const c = ch.codePointAt(0);
             if (c <= 0xFF) bytes.push(c);
             else if (_CP1252[c] !== undefined) bytes.push(_CP1252[c]);
-            else return s;                    // real Arabic/emoji already → leave untouched
+            else return s; // real Arabic/emoji already → leave untouched
         }
         const fixed = new TextDecoder('utf-8', {fatal: false}).decode(new Uint8Array(bytes));
         if (/[؀-ۿ]/.test(fixed)) return fixed; // accept only if it produced Arabic
@@ -370,11 +370,11 @@ async function selectThread(id){
                 <div class="grid grid-cols-2 gap-2">
                     <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
                         <span class="text-slate-500 block text-[11px]">المنصة</span>
-                        <strong class="text-slate-900 font-bold text-xs">${isFB ? '🔵 فيسبوك' : '🟣 إنستجرام'}</strong>
+                        <strong class="text-slate-900 font-bold text-xs">${isFB ? ' فيسبوك' : ' إنستجرام'}</strong>
                     </div>
                     <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
                         <span class="text-slate-500 block text-[11px]">قناة التفاعل</span>
-                        <strong class="text-slate-900 font-bold text-xs">${isComment ? '💬 تعليق بوست' : '📩 رسالة خاصة'}</strong>
+                        <strong class="text-slate-900 font-bold text-xs">${isComment ? ' تعليق بوست' : ' رسالة خاصة'}</strong>
                     </div>
                 </div>
 
@@ -407,7 +407,7 @@ async function selectThread(id){
     
     // Extract Phone Number if any
     const phoneMatch = initText.match(/(\+?2?01[0125]\d{8})|(\b01[0125]\d{8}\b)|(\b\d{10,11}\b)/);
-    const extractedPhone = phoneMatch ? phoneMatch[0] : (t.phone || '');  // no hardcoded agency number
+    const extractedPhone = phoneMatch ? phoneMatch[0] : (t.phone || ''); // no hardcoded agency number
     const cleanPhone = extractedPhone ? extractedPhone.replace(/\D/g, '') : null;
     
     // Empty State when no threads
@@ -439,10 +439,10 @@ async function selectThread(id){
                 <div>
                     <h4 class="font-bold text-sm text-slate-900 flex items-center gap-2">
                         <span>${esc(sName)}</span>
-                        ${isFB ? '<span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded">🔵 فيسبوك</span>' : '<span class="bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded">🟣 إنستجرام</span>'}
+                        ${isFB ? '<span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded"> فيسبوك</span>' : '<span class="bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded"> إنستجرام</span>'}
                     </h4>
                     <div class="text-xs text-slate-500 flex items-center gap-2">
-                        <span>${isComment ? '💬 تعليق منشور' : '📩 رسالة خاصة (DM)'}</span>
+                        <span>${isComment ? ' تعليق منشور' : ' رسالة خاصة (DM)'}</span>
                         <span>• ${formatDateTime(sTime)}</span>
                     </div>
                 </div>
@@ -552,7 +552,7 @@ async function suggestReply(threadId){
         const r = await fetch('/api/test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: lastMsg})});
         const d = await r.json();
         const reply = d.reply || d.response || '';
-        if(reply){ inp.value = reply; inp.focus(); showToast('تم اقتراح الرد — راجعه وعدّله قبل الإرسال ✍️'); }
+        if(reply){ inp.value = reply; inp.focus(); showToast('تم اقتراح الرد — راجعه وعدّله قبل الإرسال ️'); }
         else showToast('تعذّر اقتراح رد', 'error');
     }catch(e){ showToast('خطأ في اقتراح الرد', 'error'); }
 }
