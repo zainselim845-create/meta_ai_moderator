@@ -8111,9 +8111,22 @@ def api_tasks_ingest_plan():
             dup_plan_name, dup_count = existing_file_names[new_file_norm]
         # Strategy C: Core-words fuzzy match — if the new plan's words are ALL in an existing plan
         else:
+            video_keys = {"video", "videos", "reel", "reels", "فيديو", "فيديوهات", "ريلز", "تيكتوك", "tiktok", "script", "اسكربت", "إسكربت"}
+            post_keys = {"post", "posts", "بوست", "بوستات", "design", "تصميم", "تصاميم", "single", "carousel", "كاروسيل"}
+            
+            is_new_video = bool(any(k in new_title_norm for k in video_keys) or any(k in new_file_norm for k in video_keys))
+            is_new_post = bool(any(k in new_title_norm for k in post_keys) or any(k in new_file_norm for k in post_keys))
+
             new_words = set(new_title_norm.split())
             file_words = set(new_file_norm.split()) if new_file_norm else set()
             for ex_norm, (ex_orig, ex_cnt) in existing_plan_index.items():
+                is_ex_video = any(k in ex_norm for k in video_keys)
+                is_ex_post = any(k in ex_norm for k in post_keys)
+                
+                # If one is explicitly a video plan and the other is a post plan, they are DIFFERENT plans and not duplicates!
+                if (is_new_video and is_ex_post and not is_ex_video) or (is_new_post and is_ex_video and not is_new_video):
+                    continue
+
                 ex_words = set(ex_norm.split())
                 # If the incoming name's words are a subset of existing (or vice versa) and share 2+ words
                 shared = new_words & ex_words
@@ -8714,7 +8727,6 @@ def share_plan_view(client_id):
         }}
 
         function copyCaption(text) {{
-            if (!text) return;
             var decoded = text.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
             navigator.clipboard.writeText(decoded).then(function() {{
                 showToast(' تم نسخ الكابشن والهاشتاجات إلى الحافظة!');
@@ -8856,9 +8868,17 @@ def api_task_upload_asset(task_id):
     if not link:
         return jsonify({"error": "تعذّر الرفع على Drive"}), 500
     t["drive_link"] = link
-    t.setdefault("media_urls", [])
-    if link not in t["media_urls"]:
-        t["media_urls"].append(link)
+    # Store in deliverables array (separate from reference media_urls!)
+    t.setdefault("deliverables", [])
+    deliv_entry = {
+        "url": link,
+        "filename": safe_name,
+        "mime": mime,
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "uploaded_by": current_user_rec().get("name") or current_username() or "الموظف",
+        "employee_id": eid
+    }
+    t["deliverables"].append(deliv_entry)
     t["media_type"] = "video" if mime.startswith("video") else "image"
     _append_task_log(t, "asset_uploaded",
                      actor_name=current_user_rec().get("name") or current_username(),
@@ -8917,9 +8937,15 @@ def api_task_upload_complete(task_id):
     link = f"https://drive.google.com/file/d/{fid}/view"
     mime = (request.get_json() or {}).get("mime", "")
     t["drive_link"] = link
-    t.setdefault("media_urls", [])
-    if link not in t["media_urls"]:
-        t["media_urls"].append(link)
+    t.setdefault("deliverables", [])
+    t["deliverables"].append({
+        "url": link,
+        "filename": (request.get_json() or {}).get("filename", f"asset-{fid}"),
+        "mime": str(mime),
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "uploaded_by": current_user_rec().get("name") or current_username() or "الموظف",
+        "employee_id": _my_employee_id() or ""
+    })
     t["media_type"] = "video" if str(mime).startswith("video") else "image"
     if t.get("status") in ("Assigned", "In Progress", "Pending AM Approval", "Changes Requested"):
         t["status"] = "Submitted / In Review"
@@ -9037,9 +9063,15 @@ def api_task_upload_chunk_complete(task_id):
         return jsonify({"error": "تعذّر رفع الملف إلى Google Drive. يرجى لصق رابط Google Drive مباشرة"}), 500
 
     t["drive_link"] = link
-    t.setdefault("media_urls", [])
-    if link not in t["media_urls"]:
-        t["media_urls"].append(link)
+    t.setdefault("deliverables", [])
+    t["deliverables"].append({
+        "url": link,
+        "filename": safe_name,
+        "mime": str(mime),
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "uploaded_by": current_user_rec().get("name") or current_username() or "الموظف",
+        "employee_id": eid
+    })
     t["media_type"] = "video" if (mime.startswith("video") or ext.lower() in [".mp4", ".mov", ".webm", ".avi", ".mkv"]) else "image"
 
     _append_task_log(t, "asset_uploaded",
@@ -9095,6 +9127,7 @@ def api_tasks_update_status(task_id):
 
 
 @app.route("/api/tasks/<task_id>/content", methods=["PUT", "POST"])
+@app.route("/api/tasks/<task_id>/update-content", methods=["PUT", "POST"])
 @auth_guard
 def api_tasks_update_content(task_id):
     """Allows Content Creators, Account Managers, and Admins to edit post content,
@@ -9136,6 +9169,13 @@ def api_tasks_update_content(task_id):
         target_task["description"] = caption
     if "visual_idea" in data:
         target_task["visual_idea"] = visual_idea
+    if "design_brief" in data:
+        target_task["design_brief"] = str(data.get("design_brief") or "").strip()
+    if "notes" in data or "review_note" in data or "modification_request" in data:
+        n_val = str(data.get("review_note") or data.get("notes") or data.get("modification_request") or "").strip()
+        target_task["review_note"] = n_val
+        target_task["notes"] = n_val
+        target_task["modification_request"] = n_val
     if "post_type" in data and post_type:
         target_task.setdefault("content_data", {})["post_type"] = post_type
     if "reference_links" in data:
@@ -9150,12 +9190,16 @@ def api_tasks_update_content(task_id):
         target_task["content_data"]["caption"] = caption
     if "visual_idea" in data:
         target_task["content_data"]["visual_idea"] = visual_idea
+    if "design_brief" in data:
+        target_task["content_data"]["design_brief"] = str(data.get("design_brief") or "").strip()
     if "reference_links" in data:
         target_task["content_data"]["reference_links"] = reference_links
 
     target_task.setdefault("graphic_data", {})
     if "visual_idea" in data:
         target_task["graphic_data"]["idea"] = visual_idea
+    if "design_brief" in data:
+        target_task["graphic_data"]["design_brief"] = str(data.get("design_brief") or "").strip()
 
     target_task["updated_at"] = datetime.now(timezone.utc).isoformat()
 

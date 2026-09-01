@@ -1810,77 +1810,108 @@ function renderTaskCard(t, indexInPlan) {
             '<span> ' + esc(t.client_name) + '</span>' +
         '</div>' : '';
 
-    // reference images (from docx or uploaded)
-    var refs = (t.media_urls && t.media_urls.length) ? t.media_urls : [];
-    var refsHtml = refs.length ? '<div class="flex gap-1.5 flex-wrap pt-0.5">' + refs.slice(0, 4).map(function(u) {
-        var isData = u.startsWith('data:image/');
-        var thumbSrc = isData ? u : driveThumb(u);
-        return '<a href="' + esc(u) + '" target="_blank" class="block w-14 h-14 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 shadow-xs hover:opacity-90 transition"><img src="' + esc(thumbSrc) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'️\'"></a>';
-    }).join('') + (refs.length > 4 ? '<span class="text-[10px] text-slate-400 self-center font-bold">+' + (refs.length - 4) + '</span>' : '') + '</div>' : '';
+    // 1) Reference images (strictly from docx / plan brief)
+    var refs = (t.content_data && t.content_data.reference_images && t.content_data.reference_images.length) ? t.content_data.reference_images :
+               (t.graphic_data && t.graphic_data.reference_images && t.graphic_data.reference_images.length) ? t.graphic_data.reference_images :
+               (t.media_urls && t.media_urls.length) ? t.media_urls : [];
+    var refsHtml = refs.length ? '<div class="bg-blue-50/60 border border-blue-200/70 rounded-xl p-2.5 space-y-1.5 shadow-2xs">' +
+        '<div class="text-[10px] font-bold text-blue-900 flex items-center gap-1">🖼️ صور ومراجع البوست (من الخطة / الريفرانس):</div>' +
+        '<div class="flex gap-1.5 flex-wrap pt-0.5">' + refs.slice(0, 6).map(function(u, rIdx) {
+            var isData = u.startsWith('data:image/');
+            var thumbSrc = isData ? u : driveThumb(u);
+            return '<a href="' + esc(u) + '" target="_blank" class="block w-14 h-14 rounded-xl border border-blue-200 overflow-hidden bg-white shadow-2xs hover:scale-105 transition" title="مرجع ' + (rIdx + 1) + '"><img src="' + esc(thumbSrc) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
+        }).join('') + (refs.length > 6 ? '<span class="text-[10px] text-blue-500 self-center font-bold">+' + (refs.length - 6) + '</span>' : '') + '</div></div>' : '';
 
-    // reference links
+    // 2) Reference links (Pinterest, Behance, YouTube, external links)
     var refLinks = (t.reference_links && t.reference_links.length) ? t.reference_links : [];
     var links = refLinks.length ?
         '<div class="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">' +
-        refLinks.slice(0, 3).map(function(u, idx) {
-            var label = u.includes('drive.google') ? ' ملف Drive' :
-                        u.includes('pinterest') ? ' Pinterest' :
-                        u.includes('youtube') || u.includes('youtu.be') ? ' فيديو' :
-                        u.includes('behance') ? ' Behance' : (' ريفرنس ' + (idx + 1));
+        refLinks.slice(0, 4).map(function(u, idx) {
+            var label = u.includes('drive.google') ? '📁 ملف Drive' :
+                        u.includes('pinterest') ? '📌 Pinterest' :
+                        u.includes('youtube') || u.includes('youtu.be') ? '🎬 فيديو' :
+                        u.includes('behance') ? '🎨 Behance' : ('🔗 ريفرنس ' + (idx + 1));
             return '<a href="' + esc(u) + '" target="_blank" class="inline-flex items-center gap-1 bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-violet-200 transition">' + esc(label) + ' ↗</a>';
         }).join('') + '</div>' : '';
 
-    // visual idea / written reference
-    var visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || '').trim();
+    // 3) Creative Brief & Visual Idea (فكرة وتوجيهات التصميم / الإسكربت)
+    var visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || (t.video_data && t.video_data.idea) || t.design_brief || '').trim();
     var visHtml = (visIdea && visIdea !== t.title && visIdea !== t.caption) ?
-        '<div class="bg-amber-50/90 border border-amber-200/80 rounded-xl p-2.5 text-xs text-amber-950 space-y-0.5 shadow-2xs">' +
-            '<div class="font-bold text-[10px] text-amber-800 flex items-center gap-1"> فكرة / ريفرنس التصميم:</div>' +
-            '<div class="leading-relaxed text-[11px] whitespace-pre-wrap">' + esc(visIdea) + '</div>' +
+        '<div class="bg-purple-50/80 border border-purple-200/80 rounded-xl p-2.5 text-xs text-purple-950 space-y-1 shadow-2xs">' +
+            '<div class="font-bold text-[11px] text-purple-900 flex items-center gap-1">💡 فكرة وتوجيهات التصميم / الإسكربت (Creative Brief):</div>' +
+            '<div class="leading-relaxed text-[11px] whitespace-pre-wrap font-medium">' + esc(visIdea) + '</div>' +
         '</div>' : '';
 
-    // Detailed Deliverables Box
-    var rawNotes = (t.notes || t.note || t.delivery_notes || t.deliverables || '').trim();
-    var driveLink = (t.drive_link || t.google_drive_url || t.attachment_url || t.submission_link || '').trim();
-    if (!driveLink && t.media_urls && t.media_urls.length) {
-        driveLink = (t.media_urls.find(function(u){ return u && (u.includes('drive.google.com') || u.includes('docs.google.com') || u.startsWith('http')); }) || '').trim();
-    }
-    if (!driveLink && rawNotes) {
-        var urlMatch = rawNotes.match(/https?:\/\/[^\s]+/i);
-        if (urlMatch) {
-            driveLink = urlMatch[0].replace(/[.,;:)\]]+$/, '');
-        }
-    }
+    // 4) Modification Requests & Notes (طلبات التعديل والملاحظات)
+    var modNotes = (t.review_note || t.modification_request || t.changes_requested_note || t.task_notes || '').trim();
+    var modHtml = modNotes ?
+        '<div class="bg-rose-50/90 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-950 space-y-1 shadow-2xs">' +
+            '<div class="font-bold text-[11px] text-rose-800 flex items-center justify-between">' +
+                '<span class="flex items-center gap-1">✍️ طلبات التعديل والملاحظات:</span>' +
+                '<button type="button" onclick="openTaskNotesEditorModal(\'' + escJs(t.task_id) + '\')" class="text-[10px] text-rose-700 hover:text-rose-900 underline font-bold cursor-pointer">تعديل</button>' +
+            '</div>' +
+            '<div class="leading-relaxed text-[11px] whitespace-pre-wrap font-semibold">' + esc(modNotes) + '</div>' +
+        '</div>' : '';
+
+    // 5) Employee Deliverables (ZERO bleed from references! Carousel & Multi-File Aware)
+    var rawNotes = (t.delivery_notes || t.deliverables_notes || (t.status === 'Submitted / In Review' ? t.notes : '') || '').trim();
+    var driveLink = (t.drive_link || t.google_drive_url || t.submission_link || '').trim();
+    var delivList = Array.isArray(t.deliverables) ? t.deliverables : [];
 
     var isTimerRunning = !!(t.timer_state && t.timer_state.is_running);
     var elapsedSecs = t.timer_state ? (t.timer_state.elapsed_seconds || 0) : 0;
     var elapsedMins = Math.round(elapsedSecs / 60);
+    var isSubmitted = (t.status === 'Submitted / In Review' || t.status === 'Awaiting AM Review' || t.status === 'Completed' || t.status === 'Approved / Scheduled');
 
     var deliverablesBox = '';
-    if (rawNotes || driveLink || isTimerRunning || elapsedMins > 0 || t.submitted_at || t.started_at || st === 'Awaiting AM Review') {
+    if (delivList.length > 0 || driveLink || rawNotes || isTimerRunning || (elapsedMins > 0 && isSubmitted) || (t.submitted_at && isSubmitted)) {
         var timerTag = isTimerRunning ?
-            '<span class="bg-amber-500 text-white animate-pulse px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">️ جاري العمل الآن</span>' :
-            (elapsedMins > 0 ? '<span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-mono font-bold text-[10px]">️ ' + elapsedMins + ' دقيقة</span>' : '');
+            '<span class="bg-amber-500 text-white animate-pulse px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">⏱️ جاري العمل الآن</span>' :
+            (elapsedMins > 0 ? '<span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-mono font-bold text-[10px]">⏱️ ' + elapsedMins + ' دقيقة</span>' : '');
 
-        deliverablesBox = '<div class="bg-gradient-to-br from-indigo-50/70 to-purple-50/70 border border-indigo-200/80 rounded-xl p-2.5 text-xs space-y-1.5 shadow-xs">' +
-            '<div class="flex items-center justify-between font-bold text-[11px] text-indigo-900 border-b border-indigo-100 pb-1">' +
-                '<span class="flex items-center gap-1"> تسليمات وإنجاز الموظف:</span>' +
+        deliverablesBox = '<div class="bg-gradient-to-br from-emerald-50/80 to-teal-50/80 border border-emerald-200 rounded-xl p-2.5 text-xs space-y-2 shadow-xs">' +
+            '<div class="flex items-center justify-between font-bold text-[11px] text-emerald-950 border-b border-emerald-100 pb-1">' +
+                '<span class="flex items-center gap-1">📦 تسليمات وإنجاز الموظف:</span>' +
                 timerTag +
             '</div>';
 
-        if (driveLink) {
+        // Multi-file Carousel Deliverables Gallery
+        if (delivList.length > 0) {
+            deliverablesBox += '<div class="space-y-1.5">' +
+                '<div class="text-[10px] font-bold text-emerald-900 flex items-center justify-between">' +
+                    '<span>📁 ملفات وسلايدات التسليم (' + delivList.length + ' ملف):</span>' +
+                    '<span class="bg-emerald-200 text-emerald-950 px-1.5 py-0.2 rounded-full font-bold text-[9px]">جاهز للمعاينة ↗</span>' +
+                '</div>' +
+                '<div class="grid grid-cols-2 gap-1.5">';
+            delivList.forEach(function(df, dfIdx) {
+                var dUrl = df.url || df.drive_link || df;
+                var dName = df.filename || ('سلايد #' + (dfIdx + 1));
+                var isVid = (df.mime && df.mime.startsWith('video')) || /\.(mp4|mov|webm)(\?|$)/i.test(dName);
+                deliverablesBox += '<a href="' + esc(dUrl) + '" target="_blank" class="bg-white hover:bg-emerald-100/60 border border-emerald-200 rounded-lg p-1.5 text-right transition flex items-center gap-1.5 shadow-2xs group">' +
+                    '<span class="text-sm shrink-0">' + (isVid ? '🎬' : '🖼️') + '</span>' +
+                    '<div class="min-w-0 flex-1">' +
+                        '<div class="font-bold text-[10px] text-slate-800 truncate group-hover:text-emerald-900">' + esc(dName) + '</div>' +
+                        '<div class="text-[9px] text-emerald-700 font-mono">فتح على Drive ↗</div>' +
+                    '</div>' +
+                '</a>';
+            });
+            deliverablesBox += '</div></div>';
+        }
+
+        if (driveLink && !delivList.some(function(d){ return (d.url || d) === driveLink; })) {
             var viewUrl = formatGoogleDriveViewLink(driveLink);
             var isVid = (t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(driveLink) || viewUrl.includes('/file/d/'));
-            deliverablesBox += '<div class="bg-emerald-50/90 border border-emerald-200 rounded-xl p-2.5 space-y-2 shadow-2xs">' +
+            deliverablesBox += '<div class="bg-white/90 border border-emerald-200 rounded-xl p-2 space-y-1.5 shadow-2xs">' +
                 '<div class="flex items-center justify-between gap-1 flex-wrap">' +
-                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">' + (isVid ? ' فيديو المخرجات على Drive:' : ' رابط تسليمات المهمة:') + '</span>' +
-                    '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">جاهز للشاهدة </span>' +
+                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">' + (isVid ? '🎬 فيديو المخرجات على Drive:' : '📁 رابط مجلد/ملف التسليم:') + '</span>' +
+                    '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">جاهز للمعاينة ↗</span>' +
                 '</div>' +
                 '<div class="flex items-center gap-1.5">' +
                     '<a href="' + esc(viewUrl) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3 rounded-lg transition flex items-center justify-center gap-1.5 shadow-xs">' +
-                        '<span>' + (isVid ? '▶️ تشغيل الفيديو على Google Drive ↗️' : '↗️ فتح ملف التسليم ↗️') + '</span>' +
+                        '<span>' + (isVid ? '▶️ تشغيل الفيديو على Google Drive ↗️' : '↗️ فتح ملف/مجلد التسليم ↗️') + '</span>' +
                     '</a>' +
                     '<button type="button" onclick="copyTaskDriveLink(\'' + esc(viewUrl) + '\')" class="bg-white hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-1.5 px-3 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-xs">' +
-                        '<span> نسخ الرابط</span>' +
+                        '<span>📋 نسخ</span>' +
                     '</button>' +
                 '</div>' +
                 '<div class="text-[10px] font-mono text-slate-500 truncate bg-white/80 p-1.5 rounded-md border border-emerald-100 select-all" title="' + esc(viewUrl) + '">' + esc(viewUrl) + '</div>' +
@@ -1888,9 +1919,9 @@ function renderTaskCard(t, indexInPlan) {
         }
 
         if (rawNotes) {
-            deliverablesBox += '<div class="bg-white/90 p-2 rounded-lg border border-indigo-100 text-[11px] text-slate-800 space-y-0.5">' +
-                '<div class="font-bold text-[10px] text-indigo-700">ملاحظات ومخرجات الموظف:</div>' +
-                '<div class="whitespace-pre-wrap leading-relaxed">' + esc(rawNotes) + '</div>' +
+            deliverablesBox += '<div class="bg-white/90 p-2 rounded-lg border border-emerald-100 text-[11px] text-slate-800 space-y-0.5">' +
+                '<div class="font-bold text-[10px] text-emerald-800">📝 ملاحظات الموظف عند التسليم:</div>' +
+                '<div class="whitespace-pre-wrap leading-relaxed font-medium">' + esc(rawNotes) + '</div>' +
             '</div>';
         }
 
@@ -1916,11 +1947,15 @@ function renderTaskCard(t, indexInPlan) {
         '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
         '<div class="text-xs text-slate-600 whitespace-pre-wrap max-h-36 overflow-y-auto bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 leading-relaxed">' + esc(t.caption || t.description || '') + '</div>' +
         visHtml +
+        modHtml +
         refsHtml + links +
-        '<div class="pt-1">' +
+        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">' +
             '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
                 ICONS.edit +
-                '<span>تعديل نصوص وكابشن البوست (Content Editor)</span>' +
+                '<span>تعديل نصوص وكابشن البوست</span>' +
+            '</button>' +
+            '<button type="button" onclick="openTaskNotesEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-rose-200 shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
+                '<span>✍️ إضافة ملاحظة / طلب تعديل</span>' +
             '</button>' +
         '</div>';
 
@@ -1957,7 +1992,7 @@ function renderTaskCard(t, indexInPlan) {
         '<div class="grid grid-cols-2 gap-1.5">' +
             '<button type="button" onclick="openDeliverableModal(\'' + escJs(t.task_id) + '\', \'' + escJs(driveLink||'') + '\')" class="text-center bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-sky-200 shadow-xs flex items-center justify-center gap-1 transition cursor-pointer">' +
                 ICONS.upload +
-                '<span>تسليم فيديو / Drive</span>' +
+                '<span>تسليم العمل / Drive</span>' +
             '</button>' +
             '<label class="text-center cursor-pointer bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-violet-200 shadow-xs flex items-center justify-center gap-1 transition">' +
                 ICONS.plus +
@@ -3481,20 +3516,41 @@ async function openTaskDetailsModal(taskId) {
     }
     
     var driveLink = (t.drive_link || t.google_drive_link || t.submission_link || t.drive_url || '').trim();
-    var rawNotes = (t.notes || t.note || t.delivery_notes || t.deliverables || '').trim();
+    var rawNotes = (t.delivery_notes || t.deliverables_notes || (t.status === 'Submitted / In Review' ? t.notes : '') || '').trim();
+    var delivList = Array.isArray(t.deliverables) ? t.deliverables : [];
     
     var delivHtml = '';
-    if (driveLink || rawNotes || (t.delivery_files && t.delivery_files.length)) {
-        delivHtml = '<div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 space-y-2.5">' +
-            '<div class="flex items-center justify-between"><span class="font-bold text-xs text-emerald-900 flex items-center gap-1.5"> تسليمات وإنجاز الموظف:</span><span class="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Google Drive</span></div>';
-        if (driveLink) {
+    if (delivList.length > 0 || driveLink || rawNotes) {
+        delivHtml = '<div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 space-y-3">' +
+            '<div class="flex items-center justify-between"><span class="font-bold text-xs text-emerald-950 flex items-center gap-1.5">📦 تسليمات وإنجاز الموظف:</span><span class="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Google Drive</span></div>';
+        
+        if (delivList.length > 0) {
+            delivHtml += '<div class="space-y-1.5">' +
+                '<div class="text-[11px] font-bold text-emerald-900">📁 الملفات والسلايدات المرفوعة (' + delivList.length + ' ملف):</div>' +
+                '<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">';
+            delivList.forEach(function(df, dfIdx) {
+                var dUrl = df.url || df.drive_link || df;
+                var dName = df.filename || ('سلايد #' + (dfIdx + 1));
+                var isVid = (df.mime && df.mime.startsWith('video')) || /\.(mp4|mov|webm)(\?|$)/i.test(dName);
+                delivHtml += '<a href="' + esc(dUrl) + '" target="_blank" class="bg-white hover:bg-emerald-100 border border-emerald-200 rounded-xl p-2 text-right transition flex items-center gap-2 shadow-2xs group">' +
+                    '<span class="text-base">' + (isVid ? '🎬' : '🖼️') + '</span>' +
+                    '<div class="min-w-0 flex-1">' +
+                        '<div class="font-bold text-xs text-slate-900 truncate group-hover:text-emerald-950">' + esc(dName) + '</div>' +
+                        '<div class="text-[10px] text-emerald-700 font-mono">فتح على Drive ↗</div>' +
+                    '</div>' +
+                '</a>';
+            });
+            delivHtml += '</div></div>';
+        }
+
+        if (driveLink && !delivList.some(function(d){ return (d.url || d) === driveLink; })) {
             delivHtml += '<div class="flex items-center gap-2 flex-wrap">' +
-                '<a href="' + esc(driveLink) + '" target="_blank" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl shadow-xs transition text-xs"><span> فتح مجلد / ملف التسليم على Drive ↗️</span></a>' +
-                '<button onclick="navigator.clipboard.writeText(\'' + esc(driveLink) + '\');showToast(\'تم نسخ الرابط \')" class="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-xl font-bold transition text-xs"><span> نسخ الرابط</span></button>' +
+                '<a href="' + esc(driveLink) + '" target="_blank" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl shadow-xs transition text-xs"><span>↗️ فتح مجلد / ملف التسليم على Drive ↗️</span></a>' +
+                '<button onclick="navigator.clipboard.writeText(\'' + esc(driveLink) + '\');showToast(\'تم نسخ الرابط \')" class="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-2 rounded-xl font-bold transition text-xs"><span>📋 نسخ الرابط</span></button>' +
             '</div>';
         }
         if (rawNotes) {
-            delivHtml += '<div class="bg-white/90 p-2.5 rounded-xl border border-emerald-100 text-slate-800 space-y-0.5"><div class="text-[10px] text-slate-500 font-bold"> ملاحظات الموظف عند التسليم:</div><div class="font-semibold whitespace-pre-line">' + esc(rawNotes) + '</div></div>';
+            delivHtml += '<div class="bg-white/90 p-3 rounded-xl border border-emerald-100 text-slate-800 space-y-0.5"><div class="text-[10px] text-slate-500 font-bold">📝 ملاحظات الموظف عند التسليم:</div><div class="font-semibold whitespace-pre-line text-xs">' + esc(rawNotes) + '</div></div>';
         }
         delivHtml += '</div>';
     }
@@ -3567,21 +3623,27 @@ async function openTaskDetailsModal(taskId) {
         logsHtml += '</div></div>';
     }
     
+    // Reference images & external links
     var refHtml = '';
-    var imgs = (t.media_urls || []);
-    if (imgs && imgs.length) {
-        refHtml = '<div class="space-y-1.5">' +
-            '<div class="font-bold text-xs text-slate-700">️ صور ومراجع البوست:</div>' +
+    var refImgs = (t.content_data && t.content_data.reference_images && t.content_data.reference_images.length) ? t.content_data.reference_images :
+                  (t.graphic_data && t.graphic_data.reference_images && t.graphic_data.reference_images.length) ? t.graphic_data.reference_images :
+                  (t.media_urls || []);
+    if (refImgs && refImgs.length) {
+        refHtml = '<div class="space-y-2 bg-blue-50/60 border border-blue-200/70 rounded-2xl p-4">' +
+            '<div class="font-bold text-xs text-blue-950 flex items-center gap-1.5">🖼️ صور ومراجع البوست (من الخطة):</div>' +
             '<div class="flex gap-2 flex-wrap">';
-        imgs.forEach(function(img) {
+        refImgs.forEach(function(img) {
             var thumb = (typeof driveThumb === 'function') ? driveThumb(img) : img;
             refHtml += '<a href="' + esc(img) + '" target="_blank" class="block group relative">' +
-                '<img src="' + esc(thumb) + '" class="w-16 h-16 rounded-xl object-cover border border-slate-200 shadow-2xs group-hover:scale-105 transition" onerror="this.style.display=\'none\'">' +
+                '<img src="' + esc(thumb) + '" class="w-16 h-16 rounded-xl object-cover border border-blue-200 shadow-2xs group-hover:scale-105 transition" onerror="this.style.display=\'none\'">' +
             '</a>';
         });
         refHtml += '</div></div>';
     }
     
+    var visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || (t.video_data && t.video_data.idea) || t.design_brief || '').trim();
+    var modNotes = (t.review_note || t.modification_request || t.changes_requested_note || t.task_notes || '').trim();
+
     bodyEl.innerHTML = '<div class="space-y-4">' +
         '<div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">' +
             '<div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">عنوان المنشور / البوست:</div>' +
@@ -3606,13 +3668,13 @@ async function openTaskDetailsModal(taskId) {
             '<div class="text-[10px] text-slate-500 font-bold flex items-center gap-1">️ نص الكونتنت والكابشن الكامل (Caption):</div>' +
             '<div class="text-xs text-slate-800 whitespace-pre-line leading-relaxed">' + esc(t.caption) + '</div>' +
         '</div>') : '') +
-        (t.visual_idea ? ('<div class="bg-purple-50/70 border border-purple-200 rounded-2xl p-3.5 space-y-1">' +
-            '<div class="text-[10px] text-purple-900 font-bold"> التخيل / فكرة الجرافيك (Visual Idea):</div>' +
-            '<div class="text-xs text-purple-950 whitespace-pre-line">' + esc(t.visual_idea) + '</div>' +
+        (visIdea ? ('<div class="bg-purple-50/80 border border-purple-200 rounded-2xl p-3.5 space-y-1">' +
+            '<div class="text-[10px] text-purple-900 font-bold flex items-center gap-1">💡 فكرة وتوجيهات التصميم / الإسكربت (Creative Brief):</div>' +
+            '<div class="text-xs text-purple-950 whitespace-pre-line leading-relaxed font-medium">' + esc(visIdea) + '</div>' +
         '</div>') : '') +
-        (t.review_note ? ('<div class="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 space-y-1">' +
-            '<div class="text-[10px] text-amber-900 font-bold"> ملاحظة مراجعة الأكونت مانيجر:</div>' +
-            '<div class="text-xs text-amber-950 whitespace-pre-line">' + esc(t.review_note) + '</div>' +
+        (modNotes ? ('<div class="bg-rose-50/90 border border-rose-200 rounded-2xl p-3.5 space-y-1">' +
+            '<div class="text-[10px] text-rose-900 font-bold flex items-center gap-1">✍️ طلبات التعديل وملاحظات المهمة:</div>' +
+            '<div class="text-xs text-rose-950 whitespace-pre-line leading-relaxed font-semibold">' + esc(modNotes) + '</div>' +
         '</div>') : '') +
         delivHtml +
         refHtml +
@@ -3764,19 +3826,143 @@ async function submitDriveLinkDeliverable() {
 
 async function handleModalFileUpload(input) {
     var taskId = window._activeDeliverableTaskId;
-    var file = (input && input.files && input.files[0]) ? input.files[0] : null;
-    if (!taskId || !file) return;
+    var files = (input && input.files && input.files.length) ? Array.from(input.files) : [];
+    if (!taskId || !files.length) return;
     closeDeliverableModal();
-    try {
-        await driveUploadFile(taskId, file);
-        showToast(' تم رفع الملف بنجاح وربطه بالمهمة! ', 'success');
-        if (typeof loadTasksEngine === 'function') loadTasksEngine();
-        if (typeof loadMyPortal === 'function') loadMyPortal();
-    } catch(e) {
-        showToast('تعذّر الرفع: ' + (e.message || ''), 'error');
+    
+    if (files.length === 1) {
+        try {
+            await driveUploadFile(taskId, files[0]);
+            showToast(' تم رفع الملف بنجاح وربطه بالمهمة على Google Drive! ', 'success');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            if (typeof loadMyPortal === 'function') loadMyPortal();
+        } catch(e) {
+            showToast('تعذّر الرفع: ' + (e.message || ''), 'error');
+        }
+    } else {
+        showToast('جاري رفع ' + files.length + ' ملف/سلايدات كاروسيل إلى Google Drive... ⏳');
+        var successCount = 0;
+        for (var i = 0; i < files.length; i++) {
+            try {
+                await driveUploadFile(taskId, files[i]);
+                successCount++;
+            } catch(e) {
+                console.error('Error uploading file ' + files[i].name, e);
+            }
+        }
+        if (successCount > 0) {
+            showToast(' تم رفع ' + successCount + ' من ' + files.length + ' ملف/سلايد كاروسيل بنجاح! ', 'success');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            if (typeof loadMyPortal === 'function') loadMyPortal();
+        } else {
+            showToast('تعذّر رفع الملفات', 'error');
+        }
     }
     if (input) input.value = '';
 }
+
+// Task Notes & Modification Requests Modal (تعديل وإضافة الملاحظات وطلبات التعديل)
+window._activeNotesTaskId = null;
+function openTaskNotesEditorModal(taskId) {
+    window._activeNotesTaskId = taskId;
+    var allTasks = (typeof _allTasksCache === 'object' && _allTasksCache) ? Object.values(_allTasksCache) : [];
+    var t = allTasks.find(function(x){ return x && x.task_id === taskId; }) || {};
+    
+    var modal = document.getElementById('task-notes-modal');
+    if (!modal) {
+        // Create modal dynamically if not in DOM
+        modal = document.createElement('div');
+        modal.id = 'task-notes-modal';
+        modal.className = 'fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4';
+        modal.onclick = function(e){ if (e.target === modal) closeTaskNotesEditorModal(); };
+        modal.innerHTML = '<div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">' +
+            '<div class="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 bg-rose-50/50">' +
+                '<div class="flex items-center gap-2">' +
+                    '<span class="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-base">✍️</span>' +
+                    '<h3 class="font-bold text-sm text-slate-900" id="tnm-title">ملاحظات وطلبات التعديل على المهمة</h3>' +
+                '</div>' +
+                '<button type="button" onclick="closeTaskNotesEditorModal()" class="text-slate-400 hover:text-slate-700 font-bold text-xl p-1 leading-none rounded-lg hover:bg-slate-200 transition">✕</button>' +
+            '</div>' +
+            '<div class="p-5 sm:p-6 space-y-4">' +
+                '<div id="tnm-task-info" class="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 font-bold"></div>' +
+                '<div>' +
+                    '<label class="block text-xs font-bold text-slate-800 mb-1.5">✍️ اكتب التعديل أو الملاحظة المطلوبة بدقة للموظف:</label>' +
+                    '<textarea id="tnm-notes-input" rows="4" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs leading-relaxed focus:ring-2 focus:ring-rose-500 focus:outline-none" placeholder="مثال: يرجى تعديل لون الخلفية للأزرق الداكن وإبراز اللوجو في أول سلايد..."></textarea>' +
+                '</div>' +
+                '<div>' +
+                    '<label class="block text-xs font-bold text-slate-800 mb-1.5">💡 فكرة وتوجيهات التصميم / الإسكربت (Creative Brief):</label>' +
+                    '<textarea id="tnm-brief-input" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs leading-relaxed focus:ring-2 focus:ring-purple-500 focus:outline-none" placeholder="توجيهات الفكرة والتخيل..."></textarea>' +
+                '</div>' +
+                '<div class="flex items-center gap-2 pt-2">' +
+                    '<button type="button" onclick="saveTaskNotesEditorAction()" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
+                        '<span>💾 حفظ الملاحظات والتعديل</span>' +
+                    '</button>' +
+                    '<button type="button" onclick="closeTaskNotesEditorModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 px-4 rounded-xl transition cursor-pointer">' +
+                        '<span>إلغاء</span>' +
+                    '</button>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+        document.body.appendChild(modal);
+    }
+    
+    var infoEl = document.getElementById('tnm-task-info');
+    if (infoEl) infoEl.textContent = 'المهمة: [' + taskId + '] ' + (t.title || '');
+    var nInp = document.getElementById('tnm-notes-input');
+    if (nInp) nInp.value = t.review_note || t.modification_request || t.notes || '';
+    var bInp = document.getElementById('tnm-brief-input');
+    if (bInp) bInp.value = t.visual_idea || t.design_brief || '';
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeTaskNotesEditorModal() {
+    var modal = document.getElementById('task-notes-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function saveTaskNotesEditorAction() {
+    var taskId = window._activeNotesTaskId;
+    if (!taskId) return;
+    var nInp = document.getElementById('tnm-notes-input');
+    var bInp = document.getElementById('tnm-brief-input');
+    var notesVal = (nInp ? nInp.value : '').trim();
+    var briefVal = (bInp ? bInp.value : '').trim();
+    
+    showToast('جاري حفظ الملاحظات... ⏳');
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/update-content', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                notes: notesVal,
+                review_note: notesVal,
+                modification_request: notesVal,
+                visual_idea: briefVal,
+                design_brief: briefVal
+            })
+        });
+        var data = await res.json();
+        if (res.ok && data.success) {
+            closeTaskNotesEditorModal();
+            showToast(' تم حفظ وتحديث الملاحظات والطلبات بنجاح! ', 'success');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            if (typeof loadMyPortal === 'function') loadMyPortal();
+        } else {
+            showToast(data.error || 'تعذّر الحفظ', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+
+window.openTaskNotesEditorModal = openTaskNotesEditorModal;
+window.closeTaskNotesEditorModal = closeTaskNotesEditorModal;
+window.saveTaskNotesEditorAction = saveTaskNotesEditorAction;
 
 async function submitTaskDirectlyNoFile() {
     var taskId = window._activeDeliverableTaskId;
