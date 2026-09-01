@@ -1739,9 +1739,15 @@
     </h3>
     <p class="text-xs text-slate-500 text-center -mt-2">منصة إدارة ومودريشن فيسبوك وإنستجرام</p>
     <form class="space-y-3" onsubmit="handleLogin(event)">
-     <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold" id="auth-username" placeholder="اسم المستخدم" type="text" autocomplete="username"/>
-     <input class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" id="auth-password" placeholder="كلمة المرور" type="password" autocomplete="current-password"/>
-     <button class="w-full btn-primary text-xs py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition shadow-sm" type="submit">
+     <input class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none" id="auth-username" placeholder="اسم المستخدم أو كود الموظف (مثل EMP-8086-4520)" type="text" autocomplete="username"/>
+     <input class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none" id="auth-password" placeholder="كلمة المرور" type="password" autocomplete="current-password"/>
+     <div class="flex items-center justify-between text-[11px] text-slate-600 px-1">
+       <label class="flex items-center gap-1.5 cursor-pointer select-none">
+         <input type="checkbox" id="auth-remember-me" checked class="rounded text-blue-600 focus:ring-blue-500"/>
+         <span>تذكرني دائماً على هذا الجهاز (حفظ الجلسة) 🔒</span>
+       </label>
+     </div>
+     <button class="w-full btn-primary text-xs py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition shadow-sm cursor-pointer" type="submit">
       تسجيل الدخول 🔓
      </button>
      <div class="text-xs text-red-600 font-bold hidden text-center pt-1" id="auth-error">
@@ -1766,15 +1772,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.min.js?v=9.98">
+  <script defer src="/static/js/app.min.js?v=9.99">
   </script>
-  <script defer src="/static/js/inbox.min.js?v=9.98">
+  <script defer src="/static/js/inbox.min.js?v=9.99">
   </script>
-  <script defer src="/static/js/chatwoot_free.min.js?v=9.98">
+  <script defer src="/static/js/chatwoot_free.min.js?v=9.99">
   </script>
-  <script defer src="/static/js/views.min.js?v=9.98">
+  <script defer src="/static/js/views.min.js?v=9.99">
   </script>
-  <script defer src="/static/js/clients.min.js?v=9.98">
+  <script defer src="/static/js/clients.min.js?v=9.99">
   </script>
  
   <!-- Modal: Add New Connected Account -->

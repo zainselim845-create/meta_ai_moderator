@@ -309,6 +309,7 @@ async function handleLogin(e) {
   if (e && e.preventDefault) e.preventDefault();
   const u = document.getElementById('auth-username')?.value.trim() || '';
   const p = document.getElementById('auth-password')?.value.trim() || '';
+  const remember = document.getElementById('auth-remember-me')?.checked !== false;
   const errEl = document.getElementById('auth-error');
   if (!u || !p) {
     if (errEl) { errEl.classList.remove('hidden'); errEl.textContent = 'من فضلك اكتب اسم المستخدم وكلمة المرور'; }
@@ -320,11 +321,16 @@ async function handleLogin(e) {
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({username: u, password: p})
+      body: JSON.stringify({username: u, password: p, remember: remember})
     });
     const d = await res.json();
     if (d.ok || res.ok) {
       localStorage.setItem('domya_auth', 'true');
+      if (d.token) {
+        localStorage.setItem('domya_token', d.token);
+        document.cookie = 'domya_token=' + encodeURIComponent(d.token) + '; path=/; max-age=' + (90*86400) + '; SameSite=Lax; Secure';
+      }
+      if (d.username) localStorage.setItem('domya_username', d.username);
       const overlay = document.getElementById('login-modal-overlay');
       if (overlay) overlay.style.display = 'none';
       showToast('تم تسجيل الدخول بنجاح 🔓');
@@ -352,11 +358,12 @@ async function handleLogin(e) {
 
 async function handleLogout() {
   try {
+    localStorage.removeItem('domya_auth');
+    localStorage.removeItem('domya_token');
+    localStorage.removeItem('domya_username');
+    document.cookie = 'domya_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
     await fetch('/api/logout', { method: 'POST' });
   } catch(e){}
-  localStorage.removeItem('domya_auth');
-  localStorage.removeItem('active_tab');
-  window._me = null;
   window.location.reload();
 }
 
