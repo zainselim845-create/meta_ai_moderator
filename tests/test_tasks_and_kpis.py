@@ -308,3 +308,32 @@ def test_plan_deletion_filters_out_target_plan_and_preserves_others():
     assert [t["task_id"] for t in remaining] == ["TASK-0001", "TASK-0003"]
 
 
+def test_plan_archive_and_unarchive_lifecycle():
+    tasks = [
+        {"task_id": "TASK-0001", "plan_name": "خطة أغسطس 2026", "title": "بوست 1", "is_archived": False},
+        {"task_id": "TASK-0002", "plan_name": "خطة سبتمبر 2026", "title": "بوست جديد", "is_archived": False},
+    ]
+    
+    # 1. Archive "خطة أغسطس 2026"
+    for t in tasks:
+        if t["plan_name"] == "خطة أغسطس 2026":
+            t["is_archived"] = True
+            
+    active = [t for t in tasks if not t.get("is_archived")]
+    archived = [t for t in tasks if t.get("is_archived")]
+    
+    assert len(active) == 1
+    assert active[0]["plan_name"] == "خطة سبتمبر 2026"
+    assert len(archived) == 1
+    assert archived[0]["plan_name"] == "خطة أغسطس 2026"
+    
+    # 2. Restore "خطة أغسطس 2026"
+    for t in tasks:
+        if t["plan_name"] == "خطة أغسطس 2026":
+            t["is_archived"] = False
+            
+    active_after = [t for t in tasks if not t.get("is_archived")]
+    assert len(active_after) == 2
+
+
+

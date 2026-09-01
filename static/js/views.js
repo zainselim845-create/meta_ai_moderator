@@ -1078,6 +1078,16 @@ function clearEmployeeFilter() {
 
 var selectedPlanFilter = null;
 
+var tasksArchiveMode = false;
+var tasksArchivedCount = 0;
+var tasksActiveCount = 0;
+
+function toggleTasksArchiveMode() {
+    tasksArchiveMode = !tasksArchiveMode;
+    selectedPlanFilter = null;
+    loadTasksEngine();
+}
+
 function renderClientTabs() {
     var box = document.getElementById('client-tabs');
     if (!box) return;
@@ -1095,9 +1105,18 @@ function renderClientTabs() {
     
     var html = '<div class="flex items-center justify-between gap-2 overflow-x-auto pb-2 pt-1 w-full flex-wrap sm:flex-nowrap">';
     html += '<div class="flex items-center gap-2 overflow-x-auto flex-nowrap shrink-0">';
+
+    // Archive / Active View Mode Switcher Button
+    html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 ' +
+        (tasksArchiveMode ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-300' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '" title="' + (tasksArchiveMode ? 'الرجوع للمهام والخطط النشطة' : 'عرض الخطط المؤرشفة') + '">' +
+        '<span>' + (tasksArchiveMode ? '📦 الأرشيف (مفعّل)' : '📦 الأرشيف') + '</span>' +
+        '<span dir="ltr" class="' + (tasksArchiveMode ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-900') + ' text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">' + tasksArchivedCount + '</span>' +
+    '</button>';
+
+    // All Plans filter button
     html += '<button type="button" onclick="filterTasksByPlan(null)" class="shrink-0 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-2 ' +
-        (!selectedPlanFilter ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '">' +
-        '<span>📑 جميع الخطط</span>' +
+        (!selectedPlanFilter ? (tasksArchiveMode ? 'bg-amber-700 text-white shadow-sm ring-2 ring-amber-400' : 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300') : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '">' +
+        '<span>' + (tasksArchiveMode ? '📦 جميع الخطط المؤرشفة' : '📑 جميع الخطط النشطة') + '</span>' +
         '<span dir="ltr" class="' + (!selectedPlanFilter ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-800') + ' text-[11px] px-2 py-0.5 rounded-full font-mono font-bold">' + allTasks.length + '</span>' +
     '</button>';
 
@@ -1106,15 +1125,33 @@ function renderClientTabs() {
         var isSel = (selectedPlanFilter === pName);
         var cleanTitle = esc(pName).replace(/\.(docx|doc|pdf|txt)$/i, '');
         var escapedPlan = esc(pName).replace(/'/g, "\\'");
-        html += '<div class="shrink-0 inline-flex items-center rounded-xl overflow-hidden shadow-xs transition border ' +
-            (isSel ? 'border-purple-300 bg-purple-600 text-white ring-2 ring-purple-300' : 'border-purple-200 bg-purple-50 text-purple-900 hover:bg-purple-100/80') + '">' +
-            '<button type="button" onclick="filterTasksByPlan(\'' + escapedPlan + '\')" class="text-xs font-bold px-3.5 py-2 flex items-center gap-2 text-inherit">' +
-                '<span>📄 ' + cleanTitle + '</span>' +
-                '<span dir="ltr" class="text-[11px] font-mono ' + (isSel ? 'bg-white/25 text-white' : 'bg-purple-200 text-purple-950') + ' px-2 py-0.5 rounded-lg font-bold">' + pInfo.completed + ' / ' + pInfo.total + '</span>' +
-            '</button>' +
-            '<button type="button" onclick="event.stopPropagation(); deletePlanAction(\'' + escapedPlan + '\')" title="حذف هذه الخطة بالكامل" class="px-2.5 py-2 text-xs font-bold opacity-60 hover:opacity-100 hover:bg-red-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-purple-700 border-r border-purple-200') + '">' +
-                '✕' +
-            '</button>' +
+        
+        var pillColor = tasksArchiveMode ? 
+            (isSel ? 'border-amber-400 bg-amber-600 text-white ring-2 ring-amber-300' : 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100/80') :
+            (isSel ? 'border-purple-300 bg-purple-600 text-white ring-2 ring-purple-300' : 'border-purple-200 bg-purple-50 text-purple-900 hover:bg-purple-100/80');
+
+        html += '<div class="shrink-0 inline-flex items-center rounded-xl overflow-hidden shadow-xs transition border ' + pillColor + '">' +
+            '<button type="button" onclick="filterTasksByPlan(\'' + escapedPlan + '\')" class="text-xs font-bold px-3 py-2 flex items-center gap-2 text-inherit">' +
+                '<span>' + (tasksArchiveMode ? '📦 ' : '📄 ') + cleanTitle + '</span>' +
+                '<span dir="ltr" class="text-[11px] font-mono ' + (isSel ? 'bg-white/25 text-white' : (tasksArchiveMode ? 'bg-amber-200 text-amber-950' : 'bg-purple-200 text-purple-950')) + ' px-2 py-0.5 rounded-lg font-bold">' + pInfo.completed + ' / ' + pInfo.total + '</span>' +
+            '</button>';
+
+        if (!tasksArchiveMode) {
+            // Archive Button on active pill
+            html += '<button type="button" onclick="event.stopPropagation(); archivePlanAction(\'' + escapedPlan + '\')" title="أرشفة هذه الخطة (نقلها للأرشيف)" class="px-2 py-2 text-xs font-bold opacity-70 hover:opacity-100 hover:bg-amber-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-amber-700 border-r border-purple-200') + '">' +
+                '📦' +
+            '</button>';
+        } else {
+            // Restore Button on archived pill
+            html += '<button type="button" onclick="event.stopPropagation(); unarchivePlanAction(\'' + escapedPlan + '\')" title="استعادة هذه الخطة للوحة النشطة" class="px-2 py-2 text-xs font-bold opacity-70 hover:opacity-100 hover:bg-emerald-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-emerald-700 border-r border-amber-200') + '">' +
+                '♻️' +
+            '</button>';
+        }
+
+        // Delete Button
+        html += '<button type="button" onclick="event.stopPropagation(); deletePlanAction(\'' + escapedPlan + '\')" title="حذف هذه الخطة بالكامل" class="px-2 py-2 text-xs font-bold opacity-60 hover:opacity-100 hover:bg-red-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-purple-700 border-r border-purple-200') + '">' +
+            '✕' +
+        '</button>' +
         '</div>';
     });
     html += '</div>';
@@ -1123,17 +1160,102 @@ function renderClientTabs() {
     if (selectedPlanFilter) {
         var cleanSelTitle = esc(selectedPlanFilter).replace(/\.(docx|doc|pdf|txt)$/i, '');
         var escapedSel = esc(selectedPlanFilter).replace(/'/g, "\\'");
+        
+        if (!tasksArchiveMode) {
+            html += '<button type="button" onclick="archivePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-600 hover:text-white border border-amber-200 shadow-sm transition flex items-center gap-1.5" title="أرشفة الخطة المحددة">' +
+                '<span>📦 أرشفة الخطة</span>' +
+            '</button>';
+        } else {
+            html += '<button type="button" onclick="unarchivePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-600 hover:text-white border border-emerald-200 shadow-sm transition flex items-center gap-1.5" title="استعادة الخطة للوحة النشطة">' +
+                '<span>♻️ استعادة الخطة للوحة النشطة</span>' +
+            '</button>';
+        }
+
         html += '<button type="button" onclick="deletePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200 shadow-sm transition flex items-center gap-1.5" title="حذف الخطة المحددة">' +
-            '<span>🗑️ حذف خطة «' + cleanSelTitle + '»</span>' +
+            '<span>🗑️ حذف «' + cleanSelTitle + '»</span>' +
         '</button>';
     }
-    html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5">' +
-        '<span>➕ كتابة خطة جديدة بالقالب</span>' +
-    '</button>';
+    
+    if (!tasksArchiveMode) {
+        html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5">' +
+            '<span>➕ كتابة خطة جديدة بالقالب</span>' +
+        '</button>';
+    } else {
+        html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-slate-800 text-white hover:bg-slate-900 shadow-sm transition flex items-center gap-1.5">' +
+            '<span>⚡ العودة للخطط النشطة</span>' +
+        '</button>';
+    }
     html += '</div>';
     html += '</div>';
 
     box.innerHTML = html;
+}
+
+async function archivePlanAction(planName) {
+    if (!planName) return;
+    var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '').trim();
+    if (!confirm("📦 هل أنت متأكد من أرشفة خطة «" + cleanTitle + "» ونقلها إلى الأرشيف؟\n\nستختفي من اللوحة اليومية لتتمكن من العمل على خطط الشهر الجديد، وتبقى محفوظة بكافة ملفاتها وسجلاتها في الأرشيف للرجوع إليها بأي وقت.")) {
+        return;
+    }
+    
+    // Optimistic removal from active list
+    var targetNorm = cleanTitle.toLowerCase();
+    tasksList = (tasksList || []).filter(function(t){
+        var p = (t.plan_name || t.file_name || '').trim();
+        var pNorm = p.replace(/\.(docx|doc|pdf|txt)$/i, '').trim().toLowerCase();
+        return p !== planName && pNorm !== targetNorm;
+    });
+    if (selectedPlanFilter === planName || (selectedPlanFilter && selectedPlanFilter.replace(/\.(docx|doc|pdf|txt)$/i, '').trim() === cleanTitle)) {
+        selectedPlanFilter = null;
+    }
+    tasksArchivedCount++;
+    renderClientTabs();
+    renderTasksBoard();
+    if (typeof showToast === 'function') showToast("جاري نقل الخطة للأرشيف... 📦", "info");
+
+    try {
+        var res = await safeFetchJson('/api/plans/archive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_name: planName })
+        });
+        if (res && (res.success || res.ok)) {
+            if (typeof showToast === 'function') showToast(res.message || "تمت أرشفة الخطة بنجاح 📦✨", "success");
+        } else {
+            if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر تأكيد الأرشفة", "error");
+        }
+        await loadTasksEngine();
+    } catch(err) {
+        console.error("Archive plan error:", err);
+        await loadTasksEngine();
+    }
+}
+
+async function unarchivePlanAction(planName) {
+    if (!planName) return;
+    var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '').trim();
+    if (!confirm("♻️ هل ترغب في استعادة خطة «" + cleanTitle + "» من الأرشيف وإعادتها للوحة المهام النشطة؟")) {
+        return;
+    }
+
+    if (typeof showToast === 'function') showToast("جاري استعادة الخطة للوحة النشطة... ♻️", "info");
+
+    try {
+        var res = await safeFetchJson('/api/plans/unarchive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_name: planName })
+        });
+        if (res && (res.success || res.ok)) {
+            if (typeof showToast === 'function') showToast(res.message || "تمت استعادة الخطة بنجاح ♻️✨", "success");
+        } else {
+            if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر استعادة الخطة", "error");
+        }
+        await loadTasksEngine();
+    } catch(err) {
+        console.error("Unarchive plan error:", err);
+        await loadTasksEngine();
+    }
 }
 
 async function deletePlanAction(planName) {
@@ -1192,8 +1314,9 @@ async function loadTasksEngine() {
     renderClientTabs();
     if (typeof loadTasksIngestFields === 'function') loadTasksIngestFields();
     try {
+        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false');
         var results = await Promise.all([
-            safeFetchJson('/api/tasks'),
+            safeFetchJson(tasksUrl),
             safeFetchJson('/api/tasks/employees')
         ]);
         var dataTasks = results[0] || {};
@@ -1201,6 +1324,8 @@ async function loadTasksEngine() {
 
         tasksList = (dataTasks && dataTasks.tasks) ? dataTasks.tasks : [];
         employeesList = (dataEmps && dataEmps.employees) ? dataEmps.employees : [];
+        tasksArchivedCount = (dataTasks && typeof dataTasks.archived_count !== 'undefined') ? dataTasks.archived_count : 0;
+        tasksActiveCount = (dataTasks && typeof dataTasks.active_count !== 'undefined') ? dataTasks.active_count : 0;
 
         // If selected plan filter doesn't match any task, reset filter
         if (selectedPlanFilter && !tasksList.some(function(t){
