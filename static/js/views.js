@@ -1758,12 +1758,14 @@ function getTaskSequenceNum(t) {
 
 function renderTaskCard(t, indexInPlan) {
     var st = t.status || 'Pending AM Approval';
-    var statusBadgeClass = st === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
+    var isSubmitted = (st === 'Awaiting AM Review' || st === 'Submitted / In Review' || st === 'Submitted' || st === 'Review Required');
+    var isCompleted = (st === 'Completed' || st === 'Approved / Scheduled' || st === 'Done');
+    var statusBadgeClass = isCompleted ? 'bg-emerald-100 text-emerald-800' :
                            st === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                           st === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' :
+                           isSubmitted ? 'bg-purple-100 text-purple-800 font-bold animate-pulse' :
                            st === 'Assigned' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800';
-    var stLabel = st === 'Completed' ? 'مكتملة' : st === 'In Progress' ? 'جاري العمل' :
-                  st === 'Awaiting AM Review' ? 'بانتظار مراجعتك' : st === 'Assigned' ? 'مُسندة' : 'بانتظار الإسناد';
+    var stLabel = isCompleted ? 'مكتملة ومعتمدة ✅' : st === 'In Progress' ? 'جاري العمل ⏳' :
+                  isSubmitted ? 'تم التسليم / بانتظار مراجعتك 🎬' : st === 'Assigned' ? 'مُسندة 👤' : 'بانتظار الإسناد 📝';
 
     var cleanAM = (t.am_name || '').trim();
     if (!cleanAM || cleanAM === 'EMP-001' || cleanAM === 'EMP-001-AM' || t.am_id === 'EMP-001' || t.am_id === 'EMP-001-AM') {
@@ -2160,17 +2162,17 @@ function renderTaskCard(t, indexInPlan) {
             '<div class="flex gap-1 pt-1"><select id="reassign-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">تحويل لموظف آخر...</option>' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
             '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap">تحويل 🔄</button></div>';
     }
-    if (st === 'Awaiting AM Review') {
+    if (isSubmitted) {
         html += '<div class="grid grid-cols-2 gap-1 pt-1">' +
-            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs py-1.5 rounded-lg">↩️ رجّع للتعديل</button>' +
-            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-lg">✅ اعتماد واكتمال</button>' +
+            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1">↩️ طلب تعديل</button>' +
+            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1">✅ اعتماد واكتمال</button>' +
             '</div>' +
             '<div class="flex gap-1 pt-1"><select id="fwd-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">مرّرها للي بعده...</option>' + empOptionsHtml('') + '</select>' +
             '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">مرّر ➡️</button></div>' +
-            '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 rounded-lg shadow-sm mt-1">↩️ سحب المهمة من الموظف</button>';
+            '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-1.5 rounded-lg shadow-sm mt-1">↩️ سحب المهمة من الموظف</button>';
     }
-    if (st === 'Completed') {
-        html += '<span class="text-xs font-bold text-emerald-600 block text-center">✓ مكتملة ومعتمدة بنجاح ✅</span>';
+    if (isCompleted) {
+        html += '<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-center text-xs font-bold text-emerald-800 flex items-center justify-center gap-1">✓ مكتملة ومعتمدة بنجاح ✅</div>';
     }
     html += '</div></div>';
     return html;

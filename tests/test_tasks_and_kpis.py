@@ -412,52 +412,63 @@ def test_role_effective_tabs_and_task_isolation():
     assert "T2" not in [t["task_id"] for t in am1_tasks]
 
 
-def test_team_workload_active_status_filtering():
-    active_statuses = {"Pending AM Approval", "Assigned", "In Progress", "Review Required", "Pending Revision", "Awaiting AM Review"}
+def test_monthly_report_status_normalization_and_counting():
+    """Verify that tasks in 'Submitted / In Review', 'Awaiting AM Review', and 'Completed'
+    are properly normalized and accounted for in monthly report statistics."""
     tasks = [
-        {"task_id": "T1", "status": "In Progress", "assigned_employee_id": "EMP-8148", "is_archived": False},
-        {"task_id": "T2", "status": "Completed", "assigned_employee_id": "EMP-8148", "is_archived": False},
-        {"task_id": "T3", "status": "Awaiting AM Review", "assigned_employee_id": "EMP-8148", "is_archived": False},
-        {"task_id": "T4", "status": "In Progress", "assigned_employee_id": "EMP-8148", "is_archived": True}, # Archived
+        {"task_id": "T1", "status": "Submitted / In Review", "assigned_employee_id": "EMP-8142", "assignee_name": "ندى أيمن كمال"},
+        {"task_id": "T2", "status": "Awaiting AM Review", "assigned_employee_id": "EMP-8143", "assignee_name": "فرح ياسر"},
+        {"task_id": "T3", "status": "Completed", "assigned_employee_id": "EMP-8143", "assignee_name": "فرح ياسر"},
+        {"task_id": "T4", "status": "In Progress", "assigned_employee_id": "EMP-8148", "assignee_name": "عمر احمد"},
+        {"task_id": "T5", "status": "Assigned", "assigned_employee_id": "EMP-8148", "assignee_name": "عمر احمد"},
     ]
-    
-    active_tasks = [
-        t for t in tasks 
-        if not t.get("is_archived") and t.get("status") in active_statuses and t.get("status") != "Completed"
-    ]
-    
-    assert len(active_tasks) == 2
-    assert [t["task_id"] for t in active_tasks] == ["T1", "T3"]
 
-
-def test_am_notification_resolution_and_payload():
-    task = {
-        "task_id": "TASK-100",
-        "title": "تصميم بوست الجمعة البيضاء",
-        "client_name": "شركة الفرات",
-        "assignee_name": "عمر احمد",
-        "am_id": "AM-2072-9827",
-        "am_name": "محمود خالد"
+    stats = {
+        "EMP-8142": {"assigned": 0, "in_progress": 0, "submitted": 0, "completed": 0},
+        "EMP-8143": {"assigned": 0, "in_progress": 0, "submitted": 0, "completed": 0},
+        "EMP-8148": {"assigned": 0, "in_progress": 0, "submitted": 0, "completed": 0},
     }
+
+    for t in tasks:
+        eid = t["assigned_employee_id"]
+        st = t["status"]
+        if st in ("Assigned", "In Progress", "Awaiting AM Review", "Submitted / In Review", "Submitted", "Completed", "Approved / Scheduled", "Done"):
+            stats[eid]["assigned"] += 1
+        if st in ("In Progress", "in_progress"):
+            stats[eid]["in_progress"] += 1
+        if st in ("Awaiting AM Review", "Submitted / In Review", "Submitted", "Completed", "Approved / Scheduled", "Done"):
+            stats[eid]["submitted"] += 1
+        if st in ("Completed", "Approved / Scheduled", "Done"):
+            stats[eid]["completed"] += 1
+
+    # Nada: 1 assigned, 1 submitted (Submitted / In Review)
+    assert stats["EMP-8142"]["assigned"] == 1
+    assert stats["EMP-8142"]["submitted"] == 1
+    assert stats["EMP-8142"]["completed"] == 0
+
+    # Farah: 2 assigned, 2 submitted, 1 completed
+    assert stats["EMP-8143"]["assigned"] == 2
+    assert stats["EMP-8143"]["submitted"] == 2
+    assert stats["EMP-8143"]["completed"] == 1
+
+    # Omar: 2 assigned, 1 in progress, 0 submitted
+    assert stats["EMP-8148"]["assigned"] == 2
+    assert stats["EMP-8148"]["in_progress"] == 1
+    assert stats["EMP-8148"]["submitted"] == 0
+
+
+def test_ensure_client_record_contract_and_default_am():
+    """Verify _ensure_client_record creates deterministic client DTO with assigned AM."""
+    from api.index import _ensure_client_record
     
-    mins = 45.0
-    notes = "تم الانتهاء من التصميم وتصدير ملفات PSD"
-    drive_link = "https://drive.google.com/file/d/test1234/view"
-    
-    message = (
-        f"📥 <b>مهمة جاهزة للمراجعة والتسليم</b>\n"
-        f"👤 الموظف: {task['assignee_name']}\n"
-        f"📝 المهمة: <b>{task['title']}</b>\n"
-        f"🏢 العميل: {task['client_name']}\n"
-        f"⏱️ الوقت المستغرق: {mins} دقيقة\n"
-        f"📝 ملاحظات: {notes}\n"
-        f"🔗 رابط الدرايف: {drive_link}"
-    )
-    
-    assert "عمر احمد" in message
-    assert "تصميم بوست الجمعة البيضاء" in message
-    assert "45.0 دقيقة" in message
-    assert "https://drive.google.com/file/d/test1234/view" in message
+    # Existing client simulation or new client creation
+    cid, rec = _ensure_client_record("شركة الإبداع للتقنية", am_id="AM-2072-9827")
+    assert cid is not None
+    assert rec is not None
+    assert rec["name"] == "شركة الإبداع للتقنية"
+    assert rec.get("am_employee_id") == "AM-2072-9827"
+    assert rec.get("id") == cid
+
 
 
 

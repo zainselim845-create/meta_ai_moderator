@@ -820,10 +820,10 @@ async function loadMyPortal() {
     const box = document.getElementById('my-tasks-list');
     const actionBtns = (t) => {
       const s = t.status || '';
-      if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 text-white">🚀 بدأت العمل</button>`;
-      if (/In Progress/i.test(s)) return `<button onclick="submitMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white">✅ سلّمت (+ملاحظات)</button>`;
-      if (/Awaiting/i.test(s)) return `<span class="text-[11px] text-amber-600 font-bold">⏳ عند المراجعة</span>`;
-      if (/Completed|مكتمل/i.test(s)) return `<span class="text-[11px] text-emerald-600 font-bold">✅ مكتملة</span>`;
+      if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs">🚀 بدأت العمل</button>`;
+      if (/In Progress/i.test(s)) return `<button onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs">📤 تسليم المهمة ✅</button>`;
+      if (/Awaiting|Submitted|Review/i.test(s)) return `<span class="text-[11px] bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-full font-bold">⏳ عند مراجعة AM</span>`;
+      if (/Completed|مكتمل|Approved/i.test(s)) return `<span class="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-bold">✅ معتمدة ومكتملة</span>`;
       return '';
     };
     const driveThumb = (u) => {
