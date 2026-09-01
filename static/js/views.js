@@ -1029,18 +1029,20 @@ async function renderEmployeesStatus() {
     } catch(e){}
 
     var html = emps.map(function(e){
-        var n = load[e.employee_id] || 0;
-        var working = (inprog[e.employee_id] || 0) > 0;
-        var isSelected = selectedEmployeeFilter === e.employee_id;
+        var eid = String(e.employee_id || '').trim();
+        var enm = String(e.name || '').trim();
+        var n = (typeof load[eid] !== 'undefined') ? load[eid] : (typeof load[enm] !== 'undefined' ? load[enm] : 0);
+        var working = ((inprog[eid] || inprog[enm] || 0) > 0);
+        var isSelected = (selectedEmployeeFilter === eid || (selectedEmployeeName && selectedEmployeeName === enm));
         var dot = n === 0 ? 'bg-emerald-500' : (working ? 'bg-amber-500 animate-pulse' : 'bg-blue-500');
         var label = n === 0 ? 'متاح' : (n + ' مهمة' + (working ? ' · شغّال 🚀' : ''));
         var bgClass = isSelected ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500/20 shadow-sm' : 'hover:bg-slate-50 border-transparent';
         
-        return '<button type="button" onclick="toggleEmployeeFilter(\'' + esc(e.employee_id) + '\', \'' + esc(e.name || e.employee_id) + '\')" ' +
+        return '<button type="button" onclick="toggleEmployeeFilter(\'' + esc(eid) + '\', \'' + esc(enm || eid) + '\')" ' +
             'title="اضغط لعرض مهام الموظف" class="w-full text-right p-2 rounded-xl transition border flex items-center justify-between text-slate-700 ' + bgClass + '">' +
             '<span class="flex items-center gap-2 min-w-0">' +
                 '<span class="w-2.5 h-2.5 rounded-full flex-shrink-0 ' + dot + '"></span>' +
-                '<span class="font-bold text-xs truncate">' + esc(e.name || e.employee_id) + '</span>' +
+                '<span class="font-bold text-xs truncate">' + esc(enm || eid) + '</span>' +
                 '<span class="text-[10px] text-slate-400 truncate">(' + esc(e.role||'موظف') + ')</span>' +
             '</span>' +
             '<span class="bg-slate-100 px-2 py-0.5 rounded-md text-[11px] font-mono flex-shrink-0 ' + (n===0?'text-emerald-700 font-bold':(working?'text-amber-700 font-bold':'text-blue-700')) + '">' + label + '</span>' +
@@ -2134,12 +2136,16 @@ function renderTasksBoard() {
 
         // 1. Employee or AM Filter
         if (selectedEmployeeFilter) {
-            var empAllTasks = (employeesWorkloadData && employeesWorkloadData[selectedEmployeeFilter]) || [];
+            var empAllTasks = (employeesWorkloadData && (employeesWorkloadData[selectedEmployeeFilter] || (selectedEmployeeName && employeesWorkloadData[selectedEmployeeName]))) || [];
             if (empAllTasks.length > 0) {
                 displayTasks = empAllTasks.slice();
             } else {
                 displayTasks = displayTasks.filter(function(t) {
-                    return String(t.assigned_employee_id || '').trim() === String(selectedEmployeeFilter).trim();
+                    var eid = String(t.assigned_employee_id || '').trim();
+                    var aname = String(t.assignee_name || '').trim();
+                    return eid === String(selectedEmployeeFilter).trim() ||
+                           (selectedEmployeeName && aname === String(selectedEmployeeName).trim()) ||
+                           (selectedEmployeeName && (aname.indexOf(selectedEmployeeName) !== -1 || selectedEmployeeName.indexOf(aname) !== -1));
                 });
             }
         } else if (selectedAMFilter) {
