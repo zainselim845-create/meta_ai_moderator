@@ -10266,20 +10266,79 @@ def telegram_tasks_webhook():
         chat_id = str((msg.get("chat") or {}).get("id", ""))
         text = (msg.get("text") or "").strip()
         tg_id = str((msg.get("from") or {}).get("id", ""))
-        # If the employee owes a submit-note, treat this message as the note.
+        caption = (msg.get("caption") or "").strip()
+        final_note = text or caption
+
+        # Handle Telegram Video, Document, or Photo uploads directly from employees
+        media_file_id = None
+        media_file_name = None
+        media_mime = "application/octet-stream"
+
+        if msg.get("video"):
+            v = msg["video"]
+            media_file_id = v.get("file_id")
+            media_file_name = v.get("file_name") or f"video_{int(time.time())}.mp4"
+            media_mime = v.get("mime_type") or "video/mp4"
+        elif msg.get("document"):
+            doc = msg["document"]
+            media_file_id = doc.get("file_id")
+            media_file_name = doc.get("file_name") or f"doc_{int(time.time())}"
+            media_mime = doc.get("mime_type") or "application/octet-stream"
+        elif msg.get("photo"):
+            ph = msg["photo"][-1]
+            media_file_id = ph.get("file_id")
+            media_file_name = f"photo_{int(time.time())}.jpg"
+            media_mime = "image/jpeg"
+
+        uploaded_drive_link = None
+        if media_file_id:
+            try:
+                tok = _tasks_bot_token()
+                gf_res = json.loads(_tq.urlopen(_tq.Request(f"https://api.telegram.org/bot{tok}/getFile?file_id={media_file_id}"), timeout=10).read().decode('utf-8'))
+                file_path = (gf_res.get("result") or {}).get("file_path")
+                if file_path:
+                    raw_bytes = _tq.urlopen(_tq.Request(f"https://api.telegram.org/file/bot{tok}/{file_path}"), timeout=40).read()
+                    emp_info = _tasks_presser_emp(tg_id)
+                    emp_eid = emp_info.get("employee_id") or "EMP-001"
+                    emp_nm = emp_info.get("name") or "الموظف"
+                    parent_fid = employee_drive_folder_id(emp_eid, name=emp_nm)
+                    uploaded_drive_link = drive_upload_bytes(media_file_name, raw_bytes, media_mime, parent_id=parent_fid)
+            except Exception as _up_err:
+                print(f"[telegram media download/drive error] {_up_err}")
+
+        # If the employee owes a submit-note or sent a file deliverable
         pend = cache.get("tasks_note_pending") or {}
-        if tg_id in pend and text and text != "/start":
-            tid = pend.pop(tg_id)
+        tid = pend.pop(tg_id, None)
+        if not tid and uploaded_drive_link:
+            # Find the active in-progress task for this employee
+            emp_info = _tasks_presser_emp(tg_id)
+            emp_eid = str(emp_info.get("employee_id") or "")
+            if emp_eid:
+                all_t = _all_tasks_db()
+                active_t = next((x for x in all_t if str(x.get("assigned_employee_id")) == emp_eid and x.get("status") in ("In Progress", "Assigned")), None)
+                if active_t:
+                    tid = active_t.get("task_id")
+
+        if tid:
             cache["tasks_note_pending"] = pend
             push_setting("meta_ai_tasks_note_pending", pend)
             t, cid = _find_task_any_client(tid)
             if t and t.get("status") in ("In Progress", "Assigned", "Pending AM Approval"):
-                note = "" if text in ("تم", "خلاص", "لا", "skip", "-", "done") else text
+                note = "" if final_note in ("تم", "خلاص", "لا", "skip", "-", "done") else final_note
+                if uploaded_drive_link:
+                    t["drive_link"] = uploaded_drive_link
+                    t.setdefault("media_urls", [])
+                    if uploaded_drive_link not in t["media_urls"]:
+                        t["media_urls"].append(uploaded_drive_link)
                 _tasks_do_submit(t, cid, note)
-                _tasks_send(chat_id, "✅ تم تسليم المهمة للأكونت مانيجر للمراجعة بنجاح! شكراً لك.")
+                msg_text = "✅ تم تسليم المهمة للأكونت مانيجر للمراجعة بنجاح!"
+                if uploaded_drive_link:
+                    msg_text += f"\n📁 تم رفع الملف على Google Drive:\n{uploaded_drive_link}"
+                _tasks_send(chat_id, msg_text)
             else:
                 _tasks_send(chat_id, "المهمة مسلمة بالفعل أو قيد المراجعة.")
             return jsonify({"ok": True})
+
         if text == "/start":
             emp = _tasks_presser_emp(tg_id)
             nm = emp.get("name", "") if emp else ""
