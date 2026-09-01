@@ -2880,10 +2880,24 @@ async function ingestPlanAction(ev) {
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
 
     var matchedClient = (window.clientsList || []).find(function(c) {
-        return c.name.toLowerCase() === clientInput.toLowerCase() || c.id === clientInput;
+        return (c.name || '').toLowerCase() === clientInput.toLowerCase() || c.id === clientInput;
     });
     var clientId = matchedClient ? matchedClient.id : (clientInput || (typeof currentClient !== 'undefined' ? currentClient : ''));
-    var fileName = planName || (file ? file.name : (drive ? 'ملف Google Drive' : 'خطة محتوى مباشرة'));
+    
+    // Client Name is primary, plan / month is secondary if provided
+    var cleanFileBase = file ? file.name.replace(/\.(docx|doc|txt|pdf)$/i, '').trim() : '';
+    var formattedPlanName = '';
+    if (clientInput && planName) {
+        formattedPlanName = clientInput + ' - ' + planName;
+    } else if (clientInput && cleanFileBase && cleanFileBase.toLowerCase() !== clientInput.toLowerCase()) {
+        formattedPlanName = clientInput + ' - ' + cleanFileBase;
+    } else if (clientInput) {
+        formattedPlanName = clientInput;
+    } else {
+        formattedPlanName = planName || cleanFileBase || (drive ? 'ملف Google Drive' : 'خطة محتوى عامة');
+    }
+
+    var fileName = formattedPlanName;
     var opts;
 
     if (file) {
@@ -3755,7 +3769,17 @@ async function submitPlanBuilder() {
     var clientNameEl = document.getElementById('tasks-client-name');
     var activeCName = (clientNameEl ? clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim() : '') || 'Domya Marketing Agency';
     var clientName = ((document.getElementById('pb-client-name') || {}).value || '').trim() || activeCName;
-    var planName = ((document.getElementById('pb-plan-name') || {}).value || ('خطة ' + clientName)).trim();
+    var planSubName = ((document.getElementById('pb-plan-name') || {}).value || '').trim();
+    
+    var finalPlanName = '';
+    if (clientName && planSubName) {
+        finalPlanName = clientName + ' - ' + planSubName;
+    } else if (clientName) {
+        finalPlanName = clientName;
+    } else {
+        finalPlanName = planSubName || 'خطة عامة';
+    }
+    var planName = finalPlanName;
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
 
     var structuredPosts = [];
