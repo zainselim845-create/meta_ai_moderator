@@ -1138,27 +1138,42 @@ function renderClientTabs() {
 
 async function deletePlanAction(planName) {
     if (!planName) return;
-    var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '');
+    var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '').trim();
     if (!confirm("⚠️ هل أنت متأكد من حذف الخطة بالكامل: «" + cleanTitle + "» ؟\n\nسيتم حذف جميع المهام التابعة لهذه الخطة نهائياً من قاعدة البيانات وجوجل شيت.")) {
         return;
     }
-    if (typeof showToast === 'function') showToast("جاري حذف الخطة ومهامها...", "info");
+    
+    // 1. Optimistic removal from local state for instant responsiveness
+    var targetNorm = cleanTitle.toLowerCase();
+    tasksList = (tasksList || []).filter(function(t){
+        var p = (t.plan_name || t.file_name || '').trim();
+        var pNorm = p.replace(/\.(docx|doc|pdf|txt)$/i, '').trim().toLowerCase();
+        return p !== planName && pNorm !== targetNorm;
+    });
+    if (selectedPlanFilter === planName || (selectedPlanFilter && selectedPlanFilter.replace(/\.(docx|doc|pdf|txt)$/i, '').trim() === cleanTitle)) {
+        selectedPlanFilter = null;
+    }
+    renderClientTabs();
+    renderTasksBoard();
+    if (typeof showToast === 'function') showToast("تم حذف الخطة محلياً وجاري المزامنة مع السيرفر 🗑️", "info");
+
+    // 2. Sync with Backend
     try {
         var res = await safeFetchJson('/api/plans/delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan_name: planName })
+            body: JSON.stringify({ plan_name: planName, clean_name: cleanTitle })
         });
         if (res && (res.success || res.ok)) {
-            if (typeof showToast === 'function') showToast(res.message || "تم حذف الخطة بنجاح 🗑️", "success");
-            if (selectedPlanFilter === planName) selectedPlanFilter = null;
-            await loadTasksEngine();
+            if (typeof showToast === 'function') showToast(res.message || "تم حذف الخطة نهائياً من السيرفر بنجاح 🗑️", "success");
         } else {
-            if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر حذف الخطة", "error");
+            if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر تأكيد الحذف من السيرفر", "error");
         }
+        await loadTasksEngine();
     } catch(err) {
         console.error("Delete plan error:", err);
-        if (typeof showToast === 'function') showToast("حدث خطأ أثناء حذف الخطة", "error");
+        if (typeof showToast === 'function') showToast("حدث خطأ أثناء الاتصال بالسيرفر", "error");
+        await loadTasksEngine();
     }
 }
 
