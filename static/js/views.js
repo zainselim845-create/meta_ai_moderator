@@ -3215,14 +3215,22 @@ async function ingestPlanAction(ev) {
 
 async function loadTaskMonthlyReport() {
     try {
-        var res = await fetch('/api/tasks/monthly-report');
+        var mInput = document.getElementById('monthly-report-month');
+        var nowMonth = new Date().toISOString().slice(0, 7);
+        if (mInput && !mInput.value) {
+            mInput.value = nowMonth;
+        }
+        var selectedMonth = (mInput && mInput.value) ? mInput.value : nowMonth;
+        var res = await fetch('/api/tasks/monthly-report?month=' + encodeURIComponent(selectedMonth));
         var data = await res.json();
         var tbody = document.getElementById('monthly-report-table-body');
         if (!tbody) return;
 
         var report = (data && data.report) ? data.report : [];
+        window._lastMonthlyReportData = report;
+
         if (!report || report.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-slate-500">لا توجد سجلات أداء لهذا الشهر بعد</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-slate-500">لا توجد سجلات أداء لشهر (' + esc(selectedMonth) + ') بعد</td></tr>';
             return;
         }
 
@@ -3258,18 +3266,62 @@ async function loadTaskMonthlyReport() {
             var deliv = (r.submitted !== undefined) ? r.submitted : r.completed;
 
             return '<tr>' +
-                '<td class="p-3 font-bold text-slate-900">' + esc(r.employee) + ' <span class="text-xs font-normal text-slate-500">(' + esc(r.role) + ')</span></td>' +
-                '<td class="p-3 font-mono font-bold text-slate-800">' + r.assigned + '</td>' +
-                '<td class="p-3 font-mono text-amber-600 font-bold">' + inProg + '</td>' +
-                '<td class="p-3 font-mono font-bold text-emerald-600">' + deliv + '</td>' +
-                '<td class="p-3">' + rateBadge + '</td>' +
+                '<td class="p-3 font-bold text-slate-900 flex items-center gap-2">' +
+                    '<span class="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 border border-slate-200">👤</span>' +
+                    '<div>' + esc(r.employee) + ' <div class="text-[10px] font-normal text-slate-500">(' + esc(r.role) + ')</div></div>' +
+                '</td>' +
+                '<td class="p-3 font-mono font-bold text-slate-800 text-center">' + r.assigned + '</td>' +
+                '<td class="p-3 font-mono text-amber-600 font-bold text-center">' + inProg + '</td>' +
+                '<td class="p-3 font-mono font-bold text-emerald-600 text-center">' + deliv + '</td>' +
+                '<td class="p-3 text-center">' + rateBadge + '</td>' +
                 '<td class="p-3 font-mono">' + onTimeBadge + '</td>' +
                 '<td class="p-3 font-mono text-indigo-900 font-bold">' + esc(r.avg_turnaround || '-') + '</td>' +
-                '<td class="p-3 font-mono text-slate-600">' + esc(r.avg_duration || '-') + '</td>' +
+                '<td class="p-3 font-mono text-slate-700 font-bold">' + esc(r.avg_duration || '-') + '</td>' +
                 '<td class="p-3 text-xs text-slate-700 max-w-xs">' + notesHtml + '</td>' +
             '</tr>';
         }).join('');
     } catch(e) { console.error(e); }
+}
+
+function exportMonthlyReportCsv() {
+    var tbody = document.getElementById('monthly-report-table-body');
+    if (!tbody || !window._lastMonthlyReportData || !window._lastMonthlyReportData.length) {
+        showToast('لا توجد بيانات متاحة للتصدير حالياً', 'error');
+        return;
+    }
+    var rows = [
+        ["الموظف", "الدور / المسمى الوظيفي", "المسندة (Total)", "قيد العمل (In Progress)", "المسلمة والمنجزة (Delivered)", "المعتمدة (Completed)", "معدل الإنجاز (Rate)", "الالتزام بالموعد (On-Time KPI)", "متوسط مدة الإنجاز", "وقت التايمر"]
+    ];
+    window._lastMonthlyReportData.forEach(function(r) {
+        rows.push([
+            r.employee || '',
+            r.role || '',
+            r.assigned || 0,
+            r.in_progress || 0,
+            r.submitted || 0,
+            r.completed || 0,
+            r.completion_rate || '-',
+            (r.on_time_rate || '-') + ' (' + (r.on_time_count || 0) + ' في الموعد)',
+            r.avg_turnaround || '-',
+            r.avg_duration || '-'
+        ]);
+    });
+    var csvContent = "\uFEFF" + rows.map(function(e) {
+        return e.map(function(cell) {
+            return '"' + String(cell).replace(/"/g, '""') + '"';
+        }).join(",");
+    }).join("\n");
+    var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    var mInput = document.getElementById('monthly-report-month');
+    var m = (mInput && mInput.value) ? mInput.value : new Date().toISOString().slice(0, 7);
+    a.download = 'Monthly_Performance_Report_' + m + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('تم تصدير التقرير الشهري بنجاح 📊');
 }
 
 async function sendMonthlyReportAction() {

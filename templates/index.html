@@ -1688,15 +1688,21 @@
       </div>
 
       <!-- Section 3: Monthly Performance Report Table -->
-      <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+      <div id="monthly-performance-report-section" class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
             <i data-lucide="bar-chart-2" class="w-5 h-5 text-emerald-600"></i>
             <span>تقرير أداء وساعات عمل الفريق الشهرية (Monthly Performance Log)</span>
           </h3>
-          <button onclick="loadTaskMonthlyReport()" class="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200">
-            تحديث التقرير
-          </button>
+          <div class="flex items-center gap-2 flex-wrap">
+            <input type="month" id="monthly-report-month" onchange="loadTaskMonthlyReport()" class="text-xs px-2.5 py-1.5 border border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-emerald-500 shadow-2xs">
+            <button onclick="loadTaskMonthlyReport()" class="btn-ghost text-xs px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-1 shadow-2xs">
+              <span>تحديث 🔄</span>
+            </button>
+            <button onclick="exportMonthlyReportCsv()" class="btn-ghost text-xs px-3 py-1.5 rounded-xl border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 font-bold flex items-center gap-1 shadow-2xs transition">
+              <span>تصدير Excel / CSV 📊</span>
+            </button>
+          </div>
         </div>
 
         <div class="overflow-x-auto">
@@ -1760,15 +1766,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.min.js?v=9.89">
+  <script defer src="/static/js/app.min.js?v=9.90">
   </script>
-  <script defer src="/static/js/inbox.min.js?v=9.89">
+  <script defer src="/static/js/inbox.min.js?v=9.90">
   </script>
-  <script defer src="/static/js/chatwoot_free.min.js?v=9.89">
+  <script defer src="/static/js/chatwoot_free.min.js?v=9.90">
   </script>
-  <script defer src="/static/js/views.min.js?v=9.89">
+  <script defer src="/static/js/views.min.js?v=9.90">
   </script>
-  <script defer src="/static/js/clients.min.js?v=9.89">
+  <script defer src="/static/js/clients.min.js?v=9.90">
   </script>
  
   <!-- Modal: Add New Connected Account -->
