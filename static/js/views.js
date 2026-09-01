@@ -1,4 +1,13 @@
-/* Domya AI Moderator - Views Module */
+function escJs(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, '');
+}
+window.escJs = escJs;
 
 function formatGoogleDriveViewLink(url) {
     if (!url) return '';
@@ -1880,7 +1889,7 @@ function renderTaskCard(t, indexInPlan) {
             '</div>' +
             '<div class="flex items-center gap-1.5">' +
                 amTag +
-                '<button onclick="deleteTaskAction(\'' + esc(t.task_id) + '\')" class="text-slate-300 hover:text-red-600 transition text-sm p-1">✕</button>' +
+                '<button onclick="deleteTaskAction(\'' + escJs(t.task_id) + '\')" class="text-slate-300 hover:text-red-600 transition text-sm p-1 cursor-pointer">✕</button>' +
             '</div>' +
         '</div>' +
         '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
@@ -1888,7 +1897,7 @@ function renderTaskCard(t, indexInPlan) {
         visHtml +
         refsHtml + links +
         '<div class="pt-1">' +
-            '<button type="button" onclick="openTaskContentEditorModal(\'' + esc(t.task_id).replace(/'/g, "\\'") + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1.5">' +
+            '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
                 '<span>✍️ تعديل نصوص وكابشن البوست (Content Editor)</span>' +
             '</button>' +
         '</div>';
@@ -1909,7 +1918,7 @@ function renderTaskCard(t, indexInPlan) {
             '</div>' +
         '</div>' +
         '<div class="flex items-center justify-end pt-1.5 border-t border-slate-200/80">' +
-            '<button onclick="saveTaskDates(\'' + esc(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition">💾 حفظ المواعيد</button>' +
+            '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition">💾 حفظ المواعيد</button>' +
         '</div>' +
     '</div>';
 
@@ -1921,16 +1930,16 @@ function renderTaskCard(t, indexInPlan) {
     // Upload & Reference from device & link
     html += '<div class="space-y-1.5 pt-1">' +
         '<div class="grid grid-cols-2 gap-1.5">' +
-            '<button type="button" onclick="openDeliverableModal(\'' + esc(t.task_id) + '\', \'' + esc(driveLink||'') + '\')" class="text-center bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-sky-200 shadow-xs flex items-center justify-center gap-1 transition">' +
+            '<button type="button" onclick="openDeliverableModal(\'' + escJs(t.task_id) + '\', \'' + escJs(driveLink||'') + '\')" class="text-center bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-sky-200 shadow-xs flex items-center justify-center gap-1 transition cursor-pointer">' +
                 '<span>📤 تسليم فيديو / Drive</span>' +
             '</button>' +
             '<label class="text-center cursor-pointer bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-violet-200 shadow-xs flex items-center justify-center gap-1 transition">' +
                 '<span>➕ ريفرانس من الجهاز</span>' +
-                '<input type="file" accept="image/*,video/*,.pdf,.doc,.docx" class="hidden" onchange="uploadTaskReferenceFile(\'' + esc(t.task_id) + '\', this)">' +
+                '<input type="file" accept="image/*,video/*,.pdf,.doc,.docx" class="hidden" onchange="uploadTaskReferenceFile(\'' + escJs(t.task_id) + '\', this)">' +
             '</label>' +
         '</div>' +
         '<div class="text-center">' +
-            '<button type="button" onclick="promptAddLinkReference(\'' + esc(t.task_id) + '\')" class="text-[10px] text-violet-600 hover:text-violet-800 hover:underline font-bold transition">' +
+            '<button type="button" onclick="promptAddLinkReference(\'' + escJs(t.task_id) + '\')" class="text-[10px] text-violet-600 hover:text-violet-800 hover:underline font-bold transition cursor-pointer">' +
                 '🔗 أو إضافة رابط ريفرانس خارجي' +
             '</button>' +
         '</div>' +

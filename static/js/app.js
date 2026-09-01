@@ -24,6 +24,19 @@ function esc(str) {
     .replace(/'/g, '&#039;');
 }
 
+// Helper: Escape strings safely for inline JS string literals inside HTML attributes
+function escJs(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, '');
+}
+window.esc = esc;
+window.escJs = escJs;
+
 // Universal Safe JSON Fetch (Protects against HTML/500/404 unexpected token errors)
 async function safeFetchJson(url, options) {
   try {
