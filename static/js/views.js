@@ -1792,7 +1792,12 @@ function renderTaskCard(t, indexInPlan) {
         '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
         '<div class="text-xs text-slate-600 whitespace-pre-wrap max-h-36 overflow-y-auto bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 leading-relaxed">' + esc(t.caption || t.description || '') + '</div>' +
         visHtml +
-        refsHtml + links;
+        refsHtml + links +
+        '<div class="pt-1">' +
+            '<button type="button" onclick="openTaskContentEditorModal(\'' + esc(t.task_id).replace(/'/g, "\\'") + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1.5">' +
+                '<span>✍️ تعديل نصوص وكابشن البوست (Content Editor)</span>' +
+            '</button>' +
+        '</div>';
 
     // Dates
     var dStart = t.scheduled_start_date || '';
@@ -3992,4 +3997,114 @@ window.addPlanBuilderRow = addPlanBuilderRow;
 window.removePlanBuilderRow = removePlanBuilderRow;
 window.loadSamplePlanTemplate = loadSamplePlanTemplate;
 window.submitPlanBuilder = submitPlanBuilder;
+
+function openTaskContentEditorModal(taskId) {
+    if (!taskId) return;
+    var task = (tasksList || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
+    if (!task) {
+        for (var k in employeesWorkloadData) {
+            var found = (employeesWorkloadData[k] || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
+            if (found) { task = found; break; }
+        }
+    }
+    
+    var m = document.getElementById('modal-edit-task-content');
+    if (!m) return;
+    
+    var idEl = document.getElementById('etc-task-id');
+    var titleEl = document.getElementById('etc-task-title');
+    var captionEl = document.getElementById('etc-task-caption');
+    var visEl = document.getElementById('etc-task-visual-idea');
+    var ptypeEl = document.getElementById('etc-task-post-type');
+    var refsEl = document.getElementById('etc-task-reference-links');
+    var subEl = document.getElementById('etc-task-subtitle');
+
+    if (idEl) idEl.value = taskId;
+    if (titleEl) titleEl.value = (task && (task.title || task.tagline || '')) || '';
+    if (captionEl) captionEl.value = (task && (task.caption || task.description || '')) || '';
+    if (visEl) visEl.value = (task && (task.visual_idea || (task.content_data && task.content_data.visual_idea) || (task.graphic_data && task.graphic_data.idea) || '')) || '';
+    
+    var ptype = (task && task.content_data && task.content_data.post_type) || 'post';
+    if (ptypeEl) ptypeEl.value = ptype;
+    
+    var refs = (task && (task.reference_links || (task.content_data && task.content_data.reference_links) || [])) || [];
+    var refsStr = Array.isArray(refs) ? refs.join(', ') : String(refs || '');
+    if (refsEl) refsEl.value = refsStr;
+    
+    if (subEl) {
+        subEl.textContent = 'مهمة: ' + (taskId || '') + ((task && task.client_name) ? (' · ' + task.client_name) : '');
+    }
+    
+    m.classList.remove('hidden');
+}
+
+function closeTaskContentEditorModal() {
+    var m = document.getElementById('modal-edit-task-content');
+    if (m) m.classList.add('hidden');
+}
+
+async function saveTaskContentEditorAction(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    var taskId = (document.getElementById('etc-task-id').value || '').trim();
+    if (!taskId) return;
+    
+    var title = (document.getElementById('etc-task-title').value || '').trim();
+    var caption = (document.getElementById('etc-task-caption').value || '').trim();
+    var visualIdea = (document.getElementById('etc-task-visual-idea').value || '').trim();
+    var postType = (document.getElementById('etc-task-post-type').value || 'post').trim();
+    var refLinksStr = (document.getElementById('etc-task-reference-links').value || '').trim();
+    var refLinks = refLinksStr ? refLinksStr.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+    
+    if (!title) {
+        showToast('يرجى كتابة عنوان أو تاج لاين للبوست', 'error');
+        return;
+    }
+    
+    try {
+        var res = await safeFetchJson('/api/tasks/' + encodeURIComponent(taskId) + '/content', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: title,
+                tagline: title,
+                caption: caption,
+                description: caption,
+                visual_idea: visualIdea,
+                post_type: postType,
+                reference_links: refLinks
+            })
+        });
+        
+        if (res && (res.success || res.ok)) {
+            closeTaskContentEditorModal();
+            showToast('🎉 تم تحديث محتوى البوست ونصوصه بنجاح! ✍️✨', 'success');
+            
+            // Update local memory state
+            if (tasksList) {
+                var localTask = tasksList.find(function(x){ return String(x.task_id || x.id) === String(taskId); });
+                if (localTask) {
+                    localTask.title = title;
+                    localTask.tagline = title;
+                    localTask.caption = caption;
+                    localTask.description = caption;
+                    localTask.visual_idea = visualIdea;
+                    localTask.content_data = localTask.content_data || {};
+                    localTask.content_data.post_type = postType;
+                    localTask.reference_links = refLinks;
+                }
+            }
+            renderTasksBoard();
+            if (typeof loadMyTasks === 'function') loadMyTasks();
+        } else {
+            showToast((res && res.error) || 'تعذّر حفظ محتوى البوست', 'error');
+        }
+    } catch(err) {
+        showToast('خطأ أثناء حفظ التعديلات: ' + err.message, 'error');
+    }
+}
+
+window.openTaskContentEditorModal = openTaskContentEditorModal;
+window.closeTaskContentEditorModal = closeTaskContentEditorModal;
+window.saveTaskContentEditorAction = saveTaskContentEditorAction;
+
 

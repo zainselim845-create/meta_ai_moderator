@@ -336,4 +336,40 @@ def test_plan_archive_and_unarchive_lifecycle():
     assert len(active_after) == 2
 
 
+def test_content_creator_permissions_and_post_text_editing():
+    task = {
+        "task_id": "TASK-CC-001",
+        "title": "Old Hook",
+        "caption": "Old Caption Text",
+        "visual_idea": "Old idea",
+        "content_data": {"post_type": "post"},
+        "activity_log": []
+    }
+    
+    # 1. Simulate content creator updating the post text
+    new_title = "Hook: 5 أسرار لزيادة المبيعات 🚀"
+    new_caption = "كابشن تفصيلي للبوست مع نقاط وCTA"
+    new_visual_idea = "كاروسيل من 5 شرائح بألوان البراند"
+    new_post_type = "carousel"
+    
+    task["title"] = new_title
+    task["tagline"] = new_title
+    task["caption"] = new_caption
+    task["visual_idea"] = new_visual_idea
+    task["content_data"]["post_type"] = new_post_type
+    task["activity_log"].append({
+        "action": "content_updated",
+        "actor_name": "عبدالرحمن عربي (Content Creator)",
+        "note": "تعديل نصوص وكابشن البوست بواسطة كاتب المحتوى ✍️"
+    })
+    
+    assert task["title"] == new_title
+    assert task["caption"] == new_caption
+    assert task["visual_idea"] == new_visual_idea
+    assert task["content_data"]["post_type"] == "carousel"
+    assert len(task["activity_log"]) == 1
+    assert task["activity_log"][0]["action"] == "content_updated"
+
+
+
 

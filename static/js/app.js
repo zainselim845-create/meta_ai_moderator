@@ -802,13 +802,16 @@ async function loadMyPortal() {
             </div>
           </div>
         ` : ''}
-        ${canWork(t) ? `
-          <div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2">
-            <button type="button" onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold py-2 px-4 rounded-xl border border-sky-200 shadow-2xs transition flex items-center gap-1.5">
+        <div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2">
+          ${canWork(t) ? `
+            <button type="button" onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold py-1.5 px-3 rounded-xl border border-sky-200 shadow-2xs transition flex items-center gap-1.5">
               <span>📤 تسليم شغلك (فيديو / رابط Google Drive)</span>
             </button>
-          </div>
-        ` : ''}
+          ` : ''}
+          <button type="button" onclick="openTaskContentEditorModal('${esc(t.task_id)}')" class="bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold py-1.5 px-3 rounded-xl border border-amber-200 shadow-2xs transition flex items-center gap-1.5">
+            <span>✍️ تعديل نصوص وكابشن البوست (Content Editor)</span>
+          </button>
+        </div>
       </div>`).join('') : '<div class="p-4 text-center text-xs text-slate-400">مفيش مهام مسندة ليك حالياً</div>';
   } catch(e) {}
   // My attendance
