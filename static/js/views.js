@@ -9,6 +9,19 @@ function escJs(str) {
 }
 window.escJs = escJs;
 
+const ICONS = {
+    archive: '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
+    trash: '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
+    restore: '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>',
+    share: '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>',
+    plus: '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+    building: '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>',
+    calendar: '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>',
+    folder: '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>',
+    save: '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>'
+};
+window.ICONS = ICONS;
+
 function formatGoogleDriveViewLink(url) {
     if (!url) return '';
     var str = String(url).trim();
@@ -1242,19 +1255,19 @@ function renderClientTabs() {
 
         if (!tasksArchiveMode) {
             // Archive Button on active pill
-            html += '<button type="button" onclick="event.stopPropagation(); archivePlanAction(\'' + escapedPlan + '\')" title="أرشفة هذه الخطة (نقلها للأرشيف)" class="px-2 py-2 text-xs font-bold opacity-70 hover:opacity-100 hover:bg-amber-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-amber-700 border-r border-purple-200') + '">' +
-                '' +
+            html += '<button type="button" onclick="event.stopPropagation(); archivePlanAction(\'' + escapedPlan + '\')" title="أرشفة هذه الخطة (نقلها للأرشيف)" class="px-2.5 py-2 text-xs font-bold opacity-70 hover:opacity-100 hover:bg-amber-600 hover:text-white transition flex items-center justify-center ' + (isSel ? 'text-white border-r border-white/20' : 'text-amber-700 border-r border-purple-200') + '">' +
+                ICONS.archive +
             '</button>';
         } else {
             // Restore Button on archived pill
-            html += '<button type="button" onclick="event.stopPropagation(); unarchivePlanAction(\'' + escapedPlan + '\')" title="استعادة هذه الخطة للوحة النشطة" class="px-2 py-2 text-xs font-bold opacity-70 hover:opacity-100 hover:bg-emerald-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-emerald-700 border-r border-amber-200') + '">' +
-                '️' +
+            html += '<button type="button" onclick="event.stopPropagation(); unarchivePlanAction(\'' + escapedPlan + '\')" title="استعادة هذه الخطة للوحة النشطة" class="px-2.5 py-2 text-xs font-bold opacity-70 hover:opacity-100 hover:bg-emerald-600 hover:text-white transition flex items-center justify-center ' + (isSel ? 'text-white border-r border-white/20' : 'text-emerald-700 border-r border-amber-200') + '">' +
+                ICONS.restore +
             '</button>';
         }
 
         // Delete Button
-        html += '<button type="button" onclick="event.stopPropagation(); deletePlanAction(\'' + escapedPlan + '\')" title="حذف هذه الخطة بالكامل" class="px-2 py-2 text-xs font-bold opacity-60 hover:opacity-100 hover:bg-red-600 hover:text-white transition ' + (isSel ? 'text-white border-r border-white/20' : 'text-purple-700 border-r border-purple-200') + '">' +
-            '' +
+        html += '<button type="button" onclick="event.stopPropagation(); deletePlanAction(\'' + escapedPlan + '\')" title="حذف هذه الخطة بالكامل" class="px-2.5 py-2 text-xs font-bold opacity-60 hover:opacity-100 hover:bg-red-600 hover:text-white transition flex items-center justify-center ' + (isSel ? 'text-white border-r border-white/20' : 'text-purple-700 border-r border-purple-200') + '">' +
+            ICONS.trash +
         '</button>' +
         '</div>';
     });
@@ -1267,26 +1280,31 @@ function renderClientTabs() {
         
         if (!tasksArchiveMode) {
             html += '<button type="button" onclick="archivePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-600 hover:text-white border border-amber-200 shadow-sm transition flex items-center gap-1.5" title="أرشفة الخطة المحددة">' +
-                '<span> أرشفة الخطة</span>' +
+                ICONS.archive +
+                '<span>أرشفة الخطة</span>' +
             '</button>';
         } else {
             html += '<button type="button" onclick="unarchivePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-600 hover:text-white border border-emerald-200 shadow-sm transition flex items-center gap-1.5" title="استعادة الخطة للوحة النشطة">' +
-                '<span>️ استعادة الخطة للوحة النشطة</span>' +
+                ICONS.restore +
+                '<span>استعادة الخطة للوحة النشطة</span>' +
             '</button>';
         }
 
         html += '<button type="button" onclick="deletePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200 shadow-sm transition flex items-center gap-1.5" title="حذف الخطة المحددة">' +
-            '<span>️ حذف «' + cleanSelTitle + '»</span>' +
+            ICONS.trash +
+            '<span>حذف «' + cleanSelTitle + '»</span>' +
         '</button>';
     }
     
     if (!tasksArchiveMode) {
         html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5">' +
-            '<span> كتابة خطة جديدة بالقالب</span>' +
+            ICONS.plus +
+            '<span>كتابة خطة جديدة بالقالب</span>' +
         '</button>';
     } else {
         html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-slate-800 text-white hover:bg-slate-900 shadow-sm transition flex items-center gap-1.5">' +
-            '<span> العودة للخطط النشطة</span>' +
+            ICONS.restore +
+            '<span>العودة للخطط النشطة</span>' +
         '</button>';
     }
     html += '</div>';
@@ -1889,7 +1907,7 @@ function renderTaskCard(t, indexInPlan) {
             '</div>' +
             '<div class="flex items-center gap-1.5">' +
                 amTag +
-                '<button onclick="deleteTaskAction(\'' + escJs(t.task_id) + '\')" class="text-slate-300 hover:text-red-600 transition text-sm p-1 cursor-pointer"></button>' +
+                '<button onclick="deleteTaskAction(\'' + escJs(t.task_id) + '\')" title="حذف المهمة" class="text-slate-400 hover:text-red-600 transition p-1 cursor-pointer flex items-center justify-center">' + ICONS.trash + '</button>' +
             '</div>' +
         '</div>' +
         '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
@@ -1898,7 +1916,8 @@ function renderTaskCard(t, indexInPlan) {
         refsHtml + links +
         '<div class="pt-1">' +
             '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
-                '<span>️ تعديل نصوص وكابشن البوست (Content Editor)</span>' +
+                ICONS.edit +
+                '<span>تعديل نصوص وكابشن البوست (Content Editor)</span>' +
             '</button>' +
         '</div>';
 
@@ -1909,16 +1928,19 @@ function renderTaskCard(t, indexInPlan) {
     html += '<div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs space-y-2.5 shadow-2xs">' +
         '<div class="grid grid-cols-2 gap-2.5">' +
             '<div>' +
-                '<label class="text-[11px] text-slate-800 font-bold block mb-1"> تاريخ النشر:</label>' +
+                '<label class="text-[11px] text-slate-800 font-bold flex items-center gap-1 mb-1">' + ICONS.calendar + ' <span>تاريخ النشر:</span></label>' +
                 '<input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(dStart) + '" class="w-full text-xs font-bold font-mono px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
             '</div>' +
             '<div>' +
-                '<label class="text-[11px] text-amber-900 font-bold block mb-1"> موعد التسليم:</label>' +
+                '<label class="text-[11px] text-amber-900 font-bold flex items-center gap-1 mb-1">' + ICONS.calendar + ' <span>موعد التسليم:</span></label>' +
                 '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="w-full text-xs font-bold font-mono px-2.5 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
             '</div>' +
         '</div>' +
         '<div class="flex items-center justify-end pt-1.5 border-t border-slate-200/80">' +
-            '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition"> حفظ المواعيد</button>' +
+            '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1.5">' +
+                ICONS.save +
+                '<span>حفظ المواعيد</span>' +
+            '</button>' +
         '</div>' +
     '</div>';
 
@@ -1931,15 +1953,19 @@ function renderTaskCard(t, indexInPlan) {
     html += '<div class="space-y-1.5 pt-1">' +
         '<div class="grid grid-cols-2 gap-1.5">' +
             '<button type="button" onclick="openDeliverableModal(\'' + escJs(t.task_id) + '\', \'' + escJs(driveLink||'') + '\')" class="text-center bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-sky-200 shadow-xs flex items-center justify-center gap-1 transition cursor-pointer">' +
-                '<span> تسليم فيديو / Drive</span>' +
+                ICONS.upload +
+                '<span>تسليم فيديو / Drive</span>' +
             '</button>' +
             '<label class="text-center cursor-pointer bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-violet-200 shadow-xs flex items-center justify-center gap-1 transition">' +
-                '<span> ريفرانس من الجهاز</span>' +
+                ICONS.plus +
+                '<span>ريفرانس من الجهاز</span>' +
                 '<input type="file" accept="image/*,video/*,.pdf,.doc,.docx" class="hidden" onchange="uploadTaskReferenceFile(\'' + escJs(t.task_id) + '\', this)">' +
             '</label>' +
         '</div>' +
         '<div class="text-center">' +
-            '<button type="button" onclick="promptAddLinkReference(\'' + escJs(t.task_id) + '\')" class="text-[10px] text-violet-600 hover:text-violet-800 hover:underline font-bold transition cursor-pointer">' +
+            '<button type="button" onclick="promptAddLinkReference(\'' + escJs(t.task_id) + '\')" class="text-[10px] text-violet-600 hover:text-violet-800 hover:underline font-bold transition cursor-pointer inline-flex items-center gap-1">' +
+                ICONS.link +
+                '<span>إضافة رابط مرجعي خارجي (URL Reference)</span>' +
                 ' أو إضافة رابط ريفرانس خارجي' +
             '</button>' +
         '</div>' +
@@ -2468,24 +2494,26 @@ function renderTasksBoard() {
             columnsHtml = '<div class="col-span-full space-y-4">' +
                 '<div class="bg-gradient-to-r from-slate-900 via-purple-950 to-indigo-950 text-white rounded-3xl p-4 sm:p-5 shadow-sm flex items-center justify-between flex-wrap gap-3">' +
                     '<div class="flex items-center gap-3">' +
-                        '<div class="w-12 h-12 rounded-2xl bg-white/15 text-white flex items-center justify-center font-bold text-xl shadow-inner shrink-0"></div>' +
+                        '<div class="w-12 h-12 rounded-2xl bg-white/15 text-white flex items-center justify-center font-bold text-xl shadow-inner shrink-0">' + ICONS.folder + '</div>' +
                         '<div>' +
                             '<div class="flex items-center gap-2 flex-wrap">' +
                                 '<h3 class="font-bold text-base sm:text-lg text-white">خطة: ' + esc(grp.fileName) + '</h3>' +
                                 '<span class="bg-purple-500/30 text-purple-200 text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border border-purple-400/30">' + fTasks.length + ' بوست بالخطة</span>' +
                             '</div>' +
                             '<div class="flex items-center gap-2 text-xs text-purple-200 mt-1">' +
-                                '<span class="font-bold text-white"> ' + esc(grp.clientName) + '</span>' +
+                                '<span class="font-bold text-white bg-white/20 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1.5">' + ICONS.building + ' ' + esc(grp.clientName) + '</span>' +
                                 '<span>·</span>' +
                                 '<span dir="ltr" class="font-mono bg-white/20 px-2 py-0.5 rounded-md text-white font-bold">' + completedCount + ' / ' + fTasks.length + ' منجز</span>' +
                             '</div>' +
+                        '</div>' +
                     '</div>' +
                     '<div class="flex items-center gap-2 flex-wrap">' +
-                        '<button type="button" onclick="sharePlanWithClient(\'' + esc(grp.clientName) + '\', \'' + esc(grp.fileName) + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">' +
-                            '<span> مشاركة الخطة مع العميل</span>' +
+                        '<button type="button" onclick="sharePlanWithClient(\'' + escJs(grp.clientName) + '\', \'' + escJs(grp.fileName) + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">' +
+                            ICONS.share +
+                            '<span>مشاركة الخطة مع العميل</span>' +
                         '</button>' +
                         (selectedPlanFilter ? ('<button type="button" onclick="filterTasksByPlan(null)" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 transition flex items-center gap-1.5 cursor-pointer">' +
-                            '<span> عرض جميع الخطط الأخرى</span>' +
+                            '<span>عرض جميع الخطط الأخرى</span>' +
                         '</button>') : '') +
                     '</div>' +
                 '</div>' +
