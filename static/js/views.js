@@ -2167,7 +2167,7 @@ function renderTaskCard(t, indexInPlan) {
             submitted_by: t.assignee_name || 'الموظف',
             notes: rawNotes,
             drive_link: driveLink,
-            media_urls: t.media_urls || []
+            media_urls: (t.deliverables ? t.deliverables.map(function(d){ return d.url || d; }) : (driveLink ? [driveLink] : []))
         }];
     }
 
