@@ -268,13 +268,20 @@ def rebuild_rules_index():
                 by_cid.setdefault(cid, []).append(item)
     cache["rules_by_cid"] = by_cid
 
-def sync_from_supabase():
-    global AGENCY_CLIENTS_STORE, ACCOUNTS_STORE
+_LAST_SUPABASE_SYNC = 0.0
+
+def sync_from_supabase(force=False):
+    global AGENCY_CLIENTS_STORE, ACCOUNTS_STORE, _LAST_SUPABASE_SYNC
+    now = time.time()
+    if not force and (now - _LAST_SUPABASE_SYNC < 3.0) and cache.get("last_sync"):
+        return
+    _LAST_SUPABASE_SYNC = now
     if SUPABASE_URL and SUPABASE_KEY:
         try:
             url = f"{SUPABASE_URL}/rest/v1/app_settings?select=key,value"
             r = requests.get(url, headers=supa_headers(), timeout=4)
             if r.status_code == 200:
+                cache["last_sync"] = now
                 for row in r.json():
                     k, v = row.get("key"), row.get("value")
                     if not k or not v:
@@ -9198,23 +9205,7 @@ def api_tasks_monthly_report():
             "notes": []
         }
 
-    tasks = get_client_tasks(_cid)
-    # Also merge tasks across all agency client plans to ensure full visibility
-    all_c_tasks = []
-    for c in (AGENCY_CLIENTS_STORE or []):
-        c_id = c.get("id") or c.get("client_id")
-        if c_id and str(c_id) != str(_cid):
-            all_c_tasks.extend(get_client_tasks(c_id))
-    
-    seen_ids = set()
-    merged_tasks = []
-    for t in (tasks + all_c_tasks):
-        tid = str(t.get("task_id") or "")
-        if tid and tid not in seen_ids:
-            seen_ids.add(tid)
-            merged_tasks.append(t)
-    if merged_tasks:
-        tasks = merged_tasks
+    tasks = _all_tasks_db()
     for t in tasks:
         # If month_str is specified, filter tasks belonging to this month
         if month_str and month_str != "all":
