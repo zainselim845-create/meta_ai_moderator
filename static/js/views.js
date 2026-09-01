@@ -3733,10 +3733,35 @@ async function handleModalFileUpload(input) {
     if (input) input.value = '';
 }
 
+async function submitTaskDirectlyNoFile() {
+    var taskId = window._activeDeliverableTaskId;
+    if (!taskId) return;
+    closeDeliverableModal();
+    showToast('جاري تسليم المهمة لمدير الحساب... ⏳');
+    try {
+        var res = await fetch('/api/me/tasks/' + encodeURIComponent(taskId) + '/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: 'تم إنجاز المطلوب وتسليم المهمة للمراجعة والاعتماد.' })
+        });
+        var data = await res.json();
+        if (res.ok) {
+            showToast('🎉 تم تسليم المهمة بنجاح للمراجعة والاعتماد! ✅', 'success');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            if (typeof loadMyPortal === 'function') loadMyPortal();
+        } else {
+            showToast(data.error || 'تعذّر التسليم', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+
 window.openDeliverableModal = openDeliverableModal;
 window.closeDeliverableModal = closeDeliverableModal;
 window.submitDriveLinkDeliverable = submitDriveLinkDeliverable;
 window.handleModalFileUpload = handleModalFileUpload;
+window.submitTaskDirectlyNoFile = submitTaskDirectlyNoFile;
 
 /* =========================================================================
    PLAN BUILDER TEMPLATE (منشئ وقالب كتابة الخطة التفاعلي)
