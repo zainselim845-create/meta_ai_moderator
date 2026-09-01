@@ -626,6 +626,9 @@ function renderHrAttendanceTable(serverSummary) {
     const empId = r.employee_id ? `<span class="text-[10px] font-mono text-slate-400 block">${esc(r.employee_id)}</span>` : '';
     const hrs = r.hours ? `${esc(r.hours)} س` : '<span class="text-slate-400">—</span>';
 
+    const note = (r.notes || r.note || r['ملاحظات'] || '').trim();
+    const noteHtml = note ? `<span class="text-xs text-slate-800 font-medium">${esc(note)}</span>` : '<span class="text-slate-400">—</span>';
+
     return `
       <tr class="hover:bg-slate-50 transition">
         <td class="p-3 font-mono font-bold text-slate-700">${esc(r.date||'')}</td>
@@ -635,6 +638,7 @@ function renderHrAttendanceTable(serverSummary) {
         <td class="p-3 text-center font-mono font-bold text-indigo-700">${hrs}</td>
         <td class="p-3 text-center">${dist}</td>
         <td class="p-3 text-center">${stBadge}</td>
+        <td class="p-3 text-xs max-w-xs break-words">${noteHtml}</td>
       </tr>
     `;
   }).join('');
@@ -904,19 +908,70 @@ async function loadMyPortal() {
   // My attendance
   try {
     const d = await safeFetchJson('/api/me/attendance');
-    const rows = (d && d.attendance ? d.attendance : []).slice(0,40);
+    const rows = (d && d.attendance ? d.attendance : []).slice(0, 40);
     const body = document.getElementById('my-attendance-body');
-    if (body) body.innerHTML = rows.length ? rows.map(r => `
-      <tr class="hover:bg-slate-50">
-        <td class="p-2 font-mono text-slate-500">${esc(r.date||'')}</td>
-        <td class="p-2 text-center">${esc(r.checkin_time||'-')}</td>
-        <td class="p-2 text-center">${esc(r.checkout_time||'-')}</td>
-        <td class="p-2 text-center">${esc(r.hours||'0')}</td>
-        <td class="p-2">${esc(r.status||r.action||'')}</td>
-      </tr>`).join('') : '<tr><td colspan="5" class="p-4 text-center text-slate-400">مفيش سجلات حضور</td></tr>';
-  } catch(e) {}
+    if (body) {
+      body.innerHTML = rows.length ? rows.map((r, idx) => {
+        const note = (r.notes || r.note || r['ملاحظات'] || '').trim();
+        const dateStr = esc(r.date || '');
+        const statusBadge = (r.status === 'حاضر') ? '<span class="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full text-[10px]">حاضر</span>' :
+                            (r.status === 'متأخر') ? '<span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full text-[10px]">متأخر</span>' :
+                            (r.status === 'غياب') ? '<span class="bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full text-[10px]">غياب</span>' :
+                            `<span class="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full text-[10px]">${esc(r.status || '-')}</span>`;
+        
+        return `
+        <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+          <td class="p-2.5 font-mono text-slate-700 font-bold text-xs">${dateStr}</td>
+          <td class="p-2.5 text-center font-mono text-slate-600 text-xs">${esc(r.checkin_time || '—')}</td>
+          <td class="p-2.5 text-center font-mono text-slate-600 text-xs">${esc(r.checkout_time || '—')}</td>
+          <td class="p-2.5 text-center font-mono font-bold text-slate-800 text-xs">${esc(r.hours || '0')}</td>
+          <td class="p-2.5 text-center">${statusBadge}</td>
+          <td class="p-2.5 text-xs text-slate-700 max-w-xs">
+            <div id="att-note-display-${idx}" class="break-words ${note ? 'text-slate-800 font-medium' : 'text-slate-400 italic'}">
+              ${note ? esc(note) : 'لا توجد ملاحظة'}
+            </div>
+          </td>
+          <td class="p-2.5 text-center">
+            <button type="button" onclick="editMyAttendanceNote('${escJs(r.date || '')}', ${idx})" class="bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-[11px] font-bold py-1 px-2.5 rounded-lg border border-slate-200 hover:border-blue-300 transition cursor-pointer inline-flex items-center gap-1 shadow-2xs">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              <span>${note ? 'تعديل' : 'إضافة ملاحظة'}</span>
+            </button>
+          </td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="7" class="p-6 text-center text-slate-400 text-xs">لا توجد سجلات حضور مسجلة</td></tr>';
+    }
+  } catch(e) {
+    console.error("Attendance load error:", e);
+  }
   if (typeof initLucideIcons === 'function') initLucideIcons();
 }
+
+async function editMyAttendanceNote(dateStr, idx) {
+  const currentTextEl = document.getElementById(`att-note-display-${idx}`);
+  const currentText = currentTextEl && !currentTextEl.classList.contains('italic') ? currentTextEl.innerText.trim() : '';
+  
+  const note = prompt(`اكتب ملاحظتك أو تقرير عمل يوم (${dateStr}):`, currentText);
+  if (note === null) return;
+  
+  try {
+    showToast('جاري حفظ الملاحظة...');
+    const res = await fetch('/api/me/attendance/note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateStr, note: note.trim() })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      showToast('تم حفظ الملاحظة بنجاح ', 'success');
+      loadMyPortal();
+    } else {
+      showToast(data.error || 'تعذّر حفظ الملاحظة', 'error');
+    }
+  } catch(e) {
+    showToast('خطأ في الاتصال بالسيرفر: ' + e.message, 'error');
+  }
+}
+window.editMyAttendanceNote = editMyAttendanceNote;
 
 async function startMyTask(id) {
   try {
