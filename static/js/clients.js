@@ -20,11 +20,14 @@ function renderClientSelector() {
     const sel = document.getElementById('client-select');
     if (!sel) return;
     if (!agencyClients.length) return;
-    sel.innerHTML = agencyClients.map(c => `
+    sel.innerHTML = agencyClients.map(c => {
+        const amTag = c.am_name ? ` — [AM: ${esc(c.am_name)}]` : '';
+        return `
         <option value="${esc(c.id)}" ${c.id === activeClientId ? 'selected' : ''}>
-            ${esc(c.name)} (${esc(c.company || 'شركة')})
+            ${esc(c.name)} (${esc(c.company || 'شركة')})${amTag}
         </option>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function renderActiveClientBar() {
@@ -89,6 +92,10 @@ function renderClientsGrid() {
                 </div>
 
                 <div class="text-xs text-slate-600 space-y-1.5 border-t border-slate-100 pt-2">
+                    <div class="flex items-center justify-between">
+                        <strong>👤 الأكونت مانيجر (AM):</strong>
+                        <span class="font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">${esc(c.am_name || 'محمود خالد')}</span>
+                    </div>
                     <div><strong>الباقة:</strong> <span class="font-semibold text-slate-800">${esc(c.package || 'Business Pro')}</span></div>
                     <div><strong>الهاتف:</strong> <span class="font-semibold text-slate-800">${esc(phone)}</span></div>
                     <div><strong>FB Page ID:</strong> <code class="bg-slate-100 px-1 py-0.5 rounded">${esc(c.page_id || 'غير مربوط')}</code></div>

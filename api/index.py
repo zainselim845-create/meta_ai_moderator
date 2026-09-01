@@ -3073,6 +3073,8 @@ def current_username():
     return session.get("uid") if has_request_context() else None
 
 def current_user_rec():
+    if has_request_context() and isinstance(session.get("user_rec"), dict) and session.get("user_rec"):
+        return session.get("user_rec")
     u = current_username()
     if not u:
         return {}
@@ -3141,30 +3143,50 @@ def is_content_creator():
     return False
 
 def assigned_client_ids():
-    """Client ids the current user is allowed to see. Admins & Managers see all by default."""
-    if is_admin():
-        return [c.get("id") for c in AGENCY_CLIENTS_STORE if c.get("id")]
-    user_rec = current_user_rec()
-    assigned = list(user_rec.get("assigned_clients") or [])
-    if is_manager() and not assigned:
-        return [c.get("id") for c in AGENCY_CLIENTS_STORE if c.get("id")]
+    """Client ids the current user is allowed to see.
+    - Admins: see ALL clients.
+    - Content Creators: see ALL clients for content writing.
+    - Account Managers: see ONLY their assigned clients (clients where am_employee_id/am_id matches their ID or name, or where they created/uploaded tasks).
+    - Plain Employees: see ONLY their assigned clients.
+    """
+    if is_admin() or is_content_creator():
+        return [str(c.get("id") or c.get("client_id")) for c in AGENCY_CLIENTS_STORE if (c.get("id") or c.get("client_id"))]
+    
+    user_rec = current_user_rec() or {}
+    assigned = [str(x) for x in (user_rec.get("assigned_clients") or [])]
     my_eid = _my_employee_id()
-    my_name = (user_rec.get("name") or "").strip().lower()
+    my_name = (user_rec.get("name") or current_username() or "").strip().lower()
+    
     for c in AGENCY_CLIENTS_STORE:
         cid = str(c.get("id") or c.get("client_id") or "")
-        if cid and cid not in assigned:
-            c_am_id = str(c.get("am_id") or c.get("account_manager_id") or c.get("am_employee_id") or "").strip()
-            c_am_name = str(c.get("am_name") or c.get("account_manager") or "").strip().lower()
-            if my_eid and c_am_id and c_am_id == my_eid:
-                assigned.append(cid)
-            elif my_name and c_am_name and c_am_name == my_name:
-                assigned.append(cid)
+        if not cid or cid in assigned:
+            continue
+        c_am_id = str(c.get("am_id") or c.get("account_manager_id") or c.get("am_employee_id") or "").strip()
+        c_am_name = str(c.get("am_name") or c.get("account_manager") or "").strip().lower()
+        if (my_eid and c_am_id and (c_am_id == my_eid or my_eid in c_am_id)) or \
+           (my_name and c_am_name and (c_am_name == my_name or my_name in c_am_name or c_am_name in my_name)):
+            assigned.append(cid)
+            
+    # Also check task database for any clients where this Account Manager is tagged
+    if is_manager() or my_eid:
+        for t in _all_tasks_db():
+            if not isinstance(t, dict):
+                continue
+            t_cid = str(t.get("client_id") or "")
+            if not t_cid or t_cid in assigned:
+                continue
+            t_amid = str(t.get("am_id") or "").strip()
+            t_amname = str(t.get("am_name") or "").strip().lower()
+            if (my_eid and t_amid and (t_amid == my_eid or my_eid in t_amid)) or \
+               (my_name and t_amname and (t_amname == my_name or my_name in t_amname or t_amname in my_name)):
+                assigned.append(t_cid)
+                
     return assigned
 
 def can_see_client(cid):
-    if is_admin() or is_manager() or is_content_creator():
+    if is_admin() or is_content_creator():
         return True
-    return cid in assigned_client_ids()
+    return str(cid) in assigned_client_ids()
 
 def _hx(s):
     """HTML-escape a value for safe interpolation into server-rendered HTML."""
@@ -4166,13 +4188,43 @@ def api_set_active_client():
     return jsonify({"ok": True, "active_client_id": cid})
 
 
-# Clients CRUD 
 @app.route("/api/clients", methods=["GET"])
 def api_clients_get():
     sync_from_supabase()
     heal_orphan_accounts()
     show_archived = request.args.get("archived") == "true"
     pool = AGENCY_CLIENTS_STORE if show_archived else [c for c in AGENCY_CLIENTS_STORE if c.get("is_active", True)]
+    
+    # Enrich every client with AM name for crystal-clear clarity for the Manager/Admin
+    all_tasks = _all_tasks_db()
+    for c in pool:
+        if not isinstance(c, dict):
+            continue
+        c_amid = str(c.get("am_employee_id") or c.get("am_id") or "").strip()
+        c_amname = str(c.get("am_name") or c.get("account_manager") or "").strip()
+        if not c_amname:
+            if c_amid in ("AM-2072-9827", "EMP-2072-9827"):
+                c["am_name"] = "محمود خالد"
+                c["am_employee_id"] = "AM-2072-9827"
+            elif c_amid in ("EMP-5887-5256", "AM-5887-5256"):
+                c["am_name"] = "آيه أحمد مجاهد"
+                c["am_employee_id"] = "EMP-5887-5256"
+            else:
+                # Find from tasks if any task exists for this client
+                cid = str(c.get("id") or "")
+                c_task = next((t for t in all_tasks if str(t.get("client_id") or "") == cid and t.get("am_name")), None)
+                if c_task:
+                    c["am_name"] = c_task.get("am_name")
+                    c["am_employee_id"] = c_task.get("am_id") or c_amid or "AM-2072-9827"
+                else:
+                    c["am_name"] = "محمود خالد"
+                    c["am_employee_id"] = c_amid or "AM-2072-9827"
+
+    # Filter by user role: Admins and Content Creators see all, Account Managers see only their assigned clients
+    if not (is_admin() or is_content_creator()):
+        allowed = set(assigned_client_ids())
+        pool = [c for c in pool if str(c.get("id") or c.get("client_id")) in allowed]
+        
     return jsonify(pool)
 
 @app.route("/api/clients", methods=["POST"])
@@ -6122,12 +6174,18 @@ def _ensure_client_record(client_input, am_id=None):
             break
             
     if target:
-        if am_id and not target.get("am_employee_id"):
+        if am_id:
             target["am_employee_id"] = am_id
+            target["am_name"] = "آيه أحمد مجاهد" if am_id in ("EMP-5887-5256", "AM-5887-5256") else ("محمود خالد" if am_id in ("AM-2072-9827", "EMP-2072-9827") else target.get("am_name", "محمود خالد"))
             push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
+        elif not target.get("am_name"):
+            t_amid = target.get("am_employee_id") or "AM-2072-9827"
+            target["am_name"] = "آيه أحمد مجاهد" if t_amid in ("EMP-5887-5256", "AM-5887-5256") else "محمود خالد"
         return str(target.get("id")), target
 
     # 2. Create new client record
+    effective_amid = am_id or _my_employee_id() or "AM-2072-9827"
+    effective_amname = "آيه أحمد مجاهد" if effective_amid in ("EMP-5887-5256", "AM-5887-5256") else "محمود خالد"
     slug = re.sub(r"[^\w\u0600-\u06FF]", "", client_str.replace(" ", "_"))[:20].lower()
     new_cid = f"cli_{slug}_{int(time.time())}" if slug else f"cli_{int(time.time())}"
     new_client = {
@@ -6135,7 +6193,8 @@ def _ensure_client_record(client_input, am_id=None):
         "name": client_str,
         "company": client_str,
         "package": "Business VIP",
-        "am_employee_id": am_id or "AM-2072-9827",
+        "am_employee_id": effective_amid,
+        "am_name": effective_amname,
         "page_id": None,
         "ig_id": None,
         "status": "active",

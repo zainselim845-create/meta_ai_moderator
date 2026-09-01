@@ -1599,7 +1599,8 @@ async function populateAccountSwitcher() {
     const list = Array.isArray(clients) ? clients : (clients.clients || []);
     const opts = list.map(c => {
       const ch = (c.fb_connected ? '' : '') + (c.ig_connected ? '' : '');
-      return `<option value="${c.id}"> ${c.name}${ch ? ' ' + ch : ' (غير مربوط)'}</option>`;
+      const amPart = c.am_name ? ` [AM: ${c.am_name}]` : '';
+      return `<option value="${c.id}">🏢 ${c.name}${amPart}${ch ? ' ' + ch : ' (غير مربوط)'}</option>`;
     }).join('');
 
     window._clientsList = list;

@@ -1246,13 +1246,18 @@ function renderClientTabs() {
         var cleanTitle = esc(pName).replace(/\.(docx|doc|pdf|txt)$/i, '');
         var escapedPlan = esc(pName).replace(/'/g, "\\'");
         
+        var pSampleTask = allTasks.find(function(t){ return (t.plan_name || t.file_name || '').trim() === pName; });
+        var pAmName = pSampleTask ? (pSampleTask.am_name || '') : '';
+        var amBadge = pAmName ? '<span class="text-[9px] ' + (isSel ? 'bg-white/30 text-white' : 'bg-indigo-100 text-indigo-900') + ' px-1.5 py-0.2 rounded font-medium">👤 ' + esc(pAmName) + '</span>' : '';
+
         var pillColor = tasksArchiveMode ? 
             (isSel ? 'border-amber-400 bg-amber-600 text-white ring-2 ring-amber-300' : 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100/80') :
             (isSel ? 'border-purple-300 bg-purple-600 text-white ring-2 ring-purple-300' : 'border-purple-200 bg-purple-50 text-purple-900 hover:bg-purple-100/80');
 
         html += '<div class="shrink-0 inline-flex items-center rounded-xl overflow-hidden shadow-xs transition border ' + pillColor + '">' +
-            '<button type="button" onclick="filterTasksByPlan(\'' + escapedPlan + '\')" class="text-xs font-bold px-3 py-2 flex items-center gap-2 text-inherit">' +
+            '<button type="button" onclick="filterTasksByPlan(\'' + escapedPlan + '\')" class="text-xs font-bold px-3 py-2 flex items-center gap-1.5 text-inherit">' +
                 '<span>' + (tasksArchiveMode ? ' ' : ' ') + cleanTitle + '</span>' +
+                amBadge +
                 '<span dir="ltr" class="text-[11px] font-mono ' + (isSel ? 'bg-white/25 text-white' : (tasksArchiveMode ? 'bg-amber-200 text-amber-950' : 'bg-purple-200 text-purple-950')) + ' px-2 py-0.5 rounded-lg font-bold">' + pInfo.completed + ' / ' + pInfo.total + '</span>' +
             '</button>';
 

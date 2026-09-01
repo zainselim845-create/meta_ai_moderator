@@ -467,7 +467,44 @@ def test_ensure_client_record_contract_and_default_am():
     assert rec is not None
     assert rec["name"] == "شركة الإبداع للتقنية"
     assert rec.get("am_employee_id") == "AM-2072-9827"
+    assert rec.get("am_name") == "محمود خالد"
     assert rec.get("id") == cid
+
+
+def test_assigned_clients_scoping_am_vs_admin():
+    """Verify Account Manager sees only their assigned clients while Admin sees all clients."""
+    from api.index import app, sync_from_supabase
+    sync_from_supabase()
+    
+    with app.test_client() as client:
+        # 1. Admin session
+        with client.session_transaction() as sess:
+            sess['uid'] = 'admin'
+            sess['role'] = 'admin'
+        res_admin = client.get('/api/clients')
+        assert res_admin.status_code == 200
+        admin_clients = res_admin.get_json()
+        assert len(admin_clients) >= 3
+        assert all(c.get('am_name') for c in admin_clients)
+        
+        # 2. Account Manager session with assigned clients
+        with client.session_transaction() as sess:
+            sess['uid'] = 'EMP-5887-5256'
+            sess['employee_id'] = 'EMP-5887-5256'
+            sess['role'] = 'account_manager'
+            sess['username'] = 'aya_ahmed'
+            sess['user_rec'] = {
+                'employee_id': 'EMP-5887-5256',
+                'name': 'آيه أحمد مجاهد',
+                'role': 'account_manager',
+                'assigned_clients': ['cli_sk_1788270118']
+            }
+        res_am = client.get('/api/clients')
+        assert res_am.status_code == 200
+        am_clients = res_am.get_json()
+        assert len(am_clients) == 1
+        assert am_clients[0].get('id') == 'cli_sk_1788270118'
+
 
 
 
