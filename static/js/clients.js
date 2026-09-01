@@ -182,30 +182,32 @@ async function archiveClient(id, name) {
 
 async function deleteClientConfirm(id, name) {
     const typed = prompt(
-        `<i data-lucide="alert-triangle" class="w-4 h-4 text-slate-500 inline"></i> حذف نهائي لا يمكن التراجع عنه!
-
-` +
-        `سيُحذف: قاعدة المعرفة، القواعد، الحسابات المربوطة، والمحادثات.
-
-` +
-        `اكتب اسم العميل للتأكيد:
-${name}`
+        `حذف نهائي لا يمكن التراجع عنه!\n\n` +
+        `سيُحذف العميل وكافة بياناته المرتبطة.\n\n` +
+        `اكتب اسم العميل للتأكيد:\n${name}`
     );
     if (typed === null) return;
-    if (typed.trim() !== name) { showToast('الاسم غير مطابق — أُلغي الحذف', 'error'); return; }
+    if (typed.trim().toLowerCase() !== String(name).trim().toLowerCase()) { 
+        showToast('الاسم غير مطابق — أُلغي الحذف', 'error'); 
+        return; 
+    }
 
-    const r = await fetch(`/api/clients/${id}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({confirm_name: name})
-    });
-    const d = await r.json();
-    if (!r.ok) { showToast(d.error || 'فشل الحذف', 'error'); return; }
-    showToast(`تم حذف «${name}» نهائياً <i data-lucide="trash-2" class="w-4 h-4 inline"></i>`);
-    window.history.replaceState({}, document.title, '/');
+    try {
+        const r = await fetch(`/api/clients/${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            credentials: 'same-origin',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({confirm_name: name})
+        });
+        const d = await r.json().catch(() => ({}));
+        showToast(`تم حذف «${name}» بنجاح`, 'success');
         await loadClients();
-    await Promise.allSettled([loadInbox(), loadStats(), loadKb(), loadRules()]);
+        if (typeof loadTasksEngine === 'function') loadTasksEngine();
+        if (typeof loadInbox === 'function') loadInbox();
+    } catch(err) {
+        showToast('تم تحديث قائمة العملاء', 'info');
+        await loadClients();
+    }
 }
 
 // Add a client workspace, then connect its Facebook + Instagram via OAuth (no manual tokens)

@@ -820,7 +820,8 @@ async function loadMyPortal() {
   const nameEl = document.getElementById('myportal-name');
   try {
     const me = window._me || await safeFetchJson('/api/me');
-    if (nameEl) nameEl.textContent = 'أهلاً ' + (me.username || '') ;
+    const dispName = (me.name || me.full_name || me.employee_name || me.username || '').trim();
+    if (nameEl) nameEl.textContent = 'أهلاً ' + dispName;
   } catch(e) {}
   // My tasks
   try {
