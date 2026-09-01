@@ -11,6 +11,7 @@ from api.index import (
     _append_task_log,
     _consolidate_and_merge_post_fragments,
     _matches_month,
+    _sanitize_task_record,
 )
 
 # =====================================================================
@@ -258,4 +259,33 @@ def test_location_anti_forwarding_rules():
         live_msg.get("forward_from_message_id")
     )
     assert is_live_forwarded is False
+
+
+# =====================================================================
+# Rule 1, 5, 8: Task Sanitization & Account Manager Normalization
+# Real state assertion preventing broken AM filters on production
+# =====================================================================
+
+def test_sanitize_task_record_normalizes_legacy_am_and_unassigned_ids():
+    legacy_task = {
+        "task_id": "TASK-0001",
+        "am_id": "EMP-001",
+        "am_name": "EMP-001",
+        "title": "تصميم غلاف"
+    }
+    cleaned = _sanitize_task_record(legacy_task)
+    assert cleaned["am_id"] == "AM-2072-9827"
+    assert cleaned["am_name"] == "محمود خالد"
+
+
+def test_sanitize_task_record_preserves_valid_real_account_manager():
+    valid_task = {
+        "task_id": "TASK-0002",
+        "am_id": "EMP-5887-5256",
+        "am_name": "آيه أحمد مجاهد",
+        "title": "كتابة سكريبت"
+    }
+    cleaned = _sanitize_task_record(valid_task)
+    assert cleaned["am_id"] == "EMP-5887-5256"
+    assert cleaned["am_name"] == "آيه أحمد مجاهد"
 
