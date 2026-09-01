@@ -1140,6 +1140,8 @@ async function renderEmployeesStatus() {
         '</div>';
     }).join('');
 
+    var html = deptTabsHtml + '<div class="space-y-2">' + (itemsHtml || '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون في هذا القسم</div>') + '</div>';
+
     if (selectedEmployeeFilter) {
         html = '<div class="pb-2 flex items-center justify-between border-b border-blue-100 mb-1">' +
             '<span class="text-[11px] text-blue-700 font-bold flex items-center gap-1">🎯 فلترة: <b>' + esc(selectedEmployeeName) + '</b></span>' +
