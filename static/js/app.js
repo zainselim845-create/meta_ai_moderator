@@ -126,7 +126,7 @@ function go(id, el) {
     // Strict Role-Based View Guard
     const _me = window._me;
     if (_me && !_me.is_admin) {
-      const allowedSet = new Set((_me.allowed_tabs && _me.allowed_tabs.length) ? _me.allowed_tabs : (_me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : (_me.role === 'content_creator' ? ['myportal', 'tasks', 'plan', 'dash'] : ['myportal'])));
+      const allowedSet = new Set((_me.allowed_tabs && _me.allowed_tabs.length) ? _me.allowed_tabs : (_me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : (_me.role === 'content_creator' ? ['myportal', 'tasks', 'plan'] : ['myportal'])));
       allowedSet.add('myportal');
       const canon = cleanId === 'chatwoot' ? 'accounts' : cleanId;
       if (!allowedSet.has(canon)) {

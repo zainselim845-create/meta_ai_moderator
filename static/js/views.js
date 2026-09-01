@@ -3129,11 +3129,13 @@ async function ingestPlanAction(ev) {
         showToast('جاري قراءة واستخراج نص الملف فورياً... ⏳');
         var clientText = await extractTextFromDocxClient(file);
         if (clientText && clientText.length > 10) {
+            // Strip base64-embedded images — they bloat payload beyond Vercel limits
+            var cleanText = clientText.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+/g, '[صورة مرفقة]');
             opts = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    plan_text: clientText,
+                    plan_text: cleanText,
                     drive_link: drive,
                     file_name: fileName,
                     plan_name: fileName,
