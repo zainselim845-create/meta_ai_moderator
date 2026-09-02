@@ -361,9 +361,12 @@ async function selectAccount(accId, accName) {
 
 async function deleteAccount(id){
     if(!confirm('هل أنت تأكد من حذف هذا الحساب؟')) return;
-    await fetch('/api/accounts/' + id, {method: 'DELETE'});
-    showToast('تم حذف الحساب');
-    loadAccounts();
+    try {
+        const res = await fetch('/api/accounts/' + id, {method: 'DELETE'});
+        if (!res.ok) { showToast('فشل حذف الحساب', 'error'); return; }
+        showToast('تم حذف الحساب');
+        loadAccounts();
+    } catch(e) { showToast('خطأ في الاتصال أثناء حذف الحساب', 'error'); }
 }
 
 let currentAspect = '1:1';
@@ -443,7 +446,7 @@ async function loadCaptionsVault() {
         const el = document.getElementById('captions-vault-list');
         if (!el) return;
         if (!list || list.length === 0) {
-            el.innerHTML = '<div class="empty-state" class="p-2 text-xs">لا توجد كابشنات محفوظة بعد</div>';
+            el.innerHTML = '<div class="empty-state p-2 text-xs">لا توجد كابشنات محفوظة بعد</div>';
             return;
         }
         el.innerHTML = list.map(item => `
@@ -556,16 +559,18 @@ async function deleteScheduledPost(id) {
         await fetch('/api/scheduler/' + id, {method: 'DELETE'});
         showToast('تم حذف المنشور المجدول بنجاح');
         loadScheduledPosts();
-    } catch(e) {}
+    } catch(e) { showToast('خطأ في حذف المنشور المجدول', 'error'); }
 }
 
 function switchAccTab(tab){
+    var tokenEl = document.getElementById('acc-sec-token');
+    var instaEl = document.getElementById('acc-sec-insta');
     if(tab==='token'){
-        document.getElementById('acc-sec-token').style.display = 'block';
-        document.getElementById('acc-sec-insta').style.display = 'none';
+        if (tokenEl) tokenEl.style.display = 'block';
+        if (instaEl) instaEl.style.display = 'none';
     } else {
-        document.getElementById('acc-sec-token').style.display = 'none';
-        document.getElementById('acc-sec-insta').style.display = 'block';
+        if (tokenEl) tokenEl.style.display = 'none';
+        if (instaEl) instaEl.style.display = 'block';
     }
 }
 
@@ -713,7 +718,7 @@ async function checkAuth() {
         if (typeof loadInbox === 'function') await loadInbox();
         return true;
     } catch(e) {
-        console.log('[checkAuth]', e);
+        console.warn('[checkAuth]', e);
     }
     return false;
 }
@@ -4749,14 +4754,21 @@ function closeTaskContentEditorModal() {
 
 async function saveTaskContentEditorAction(e) {
     if (e && e.preventDefault) e.preventDefault();
-    var taskId = (document.getElementById('etc-task-id').value || '').trim();
+    var idEl = document.getElementById('etc-task-id');
+    var taskId = idEl ? (idEl.value || '').trim() : '';
     if (!taskId) return;
     
-    var title = (document.getElementById('etc-task-title').value || '').trim();
-    var caption = (document.getElementById('etc-task-caption').value || '').trim();
-    var visualIdea = (document.getElementById('etc-task-visual-idea').value || '').trim();
-    var postType = (document.getElementById('etc-task-post-type').value || 'post').trim();
-    var refLinksStr = (document.getElementById('etc-task-reference-links').value || '').trim();
+    var titleEl = document.getElementById('etc-task-title');
+    var captionEl = document.getElementById('etc-task-caption');
+    var visualEl = document.getElementById('etc-task-visual-idea');
+    var typeEl = document.getElementById('etc-task-post-type');
+    var refEl = document.getElementById('etc-task-reference-links');
+
+    var title = titleEl ? (titleEl.value || '').trim() : '';
+    var caption = captionEl ? (captionEl.value || '').trim() : '';
+    var visualIdea = visualEl ? (visualEl.value || '').trim() : '';
+    var postType = typeEl ? (typeEl.value || 'post').trim() : 'post';
+    var refLinksStr = refEl ? (refEl.value || '').trim() : '';
     var refLinks = refLinksStr ? refLinksStr.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
     
     if (!title) {

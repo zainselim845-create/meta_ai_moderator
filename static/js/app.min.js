@@ -1200,7 +1200,7 @@ async function renderCompanyEmployees() {
         </div>
         <div class="flex items-center gap-1 flex-wrap">
           <select onchange="setEmployeeRole('${esc(e.employee_id)}',this.value)" class="text-[11px] px-2 py-1 border border-slate-200 rounded-lg bg-white">${roleOpts(cur)}</select>
-          <button onclick="document.getElementById('tabs-${esc(e.employee_id)}').classList.toggle('hidden')" class="text-[11px] px-2 py-1 rounded-lg border border-violet-200 text-violet-700">️ التبويبات</button>
+          <button onclick="var _t=document.getElementById('tabs-${esc(e.employee_id)}');if(_t)_t.classList.toggle('hidden')" class="text-[11px] px-2 py-1 rounded-lg border border-violet-200 text-violet-700">️ التبويبات</button>
           <button onclick="sendEmployeeCreds('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold"> إرسال بياناته</button>
           <button onclick="deleteCompanyEmployee('${esc(e.employee_id)}','${esc(e.name||e.employee_id)}')" class="text-[11px] px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">حذف</button>
         </div>
@@ -1536,7 +1536,8 @@ async function createMember() {
         <div class="mt-1 font-mono text-slate-800">اسم المستخدم: <b>${esc(d.username)}</b> — كلمة المرور: <b>${esc(d.password||'')}</b></div>`;
     }
     showToast(d.email_sent ? 'تم إضافة العضو وإرسال البيانات على بريده ' : 'تم إضافة العضو — انسخ بيانات الدخول');
-    document.getElementById('nm-username').value=''; document.getElementById('nm-email').value='';
+    var _u = document.getElementById('nm-username'); if (_u) _u.value = '';
+    var _em = document.getElementById('nm-email'); if (_em) _em.value = '';
     document.querySelectorAll('.nm-client-cb:checked').forEach(cb=>cb.checked=false);
     renderMembers();
   } catch(e) { showToast('خطأ في الشبكة', 'error'); }

@@ -168,9 +168,9 @@ function openEditClient(id) {
         }).catch(() => showToast('خطأ في التحديث', 'error'));
         return;
     }
-    document.getElementById('c-name').value = c.name || '';
-    document.getElementById('c-company').value = c.company || '';
-    document.getElementById('c-package').value = c.package || 'Business Pro';
+    if (document.getElementById('c-name')) document.getElementById('c-name').value = c.name || '';
+    if (document.getElementById('c-company')) document.getElementById('c-company').value = c.company || '';
+    if (document.getElementById('c-package')) document.getElementById('c-package').value = c.package || 'Business Pro';
     if (document.getElementById('c-page-id')) document.getElementById('c-page-id').value = c.page_id || '';
     if (document.getElementById('c-ig-id')) document.getElementById('c-ig-id').value = c.ig_id || '';
     modal.dataset.editId = id;
@@ -247,9 +247,12 @@ async function saveNewClient() {
     if (!modal) { return addNewClientQuick(); }
     const editId = modal.dataset.editId;
     
-    const name = document.getElementById('c-name').value.trim();
-    const company = document.getElementById('c-company').value.trim();
-    const package_tier = document.getElementById('c-package').value;
+    const nameEl = document.getElementById('c-name');
+    const companyEl = document.getElementById('c-company');
+    const packageEl = document.getElementById('c-package');
+    const name = nameEl ? nameEl.value.trim() : '';
+    const company = companyEl ? companyEl.value.trim() : '';
+    const package_tier = packageEl ? packageEl.value : 'Business Pro';
     const page_id = document.getElementById('c-page-id') ? document.getElementById('c-page-id').value.trim() : '';
     const ig_id = document.getElementById('c-ig-id') ? document.getElementById('c-ig-id').value.trim() : '';
     const token = document.getElementById('c-token') ? document.getElementById('c-token').value.trim() : '';
@@ -420,7 +423,7 @@ async function verifyPageTokenLive() {
             pill.className = 'pill-badge pill-btn-amber';
         }
     } catch (e) {
-        console.log('[Live Verification Check]', e);
+        console.warn('[Live Verification Check]', e);
     }
 }
 setTimeout(verifyPageTokenLive, 1500);
