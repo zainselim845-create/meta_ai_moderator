@@ -40,6 +40,19 @@ window.escJs = escJs;
 // Universal Safe JSON Fetch (Protects against HTML/500/404 unexpected token errors)
 async function safeFetchJson(url, options) {
   try {
+    options = options || {};
+    var headers = options.headers || {};
+    var token = localStorage.getItem('domya_token');
+    if (token) {
+      if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+        if (!headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + token);
+        if (!headers.has('X-Domya-Token')) headers.set('X-Domya-Token', token);
+      } else {
+        if (!headers['Authorization']) headers['Authorization'] = 'Bearer ' + token;
+        if (!headers['X-Domya-Token']) headers['X-Domya-Token'] = token;
+      }
+    }
+    options.headers = headers;
     const res = await fetch(url, options);
     const text = await res.text();
     if (!text || !text.trim()) {
@@ -417,6 +430,8 @@ async function handleLogout() {
     localStorage.removeItem('domya_token');
     localStorage.removeItem('domya_username');
     document.cookie = 'domya_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    var authHide = document.getElementById('auth-instant-hide');
+    if (authHide) authHide.remove();
     await fetch('/api/logout', { method: 'POST' });
   } catch(e){}
   window.location.reload();
@@ -716,18 +731,14 @@ function setHrAttCurrentMonth() {
 async function applyRoleUI() {
   let me = {};
   try {
-    const res = await fetch('/api/me');
-    if (!res.ok) {
-      const overlay = document.getElementById('login-modal-overlay');
-      if (overlay) overlay.style.display = 'flex';
-      document.querySelectorAll('#sidebar .nb').forEach(b => b.classList.add('hidden'));
-      return;
-    }
-    me = await res.json();
+    const res = await safeFetchJson('/api/me');
+    me = (res && typeof res === 'object') ? res : {};
   } catch(e) {
     return;
   }
   if (!me.logged_in) {
+    var authHide = document.getElementById('auth-instant-hide');
+    if (authHide) authHide.remove();
     const overlay = document.getElementById('login-modal-overlay');
     if (overlay) overlay.style.display = 'flex';
     document.querySelectorAll('#sidebar .nb').forEach(b => b.classList.add('hidden'));
@@ -735,6 +746,8 @@ async function applyRoleUI() {
   }
   
   // Hide login overlay if logged in
+  var authHide = document.getElementById('auth-instant-hide');
+  if (authHide) authHide.remove();
   const overlay = document.getElementById('login-modal-overlay');
   if (overlay) overlay.style.display = 'none';
 

@@ -44,6 +44,12 @@
           style.textContent = '.view:not(#' + targetPane + ') { display: none !important; }';
           document.head.appendChild(style);
         }
+        if (localStorage.getItem('domya_auth') === 'true' || localStorage.getItem('domya_token')) {
+          var authStyle = document.createElement('style');
+          authStyle.id = 'auth-instant-hide';
+          authStyle.textContent = '#login-modal-overlay { display: none !important; }';
+          document.head.appendChild(authStyle);
+        }
       } catch(e){}
     })();
   </script>
