@@ -2585,6 +2585,10 @@ function renderTasksBoard() {
                             ICONS.share +
                             '<span>مشاركة الخطة مع العميل</span>' +
                         '</button>' +
+                        '<button type="button" onclick="deleteWholePlanAction(\'' + escJs(grp.fileName) + '\')" class="text-xs font-bold px-3 py-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white border border-rose-400/30 transition flex items-center gap-1.5 cursor-pointer" title="حذف الخطة ومهامها بالكامل">' +
+                            ICONS.trash +
+                            '<span>حذف الخطة</span>' +
+                        '</button>' +
                         (selectedPlanFilter ? ('<button type="button" onclick="filterTasksByPlan(null)" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 transition flex items-center gap-1.5 cursor-pointer">' +
                             '<span>عرض جميع الخطط الأخرى</span>' +
                         '</button>') : '') +
@@ -2621,6 +2625,9 @@ function renderTasksBoard() {
                         '<div class="flex items-center gap-1.5">' +
                             '<button type="button" onclick="sharePlanWithClient(\'' + esc(grp.clientName) + '\', \'' + esc(grp.fileName) + '\')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="نسخ رابط مشاركة الخطة للعميل">' +
                                 '<span> مشاركة</span>' +
+                            '</button>' +
+                            '<button type="button" onclick="deleteWholePlanAction(\'' + esc(grp.fileName) + '\')" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer" title="حذف الخطة">' +
+                                ICONS.trash +
                             '</button>' +
                             '<span class="bg-blue-600 text-white text-xs font-mono font-bold px-2.5 py-1 rounded-full shadow-xs shrink-0">' + fTasks.length + ' مهام</span>' +
                         '</div>' +
@@ -2667,6 +2674,30 @@ async function deleteTaskAction(taskId) {
         } else { showToast(data.error || 'تعذّر الحذف', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
+
+async function deleteWholePlanAction(planName) {
+    if (!planName) return;
+    if (!confirm('هل أنت متأكد من حذف الخطة «' + planName + '» وجميع مهامها بالكامل؟')) return;
+    if (!confirm('تأكيد نهائي: سيتم مسح مهام هذه الخطة بالكامل ولن تتمكن من التراجع!')) return;
+    try {
+        var res = await fetch('/api/plans/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_name: planName })
+        });
+        var data = await res.json();
+        if (res.ok && (data.success || data.ok)) {
+            showToast(data.message || 'تم حذف الخطة بنجاح 🗑️', 'success');
+            selectedPlanFilter = null;
+            loadTasksEngine();
+        } else {
+            showToast(data.error || 'تعذّر حذف الخطة', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+window.deleteWholePlanAction = deleteWholePlanAction;
 
 async function reviewTaskDecision(taskId, action) {
     var body = { action: action };
