@@ -3567,35 +3567,37 @@ async function loadTaskMonthlyReport() {
                 ('<span class="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">' + esc(r.on_time_rate) +
                  ' <span class="text-[10px] text-slate-400 font-normal">(' + r.on_time_count + ' في الموعد)</span></span>') : '<span class="text-slate-400">—</span>';
             
-            var notesHtml = '-';
+            var notesHtml = '<span class="text-slate-400">—</span>';
             if (r.notes && r.notes.length) {
-                notesHtml = r.notes.map(function(n) {
-                    if (typeof n === 'object' && n && n.task_id) {
-                        var stBadge = (n.status === 'Awaiting AM Review' || n.status === 'Submitted / In Review') ? 
-                            ' <span class="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full font-bold shrink-0">🔍 قيد المراجعة</span>' : 
-                            ((n.status === 'Completed') ? ' <span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold shrink-0">✅ معتمد</span>' : '');
-                        
-                        var clientBadge = n.client_name ? ('<span class="text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold border border-slate-200 shrink-0">🏢 ' + esc(n.client_name) + '</span>') : '';
-                        
-                        var driveBtn = n.drive_link ? 
-                            ('<a href="' + esc(n.drive_link) + '" target="_blank" onclick="event.stopPropagation()" class="text-[10px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 font-bold transition shrink-0 flex items-center gap-0.5" title="فتح ملف التسليم على Drive">📁 Drive ↗</a>') : '';
+                notesHtml = '<div class="max-h-36 overflow-y-auto space-y-1 pr-1 custom-scrollbar">' +
+                    r.notes.map(function(n) {
+                        if (typeof n === 'object' && n && n.task_id) {
+                            var stBadge = (n.status === 'Awaiting AM Review' || n.status === 'Submitted / In Review') ? 
+                                '<span class="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded font-bold shrink-0">قيد المراجعة</span>' : 
+                                ((n.status === 'Completed') ? '<span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold shrink-0">معتمد</span>' : '');
+                            
+                            var clientBadge = n.client_name ? ('<span class="text-[9px] bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-bold border border-slate-200 shrink-0">' + esc(n.client_name) + '</span>') : '';
+                            
+                            var driveBtn = n.drive_link ? 
+                                ('<a href="' + esc(n.drive_link) + '" target="_blank" onclick="event.stopPropagation()" class="text-[10px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 font-bold transition shrink-0 flex items-center gap-0.5" title="فتح ملف التسليم على Drive">📁 Drive</a>') : '';
 
-                        return '<div onclick="openTaskDetailsModal(\'' + esc(n.task_id) + '\')" class="mb-1.5 p-1.5 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl cursor-pointer transition shadow-2xs flex items-center justify-between gap-1.5 flex-wrap group" title="اضغط لعرض تفاصيل المهمة ومرفقاتها">' +
-                            '<div class="flex items-center gap-1.5 min-w-0 flex-wrap">' +
-                                '<span class="font-mono font-bold text-[11px] bg-slate-900 text-white px-1.5 py-0.5 rounded-md group-hover:bg-blue-600 transition shrink-0">' + esc(n.task_id) + '</span>' +
-                                clientBadge +
-                                stBadge +
-                                '<span class="text-slate-700 text-xs font-semibold truncate max-w-[200px]">: ' + esc(n.note || n.title || 'مكتملة') + '</span>' +
-                            '</div>' +
-                            '<div class="flex items-center gap-1 shrink-0">' +
-                                driveBtn +
-                                '<span class="text-[10px] text-blue-600 font-bold bg-white px-1.5 py-0.5 rounded-lg border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition">️ عرض</span>' +
-                            '</div>' +
-                        '</div>';
-                    }
-                    var s = String(n || '').replace(/<[^>]*>/g, '');
-                    return '<div class="mb-1 leading-tight text-xs">' + esc(s) + '</div>';
-                }).join('');
+                            return '<div onclick="openTaskDetailsModal(\'' + esc(n.task_id) + '\')" class="p-1 bg-white hover:bg-blue-50/80 border border-slate-200 hover:border-blue-300 rounded-lg cursor-pointer transition shadow-2xs flex items-center justify-between gap-1 group" title="اضغط لعرض تفاصيل المهمة ومرفقاتها">' +
+                                '<div class="flex items-center gap-1 min-w-0 overflow-hidden">' +
+                                    '<span class="font-mono font-bold text-[10px] bg-slate-900 text-white px-1.5 py-0.2 rounded group-hover:bg-blue-600 transition shrink-0">' + esc(n.task_id) + '</span>' +
+                                    clientBadge +
+                                    stBadge +
+                                    '<span class="text-slate-700 text-[11px] font-semibold truncate max-w-[140px]">: ' + esc(n.note || n.title || 'مكتملة') + '</span>' +
+                                '</div>' +
+                                '<div class="flex items-center gap-1 shrink-0">' +
+                                    driveBtn +
+                                    '<span class="text-[9px] text-blue-600 font-bold bg-slate-50 px-1 py-0.5 rounded border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition">عرض</span>' +
+                                '</div>' +
+                            '</div>';
+                        }
+                        var s = String(n || '').replace(/<[^>]*>/g, '');
+                        return '<div class="mb-0.5 leading-tight text-[11px]">' + esc(s) + '</div>';
+                    }).join('') +
+                '</div>';
             }
 
             var rateNum = parseInt(r.completion_rate, 10);
@@ -3605,19 +3607,21 @@ async function loadTaskMonthlyReport() {
             var inProg = (r.in_progress !== undefined) ? r.in_progress : 0;
             var deliv = (r.submitted !== undefined) ? r.submitted : r.completed;
 
-            return '<tr>' +
-                '<td class="p-3 font-bold text-slate-900 flex items-center gap-2">' +
-                    '<span class="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 border border-slate-200"></span>' +
-                    '<div>' + esc(r.employee) + ' <div class="text-[10px] font-normal text-slate-500">(' + esc(r.role) + ')</div></div>' +
+            return '<tr class="hover:bg-slate-50/60 transition-colors">' +
+                '<td class="p-3 font-bold text-slate-900 align-middle">' +
+                    '<div class="flex items-center gap-2">' +
+                        '<span class="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 border border-slate-200">👤</span>' +
+                        '<div>' + esc(r.employee) + ' <div class="text-[10px] font-normal text-slate-500">(' + esc(r.role) + ')</div></div>' +
+                    '</div>' +
                 '</td>' +
-                '<td class="p-3 font-mono font-bold text-slate-800 text-center">' + r.assigned + '</td>' +
-                '<td class="p-3 font-mono text-amber-600 font-bold text-center">' + inProg + '</td>' +
-                '<td class="p-3 font-mono font-bold text-emerald-600 text-center">' + deliv + '</td>' +
-                '<td class="p-3 text-center">' + rateBadge + '</td>' +
-                '<td class="p-3 font-mono">' + onTimeBadge + '</td>' +
-                '<td class="p-3 font-mono text-indigo-900 font-bold">' + esc(r.avg_turnaround || '-') + '</td>' +
-                '<td class="p-3 font-mono text-slate-700 font-bold">' + esc(r.avg_duration || '-') + '</td>' +
-                '<td class="p-3 text-xs text-slate-700 max-w-xs">' + notesHtml + '</td>' +
+                '<td class="p-3 font-mono font-bold text-slate-800 text-center align-middle">' + r.assigned + '</td>' +
+                '<td class="p-3 font-mono text-amber-600 font-bold text-center align-middle">' + inProg + '</td>' +
+                '<td class="p-3 font-mono font-bold text-emerald-600 text-center align-middle">' + deliv + '</td>' +
+                '<td class="p-3 text-center align-middle">' + rateBadge + '</td>' +
+                '<td class="p-3 font-mono align-middle">' + onTimeBadge + '</td>' +
+                '<td class="p-3 font-mono text-indigo-900 font-bold align-middle">' + esc(r.avg_turnaround || '-') + '</td>' +
+                '<td class="p-3 font-mono text-slate-700 font-bold align-middle">' + esc(r.avg_duration || '-') + '</td>' +
+                '<td class="p-3 text-xs text-slate-700 min-w-[240px] max-w-sm align-middle">' + notesHtml + '</td>' +
             '</tr>';
         }).join('');
     } catch(e) { console.error(e); }
