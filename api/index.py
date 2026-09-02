@@ -8031,20 +8031,24 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
         tag = (p.get("tagline") or p.get("tag_line") or p.get("hook") or "").strip()
         cap = (p.get("caption") or "").strip()
         vis = (p.get("visual_idea") or p.get("design_brief") or "").strip()
+        title = (p.get("title") or "").strip()
+        
+        is_generic_title = not title or re.match(r'^(?:منشور|بوست|Post|Item|Task)\s*#?\s*\d*$', title, re.I) or title == "منشور جديد"
         
         if not tag and cap:
-            lines = [l.strip() for l in cap.splitlines() if l.strip()]
+            lines = [l.strip() for l in cap.splitlines() if l.strip() and not re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', l.strip())]
             if lines:
                 tag = lines[0][:100]
                 
-        p["tagline"] = tag
-        p["tag_line"] = tag
+        if is_generic_title:
+            title = tag[:100] if tag else (cap.splitlines()[0][:100] if cap else (vis[:100] if vis else f"بوست #{idx}"))
+            
+        p["title"] = title
+        p["tagline"] = tag or title
+        p["tag_line"] = tag or title
         p["visual_content"] = tag or vis
         p["design_brief"] = vis or tag
-        p["visual_idea"] = vis or tag
-        
-        if not p.get("title") or p.get("title") == "منشور جديد":
-            p["title"] = tag[:80] if tag else (cap[:80] if cap else f"منشور {idx}")
+        p["visual_idea"] = vis
             
         p["post_type"] = (p.get("post_type") or "post").lower()
         if "carousel" in p["post_type"] or "كاروسيل" in p["post_type"] or "slide" in tag.lower() or "slide" in cap.lower():
@@ -8244,11 +8248,25 @@ def api_tasks_ingest_plan():
 
         for p_idx, p in enumerate(extracted_posts, 1):
             tagline = (p.get("tagline") or p.get("tag_line") or p.get("hook") or "").strip()
-            title = (p.get("title") or tagline or "منشور جديد").lstrip("-•*️ ").strip()[:140]
-            if not tagline and title and title != "منشور جديد":
-                tagline = title
+            title = (p.get("title") or tagline or "").lstrip("-•*️ ").strip()[:140]
             caption = (p.get("caption") or "").strip()
-            visual = (p.get("visual_idea") or "").strip()
+            visual = (p.get("visual_idea") or p.get("design_brief") or "").strip()
+            
+            # If title is generic, pull first line from caption or visual
+            if not title or re.match(r'^(?:منشور|بوست|Post|Item|Task)\s*#?\s*\d*$', title, re.I) or title == "منشور جديد":
+                if tagline and not re.match(r'^(?:منشور|بوست|Post|Item|Task)\s*#?\s*\d*$', tagline, re.I):
+                    title = tagline[:100]
+                elif caption:
+                    lines = [l.strip() for l in caption.splitlines() if l.strip() and not re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', l.strip())]
+                    title = lines[0][:100] if lines else f"بوست #{p_idx}"
+                elif visual:
+                    title = visual[:100]
+                else:
+                    title = f"بوست #{p_idx}"
+
+            if not tagline:
+                tagline = title
+
             p_type = (p.get("post_type") or "post").lower()
             pub_date = (p.get("publish_date") or "").strip()
             pub_time = (p.get("publish_time") or "10:00").strip()

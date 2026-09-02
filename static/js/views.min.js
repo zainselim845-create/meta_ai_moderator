@@ -1949,6 +1949,24 @@ function renderTaskCard(t, indexInPlan) {
     var postSeq = (indexInPlan !== undefined && indexInPlan !== null) ? indexInPlan : (t.post_number_in_plan || t.post_number || 1);
     var postBadge = '<span class="bg-blue-600 hover:bg-blue-700 text-white font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg shadow-xs inline-flex items-center gap-0.5 border border-blue-500/50" title="ترتيب البوست في الخطة (بوست #' + postSeq + ')"><span>#</span><span>' + postSeq + '</span></span>';
 
+    var displayTitle = (t.title || t.tagline || t.tag_line || '').trim();
+    if (!displayTitle || displayTitle === 'منشور جديد' || /^منشور\s*#?\s*\d*$/i.test(displayTitle) || /^بوست\s*#?\s*\d*$/i.test(displayTitle)) {
+        if (t.tagline && t.tagline !== displayTitle && !/^منشور/i.test(t.tagline)) {
+            displayTitle = t.tagline;
+        } else if (t.caption) {
+            var firstLine = t.caption.split('\n')[0].trim();
+            if (firstLine) displayTitle = firstLine.slice(0, 100);
+        } else if (t.visual_idea) {
+            displayTitle = t.visual_idea.slice(0, 100);
+        }
+    }
+    if (!displayTitle) displayTitle = 'بوست #' + postSeq;
+
+    var displayCaption = (t.caption || t.description || '').trim();
+    if (!displayCaption && t.content_data && t.content_data.caption) {
+        displayCaption = String(t.content_data.caption).trim();
+    }
+
     var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
         '<div class="flex items-center justify-between gap-1 flex-wrap">' +
             '<div class="flex items-center gap-1.5 flex-wrap">' +
@@ -1962,8 +1980,8 @@ function renderTaskCard(t, indexInPlan) {
                 '<button onclick="deleteTaskAction(\'' + escJs(t.task_id) + '\')" title="حذف المهمة" class="text-slate-400 hover:text-red-600 transition p-1 cursor-pointer flex items-center justify-center">' + ICONS.trash + '</button>' +
             '</div>' +
         '</div>' +
-        '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(t.title) + '</h4>' +
-        '<div class="text-xs text-slate-600 whitespace-pre-wrap max-h-36 overflow-y-auto bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 leading-relaxed">' + esc(t.caption || t.description || '') + '</div>' +
+        '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(displayTitle) + '</h4>' +
+        (displayCaption ? ('<div class="text-xs text-slate-600 whitespace-pre-wrap max-h-36 overflow-y-auto bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 leading-relaxed font-sans">' + esc(displayCaption) + '</div>') : '') +
         visHtml +
         modHtml +
         refsHtml + links +
