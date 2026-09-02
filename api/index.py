@@ -10421,14 +10421,34 @@ def api_tasks_monthly_report():
         if secs and secs > 0:
             stats[target_key]["durations"].append(secs / 60.0)
 
-        note = (t.get("notes") or t.get("note") or t.get("review_note") or "").strip()
-        if note and note not in (".", "-"):
-            tid = t.get("task_id", "")
-            stats[target_key]["notes"].append({
-                "task_id": str(tid),
-                "note": str(note),
-                "status": str(st)
-            })
+        d_link = (t.get("drive_link") or "").strip()
+        custom_note = (t.get("notes") or t.get("note") or t.get("review_note") or "").strip()
+        is_delivered = bool(d_link) or st in ("Completed", "Approved / Scheduled", "Submitted / In Review", "Awaiting AM Review", "Done")
+        
+        if is_delivered or (custom_note and custom_note not in (".", "-")):
+            tid = str(t.get("task_id", "")).strip()
+            display_note = custom_note
+            if not display_note:
+                if d_link:
+                    display_note = "تم تسليم مخرجات العمل على Google Drive"
+                elif st in ("Completed", "Approved / Scheduled", "Done"):
+                    display_note = "تم إنجاز واعتماد المهمة بنجاح"
+                else:
+                    display_note = "تم تسليم المهمة للمراجعة والاعتماد"
+            
+            c_name = str(t.get("client_name") or "").strip()
+            if not c_name or c_name in ("None", "null", "عميل عام"):
+                c_name = _client_name(t.get("client_id"))
+                
+            if not any(n.get("task_id") == tid for n in stats[target_key]["notes"]):
+                stats[target_key]["notes"].append({
+                    "task_id": tid,
+                    "title": str(t.get("title") or "مهمة").strip(),
+                    "client_name": c_name,
+                    "drive_link": d_link,
+                    "note": display_note,
+                    "status": st
+                })
 
     report_data = []
     for k, s in stats.items():

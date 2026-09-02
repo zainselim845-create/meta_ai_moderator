@@ -3571,18 +3571,30 @@ async function loadTaskMonthlyReport() {
             if (r.notes && r.notes.length) {
                 notesHtml = r.notes.map(function(n) {
                     if (typeof n === 'object' && n && n.task_id) {
-                        var stBadge = (n.status === 'Awaiting AM Review') ? ' <span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full font-bold">بانتظار مراجعة AM</span>' : ((n.status === 'Completed') ? ' <span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">معتمد </span>' : '');
-                        return '<div onclick="openTaskDetailsModal(\'' + esc(n.task_id) + '\')" class="mb-1.5 p-1.5 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-lg cursor-pointer transition shadow-2xs flex items-center justify-between gap-1.5 flex-wrap group" title="اضغط لعرض تفاصيل المهمة ومرفقاتها">' +
-                            '<div class="flex items-center gap-1 min-w-0">' +
-                                '<span class="font-mono font-bold text-xs bg-slate-900 text-white px-1.5 py-0.5 rounded group-hover:bg-blue-600 transition">' + esc(n.task_id) + '</span>' +
+                        var stBadge = (n.status === 'Awaiting AM Review' || n.status === 'Submitted / In Review') ? 
+                            ' <span class="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full font-bold shrink-0">🔍 قيد المراجعة</span>' : 
+                            ((n.status === 'Completed') ? ' <span class="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold shrink-0">✅ معتمد</span>' : '');
+                        
+                        var clientBadge = n.client_name ? ('<span class="text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold border border-slate-200 shrink-0">🏢 ' + esc(n.client_name) + '</span>') : '';
+                        
+                        var driveBtn = n.drive_link ? 
+                            ('<a href="' + esc(n.drive_link) + '" target="_blank" onclick="event.stopPropagation()" class="text-[10px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 font-bold transition shrink-0 flex items-center gap-0.5" title="فتح ملف التسليم على Drive">📁 Drive ↗</a>') : '';
+
+                        return '<div onclick="openTaskDetailsModal(\'' + esc(n.task_id) + '\')" class="mb-1.5 p-1.5 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl cursor-pointer transition shadow-2xs flex items-center justify-between gap-1.5 flex-wrap group" title="اضغط لعرض تفاصيل المهمة ومرفقاتها">' +
+                            '<div class="flex items-center gap-1.5 min-w-0 flex-wrap">' +
+                                '<span class="font-mono font-bold text-[11px] bg-slate-900 text-white px-1.5 py-0.5 rounded-md group-hover:bg-blue-600 transition shrink-0">' + esc(n.task_id) + '</span>' +
+                                clientBadge +
                                 stBadge +
-                                '<span class="text-slate-700 text-xs font-semibold truncate">: ' + esc(n.note || 'مكتملة') + '</span>' +
+                                '<span class="text-slate-700 text-xs font-semibold truncate max-w-[200px]">: ' + esc(n.note || n.title || 'مكتملة') + '</span>' +
                             '</div>' +
-                            '<span class="text-[10px] text-blue-600 font-bold bg-white px-1.5 py-0.5 rounded border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition shrink-0">️ عرض</span>' +
+                            '<div class="flex items-center gap-1 shrink-0">' +
+                                driveBtn +
+                                '<span class="text-[10px] text-blue-600 font-bold bg-white px-1.5 py-0.5 rounded-lg border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition">️ عرض</span>' +
+                            '</div>' +
                         '</div>';
                     }
                     var s = String(n || '').replace(/<[^>]*>/g, '');
-                    return '<div class="mb-1 leading-tight">' + esc(s) + '</div>';
+                    return '<div class="mb-1 leading-tight text-xs">' + esc(s) + '</div>';
                 }).join('');
             }
 
