@@ -67,6 +67,39 @@ async function safeFetchJson(url, options) {
 }
 window.safeFetchJson = safeFetchJson;
 
+// High-Speed Stale-While-Revalidate (SWR) Client Cache Engine (Instant 0ms UI Rendering)
+async function swrFetchJson(url, options, cacheKey, onCachedData) {
+  var key = 'swr_cache_' + (cacheKey || url);
+  // 1. Instant 0ms render from localStorage
+  try {
+    var cached = localStorage.getItem(key);
+    if (cached) {
+      var parsedCache = JSON.parse(cached);
+      if (parsedCache && typeof onCachedData === 'function') {
+        onCachedData(parsedCache, true);
+      }
+    }
+  } catch(e){}
+
+  // 2. Background fresh network fetch
+  try {
+    var freshData = await safeFetchJson(url, options);
+    if (freshData && typeof freshData === 'object') {
+      try {
+        localStorage.setItem(key, JSON.stringify(freshData));
+      } catch(e){}
+      if (typeof onCachedData === 'function') {
+        onCachedData(freshData, false);
+      }
+    }
+    return freshData;
+  } catch(err) {
+    console.warn('[swrFetchJson fetch error]', err);
+    return null;
+  }
+}
+window.swrFetchJson = swrFetchJson;
+
 // Non-blocking Toast Notification
 function showToast(msg, type = 'success') {
   let toast = document.getElementById('toast');

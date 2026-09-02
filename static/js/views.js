@@ -1439,21 +1439,13 @@ async function switchToClient(id) {
 async function loadTasksEngine() {
     renderClientTabs();
     if (typeof loadTasksIngestFields === 'function') loadTasksIngestFields();
-    try {
-        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false');
-        var results = await Promise.all([
-            safeFetchJson(tasksUrl),
-            safeFetchJson('/api/tasks/employees')
-        ]);
-        var dataTasks = results[0] || {};
-        var dataEmps = results[1] || {};
+    
+    var applyTasksData = function(dataTasks, isCached) {
+        if (!dataTasks) return;
+        tasksList = (dataTasks && dataTasks.tasks) ? dataTasks.tasks : (Array.isArray(dataTasks) ? dataTasks : []);
+        tasksArchivedCount = (dataTasks && typeof dataTasks.archived_count !== 'undefined') ? dataTasks.archived_count : (tasksArchivedCount || 0);
+        tasksActiveCount = (dataTasks && typeof dataTasks.active_count !== 'undefined') ? dataTasks.active_count : (tasksActiveCount || 0);
 
-        tasksList = (dataTasks && dataTasks.tasks) ? dataTasks.tasks : [];
-        employeesList = (dataEmps && dataEmps.employees) ? dataEmps.employees : [];
-        tasksArchivedCount = (dataTasks && typeof dataTasks.archived_count !== 'undefined') ? dataTasks.archived_count : 0;
-        tasksActiveCount = (dataTasks && typeof dataTasks.active_count !== 'undefined') ? dataTasks.active_count : 0;
-
-        // If selected plan filter doesn't match any task, reset filter
         if (selectedPlanFilter && !tasksList.some(function(t){
             var p = (t.plan_name || t.file_name || '').trim();
             return p === selectedPlanFilter;
@@ -1464,7 +1456,28 @@ async function loadTasksEngine() {
         renderClientTabs();
         renderTasksBoard();
         renderEmployeesStatus();
-        setTimeout(function(){ loadTaskMonthlyReport(); }, 50);
+        if (!isCached) {
+            setTimeout(function(){ loadTaskMonthlyReport(); }, 50);
+        }
+    };
+
+    var applyEmpsData = function(dataEmps) {
+        if (!dataEmps) return;
+        employeesList = (dataEmps && dataEmps.employees) ? dataEmps.employees : (Array.isArray(dataEmps) ? dataEmps : []);
+        renderEmployeesStatus();
+    };
+
+    try {
+        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false');
+        var cacheKey = 'tasks_' + (tasksArchiveMode ? 'arch' : 'act');
+        
+        swrFetchJson(tasksUrl, null, cacheKey, function(d, isCached) {
+            applyTasksData(d, isCached);
+        });
+        
+        swrFetchJson('/api/tasks/employees', null, 'tasks_employees', function(d, isCached) {
+            applyEmpsData(d);
+        });
     } catch(e) {
         console.error("Tasks Load Error:", e);
     }
