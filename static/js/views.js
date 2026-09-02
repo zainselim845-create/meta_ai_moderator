@@ -1218,16 +1218,10 @@ function renderClientTabs() {
     if (!box) return;
     
     var allTasks = tasksList || [];
-    var activeCid = (window.activeClientId && window.activeClientId !== '__all__') ? String(window.activeClientId).trim() : '';
-    if (activeCid) {
-        allTasks = allTasks.filter(function(t) {
-            return String(t.client_id || '').trim() === activeCid;
-        });
-    }
     var plans = {};
     allTasks.forEach(function(t) {
         var p = (t.plan_name || t.file_name || 'خطة عامة').trim();
-        if (!plans[p]) plans[p] = { name: p, total: 0, completed: 0 };
+        if (!plans[p]) plans[p] = { name: p, total: 0, completed: 0, clientName: t.client_name || '' };
         plans[p].total++;
         if (t.status === 'Completed') plans[p].completed++;
     });
@@ -1456,18 +1450,6 @@ async function switchToClient(id) {
 }
 
 async function loadTasksEngine() {
-    // Update the client name in the tasks header
-    var clientNameEl = document.getElementById('tasks-client-name');
-    if (clientNameEl) {
-        var activeCid = (window.activeClientId && window.activeClientId !== '__all__') ? String(window.activeClientId).trim() : '';
-        if (activeCid && window._clientsList) {
-            var cObj = window._clientsList.find(function(c){ return String(c.id).trim() === activeCid; });
-            clientNameEl.textContent = cObj ? (' — ' + cObj.name) : '';
-        } else {
-            clientNameEl.textContent = '';
-        }
-    }
-
     renderClientTabs();
     if (typeof loadTasksIngestFields === 'function') loadTasksIngestFields();
     
@@ -1499,9 +1481,8 @@ async function loadTasksEngine() {
     };
 
     try {
-        var activeCid = (window.activeClientId && window.activeClientId !== '__all__') ? String(window.activeClientId).trim() : '';
-        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false') + (activeCid ? '&client_id=' + encodeURIComponent(activeCid) : '');
-        var cacheKey = 'tasks_' + (activeCid || 'all') + '_' + (tasksArchiveMode ? 'arch' : 'act');
+        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false');
+        var cacheKey = 'tasks_board_' + (tasksArchiveMode ? 'arch' : 'act');
         
         swrFetchJson(tasksUrl, null, cacheKey, function(d, isCached) {
             applyTasksData(d, isCached);
@@ -2385,13 +2366,7 @@ function renderTasksBoard() {
         var allTasks = tasksList || [];
         var displayTasks = allTasks.slice();
 
-        // 0. Client Scoping Filter (Isolate client tasks when specific client is selected)
-        var activeCid = (window.activeClientId && window.activeClientId !== '__all__') ? String(window.activeClientId).trim() : '';
-        if (activeCid && !selectedEmployeeFilter) {
-            displayTasks = displayTasks.filter(function(t) {
-                return String(t.client_id || '').trim() === activeCid;
-            });
-        }
+        // 0. Plan/Employee/AM Filters (Task board displays all plans with interactive plan tabs)
 
         // 1. Employee or AM Filter
         if (selectedEmployeeFilter) {
