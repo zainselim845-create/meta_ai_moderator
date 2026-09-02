@@ -1714,18 +1714,19 @@ function fallbackCopyText(text) {
 // AM sets start / publish / deadline for a task
 async function saveTaskDates(taskId) {
     var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+    var dDead = g('d-dead-' + taskId);
     var body = {
-        scheduled_start_date: g('d-start-' + taskId),
-        publish_date: g('d-pub-' + taskId),
-        publish_time: g('t-pub-' + taskId) || '10:00',
-        delivery_deadline: g('d-dead-' + taskId)
+        delivery_deadline: dDead,
+        scheduled_start_date: dDead,
+        publish_date: dDead,
+        publish_time: '10:00'
     };
     try {
         var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/dates', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
         var data = await res.json();
-        if (res.ok && data.ok) { showToast('اتحفظت المواعيد '); loadTasksEngine(); }
+        if (res.ok && data.ok) { showToast('تم حفظ موعد التسليم بنجاح '); loadTasksEngine(); }
         else showToast(data.error || 'تعذّر الحفظ', 'error');
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -2017,26 +2018,22 @@ function renderTaskCard(t, indexInPlan) {
             '</button>' +
         '</div>';
 
-    // Dates
-    var dStart = t.scheduled_start_date || '';
-    var dDead = t.delivery_deadline || t.publish_date || '';
+    // Delivery Deadline Date
+    var dDead = t.delivery_deadline || t.scheduled_start_date || t.publish_date || '';
 
-    html += '<div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs space-y-2.5 shadow-2xs">' +
-        '<div class="grid grid-cols-2 gap-2.5">' +
-            '<div>' +
-                '<label class="text-[11px] text-slate-800 font-bold flex items-center gap-1 mb-1">' + ICONS.calendar + ' <span>تاريخ النشر:</span></label>' +
-                '<input type="date" id="d-start-' + esc(t.task_id) + '" value="' + esc(dStart) + '" class="w-full text-xs font-bold font-mono px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
+    html += '<div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-xs space-y-2 shadow-2xs">' +
+        '<div>' +
+            '<label class="text-[11px] text-amber-950 font-bold flex items-center justify-between gap-1 mb-1.5">' +
+                '<span class="flex items-center gap-1.5">' + ICONS.calendar + ' <span>موعد التسليم:</span></span>' +
+                (dDead ? '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(dDead) + ')</span>' : '') +
+            '</label>' +
+            '<div class="flex items-center gap-2">' +
+                '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="flex-1 text-xs font-bold font-mono px-3 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
+                '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1 shrink-0">' +
+                    ICONS.save +
+                    '<span>حفظ الموعد</span>' +
+                '</button>' +
             '</div>' +
-            '<div>' +
-                '<label class="text-[11px] text-amber-900 font-bold flex items-center gap-1 mb-1">' + ICONS.calendar + ' <span>موعد التسليم:</span></label>' +
-                '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="w-full text-xs font-bold font-mono px-2.5 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
-            '</div>' +
-        '</div>' +
-        '<div class="flex items-center justify-end pt-1.5 border-t border-slate-200/80">' +
-            '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1.5">' +
-                ICONS.save +
-                '<span>حفظ المواعيد</span>' +
-            '</button>' +
         '</div>' +
     '</div>';
 
@@ -2501,9 +2498,6 @@ function renderTasksBoard() {
                     '<span class="text-xs font-bold text-slate-800 flex items-center gap-1"> ترتيب حسب:</span>' +
                     '<button type="button" onclick="setTaskSort(\'sequence\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'sequence' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                         '<span> رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
-                    '</button>' +
-                    '<button type="button" onclick="setTaskSort(\'pub_date\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'pub_date' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span> تاريخ النشر</span>' + (currentTaskSort === 'pub_date' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'deadline\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'deadline' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                         '<span> موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
