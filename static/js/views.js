@@ -1792,6 +1792,24 @@ function setTaskSort(sortKey) {
     renderTasksBoard();
 }
 
+function matchTaskStatus(taskStatus, filterKey) {
+    if (!filterKey || filterKey === 'all') return true;
+    var st = String(taskStatus || '').trim().toLowerCase();
+    if (filterKey === 'in_progress') {
+        return st === 'in progress' || st === 'assigned' || st.indexOf('progress') !== -1 || st.indexOf('جاري') !== -1 || st.indexOf('مسند') !== -1;
+    }
+    if (filterKey === 'review') {
+        return st === 'awaiting am review' || st === 'submitted / in review' || st === 'submitted' || st === 'in review' || st === 'review' || st.indexOf('review') !== -1 || st.indexOf('مراجعة') !== -1;
+    }
+    if (filterKey === 'pending') {
+        return !st || st === 'pending am approval' || st === 'pending' || st === 'unassigned' || st.indexOf('إسناد') !== -1 || st.indexOf('بانتظار') !== -1;
+    }
+    if (filterKey === 'completed') {
+        return st === 'completed' || st.indexOf('approved') !== -1 || st.indexOf('مكتمل') !== -1 || st.indexOf('معتمد') !== -1;
+    }
+    return true;
+}
+
 function setTaskStatusFilter(statusKey) {
     currentTaskStatusFilter = statusKey;
     renderTasksBoard();
@@ -1801,6 +1819,11 @@ function onTaskSearchInput(query) {
     taskSearchQuery = (query || '').trim().toLowerCase();
     renderTasksBoard();
 }
+
+window.matchTaskStatus = matchTaskStatus;
+window.setTaskStatusFilter = setTaskStatusFilter;
+window.setTaskSort = setTaskSort;
+window.onTaskSearchInput = onTaskSearchInput;
 
 function getTaskSequenceNum(t) {
     if (!t) return 999999;
@@ -2433,12 +2456,7 @@ function renderTasksBoard() {
         // 2. Status Filter
         if (currentTaskStatusFilter && currentTaskStatusFilter !== 'all') {
             displayTasks = displayTasks.filter(function(t) {
-                var st = (t.status || 'Pending AM Approval').trim();
-                if (currentTaskStatusFilter === 'in_progress') return st === 'In Progress' || st === 'Assigned' || st.indexOf('جاري') !== -1 || st.indexOf('مسند') !== -1;
-                if (currentTaskStatusFilter === 'review') return st === 'Awaiting AM Review' || st.indexOf('مراجعة') !== -1;
-                if (currentTaskStatusFilter === 'pending') return st === 'Pending AM Approval' || st === 'Pending' || st.indexOf('إسناد') !== -1 || st.indexOf('بانتظار') !== -1;
-                if (currentTaskStatusFilter === 'completed') return st === 'Completed' || st.indexOf('مكتمل') !== -1;
-                return true;
+                return matchTaskStatus(t.status, currentTaskStatusFilter);
             });
         }
 
@@ -2460,7 +2478,7 @@ function renderTasksBoard() {
         displayTasks = sortTaskList(displayTasks, currentTaskSort, currentTaskSortDir);
 
         if (badge) {
-            var done = displayTasks.filter(function(t){ return t.status === 'Completed'; }).length;
+            var done = displayTasks.filter(function(t){ return matchTaskStatus(t.status, 'completed'); }).length;
             badge.textContent = displayTasks.length + ' مهمة مرتبة · ' + done + ' مكتملة' + 
                 (selectedAMFilter ? ' (AM: ' + esc(selectedAMName) + ')' : '') +
                 (selectedEmployeeFilter ? ' (' + esc(selectedEmployeeName) + ')' : '');
@@ -2527,53 +2545,67 @@ function renderTasksBoard() {
             '</div>';
         }
 
+        var countAll = allTasks.length;
+        var countInProgress = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'in_progress'); }).length;
+        var countReview = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'review'); }).length;
+        var countPending = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'pending'); }).length;
+        var countCompleted = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'completed'); }).length;
+
         var sortToolbarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 shadow-2xs space-y-2.5 mb-1">' +
             '<div class="flex items-center justify-between gap-2 flex-wrap">' +
                 '<div class="flex items-center gap-1.5 flex-wrap">' +
                     '<span class="text-xs font-bold text-slate-800 flex items-center gap-1"> ترتيب حسب:</span>' +
-                    '<button type="button" onclick="setTaskSort(\'sequence\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'sequence' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+                    '<button type="button" onclick="setTaskSort(\'sequence\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'sequence' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                         '<span> رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
-                    '<button type="button" onclick="setTaskSort(\'deadline\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'deadline' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+                    '<button type="button" onclick="setTaskSort(\'deadline\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'deadline' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                         '<span> موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
-                    '<button type="button" onclick="setTaskSort(\'status\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'status' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+                    '<button type="button" onclick="setTaskSort(\'status\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'status' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                         '<span> الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
-                    '<button type="button" onclick="setTaskSort(\'task_id\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'task_id' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+                    '<button type="button" onclick="setTaskSort(\'task_id\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'task_id' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                         '<span>️ الكود</span>' + (currentTaskSort === 'task_id' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
-                    '<button type="button" onclick="setTaskSort(\'created_at\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 ' + (currentTaskSort === 'created_at' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+                    '<button type="button" onclick="setTaskSort(\'created_at\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'created_at' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                         '<span>️ الأحدث</span>' + (currentTaskSort === 'created_at' ? (currentTaskSortDir === 'desc' ? ' ↓' : ' ↑') : '') +
                     '</button>' +
                 '</div>' +
                 '<div class="flex items-center gap-2 w-full sm:w-auto">' +
                     '<div class="relative w-full">' +
-                        '<input type="text" value="' + esc(taskSearchQuery) + '" oninput="onTaskSearchInput(this.value)" placeholder=" بحث في المهام..." class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-blue-500 shadow-2xs">' +
-                        (taskSearchQuery ? '<button type="button" onclick="onTaskSearchInput(\'\')" class="absolute left-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-700"></button>' : '') +
+                        '<input type="text" value="' + esc(taskSearchQuery) + '" oninput="onTaskSearchInput(this.value)" placeholder="🔍 بحث في عنوان أو كابشن أو كود المهمة..." class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-blue-500 shadow-2xs">' +
+                        (taskSearchQuery ? '<button type="button" onclick="onTaskSearchInput(\'\')" class="absolute left-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-700">✕</button>' : '') +
                     '</div>' +
                 '</div>' +
             '</div>' +
             '<div class="flex items-center gap-1.5 flex-wrap border-t border-slate-200/60 pt-2">' +
                 '<span class="text-[11px] font-bold text-slate-500">تصفية الحالة:</span>' +
-                '<button type="button" onclick="setTaskStatusFilter(\'all\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200') + '">الكل (' + allTasks.length + ')</button>' +
-                '<button type="button" onclick="setTaskStatusFilter(\'in_progress\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'in_progress' ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-200') + '">️ جاري العمل (' + allTasks.filter(function(t){ return t.status==='In Progress'||t.status==='Assigned'; }).length + ')</button>' +
-                '<button type="button" onclick="setTaskStatusFilter(\'review\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'review' ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-200') + '"> بانتظار المراجعة (' + allTasks.filter(function(t){ return t.status==='Awaiting AM Review'; }).length + ')</button>' +
-                '<button type="button" onclick="setTaskStatusFilter(\'pending\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'pending' ? 'bg-amber-600 text-white' : 'bg-white text-amber-700 border border-amber-200') + '"> بانتظار الإسناد (' + allTasks.filter(function(t){ return !t.status || t.status==='Pending AM Approval'; }).length + ')</button>' +
-                '<button type="button" onclick="setTaskStatusFilter(\'completed\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition ' + (currentTaskStatusFilter === 'completed' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 border border-emerald-200') + '"> مكتملة (' + allTasks.filter(function(t){ return t.status==='Completed'; }).length + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'all\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'all' ? 'bg-slate-800 text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100') + '">الكل (' + countAll + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'in_progress\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'in_progress' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50') + '">⏱️ جاري العمل (' + countInProgress + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'review\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'review' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white text-purple-700 border border-purple-200 hover:bg-purple-50') + '">🔍 بانتظار المراجعة (' + countReview + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'pending\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'pending' ? 'bg-amber-600 text-white shadow-xs' : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50') + '">⏳ بانتظار الإسناد (' + countPending + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'completed\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'completed' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50') + '">✅ مكتملة (' + countCompleted + ')</button>' +
             '</div>' +
         '</div>';
 
         var topBanners = amBarHtml + filterBannerHtml + sortToolbarHtml;
 
         if (!displayTasks || displayTasks.length === 0) {
-            var emptyClientName = (clientNameEl ? clientNameEl.textContent.replace(/^—\s*/, '').trim() : '') || (activeCid ? 'هذا العميل' : '');
-            var emptyMsg = taskSearchQuery ? ('لا توجد نتائج تطابق بحثك: <b>' + esc(taskSearchQuery) + '</b>') :
-                 selectedEmployeeFilter ? ('لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> حالياً ') : 
-                 selectedAMFilter ? ('لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b> في هذا العميل ') :
-                 (activeCid ? ('لا توجد مهام مسجلة لعميل «<b>' + esc(emptyClientName) + '</b>».<br><span class="text-slate-400 mt-1 inline-block">اختر <b>«دكتور أحمد حمدي»</b> أو <b>«جميع العملاء»</b> من القائمة العلوية لعرض الخطط.</span>' +
-                              '<div class="mt-3 flex justify-center gap-2"><button type="button" onclick="switchActiveClient(\'cli_dr_ahmed_1788270119\')" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs">عرض خطة دكتور أحمد حمدي</button><button type="button" onclick="switchActiveClient(\'__all__\')" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer">عرض جميع الخطط</button></div>') :
-                  'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة ');
+            var emptyMsg = '';
+            if (currentTaskStatusFilter && currentTaskStatusFilter !== 'all') {
+                var stNames = { in_progress: 'جاري العمل', review: 'بانتظار المراجعة', pending: 'بانتظار الإسناد', completed: 'مكتملة' };
+                emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-800">لا توجد مهام بحالة «<b>' + (stNames[currentTaskStatusFilter] || currentTaskStatusFilter) + '</b>» حالياً.</div>' +
+                           '<p class="text-slate-500 text-[11px]">اضغط على «الكل» لعرض كافة مهام الخطط النشطة.</p>' +
+                           '<button type="button" onclick="setTaskStatusFilter(\'all\')" class="mt-2 text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs">عرض كافة المهام (الكل)</button></div>';
+            } else if (taskSearchQuery) {
+                emptyMsg = 'لا توجد نتائج تطابق بحثك: <b>' + esc(taskSearchQuery) + '</b><br><button type="button" onclick="onTaskSearchInput(\'\')" class="mt-2 text-xs text-blue-600 font-bold hover:underline cursor-pointer">مسح البحث</button>';
+            } else if (selectedEmployeeFilter) {
+                emptyMsg = 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> حالياً';
+            } else if (selectedAMFilter) {
+                emptyMsg = 'لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b>';
+            } else {
+                emptyMsg = 'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 📑';
+            }
             board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-600 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' + emptyMsg + '</div>';
             return;
         }
