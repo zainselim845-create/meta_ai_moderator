@@ -3183,14 +3183,30 @@ async function extractTextFromDocxClient(file) {
     }
 }
 
-function onTasksIngestClientChange(val) {
+function toggleTasksIngestCustomClient() {
+    var sel = document.getElementById('tasks-ingest-client-select');
+    var inp = document.getElementById('tasks-ingest-client');
+    var btn = document.getElementById('btn-tasks-ingest-custom');
+    if (!sel || !inp) return;
+    if (inp.classList.contains('hidden')) {
+        inp.classList.remove('hidden');
+        sel.classList.add('hidden');
+        if (btn) btn.textContent = '↩ اختيار من القائمة';
+        inp.focus();
+    } else {
+        inp.classList.add('hidden');
+        sel.classList.remove('hidden');
+        if (btn) btn.textContent = '+ عميل جديد';
+    }
+}
+
+function onTasksIngestClientSelectChange(val) {
     if (!val) return;
-    var cleanVal = String(val).trim().toLowerCase();
     var list = window._clientsList || window.clientsList || window._planClientsCache || [];
     var matched = list.find(function(c){
-        return (c.name && c.name.toLowerCase() === cleanVal) ||
-               (c.company && c.company.toLowerCase() === cleanVal) ||
-               (c.id && c.id.toLowerCase() === cleanVal);
+        return String(c.id).trim() === String(val).trim() ||
+               (c.name && c.name.toLowerCase() === String(val).trim().toLowerCase()) ||
+               (c.company && c.company.toLowerCase() === String(val).trim().toLowerCase());
     });
 
     if (matched) {
@@ -3215,17 +3231,34 @@ function onTasksIngestClientChange(val) {
     }
 }
 
+function onTasksIngestClientChange(val) {
+    if (!val) return;
+    onTasksIngestClientSelectChange(val);
+}
+
 async function loadTasksIngestFields() {
+    var cSel = document.getElementById('tasks-ingest-client-select');
     var cInput = document.getElementById('tasks-ingest-client');
-    var dlist = document.getElementById('tasks-ingest-clients-list');
     var amSel = document.getElementById('tasks-ingest-am');
     
     // 1. Clients
     try {
         var clients = await populateClientDatalists();
-        if (cInput && !cInput.value && typeof currentClient !== 'undefined' && currentClient) {
-            var activeC = clients.find(function(c){ return c.id === currentClient; });
-            if (activeC) cInput.value = activeC.name;
+        if (cSel && clients && clients.length) {
+            var opts = '<option value="">-- اختر العميل من القائمة --</option>' +
+                clients.map(function(c) {
+                    var amPart = c.am_name ? (' (AM: ' + c.am_name + ')') : '';
+                    return '<option value="' + esc(c.id) + '" data-name="' + esc(c.name) + '">' + esc(c.name) + amPart + '</option>';
+                }).join('');
+            cSel.innerHTML = opts;
+            
+            if (!cSel.value) {
+                var defaultC = clients.find(function(c){ return c.id === 'cli_dr_ahmed_1788270119' || (c.name && c.name.includes('أحمد حمدي')); }) || clients[0];
+                if (defaultC) {
+                    cSel.value = defaultC.id;
+                    onTasksIngestClientSelectChange(defaultC.id);
+                }
+            }
         }
     } catch(e){}
     
@@ -3281,6 +3314,8 @@ function setTasksIngestSelfAM() {
     showToast('تم تحديد حسابك كـ Account Manager ');
 }
 
+window.toggleTasksIngestCustomClient = toggleTasksIngestCustomClient;
+window.onTasksIngestClientSelectChange = onTasksIngestClientSelectChange;
 window.loadTasksIngestFields = loadTasksIngestFields;
 window.setTasksIngestSelfAM = setTasksIngestSelfAM;
 
@@ -3289,35 +3324,53 @@ async function ingestPlanAction(ev) {
     var el = document.getElementById('plan-ingest-input');
     var fileEl = document.getElementById('plan-ingest-file');
     var driveEl = document.getElementById('plan-ingest-drive');
-    var clientInputEl = document.getElementById('tasks-ingest-client');
+    var clientSel = document.getElementById('tasks-ingest-client-select');
+    var clientInp = document.getElementById('tasks-ingest-client');
     var amEl = document.getElementById('tasks-ingest-am');
     var planNameEl = document.getElementById('tasks-ingest-plan-name');
 
     var txt = el ? el.value.trim() : '';
     var file = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
     var drive = driveEl ? driveEl.value.trim() : '';
-    var clientInput = clientInputEl ? clientInputEl.value.trim() : '';
+    
+    var clientInput = '';
+    var clientId = '';
+    if (clientInp && !clientInp.classList.contains('hidden') && clientInp.value.trim()) {
+        clientInput = clientInp.value.trim();
+        clientId = clientInput;
+    } else if (clientSel && clientSel.value) {
+        var selOpt = clientSel.options[clientSel.selectedIndex];
+        clientId = clientSel.value;
+        clientInput = (selOpt ? selOpt.getAttribute('data-name') : '') || (selOpt ? selOpt.text.split(' (')[0].trim() : '') || clientSel.value;
+    }
+
     var amId = amEl ? amEl.value.trim() : '';
     var planName = planNameEl ? planNameEl.value.trim() : '';
 
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
 
-    var matchedClient = (window.clientsList || []).find(function(c) {
-        return (c.name || '').toLowerCase() === clientInput.toLowerCase() || c.id === clientInput;
+    var list = window._clientsList || window.clientsList || window._planClientsCache || [];
+    var matchedClient = list.find(function(c) {
+        return c.id === clientId || (c.name && c.name.toLowerCase() === clientInput.toLowerCase());
     });
-    var clientId = matchedClient ? matchedClient.id : (clientInput || (typeof currentClient !== 'undefined' ? currentClient : ''));
-    
-    // Client Name is primary, plan / month is secondary if provided
+    if (matchedClient) {
+        clientId = matchedClient.id;
+        clientInput = matchedClient.name;
+    }
+    if (!clientInput) {
+        clientInput = 'دكتور أحمد حمدي';
+        clientId = 'cli_dr_ahmed_1788270119';
+    }
+
+    // Clean plan name
     var cleanFileBase = file ? file.name.replace(/\.(docx|doc|txt|pdf)$/i, '').trim() : '';
     var formattedPlanName = '';
-    if (clientInput && planName) {
-        formattedPlanName = clientInput + ' - ' + planName;
-    } else if (clientInput && cleanFileBase && cleanFileBase.toLowerCase() !== clientInput.toLowerCase()) {
-        formattedPlanName = clientInput + ' - ' + cleanFileBase;
-    } else if (clientInput) {
-        formattedPlanName = clientInput;
+    if (planName) {
+        formattedPlanName = (planName.includes(clientInput) ? planName : ('خطة ' + clientInput + ' — ' + planName));
+    } else if (cleanFileBase) {
+        formattedPlanName = (cleanFileBase.includes(clientInput) ? cleanFileBase : ('خطة ' + clientInput + ' — ' + cleanFileBase));
     } else {
-        formattedPlanName = planName || cleanFileBase || (drive ? 'ملف Google Drive' : 'خطة محتوى عامة');
+        formattedPlanName = 'خطة ' + clientInput;
     }
 
     var fileName = formattedPlanName;
