@@ -7754,6 +7754,31 @@ def _universal_extract_plan_posts(plan_text):
 
     # 4. Consolidate and merge any fragmented fields (Type, Visual Idea, Hook, Caption) into unified posts
     final_posts = _consolidate_and_merge_post_fragments(raw_posts)
+    
+    # 5. Post-process: guarantee no post has empty or generic "منشور جديد" title
+    for idx, p in enumerate(final_posts, 1):
+        tag = (p.get("tagline") or p.get("tag_line") or p.get("hook") or "").strip()
+        cap = (p.get("caption") or "").strip()
+        vis = (p.get("visual_idea") or p.get("design_brief") or "").strip()
+        title = (p.get("title") or "").strip()
+        
+        is_generic_title = not title or re.match(r'^(?:منشور|بوست|Post|Item|Task)\s*#?\s*\d*$', title, re.I) or title == "منشور جديد"
+        
+        if not tag and cap:
+            lines = [l.strip() for l in cap.splitlines() if l.strip() and not re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', l.strip())]
+            if lines:
+                tag = lines[0][:100]
+                
+        if is_generic_title:
+            title = tag[:100] if tag else (cap.splitlines()[0][:100] if cap else (vis[:100] if vis else f"بوست #{idx}"))
+            
+        p["title"] = title
+        p["tagline"] = tag or title
+        p["tag_line"] = tag or title
+        p["visual_content"] = tag or vis
+        p["design_brief"] = vis or tag
+        p["visual_idea"] = vis
+
     return final_posts
 
 def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploader_client_name=""):
@@ -8505,10 +8530,29 @@ def api_plan_create():
     system_task_ids = _generate_system_unique_task_ids(len(extracted_posts))
     clean_pname = plan_title or f"خطة {target_client.get('name')}"
     created = 0
+    supa_rows = []
     for p_idx, p in enumerate(extracted_posts, 1):
-        title = (p.get("title") or "منشور جديد").lstrip("-•*️ ").strip()[:140]
-        caption = (p.get("caption") or title).strip()
-        visual = (p.get("visual_idea") or "").strip()
+        tagline = (p.get("tagline") or p.get("tag_line") or p.get("hook") or "").strip()
+        title = (p.get("title") or tagline or "").lstrip("-•*️ ").strip()[:140]
+        caption = (p.get("caption") or "").strip()
+        visual = (p.get("visual_idea") or p.get("design_brief") or "").strip()
+
+        if not title or re.match(r'^(?:منشور|بوست|Post|Item|Task)\s*#?\s*\d*$', title, re.I) or title == "منشور جديد":
+            if tagline:
+                title = tagline[:100]
+            elif caption:
+                lines = [l.strip() for l in caption.splitlines() if l.strip() and not re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', l.strip())]
+                title = lines[0][:100] if lines else f"بوست #{p_idx}"
+            elif visual:
+                title = visual[:100]
+            else:
+                title = f"بوست #{p_idx}"
+
+        if not tagline:
+            tagline = title
+        if not caption:
+            caption = title
+
         p_type = (p.get("post_type") or "post").lower()
         pub_date = (p.get("publish_date") or "").strip()
         pub_time = (p.get("publish_time") or "10:00").strip()
@@ -8540,14 +8584,33 @@ def api_plan_create():
             "assignee_name": "",
             "media_urls": image_urls,
             "reference_links": ref_links,
-            "content_data": {"post_type": p_type, "tag_line": title, "visual_idea": visual, "reference_images": image_urls, "reference_links": ref_links},
+            "content_data": {"post_type": p_type, "tag_line": tagline, "tagline": tagline, "caption": caption, "visual_idea": visual, "reference_images": image_urls, "reference_links": ref_links},
             "graphic_data": {"idea": visual or caption, "reference_images": image_urls, "reference_links": ref_links},
             "created_by": current_username(),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         tasks.append(new_t)
+        supa_rows.append({
+            "task_id": new_t["task_id"],
+            "client_id": client_id,
+            "status": "Pending AM Approval",
+            "assigned_employee_id": None,
+            "data": new_t
+        })
         created += 1
+
+    if supa_rows and SUPABASE_URL and SUPABASE_KEY and len(SUPABASE_URL) > 15:
+        try:
+            supa_upsert("mam_tasks", supa_rows)
+        except Exception as _se:
+            print(f"[api_plan_create supa upsert] {_se}")
+
     save_client_tasks(tasks, client_id)
+    push_setting("meta_ai_tasks", _all_tasks_db())
+    try:
+        redis_del("app_settings_sync")
+    except Exception:
+        pass
 
     # notify the chosen account manager on Telegram
     if am_tg:
