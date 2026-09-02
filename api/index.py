@@ -9003,21 +9003,25 @@ def share_plan_view(client_id):
     token = request.args.get("t", "").strip()
     plan_filter = (request.args.get("plan") or request.args.get("plan_name") or "").strip()
     
-    # Resolve client reliably across all name/id formats
-    cid = str(client_id or "").strip()
+    # 1. Resolve client deterministically (Exact ID first, then Name/Company, then Unquoted)
+    import urllib.parse
+    cid_raw = str(client_id or "").strip()
+    cid_unquoted = urllib.parse.unquote(cid_raw).strip()
+    
     target_client = None
+    # 1a. Exact ID Match
     for c in (AGENCY_CLIENTS_STORE or []):
         c_id = str(c.get("id") or "").strip()
-        c_name = str(c.get("name") or "").strip()
-        c_comp = str(c.get("company") or "").strip()
-        if c_id == cid or c_name.lower() == cid.lower() or (c_comp and c_comp.lower() == cid.lower()):
+        if c_id == cid_raw or c_id == cid_unquoted:
             target_client = c
             break
-        # Fuzzy match for url-encoded slugs e.g. cli_عميل_عام_1788270239 vs cli_1788270239_عميل_عام
-        if c_id.startswith("cli_") and cid.startswith("cli_"):
-            parts_c = set(c_id.split("_"))
-            parts_in = set(cid.split("_"))
-            if parts_c and parts_in and len(parts_c & parts_in) >= 2:
+            
+    # 1b. Exact Name / Company Match
+    if not target_client:
+        for c in (AGENCY_CLIENTS_STORE or []):
+            c_name = str(c.get("name") or "").strip().lower()
+            c_comp = str(c.get("company") or "").strip().lower()
+            if c_name in (cid_raw.lower(), cid_unquoted.lower()) or (c_comp and c_comp in (cid_raw.lower(), cid_unquoted.lower())):
                 target_client = c
                 break
 
@@ -9025,6 +9029,7 @@ def share_plan_view(client_id):
         cid = str(target_client.get("id"))
         cname = target_client.get("name") or _client_name(cid)
     else:
+        cid = cid_raw
         cname = _client_name(cid)
 
     expected_tok = _client_share_token(cid)
@@ -9059,7 +9064,8 @@ def share_plan_view(client_id):
     
     # Filter by plan if requested
     if plan_filter:
-        tasks = [t for t in all_tasks if (t.get("plan_name") or t.get("file_name") or "").strip() == plan_filter]
+        unquoted_plan = urllib.parse.unquote(plan_filter).strip()
+        tasks = [t for t in all_tasks if (t.get("plan_name") or t.get("file_name") or "").strip() in (plan_filter, unquoted_plan) or unquoted_plan.endswith((t.get("plan_name") or "").strip()) or (t.get("plan_name") or "").strip().endswith(unquoted_plan)]
         if not tasks:
             tasks = all_tasks
     else:
