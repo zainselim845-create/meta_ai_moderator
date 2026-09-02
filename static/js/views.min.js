@@ -2563,12 +2563,14 @@ function renderTasksBoard() {
         var topBanners = amBarHtml + filterBannerHtml + sortToolbarHtml;
 
         if (!displayTasks || displayTasks.length === 0) {
-            board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' +
-                (taskSearchQuery ? 'لا توجد نتائج تطابق بحثك: <b>' + esc(taskSearchQuery) + '</b>' :
-                 selectedEmployeeFilter ? 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> حالياً ' : 
-                 selectedAMFilter ? 'لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b> في هذا العميل ' :
-                 'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة ') +
-                '</div>';
+            var emptyClientName = (clientNameEl ? clientNameEl.textContent.replace(/^—\s*/, '').trim() : '') || (activeCid ? 'هذا العميل' : '');
+            var emptyMsg = taskSearchQuery ? ('لا توجد نتائج تطابق بحثك: <b>' + esc(taskSearchQuery) + '</b>') :
+                 selectedEmployeeFilter ? ('لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> حالياً ') : 
+                 selectedAMFilter ? ('لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b> في هذا العميل ') :
+                 (activeCid ? ('لا توجد مهام مسجلة لعميل «<b>' + esc(emptyClientName) + '</b>».<br><span class="text-slate-400 mt-1 inline-block">اختر <b>«دكتور أحمد حمدي»</b> أو <b>«جميع العملاء»</b> من القائمة العلوية لعرض الخطط.</span>' +
+                              '<div class="mt-3 flex justify-center gap-2"><button type="button" onclick="switchActiveClient(\'cli_dr_ahmed_1788270119\')" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs">عرض خطة دكتور أحمد حمدي</button><button type="button" onclick="switchActiveClient(\'__all__\')" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer">عرض جميع الخطط</button></div>') :
+                  'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة ');
+            board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-600 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' + emptyMsg + '</div>';
             return;
         }
 
