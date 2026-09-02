@@ -1004,12 +1004,40 @@ function renderMyPortalTasks() {
     return true;
   });
 
+  const statusBadge = (t) => {
+    const s = (t.status || 'Pending AM Approval').trim();
+    if (/Completed|مكتمل|Approved/i.test(s)) return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">✅ معتمدة ومكتملة</span>';
+    if (/In Progress/i.test(s)) return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 flex items-center gap-1">⏱️ جاري العمل</span>';
+    if (/Awaiting|Submitted|Review/i.test(s)) return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold animate-pulse flex items-center gap-1">🔍 قيد مراجعة AM</span>';
+    if (/Assigned/i.test(s)) return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 flex items-center gap-1">📌 مُسندة إليك</span>';
+    if (/Changes Requested|تعديل/i.test(s)) return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold flex items-center gap-1">✍️ مطلوب تعديل</span>';
+    return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 flex items-center gap-1">⏳ بانتظار الإسناد</span>';
+  };
+
+  const formatDeadline = (t) => {
+    const dStr = (t.delivery_deadline || t.publish_date || '').trim();
+    if (!dStr) return '<span class="text-slate-400 font-normal">غير محدد</span>';
+    try {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const parts = dStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        d.setHours(0,0,0,0);
+        const diffDays = Math.round((d - today) / (1000 * 60 * 60 * 24));
+        if (diffDays === 0) return `<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">🚨 اليوم (${dStr})</span>`;
+        if (diffDays === 1) return `<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⏰ غداً (${dStr})</span>`;
+        if (diffDays < 0) return `<span class="bg-rose-100 text-rose-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⚠️ متأخرة (${dStr})</span>`;
+        return `<span class="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px]">${dStr} (باقي ${diffDays} يوم)</span>`;
+      }
+    } catch(e) {}
+    return `<span class="font-bold font-mono text-xs">${esc(dStr)}</span>`;
+  };
+
   const actionBtns = (t) => {
     const s = t.status || '';
-    if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs cursor-pointer"> بدأت العمل</button>`;
-    if (/In Progress/i.test(s)) return `<button onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs cursor-pointer"> تسليم المهمة </button>`;
-    if (/Awaiting|Submitted|Review/i.test(s)) return `<span class="text-[11px] bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-full font-bold"> عند مراجعة AM</span>`;
-    if (/Completed|مكتمل|Approved/i.test(s)) return `<span class="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-bold"> معتمدة ومكتملة</span>`;
+    if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>⏱️ بدأت العمل</span></button>`;
+    if (/In Progress/i.test(s)) return `<button onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>📤 تسليم المهمة</span></button>`;
     return '';
   };
   const driveThumb = (u) => {
@@ -1054,7 +1082,7 @@ function renderMyPortalTasks() {
           <span class="bg-slate-100 text-slate-800 border border-slate-200 text-[11px] font-bold px-2 py-0.5 rounded-lg">👤 AM: ${amName}</span>
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold px-2.5 py-0.5 rounded-full ${/(Completed|مكتمل)/.test(t.status||'')?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${esc(t.status||'')}</span>
+          ${statusBadge(t)}
           ${actionBtns(t)}
         </div>
       </div>
@@ -1065,7 +1093,7 @@ function renderMyPortalTasks() {
         <div class="bg-blue-50/50 border border-blue-200/80 rounded-xl p-2.5 text-xs space-y-1.5 shadow-2xs">
           <div class="flex items-center justify-between font-bold text-[11px] text-blue-950 border-b border-blue-100 pb-1">
             <span class="flex items-center gap-1 text-blue-900">📝 الكابشن النهائي (Final Caption):</span>
-            <button type="button" onclick="copyTaskCaption('${esc(t.task_id)}')" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-0.5 px-2 rounded border border-blue-200 shadow-2xs transition cursor-pointer">📋 نسخ الكابشن</button>
+            <button type="button" onclick="copyTaskCaption('${esc(t.task_id)}', this)" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-0.5 px-2 rounded border border-blue-200 shadow-2xs transition cursor-pointer">📋 نسخ الكابشن</button>
           </div>
           <div class="text-xs text-slate-800 whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed bg-white p-2 rounded-lg border border-blue-100 select-all">${esc(cleanCap)}</div>
         </div>
@@ -1079,8 +1107,8 @@ function renderMyPortalTasks() {
       ` : ''}
 
       <div class="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-200 flex items-center justify-between gap-2 flex-wrap">
-        <span class="flex items-center gap-1 font-bold text-amber-950">📅 موعد التسليم: <b class="text-amber-900 font-mono text-xs">${esc(t.delivery_deadline || t.publish_date || 'غير محدد')}</b></span>
-        ${t.review_note ? `<span class="text-[11px] text-rose-700 font-bold">✍️ ملاحظة المراجعة: ${esc(t.review_note)}</span>` : ''}
+        <span class="flex items-center gap-1.5 font-bold text-slate-700"><span>📅 موعد التسليم:</span> ${formatDeadline(t)}</span>
+        ${t.review_note ? `<span class="text-[11px] text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200">✍️ ملاحظة المراجعة: ${esc(t.review_note)}</span>` : ''}
       </div>
 
       ${refThumbs(t)}

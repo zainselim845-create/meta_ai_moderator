@@ -1731,8 +1731,9 @@ async function saveTaskDates(taskId) {
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
-function copyTaskCaption(taskId) {
-    var t = (tasksList || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
+function copyTaskCaption(taskId, btn) {
+    var t = (tasksList || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); }) ||
+            (window._myPortalTasksList || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
     if (!t) return;
     var rawCaption = (t.caption || (t.content_data && t.content_data.caption) || t.description || '').trim();
     var cleanCaption = rawCaption.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();
@@ -1740,9 +1741,21 @@ function copyTaskCaption(taskId) {
         showToast('لا يوجد كابشن لنسخه', 'error');
         return;
     }
+    var triggerBtnFeedback = function() {
+        if (btn && btn.tagName === 'BUTTON') {
+            var oldText = btn.innerHTML;
+            btn.innerHTML = '✓ تم النسخ!';
+            btn.classList.add('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
+            setTimeout(function() {
+                btn.innerHTML = oldText;
+                btn.classList.remove('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
+            }, 1800);
+        }
+    };
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(cleanCaption).then(function() {
             showToast('تم نسخ الكابشن النهائي إلى الحافظة 📋');
+            triggerBtnFeedback();
         }).catch(function() {
             prompt('انسخ الكابشن:', cleanCaption);
         });
@@ -1750,6 +1763,7 @@ function copyTaskCaption(taskId) {
         prompt('انسخ الكابشن:', cleanCaption);
     }
 }
+window.copyTaskCaption = copyTaskCaption;
 function empOptionsHtml(selectedId) {
     return (employeesList || []).map(function(e) {
         var sel = (String(e.employee_id) === String(selectedId)) ? ' selected' : '';
