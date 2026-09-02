@@ -68,9 +68,23 @@ async function safeFetchJson(url, options) {
 window.safeFetchJson = safeFetchJson;
 
 // High-Speed Stale-While-Revalidate (SWR) Client Cache Engine (Instant 0ms UI Rendering)
+(function() {
+  try {
+    var CURRENT_APP_VERSION = '12.5';
+    if (localStorage.getItem('domya_app_v') !== CURRENT_APP_VERSION) {
+      Object.keys(localStorage).forEach(function(k) {
+        if (k.startsWith('swr_cache_') || k.startsWith('cached_tasks') || k === 'tasks_act' || k === 'tasks_arch') {
+          localStorage.removeItem(k);
+        }
+      });
+      localStorage.setItem('domya_app_v', CURRENT_APP_VERSION);
+    }
+  } catch(e){}
+})();
+
 async function swrFetchJson(url, options, cacheKey, onCachedData) {
   var key = 'swr_cache_' + (cacheKey || url);
-  // 1. Instant 0ms render from localStorage
+  // 1. Instant render from localStorage
   try {
     var cached = localStorage.getItem(key);
     if (cached) {
