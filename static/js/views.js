@@ -1286,6 +1286,14 @@ function renderClientTabs() {
         var cleanSelTitle = esc(selectedPlanFilter).replace(/\.(docx|doc|pdf|txt)$/i, '');
         var escapedSel = esc(selectedPlanFilter).replace(/'/g, "\\'");
         
+        var matchingPlanTasks = (tasksList || []).filter(function(t){ return (t.plan_name || t.file_name) === selectedPlanFilter; });
+        var planDriveLink = (matchingPlanTasks.find(function(t){ return t.plan_drive_link || t.drive_plan_url; }) || {}).plan_drive_link || (matchingPlanTasks.find(function(t){ return t.plan_drive_link || t.drive_plan_url; }) || {}).drive_plan_url;
+        if (planDriveLink) {
+            html += '<a href="' + esc(planDriveLink) + '" target="_blank" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-violet-50 text-violet-800 hover:bg-violet-600 hover:text-white border border-violet-200 shadow-sm transition flex items-center gap-1.5" title="فتح ملف الخطة على Google Drive">' +
+                '<span>📂 ملف الخطة على Drive ↗</span>' +
+            '</a>';
+        }
+
         if (!tasksArchiveMode) {
             html += '<button type="button" onclick="archivePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-600 hover:text-white border border-amber-200 shadow-sm transition flex items-center gap-1.5" title="أرشفة الخطة المحددة">' +
                 ICONS.archive +
