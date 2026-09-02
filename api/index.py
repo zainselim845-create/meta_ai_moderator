@@ -8381,10 +8381,20 @@ def api_managers():
 def api_plan_clients():
     """All active clients for the plan builder — everyone who has the plan tab can see all clients."""
     allowed_tabs = user_effective_tabs()
-    if not (is_manager() or is_content_creator() or "plan" in allowed_tabs):
+    if not (is_admin() or is_manager() or is_content_creator() or "plan" in allowed_tabs):
         return jsonify({"clients": []}), 403
-    clients = [{"id": c.get("id"), "name": c.get("name")}
-               for c in AGENCY_CLIENTS_STORE if c.get("is_active", True)]
+    clients = []
+    for c in AGENCY_CLIENTS_STORE:
+        if c.get("is_active", True) and isinstance(c, dict):
+            amid = c.get("am_employee_id") or "AM-2072-9827"
+            amnm = c.get("am_name") or ("آيه أحمد مجاهد" if amid in ("EMP-5887-5256", "AM-5887-5256") else "محمود خالد")
+            clients.append({
+                "id": c.get("id"),
+                "name": c.get("name") or c.get("company") or c.get("id"),
+                "company": c.get("company") or c.get("name"),
+                "am_employee_id": amid,
+                "am_name": amnm
+            })
     return jsonify({"clients": clients})
 
 

@@ -2827,6 +2827,71 @@ async function updateTaskStatusAction(taskId, newStatus, empId, notes) {
 }
 
 var _planQuill = null;
+async function populateClientDatalists() {
+    var clients = window._clientsList || window.clientsList || [];
+    try {
+        if (!clients.length) {
+            var r = await safeFetchJson('/api/clients');
+            clients = Array.isArray(r) ? r : ((r && r.clients) ? r.clients : []);
+        }
+        if (!clients.length) {
+            var r2 = await safeFetchJson('/api/plan/clients');
+            clients = Array.isArray(r2) ? r2 : ((r2 && r2.clients) ? r2.clients : []);
+        }
+    } catch(e){}
+    
+    if (clients.length) {
+        window.clientsList = clients;
+        window._clientsList = clients;
+        window._planClientsCache = clients;
+    }
+
+    var optionsHtml = (clients || []).map(function(c) {
+        var name = esc(c.name || c.company || c.id || '');
+        var am = c.am_name ? ' [AM: ' + esc(c.am_name) + ']' : '';
+        return '<option value="' + name + '">' + name + am + '</option>';
+    }).join('');
+
+    ['pb-modal-clients-list', 'pb-clients-list', 'tasks-ingest-clients-list'].forEach(function(id) {
+        var dl = document.getElementById(id);
+        if (dl) dl.innerHTML = optionsHtml;
+    });
+
+    return clients;
+}
+
+function onPlanBuilderTabClientChange(val) {
+    if (!val) return;
+    var cleanVal = String(val).trim().toLowerCase();
+    var list = window._planClientsCache || window._clientsList || window.clientsList || [];
+    var matched = list.find(function(c){
+        return (c.name && c.name.toLowerCase() === cleanVal) ||
+               (c.company && c.company.toLowerCase() === cleanVal) ||
+               (c.id && c.id.toLowerCase() === cleanVal);
+    });
+
+    if (matched) {
+        var amSel = document.getElementById('pb-am');
+        if (amSel && (matched.am_employee_id || matched.am_name)) {
+            var targetAMId = matched.am_employee_id;
+            var targetAMName = matched.am_name;
+            for (var i = 0; i < amSel.options.length; i++) {
+                var opt = amSel.options[i];
+                if ((targetAMId && opt.value === targetAMId) || (targetAMName && opt.text.includes(targetAMName))) {
+                    amSel.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+        var pInp = document.getElementById('pb-plan-name');
+        if (pInp && !pInp.value) {
+            var d = new Date();
+            var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+            pInp.value = 'خطة ' + matched.name + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
+        }
+    }
+}
+
 async function loadPlanBuilder() {
     var cInput = document.getElementById('pb-client');
     var dlist = document.getElementById('pb-clients-list');
@@ -2839,20 +2904,16 @@ async function loadPlanBuilder() {
             modules: { toolbar: [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], [{ header: [1, 2, false] }], ['link', 'clean']] }
         });
     }
-    try {
-        var cd = await safeFetchJson('/api/plan/clients');
-        var clients = Array.isArray(cd) ? cd : ((cd && cd.clients) ? cd.clients : []);
-        window._planClientsCache = clients;
-        if (dlist) {
-            dlist.innerHTML = clients.map(function(c){ return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('');
-        }
-        if (cInput.tagName === 'SELECT') {
-            cInput.innerHTML = '<option value="">اختر أو اكتب اسم العميل...</option>' + clients.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('');
-        }
-    } catch(e){}
+    
+    var clients = await populateClientDatalists();
+    if (cInput.tagName === 'SELECT') {
+        cInput.innerHTML = '<option value="">اختر أو اكتب اسم العميل...</option>' + clients.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('');
+    }
+    
     try {
         var md = await safeFetchJson('/api/managers');
         var ms = (md && md.managers) ? md.managers : [];
+        ms = ms.filter(function(m){ return (m.name || '').indexOf('روضة') === -1; });
         mSel.innerHTML = '<option value="">— بدون إسناد مباشر —</option>' + ms.map(function(m){ return '<option value="' + esc(m.employee_id) + '">' + esc(m.name) + '</option>'; }).join('');
     } catch(e){}
 }
@@ -2994,6 +3055,38 @@ async function extractTextFromDocxClient(file) {
     }
 }
 
+function onTasksIngestClientChange(val) {
+    if (!val) return;
+    var cleanVal = String(val).trim().toLowerCase();
+    var list = window._clientsList || window.clientsList || window._planClientsCache || [];
+    var matched = list.find(function(c){
+        return (c.name && c.name.toLowerCase() === cleanVal) ||
+               (c.company && c.company.toLowerCase() === cleanVal) ||
+               (c.id && c.id.toLowerCase() === cleanVal);
+    });
+
+    if (matched) {
+        var amSel = document.getElementById('tasks-ingest-am');
+        if (amSel && (matched.am_employee_id || matched.am_name)) {
+            var targetAMId = matched.am_employee_id;
+            var targetAMName = matched.am_name;
+            for (var i = 0; i < amSel.options.length; i++) {
+                var opt = amSel.options[i];
+                if ((targetAMId && opt.value === targetAMId) || (targetAMName && opt.text.includes(targetAMName))) {
+                    amSel.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+        var pInp = document.getElementById('tasks-ingest-plan-name');
+        if (pInp && !pInp.value) {
+            var d = new Date();
+            var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+            pInp.value = 'خطة ' + matched.name + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
+        }
+    }
+}
+
 async function loadTasksIngestFields() {
     var cInput = document.getElementById('tasks-ingest-client');
     var dlist = document.getElementById('tasks-ingest-clients-list');
@@ -3001,15 +3094,7 @@ async function loadTasksIngestFields() {
     
     // 1. Clients
     try {
-        var clients = window.clientsList || [];
-        if (!clients.length) {
-            var r = await safeFetchJson('/api/clients');
-            clients = (r && r.clients) ? r.clients : (Array.isArray(r) ? r : []);
-            window.clientsList = clients;
-        }
-        if (dlist) {
-            dlist.innerHTML = clients.map(function(c){ return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('');
-        }
+        var clients = await populateClientDatalists();
         if (cInput && !cInput.value && typeof currentClient !== 'undefined' && currentClient) {
             var activeC = clients.find(function(c){ return c.id === currentClient; });
             if (activeC) cInput.value = activeC.name;
@@ -4003,12 +4088,45 @@ window.submitTaskDirectlyNoFile = submitTaskDirectlyNoFile;
    PLAN BUILDER TEMPLATE (منشئ وقالب كتابة الخطة التفاعلي)
    ========================================================================= */
 
-var planBuilderRowCount = 0;
+function onPlanBuilderModalClientChange(val) {
+    if (!val) return;
+    var cleanVal = String(val).trim().toLowerCase();
+    var list = window._clientsList || window.clientsList || window._planClientsCache || [];
+    var matched = list.find(function(c){
+        return (c.name && c.name.toLowerCase() === cleanVal) ||
+               (c.company && c.company.toLowerCase() === cleanVal) ||
+               (c.id && c.id.toLowerCase() === cleanVal);
+    });
+
+    if (matched) {
+        var amSelect = document.getElementById('pb-am-select');
+        if (amSelect && (matched.am_employee_id || matched.am_name)) {
+            var targetAMId = matched.am_employee_id;
+            var targetAMName = matched.am_name;
+            for (var i = 0; i < amSelect.options.length; i++) {
+                var opt = amSelect.options[i];
+                if ((targetAMId && opt.value === targetAMId) || (targetAMName && opt.text.includes(targetAMName))) {
+                    amSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+        var planNameInput = document.getElementById('pb-plan-name');
+        if (planNameInput) {
+            var d = new Date();
+            var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+            planNameInput.value = 'خطة ' + matched.name + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
+        }
+    }
+}
 
 async function openPlanBuilderModal() {
     var modal = document.getElementById('plan-builder-modal');
     if (!modal) return;
     modal.classList.remove('hidden');
+
+    // Populate all client datalists (including pb-modal-clients-list)
+    var allClients = await populateClientDatalists();
 
     var clientInput = document.getElementById('pb-client-name');
     var activeCName = '';
@@ -4017,15 +4135,15 @@ async function openPlanBuilderModal() {
         activeCName = clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim();
     }
     if (!activeCName) {
-        var matched = (window.clientsList || []).find(function(c){ return c.id === currentClient || c.name === currentClient; });
-        activeCName = matched ? matched.name : (currentClient || 'Domya Marketing Agency');
+        var matched = (allClients || []).find(function(c){ return c.id === currentClient || c.name === currentClient; });
+        activeCName = matched ? matched.name : (currentClient || (allClients[0] && allClients[0].name) || 'Domya Marketing Agency');
     }
-    if (clientInput) {
+    if (clientInput && (!clientInput.value || clientInput.value === 'Domya Marketing Agency')) {
         clientInput.value = activeCName;
     }
 
     var planNameInput = document.getElementById('pb-plan-name');
-    if (planNameInput) {
+    if (planNameInput && !planNameInput.value) {
         var d = new Date();
         var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
         planNameInput.value = 'خطة ' + activeCName + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
@@ -4066,6 +4184,11 @@ async function openPlanBuilderModal() {
             }
         }
     } catch(e){}
+
+    // Match AM to current client input value
+    if (clientInput && clientInput.value) {
+        onPlanBuilderModalClientChange(clientInput.value);
+    }
 
     var container = document.getElementById('pb-posts-container');
     if (container && container.children.length === 0) {
@@ -4527,6 +4650,10 @@ window.saveTaskContentEditorAction = saveTaskContentEditorAction;
 window.renderEmployeesStatus = renderEmployeesStatus;
 window.loadTasksEngine = loadTasksEngine;
 window.sharePlanWithClient = sharePlanWithClient;
+window.populateClientDatalists = populateClientDatalists;
+window.onPlanBuilderModalClientChange = onPlanBuilderModalClientChange;
+window.onPlanBuilderTabClientChange = onPlanBuilderTabClientChange;
+window.onTasksIngestClientChange = onTasksIngestClientChange;
 
 // Auto-initialize Tasks & Team availability immediately when views.js loads
 (function autoBootViewsEngine() {
