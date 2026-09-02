@@ -1658,8 +1658,9 @@ async function populateAccountSwitcher() {
     const res = await fetch('/api/clients');
     const clients = await res.json();
     const list = Array.isArray(clients) ? clients : (clients.clients || []);
-    const opts = list.map(c => {
-      const ch = (c.fb_connected ? '' : '') + (c.ig_connected ? '' : '');
+    const allOpt = '<option value="__all__">🏢 جميع العملاء (عرض كافة الخطط والمهام)</option>';
+    const opts = allOpt + list.map(c => {
+      const ch = (c.fb_connected ? ' ' : '') + (c.ig_connected ? ' ' : '');
       const amPart = c.am_name ? ` [AM: ${c.am_name}]` : '';
       return `<option value="${c.id}">🏢 ${c.name}${amPart}${ch ? ' ' + ch : ' (غير مربوط)'}</option>`;
     }).join('');
@@ -1667,21 +1668,23 @@ async function populateAccountSwitcher() {
     window._clientsList = list;
 
     const dd = document.getElementById('active-client-dropdown');
-    if (dd) dd.innerHTML = opts || '<option value="">لا يوجد عملاء</option>';
+    if (dd) dd.innerHTML = opts;
 
     const hdr = document.getElementById('header-account-select');
-    if (hdr) hdr.innerHTML = opts || '<option value="">لا يوجد عملاء</option>';
+    if (hdr) hdr.innerHTML = opts;
 
     // Preserve saved active client across reloads
     const savedClient = localStorage.getItem('active_client_id');
-    let targetClient = null;
-    if (savedClient && list.some(c => c.id === savedClient)) {
+    let targetClient = '__all__';
+    if (savedClient && savedClient !== '__all__' && list.some(c => c.id === savedClient)) {
       targetClient = savedClient;
+    } else if (savedClient === '__all__') {
+      targetClient = '__all__';
     } else if (list.length) {
-      targetClient = list[0].id;
+      targetClient = list.some(c => c.id === 'cli_dr_ahmed_1788270119') ? 'cli_dr_ahmed_1788270119' : list[0].id;
     }
 
-    if (targetClient) {
+    if (targetClient && targetClient !== '__all__') {
       window.activeClientId = targetClient;
       if (hdr) hdr.value = targetClient;
       if (dd) dd.value = targetClient;
@@ -1692,6 +1695,9 @@ async function populateAccountSwitcher() {
         body: JSON.stringify({client_id: targetClient})
       }).catch(e => {});
     } else {
+      window.activeClientId = null;
+      if (hdr) hdr.value = '__all__';
+      if (dd) dd.value = '__all__';
       updateHeaderBadge(null);
     }
   } catch(e) {}
