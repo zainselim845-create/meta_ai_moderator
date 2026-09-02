@@ -1765,13 +1765,15 @@ async function switchActiveClient(clientId) {
     await fetch('/api/settings/active-client', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: clientId})});
   } catch(e) {}
   // Reload every client-scoped view (now that the switch is committed server-side)
-  // so ALL brand data changes to the selected client: prompt, KB, rules, inbox, accounts.
+  // so ALL brand data changes to the selected client: prompt, KB, rules, inbox, accounts, tasks.
+  if (typeof selectedPlanFilter !== 'undefined') selectedPlanFilter = null;
   if (typeof loadSettings === 'function') loadSettings(); // brand AI prompt / business info
   if (typeof loadKb === 'function') loadKb(); // knowledge base
   if (typeof loadRules === 'function') loadRules(); // auto-reply rules
   if (typeof loadAccounts === 'function') loadAccounts(); // connected pages
   if (typeof loadInbox === 'function') await loadInbox(true);// messages
   if (typeof loadDashboardStats === 'function') loadDashboardStats();
+  if (typeof loadTasksEngine === 'function') loadTasksEngine(); // tasks & marketing plans
 }
 
 async function loadDashboardStats() {

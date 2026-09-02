@@ -1213,6 +1213,12 @@ function renderClientTabs() {
     if (!box) return;
     
     var allTasks = tasksList || [];
+    var activeCid = (window.activeClientId && window.activeClientId !== '__all__') ? String(window.activeClientId).trim() : '';
+    if (activeCid) {
+        allTasks = allTasks.filter(function(t) {
+            return String(t.client_id || '').trim() === activeCid;
+        });
+    }
     var plans = {};
     allTasks.forEach(function(t) {
         var p = (t.plan_name || t.file_name || 'خطة عامة').trim();
@@ -1445,6 +1451,18 @@ async function switchToClient(id) {
 }
 
 async function loadTasksEngine() {
+    // Update the client name in the tasks header
+    var clientNameEl = document.getElementById('tasks-client-name');
+    if (clientNameEl) {
+        var activeCid = (window.activeClientId && window.activeClientId !== '__all__') ? String(window.activeClientId).trim() : '';
+        if (activeCid && window._clientsList) {
+            var cObj = window._clientsList.find(function(c){ return String(c.id).trim() === activeCid; });
+            clientNameEl.textContent = cObj ? (' — ' + cObj.name) : '';
+        } else {
+            clientNameEl.textContent = '';
+        }
+    }
+
     renderClientTabs();
     if (typeof loadTasksIngestFields === 'function') loadTasksIngestFields();
     
@@ -1476,8 +1494,9 @@ async function loadTasksEngine() {
     };
 
     try {
-        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false');
-        var cacheKey = 'tasks_' + (tasksArchiveMode ? 'arch' : 'act');
+        var activeCid = (window.activeClientId && window.activeClientId !== '__all__') ? String(window.activeClientId).trim() : '';
+        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false') + (activeCid ? '&client_id=' + encodeURIComponent(activeCid) : '');
+        var cacheKey = 'tasks_' + (activeCid || 'all') + '_' + (tasksArchiveMode ? 'arch' : 'act');
         
         swrFetchJson(tasksUrl, null, cacheKey, function(d, isCached) {
             applyTasksData(d, isCached);
@@ -2357,9 +2376,16 @@ function renderTasksBoard() {
         renderClientTabs();
         var board = document.getElementById('tasks-board-grid');
         if (!board) return;
-        var badge = document.getElementById('tasks-count-badge');
         var allTasks = tasksList || [];
         var displayTasks = allTasks.slice();
+
+        // 0. Client Scoping Filter (Isolate client tasks when specific client is selected)
+        var activeCid = (window.activeClientId && window.activeClientId !== '__all__') ? String(window.activeClientId).trim() : '';
+        if (activeCid && !selectedEmployeeFilter) {
+            displayTasks = displayTasks.filter(function(t) {
+                return String(t.client_id || '').trim() === activeCid;
+            });
+        }
 
         // 1. Employee or AM Filter
         if (selectedEmployeeFilter) {
@@ -4566,15 +4592,15 @@ async function submitPlanBuilder() {
     }
 
     var clientNameEl = document.getElementById('tasks-client-name');
-    var activeCName = (clientNameEl ? clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim() : '') || 'Domya Marketing Agency';
+    var activeCName = (clientNameEl ? clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim() : '');
+    if (!activeCName && window.activeClientId && window._clientsList) {
+        var _c = window._clientsList.find(function(c){ return String(c.id).trim() === String(window.activeClientId).trim(); });
+        if (_c) activeCName = _c.name;
+    }
+    activeCName = activeCName || 'العميل';
     var clientName = ((document.getElementById('pb-client-name') || {}).value || '').trim() || activeCName;
     var planSubName = ((document.getElementById('pb-plan-name') || {}).value || '').trim();
-    
-    var finalPlanName = planSubName || ('خطة ' + clientName);
-    if (clientName && !finalPlanName.includes(clientName)) {
-        finalPlanName = clientName + ' - ' + finalPlanName;
-    }
-    var planName = finalPlanName;
+    var planName = planSubName || ('خطة ' + clientName);
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
 
     var structuredPosts = [];
