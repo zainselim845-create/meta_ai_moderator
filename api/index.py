@@ -7833,19 +7833,25 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
             zf = _zipfile.ZipFile(_io.BytesIO(file_bytes))
             namelist = zf.namelist()
             
-            # Map relationships (Images + External Hyperlinks)
+            # Map relationships (Images + External Hyperlinks) robustly
             media_rels = {}
             hyperlink_rels = {}
             if "word/_rels/document.xml.rels" in namelist:
                 rels_xml = zf.read("word/_rels/document.xml.rels").decode("utf-8", "ignore")
-                for r_m in re.finditer(r'<Relationship[^>]+Id="([^"]+)"[^>]+(?:Type="([^"]+)")?[^>]+Target="([^"]+)"', rels_xml):
-                    r_id = r_m.group(1)
-                    r_type = r_m.group(2) or ""
-                    r_target = r_m.group(3)
-                    if "hyperlink" in r_type.lower() or r_target.startswith("http"):
-                        hyperlink_rels[r_id] = r_target
-                    else:
-                        media_rels[r_id] = r_target.lstrip("/").replace("word/", "")
+                for r_m in re.finditer(r'<Relationship\b([^>]+)/?>', rels_xml):
+                    attr_str = r_m.group(1)
+                    id_m = re.search(r'\bId="([^"]+)"', attr_str)
+                    type_m = re.search(r'\bType="([^"]+)"', attr_str)
+                    target_m = re.search(r'\bTarget="([^"]+)"', attr_str)
+                    if id_m and target_m:
+                        r_id = id_m.group(1)
+                        r_type = type_m.group(1) if type_m else ""
+                        r_target = target_m.group(1)
+                        if "hyperlink" in r_type.lower() or r_target.startswith("http"):
+                            hyperlink_rels[r_id] = r_target
+                        else:
+                            clean_target = r_target.lstrip("/").replace("word/", "")
+                            media_rels[r_id] = clean_target
             
             doc = _docx.Document(_io.BytesIO(file_bytes))
             
@@ -7872,7 +7878,7 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
 
             def _extract_images_from_xml(xml_content, post_idx):
                 media_urls = []
-                for m in re.finditer(r'(?:r:embed|embed|r:id|id)="([^"]+)"', xml_content):
+                for m in re.finditer(r'(?:r:embed|embed|r:id|id|r:href|href|r:link|link)="([^"]+)"', xml_content, re.IGNORECASE):
                     rid = m.group(1)
                     if rid in media_rels:
                         target = media_rels[rid]
@@ -7891,9 +7897,13 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                                     b64 = base64.b64encode(img_bytes).decode('utf-8')
                                     media_urls.append(f"data:{mime};base64,{b64}")
                             except Exception as _e:
-                                pass
+                                print(f"[Docx image extract error] {_e}")
                     elif rid in hyperlink_rels:
                         media_urls.append(hyperlink_rels[rid])
+                # Also extract any plaintext URLs inside xml
+                for u in re.findall(r'https?://[^\s<>"\'&]+', xml_content):
+                    if u not in media_urls:
+                        media_urls.append(u)
                 return media_urls
 
             # Table Extraction Mode (supports multiple tables, standard and transposed)
