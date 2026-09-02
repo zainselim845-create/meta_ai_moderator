@@ -4530,13 +4530,9 @@ async function submitPlanBuilder() {
     var clientName = ((document.getElementById('pb-client-name') || {}).value || '').trim() || activeCName;
     var planSubName = ((document.getElementById('pb-plan-name') || {}).value || '').trim();
     
-    var finalPlanName = '';
-    if (clientName && planSubName) {
-        finalPlanName = clientName + ' - ' + planSubName;
-    } else if (clientName) {
-        finalPlanName = clientName;
-    } else {
-        finalPlanName = planSubName || 'خطة عامة';
+    var finalPlanName = planSubName || ('خطة ' + clientName);
+    if (clientName && !finalPlanName.includes(clientName)) {
+        finalPlanName = clientName + ' - ' + finalPlanName;
     }
     var planName = finalPlanName;
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
@@ -4585,7 +4581,7 @@ async function submitPlanBuilder() {
 
     var fullPlanText = clientTextBlocks.join('\n\n');
 
-    showToast('جاري إنشاء وحفظ مهام الخطة بالسيستم... ⏳');
+    showToast('جاري إنشاء وحفظ مهام الخطة وتوزيعها سحابياً... ⏳');
 
     try {
         var res = await safeFetchJson('/api/tasks/ingest-plan', {
@@ -4603,9 +4599,11 @@ async function submitPlanBuilder() {
 
         if (res && (res.ok || res.success)) {
             closePlanBuilderModal();
-            showToast('🎉 تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة بنجاح! 🚀', 'success');
+            var cont = document.getElementById('pb-posts-container');
+            if (cont) cont.innerHTML = '';
+            window.planBuilderRowCount = 0;
+            showToast('🎉 تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة وتوزيعها على Drive بنجاح! 🚀', 'success');
             
-            // Set plan filter to new plan so user sees it instantly
             if (res.plan_name) {
                 selectedPlanFilter = res.plan_name;
             }
