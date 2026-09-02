@@ -4221,11 +4221,33 @@ async function openPlanBuilderModal() {
     if (!modal) return;
     modal.classList.remove('hidden');
 
-    // Populate all client datalists (including pb-modal-clients-list and pb-client-select)
-    var allClients = await populateClientDatalists();
+    var container = document.getElementById('pb-posts-container');
+    if (container && container.children.length === 0) {
+        addPlanBuilderRow();
+    }
 
     var clientInput = document.getElementById('pb-client-name');
-    var clientSelect = document.getElementById('pb-client-select');
+    var amSelect = document.getElementById('pb-am-select');
+    var planNameInput = document.getElementById('pb-plan-name');
+    var modalDatalist = document.getElementById('pb-modal-clients-list');
+
+    var allClients = window._clientsList || window.clientsList || [];
+    try {
+        if (!allClients || !allClients.length) {
+            var cRes = await fetch('/api/clients');
+            var cData = await cRes.json();
+            allClients = Array.isArray(cData) ? cData : (cData.clients || []);
+            window._clientsList = allClients;
+        }
+    } catch(e){}
+
+    if (modalDatalist && allClients && allClients.length) {
+        modalDatalist.innerHTML = allClients.map(function(c){
+            var cName = c.name || c.company || c.id || '';
+            return '<option value="' + esc(cName) + '">' + (c.am_name ? ('[AM: ' + esc(c.am_name) + ']') : '') + '</option>';
+        }).join('');
+    }
+
     var activeCName = '';
     var clientNameEl = document.getElementById('tasks-client-name');
     if (clientNameEl && clientNameEl.textContent) {
@@ -4233,29 +4255,21 @@ async function openPlanBuilderModal() {
     }
     if (!activeCName) {
         var matched = (allClients || []).find(function(c){ return c.id === currentClient || c.name === currentClient; });
-        activeCName = matched ? matched.name : (currentClient || (allClients[0] && allClients[0].name) || 'Domya Marketing Agency');
+        activeCName = matched ? (matched.name || matched.id) : (currentClient || (allClients[0] && allClients[0].name) || '');
     }
-    if (clientInput && (!clientInput.value || clientInput.value === 'Domya Marketing Agency')) {
+
+    if (clientInput && !clientInput.value && activeCName) {
         clientInput.value = activeCName;
     }
 
-    if (clientSelect) {
-        clientSelect.innerHTML = '<option value="">-- اختر عميلاً مسجلاً في النظام (' + (allClients || []).length + ' عميل) --</option>' + (allClients || []).map(function(c){
-            var cName = esc(c.name || c.company || c.id || '');
-            var isSel = (c.id === currentClient || c.name === activeCName);
-            return '<option value="' + cName + '"' + (isSel ? ' selected' : '') + '>🏢 ' + cName + (c.am_name ? ' [AM: ' + esc(c.am_name) + ']' : '') + '</option>';
-        }).join('');
-    }
-
-    var planNameInput = document.getElementById('pb-plan-name');
     if (planNameInput && !planNameInput.value) {
         var d = new Date();
         var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-        planNameInput.value = 'خطة ' + activeCName + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
+        var cDisplay = (clientInput && clientInput.value) || activeCName || 'العميل';
+        planNameInput.value = 'خطة ' + cDisplay + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
     }
 
-    // Load real AMs from API
-    var amSelect = document.getElementById('pb-am-select');
+    // Load real AMs
     var realAMs = [
         { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
         { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' }
@@ -4290,14 +4304,8 @@ async function openPlanBuilderModal() {
         }
     } catch(e){}
 
-    // Match AM to current client input value
     if (clientInput && clientInput.value) {
         onPlanBuilderModalClientChange(clientInput.value);
-    }
-
-    var container = document.getElementById('pb-posts-container');
-    if (container && container.children.length === 0) {
-        addPlanBuilderRow();
     }
 }
 
@@ -4368,11 +4376,13 @@ window.promptAddPlanRowDriveLink = function(rowIdx) {
     showToast('تمت إضافة الرابط المرجعي للبوست 👍');
 };
 
-function addPlanBuilderRow(postData) {
+window.planBuilderRowCount = 0;
+
+window.addPlanBuilderRow = function(postData) {
     var container = document.getElementById('pb-posts-container');
     if (!container) return;
-    planBuilderRowCount++;
-    var idx = planBuilderRowCount;
+    window.planBuilderRowCount = (window.planBuilderRowCount || 0) + 1;
+    var idx = window.planBuilderRowCount;
     var data = postData || {};
 
     var team = window.allTeamEmployees || [
@@ -4416,7 +4426,7 @@ function addPlanBuilderRow(postData) {
                     '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 موعد النشر (اختياري):</label>' +
                     '<input type="date" class="pb-publish-date text-xs px-2 py-1 border border-slate-200 rounded-xl bg-slate-50 font-bold" value="' + esc(data.publish_date || '') + '" title="اختياري - يمكنك تركه فارغاً" />' +
                 '</div>' +
-                '<button type="button" onclick="removePlanBuilderRow(this)" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center font-bold text-xs transition" title="حذف هذا البوست">' +
+                '<button type="button" onclick="removePlanBuilderRow(this)" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center font-bold text-xs transition cursor-pointer" title="حذف هذا البوست">' +
                     '✕' +
                 '</button>' +
             '</div>' +
@@ -4447,7 +4457,7 @@ function addPlanBuilderRow(postData) {
                         '<span>📁 رفع صورة من الجهاز</span>' +
                         '<input type="file" accept="image/*,video/*" multiple class="hidden" onchange="handlePlanRowFileUpload(this, ' + idx + ')">' +
                     '</label>' +
-                    '<button type="button" onclick="promptAddPlanRowDriveLink(' + idx + ')" class="bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold py-1 px-2.5 rounded-lg transition flex items-center gap-1 shadow-2xs">' +
+                    '<button type="button" onclick="promptAddPlanRowDriveLink(' + idx + ')" class="bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold py-1 px-2.5 rounded-lg transition flex items-center gap-1 shadow-2xs cursor-pointer">' +
                         '<span>🔗 إضافة رابط Drive / مرجع</span>' +
                     '</button>' +
                 '</div>' +
@@ -4458,25 +4468,24 @@ function addPlanBuilderRow(postData) {
 
     container.appendChild(row);
     row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
+};
 
-function removePlanBuilderRow(btn) {
-    var row = btn.closest('.pb-post-row');
+window.removePlanBuilderRow = function(btn) {
+    var row = btn && btn.closest ? btn.closest('.pb-post-row') : null;
     if (row) {
         row.remove();
-        // renumber rows
         var rows = document.querySelectorAll('.pb-post-row');
         rows.forEach(function(r, idx){
             var badge = r.querySelector('.font-mono');
             if (badge) badge.textContent = 'بوست #' + (idx + 1);
         });
     }
-}
+};
 
-function loadSamplePlanTemplate() {
+window.loadSamplePlanTemplate = function() {
     var container = document.getElementById('pb-posts-container');
     if (container) container.innerHTML = '';
-    planBuilderRowCount = 0;
+    window.planBuilderRowCount = 0;
 
     var samples = [
         {
@@ -4503,11 +4512,11 @@ function loadSamplePlanTemplate() {
     ];
 
     samples.forEach(function(s){
-        addPlanBuilderRow(s);
+        window.addPlanBuilderRow(s);
     });
 
     showToast('تمت تعبئة النموذج التجريبي بنجاح! يمكنك التعديل عليه كما تحب 🎉');
-}
+};
 
 async function submitPlanBuilder() {
     var rows = document.querySelectorAll('.pb-post-row');

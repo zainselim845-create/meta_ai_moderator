@@ -19,7 +19,7 @@
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script defer src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <link href="/static/css/styles.css?v=12.6" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=12.7" rel="stylesheet"/>
   <style>
    /* Plan editor: each paragraph auto-directions by its own language (Arabic → RTL, English → LTR) */
    #pb-editor .ql-editor { direction: rtl; text-align: right; }
@@ -1782,15 +1782,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.js?v=12.6">
+  <script defer src="/static/js/app.js?v=12.7">
   </script>
-  <script defer src="/static/js/inbox.js?v=12.6">
+  <script defer src="/static/js/inbox.js?v=12.7">
   </script>
-  <script defer src="/static/js/chatwoot_free.js?v=12.6">
+  <script defer src="/static/js/chatwoot_free.js?v=12.7">
   </script>
-  <script defer src="/static/js/views.js?v=12.6">
+  <script defer src="/static/js/views.js?v=12.7">
   </script>
-  <script defer src="/static/js/clients.js?v=12.6">
+  <script defer src="/static/js/clients.js?v=12.7">
   </script>
  
   <!-- Modal: Add New Connected Account -->
@@ -2001,24 +2001,24 @@
       </div>
 
       <!-- Plan Metadata Bar -->
-      <div class="p-4 bg-slate-50 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+      <div class="p-4 sm:p-5 bg-slate-50/90 border-b border-slate-200/80 grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
         <div>
-          <label class="block font-bold text-slate-700 mb-1">🏷️ اسم العميل / البراند:</label>
-          <select id="pb-client-select" onchange="onPlanBuilderClientSelectChange(this.value)" class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-purple-500 focus:outline-none mb-1.5">
-            <option value="">-- اختر عميلاً مسجلاً في النظام --</option>
-          </select>
-          <input id="pb-client-name" list="pb-modal-clients-list" type="text" placeholder="أو اكتب اسم عميل جديد..." class="w-full px-3 py-1.5 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:outline-none" autocomplete="off" oninput="onPlanBuilderModalClientChange(this.value)" onchange="onPlanBuilderModalClientChange(this.value)" />
+          <label class="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+            <span>🏢 العميل / البراند:</span>
+            <span class="text-[10px] text-purple-600 font-semibold">اختر أو اكتب جديد</span>
+          </label>
+          <input id="pb-client-name" list="pb-modal-clients-list" type="text" placeholder="اختر من القائمة أو اكتب اسماً جديداً..." class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs" autocomplete="off" oninput="onPlanBuilderModalClientChange(this.value)" onchange="onPlanBuilderModalClientChange(this.value)" />
           <datalist id="pb-modal-clients-list"></datalist>
         </div>
         <div>
-          <label class="block font-bold text-slate-700 mb-1"> اسم الخطة / الشهر:</label>
-          <input id="pb-plan-name" type="text" placeholder="مثال: خطة سبتمبر 2026..." class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-purple-500 focus:outline-none" />
+          <label class="block font-bold text-slate-700 mb-1.5">📅 اسم الخطة / الشهر:</label>
+          <input id="pb-plan-name" type="text" placeholder="مثال: خطة شهر سبتمبر 2026..." class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs" />
         </div>
         <div>
-          <label class="block font-bold text-slate-700 mb-1"> الأكونت مانيجر المشرف:</label>
-          <select id="pb-am-select" class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-purple-500 focus:outline-none">
-            <option value="AM-2072-9827" selected> محمود خالد — Account Manager</option>
-            <option value="EMP-5887-5256"> آيه أحمد مجاهد — Account Manager</option>
+          <label class="block font-bold text-slate-700 mb-1.5">👤 الأكونت مانيجر المشرف:</label>
+          <select id="pb-am-select" class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs">
+            <option value="AM-2072-9827" selected>👤 محمود خالد — Account Manager</option>
+            <option value="EMP-5887-5256">👤 آيه أحمد مجاهد — Account Manager</option>
           </select>
         </div>
       </div>
