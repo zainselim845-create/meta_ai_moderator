@@ -504,3 +504,63 @@ def test_assigned_clients_scoping_am_vs_admin():
         am_clients = res_am.get_json()
         assert len(am_clients) == 1
         assert am_clients[0].get('id') == 'cli_sk_1788270118'
+
+
+def test_plan_with_tov_and_design_and_dots_separator():
+    from api.index import _universal_extract_plan_posts
+    text = """1)
+ال tov: مش كل كسل دلع ..... اطمني على ابنك
+الديزاين: طفل قاعد على مكتب المذاكرة، وحواليه عناصر بتعبر عن الخمول
+ابنك طول الوقت تعبان، مش مركز، ومش عايز يعمل أي حاجة؟
+....................................................................................................
+2)
+ال tov: الكبد ممكن يتعب .. من غير ما تحس
+الديزاين: كبد مرسوم كأنه قطعة أثرية على منصة مزاد
+مش كل مشكلة في الكبد بتبدأ بألم واضح.
+....................................................................................................
+3)
+كوميك: https://www.facebook.com/share/v/196vtvsF2r/?mibextid=wwXIfr
+"""
+    posts = _universal_extract_plan_posts(text)
+    assert len(posts) == 3
+    assert "مش كل كسل دلع" in posts[0]["title"]
+    assert "طفل قاعد على مكتب" in posts[0]["visual_idea"]
+    assert "الكبد ممكن يتعب" in posts[1]["title"]
+    assert "https://www.facebook.com/share/v/196vtvsF2r/?mibextid=wwXIfr" in posts[2]["media_urls"]
+    assert posts[2]["post_type"] == "reel"
+
+
+def test_plan_with_standard_arabic_hook_and_caption():
+    from api.index import _universal_extract_plan_posts
+    text = """بوست 1
+الهوك: 5 أسرار لزيادة المبيعات في 2026
+فكرة التصميم: إنفوجرافيك يوضح مسار رحلة العميل
+الكابشن:
+لو عايز تزود مبيعات شركتك وتضاعف أرباحك، دي أهم 5 خطوات لازم تطبقها فوراً...
+
+بوست 2
+الهوك: كيف تختار الاستراتيجية التسويقية المناسبة؟
+فكرة التصميم: مقارنة بصرية بين خطتين
+الكابشن:
+النجاح في التسويق يبدأ من اختيار القناة المناسبة لجمهورك المستهدف...
+"""
+    posts = _universal_extract_plan_posts(text)
+    assert len(posts) == 2
+    assert "5 أسرار" in posts[0]["title"]
+    assert "إنفوجرافيك" in posts[0]["visual_idea"]
+    assert "لو عايز تزود مبيعات" in posts[0]["caption"]
+
+
+def test_plan_with_table_tab_delimited():
+    from api.index import _universal_extract_plan_posts
+    text = """تاريخ النزول\tالنوع\tالعنوان\tفكرة التصميم\tالكابشن
+2026-09-05\tكاروسيل\tنصائح ذهبية للرشاقة\tسلايدات تعليمية\tإليك أفضل الطرق للمحافظة على صحتك
+2026-09-08\tريلز\tتمارين الصباح السريعة\tفيديو مدرب يقوم بالتمارين\t10 دقائق كل يوم هتفرق في نشاطك
+"""
+    posts = _universal_extract_plan_posts(text)
+    assert len(posts) == 2
+    assert posts[0]["post_type"] == "carousel"
+    assert "نصائح ذهبية" in posts[0]["title"]
+    assert posts[1]["post_type"] == "reel"
+    assert "تمارين الصباح" in posts[1]["title"]
+

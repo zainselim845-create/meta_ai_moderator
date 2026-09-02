@@ -7764,9 +7764,9 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                         hl = h.lower()
                         if any(k in hl for k in ['تاريخ', 'موعد', 'اليوم', 'date', 'publish', 'day', 'schedule']):
                             col_map["date"] = i
-                        elif any(k in hl for k in ['فكرة', 'ريفرنس', 'مرجع', 'مرجعية', 'رؤية', 'تصميم', 'وصف', 'idea', 'reference', 'ref', 'visual', 'design', 'brief', 'creative']):
+                        elif any(k in hl for k in ['فكرة', 'ريفرنس', 'مرجع', 'مرجعية', 'رؤية', 'تصميم', 'ديزاين', 'الديزاين', 'مشهد', 'تخيل', 'وصف', 'idea', 'reference', 'ref', 'visual', 'design', 'brief', 'creative', 'comic', 'كوميك']):
                             col_map["idea"] = i
-                        elif any(k in hl for k in ['تاج', 'لاين', 'هوك', 'عنوان', 'افتتاحية', 'سلايد', 'tagline', 'hook', 'headline', 'title', 'slide', 'header']):
+                        elif any(k in hl for k in ['تاج', 'لاين', 'هوك', 'عنوان', 'افتتاحية', 'سلايد', 'tagline', 'hook', 'headline', 'title', 'slide', 'header', 'tov', 'نبرة']):
                             col_map["tagline"] = i
                         elif any(k in hl for k in ['كابشن', 'نص', 'محتوى', 'مقال', 'إسكربت', 'اسكربت', 'سيناريو', 'caption', 'copy', 'text', 'content', 'script', 'body']):
                             col_map["caption"] = i
@@ -7818,15 +7818,16 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                 current_post = None
                 for p in doc.paragraphs:
                     ptxt = p.text.strip()
-                    if not ptxt:
+                    if not ptxt or re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', ptxt):
                         continue
-                    m_start = re.search(r'^(?:بوست|منشور|البوست|المنشور|Post|Task|Item)\s*#?\s*(\d+)[:\-\s]*(.*)', ptxt, re.IGNORECASE)
+                    m_start = re.search(r'^(?:(?:بوست|منشور|البوست|المنشور|محتوى|المحتوى|فيديو|الفيديو|ريلز|الريلز|كوميك|الكوميك|Post|Task|Item)\s*#?\s*(\d+)|(?:[\d\u0660-\u0669]{1,3}[\.\)\-\]\/:]|\([\d\u0660-\u0669]{1,3}\)|\[[\d\u0660-\u0669]{1,3}\]))[:\-\s]*(.*)', ptxt, re.IGNORECASE)
                     if m_start:
                         if current_post:
                             posts.append(current_post)
+                        post_heading = (m_start.group(2) if m_start.lastindex >= 2 else "") or f"منشور {len(posts) + 1}"
                         current_post = {
                             "index": len(posts) + 1,
-                            "title": m_start.group(2).strip() or f"منشور {len(posts) + 1}",
+                            "title": post_heading.strip() or f"منشور {len(posts) + 1}",
                             "content_type": "Single Image",
                             "post_type": "post",
                             "publish_date": "",
@@ -7854,16 +7855,16 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                             current_post["content_type"] = "Carousel" if current_post["post_type"] == "carousel" else "Single Image"
                         elif re.match(r'^(?:تاريخ|موعد|Date)[:\s]*(.+)', ptxt, re.I):
                             current_post["publish_date"] = re.sub(r'^(?:تاريخ|موعد|Date)[:\s]*', '', ptxt, flags=re.I).strip()
-                        elif re.match(r'^(?:فكرة|ريفرنس|تصميم|Idea|Visual)[:\s]*(.+)', ptxt, re.I):
-                            current_post["design_brief"] = re.sub(r'^(?:فكرة|ريفرنس|تصميم|Idea|Visual)[:\s]*', '', ptxt, flags=re.I).strip()
+                        elif re.match(r'^(?:فكرة|ريفرنس|تصميم|ديزاين|الديزاين|فكرة\s*الديزاين|فكرة\s*التصميم|المشهد|التخيل|كوميك|Idea|Visual|Design)[:\s]*(.+)', ptxt, re.I):
+                            current_post["design_brief"] = re.sub(r'^(?:فكرة|ريفرنس|تصميم|ديزاين|الديزاين|فكرة\s*الديزاين|فكرة\s*التصميم|المشهد|التخيل|كوميك|Idea|Visual|Design)[:\s]*', '', ptxt, flags=re.I).strip()
                             current_post["visual_idea"] = current_post["design_brief"]
-                        elif re.match(r'^(?:تاج|هوك|عنوان|Tagline|Hook)[:\s]*(.+)', ptxt, re.I):
-                            current_post["tagline"] = re.sub(r'^(?:تاج|هوك|عنوان|Tagline|Hook)[:\s]*', '', ptxt, flags=re.I).strip()
+                        elif re.match(r'^(?:تاج|هوك|عنوان|الـ?\s*tov|tov|tone|نبرة\s*الصوت|Tagline|Hook|Title)[:\s]*(.+)', ptxt, re.I):
+                            current_post["tagline"] = re.sub(r'^(?:تاج|هوك|عنوان|الـ?\s*tov|tov|tone|نبرة\s*الصوت|Tagline|Hook|Title)[:\s]*', '', ptxt, flags=re.I).strip()
                             current_post["visual_content"] = current_post["tagline"]
                             if not current_post["title"] or current_post["title"].startswith("منشور"):
                                 current_post["title"] = current_post["tagline"][:80]
-                        elif re.match(r'^(?:كابشن|نص|إسكربت|اسكربت|Caption|Copy|Script)[:\s]*(.+)', ptxt, re.I):
-                            current_post["caption"] = re.sub(r'^(?:كابشن|نص|إسكربت|اسكربت|Caption|Copy|Script)[:\s]*', '', ptxt, flags=re.I).strip()
+                        elif re.match(r'^(?:كابشن|نص|إسكربت|اسكربت|محتوى|المحتوى|Caption|Copy|Script)[:\s]*(.+)', ptxt, re.I):
+                            current_post["caption"] = re.sub(r'^(?:كابشن|نص|إسكربت|اسكربت|محتوى|المحتوى|Caption|Copy|Script)[:\s]*', '', ptxt, flags=re.I).strip()
                         else:
                             if not current_post["caption"]:
                                 current_post["caption"] = ptxt
