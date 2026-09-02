@@ -1840,17 +1840,26 @@ function renderTaskCard(t, indexInPlan) {
             return '<a href="' + esc(u) + '" target="_blank" class="block w-14 h-14 rounded-xl border border-blue-200 overflow-hidden bg-white shadow-2xs hover:scale-105 transition" title="مرجع ' + (rIdx + 1) + '"><img src="' + esc(thumbSrc) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
         }).join('') + (refs.length > 6 ? '<span class="text-[10px] text-blue-500 self-center font-bold">+' + (refs.length - 6) + '</span>' : '') + '</div></div>' : '';
 
-    // 2) Reference links (Pinterest, Behance, YouTube, external links)
-    var refLinks = (t.reference_links && t.reference_links.length) ? t.reference_links : [];
+    // 2) Reference links (Pinterest, Behance, YouTube, Facebook, Instagram, TikTok, Drive)
+    var refLinks = (t.reference_links && t.reference_links.length) ? t.reference_links :
+                   (t.content_data && t.content_data.reference_links && t.content_data.reference_links.length) ? t.content_data.reference_links :
+                   (t.graphic_data && t.graphic_data.reference_links && t.graphic_data.reference_links.length) ? t.graphic_data.reference_links :
+                   (t.video_data && t.video_data.reference_links && t.video_data.reference_links.length) ? t.video_data.reference_links :
+                   (t.media_urls && t.media_urls.length) ? t.media_urls.filter(function(u){ return String(u).startsWith('http') && !/\.(png|jpg|jpeg|gif|webp)(\?|$)/i.test(u); }) : [];
+                   
     var links = refLinks.length ?
         '<div class="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">' +
-        refLinks.slice(0, 4).map(function(u, idx) {
-            var label = u.includes('drive.google') ? '📁 ملف Drive' :
-                        u.includes('pinterest') ? '📌 Pinterest' :
-                        u.includes('youtube') || u.includes('youtu.be') ? '🎬 فيديو' :
-                        u.includes('behance') ? '🎨 Behance' : ('🔗 ريفرنس ' + (idx + 1));
-            return '<a href="' + esc(u) + '" target="_blank" class="inline-flex items-center gap-1 bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-violet-200 transition">' + esc(label) + ' ↗</a>';
-        }).join('') + '</div>' : '';
+        refLinks.slice(0, 6).map(function(u, idx) {
+            var uLow = String(u).toLowerCase();
+            var label = uLow.includes('drive.google') ? '📁 ملف Drive' :
+                        uLow.includes('pinterest') || uLow.includes('pin.it') ? '📌 Pinterest' :
+                        uLow.includes('facebook.com') || uLow.includes('fb.watch') ? '📹 فيديو Facebook' :
+                        uLow.includes('instagram.com') ? '📸 Instagram Reels' :
+                        uLow.includes('tiktok.com') ? '🎵 TikTok' :
+                        uLow.includes('youtube') || uLow.includes('youtu.be') ? '🎬 YouTube' :
+                        uLow.includes('behance') ? '🎨 Behance' : ('🔗 ريفرنس ' + (idx + 1));
+            return '<a href="' + esc(u) + '" target="_blank" class="inline-flex items-center gap-1 bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-violet-200 transition shadow-2xs hover:border-violet-300">' + esc(label) + ' ↗</a>';
+        }).join('') + (refLinks.length > 6 ? '<span class="text-[10px] text-violet-500 font-bold">+' + (refLinks.length - 6) + '</span>' : '') + '</div>' : '';
 
     // 3) Creative Brief & Visual Idea (فكرة وتوجيهات التصميم / الإسكربت)
     var visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || (t.video_data && t.video_data.idea) || t.design_brief || '').trim();

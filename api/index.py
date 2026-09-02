@@ -7755,13 +7755,24 @@ def _universal_extract_plan_posts(plan_text):
     # 4. Consolidate and merge any fragmented fields (Type, Visual Idea, Hook, Caption) into unified posts
     final_posts = _consolidate_and_merge_post_fragments(raw_posts)
     
-    # 5. Post-process: guarantee no post has empty or generic "منشور جديد" title
+    # 5. Post-process: guarantee no post has empty or generic "منشور جديد" title, and extract all reference links
     for idx, p in enumerate(final_posts, 1):
         tag = (p.get("tagline") or p.get("tag_line") or p.get("hook") or "").strip()
         cap = (p.get("caption") or "").strip()
         vis = (p.get("visual_idea") or p.get("design_brief") or "").strip()
         title = (p.get("title") or "").strip()
         
+        # Extract all URLs from all text fields
+        all_text = f"{title}\n{tag}\n{cap}\n{vis}"
+        found_urls = re.findall(r'https?://[^\s<>"\']+|data:image/[^;\s<>"\']+(?:;base64,[A-Za-z0-9+/=]+)?', all_text)
+        
+        existing_refs = p.get("reference_links") or []
+        existing_media = p.get("media_urls") or []
+        all_refs = list(dict.fromkeys(existing_refs + existing_media + found_urls))
+        
+        p["reference_links"] = all_refs
+        p["media_urls"] = all_refs
+
         is_generic_title = not title or re.match(r'^(?:منشور|بوست|Post|Item|Task)\s*#?\s*\d*$', title, re.I) or title == "منشور جديد"
         
         if not tag and cap:
@@ -7778,6 +7789,16 @@ def _universal_extract_plan_posts(plan_text):
         p["visual_content"] = tag or vis
         p["design_brief"] = vis or tag
         p["visual_idea"] = vis
+        
+        p["post_type"] = (p.get("post_type") or "post").lower()
+        if "carousel" in p["post_type"] or "كاروسيل" in p["post_type"] or "slide" in tag.lower() or "slide" in cap.lower():
+            p["content_type"] = "Carousel"
+            p["post_type"] = "carousel"
+        elif any(k in all_text.lower() for k in ["ريلز", "reel", "فيديو", "video", "كوميك", "comic", "facebook.com/share/v/", "facebook.com/reel/", "instagram.com/reel/", "tiktok.com", "youtube.com", "youtu.be"]):
+            p["content_type"] = "Video"
+            p["post_type"] = "reel"
+        else:
+            p["content_type"] = p.get("content_type") or "Single Image"
 
     return final_posts
 
@@ -8058,6 +8079,17 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
         vis = (p.get("visual_idea") or p.get("design_brief") or "").strip()
         title = (p.get("title") or "").strip()
         
+        # 1. Extract all URLs from all text fields
+        all_text = f"{title}\n{tag}\n{cap}\n{vis}"
+        found_urls = re.findall(r'https?://[^\s<>"\']+|data:image/[^;\s<>"\']+(?:;base64,[A-Za-z0-9+/=]+)?', all_text)
+        
+        existing_refs = p.get("reference_links") or []
+        existing_media = p.get("media_urls") or []
+        all_refs = list(dict.fromkeys(existing_refs + existing_media + found_urls))
+        
+        p["reference_links"] = all_refs
+        p["media_urls"] = all_refs
+
         is_generic_title = not title or re.match(r'^(?:منشور|بوست|Post|Item|Task)\s*#?\s*\d*$', title, re.I) or title == "منشور جديد"
         
         if not tag and cap:
@@ -8079,6 +8111,9 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
         if "carousel" in p["post_type"] or "كاروسيل" in p["post_type"] or "slide" in tag.lower() or "slide" in cap.lower():
             p["content_type"] = "Carousel"
             p["post_type"] = "carousel"
+        elif any(k in all_text.lower() for k in ["ريلز", "reel", "فيديو", "video", "كوميك", "comic", "facebook.com/share/v/", "facebook.com/reel/", "instagram.com/reel/", "tiktok.com", "youtube.com", "youtu.be"]):
+            p["content_type"] = "Video"
+            p["post_type"] = "reel"
         else:
             p["content_type"] = p.get("content_type") or "Single Image"
 
@@ -11999,7 +12034,6 @@ def _task_card_text(t, cid):
     st = t.get("status", "")
     st_ar = {"Assigned": "مُسندة", "In Progress": "جاري العمل",
              "Awaiting AM Review": "بانتظار المراجعة", "Completed": "مكتملة"}.get(st, st)
-    # resolve a real display name (assignee_name may be blank or just the id)
     name = (t.get("assignee_name") or "").strip()
     eid = str(t.get("assigned_employee_id") or "")
     if not name or name == eid:
@@ -12011,8 +12045,13 @@ def _task_card_text(t, cid):
         f" {_client_name(cid)}",
         f" <b>{t.get('title','')}</b>",
     ]
-    if t.get("description"):
-        lines.append(f"{t.get('description')[:200]}")
+    vis = (t.get("visual_idea") or t.get("design_brief") or "").strip()
+    if vis and vis != t.get("title") and vis != t.get("caption"):
+        lines.append(f"💡 <b>فكرة التصميم / المشهد:</b>\n{vis[:250]}")
+    if t.get("caption") or t.get("description"):
+        c_text = (t.get("caption") or t.get("description") or "").strip()
+        if c_text and c_text != t.get("title"):
+            lines.append(f"📝 <b>النص / الكابشن:</b>\n{c_text[:300]}")
     deadline = t.get("delivery_deadline") or t.get("publish_date") or "-"
     lines.append(f" موعد التسليم: <b>{deadline}</b>")
     lines.append(f" الحالة: <b>{st_ar}</b>")
@@ -12030,8 +12069,23 @@ def _task_card_buttons(t):
         rows.append([{"text": " بانتظار مراجعة المدير", "callback_data": "noop"}])
     elif st == "Completed":
         rows.append([{"text": "️ مكتملة", "callback_data": "noop"}])
+        
+    # Add Google Drive deliverable link if present
     if t.get("drive_link"):
-        rows.append([{"text": " ملف Google Drive", "url": t.get("drive_link")}])
+        rows.append([{"text": "📁 ملف Google Drive", "url": t.get("drive_link")}])
+        
+    # Add reference links (Facebook / Pinterest / YouTube / Drive / Behance)
+    refs = t.get("reference_links") or t.get("media_urls") or []
+    for idx, u in enumerate(refs[:3], 1):
+        if str(u).startswith("http") and u != t.get("drive_link"):
+            u_low = str(u).lower()
+            lbl = "📁 ملف مرجعي" if "drive.google" in u_low else \
+                  "📌 Pinterest" if "pinterest" in u_low or "pin.it" in u_low else \
+                  "📹 فيديو Facebook" if "facebook.com" in u_low or "fb.watch" in u_low else \
+                  "📸 Instagram" if "instagram.com" in u_low else \
+                  "🎬 YouTube" if "youtube.com" in u_low or "youtu.be" in u_low else \
+                  f"🔗 ريفرنس {idx}"
+            rows.append([{"text": f"{lbl} ↗", "url": u}])
     return rows
 
 def send_task_to_employee(t, cid):
