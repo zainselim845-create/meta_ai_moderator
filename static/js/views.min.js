@@ -1880,9 +1880,9 @@ function renderTaskCard(t, indexInPlan) {
         '<span> AM:</span> <span class="text-indigo-900">' + esc(cleanAM) + '</span>' +
     '</div>';
 
-    var clientTag = (selectedEmployeeFilter && t.client_name) ?
+    var clientTag = (t.client_name && t.client_name !== 'None' && t.client_name !== 'null' && t.client_name !== 'عميل عام') ?
         '<div class="text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">' +
-            '<span> ' + esc(t.client_name) + '</span>' +
+            '<span>🏢 ' + esc(t.client_name) + '</span>' +
         '</div>' : '';
 
     // 1) Reference images (strictly from docx / plan brief)
@@ -2617,14 +2617,16 @@ function renderTasksBoard() {
         var fileGroups = {};
         displayTasks.forEach(function(t) {
             var colKey = '';
-            var cName = t.client_name || activeClientName;
-            var fName = (t.file_name || t.plan_name || '').trim();
+            var cName = (t.client_name && t.client_name !== 'None' && t.client_name !== 'null' && t.client_name !== 'عميل عام') ? t.client_name :
+                        ((typeof _clientNameMap === 'function' ? _clientNameMap(t.client_id) : '') || 
+                        ((t.client_id && t.client_id !== 'cli_general') ? t.client_id.replace(/^cli_/, '').replace(/_\d+$/, '').replace(/_/g, ' ') : activeClientName));
+            var fName = (t.plan_name || t.file_name || ('خطة ' + cName)).trim();
             if (selectedEmployeeFilter) {
                 colKey = cName + (fName ? (' — ' + fName) : '');
             } else {
                 colKey = fName;
                 if (!colKey || colKey === 'خطة محتوى' || colKey === 'ملف الخطة') {
-                    colKey = activeClientName;
+                    colKey = 'خطة ' + cName;
                 }
             }
             if (!fileGroups[colKey]) {

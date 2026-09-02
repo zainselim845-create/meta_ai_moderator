@@ -5865,6 +5865,23 @@ def _sanitize_task_record(d):
     if not am_id or am_id in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned"] or "EMP-001" in am_name:
         d["am_id"] = "AM-2072-9827"
         d["am_name"] = "محمود خالد"
+        
+    cid = str(d.get("client_id") or "").strip()
+    cname = str(d.get("client_name") or "").strip()
+    if not cname or cname in ("None", "null", "عميل عام", "client_default", "NoneType"):
+        resolved = _client_name(cid)
+        if resolved and resolved != cid:
+            d["client_name"] = resolved
+        elif cid and cid.startswith("cli_"):
+            d["client_name"] = re.sub(r'_\d+$', '', cid[4:]).replace('_', ' ')
+            
+    pname = str(d.get("plan_name") or "").strip()
+    if not pname or pname in ("None", "null", "خطة عامة", "ملف الخطة"):
+        real_c = d.get("client_name") or "العميل"
+        d["plan_name"] = f"خطة {real_c}"
+        if not d.get("file_name"):
+            d["file_name"] = d["plan_name"]
+            
     return d
 
 

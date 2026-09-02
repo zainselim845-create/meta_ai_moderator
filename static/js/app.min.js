@@ -1034,8 +1034,10 @@ function renderMyPortalTasks() {
   }
 
   box.innerHTML = filtered.map(t => {
-    const cName = esc(t.client_name || 'دكتور أحمد حمدي');
-    const pName = esc(t.plan_name || t.file_name || 'خطة المحتوى');
+    const rawCName = (t.client_name && t.client_name !== 'None' && t.client_name !== 'null' && t.client_name !== 'عميل عام') ? t.client_name :
+                     ((t.client_id && t.client_id !== 'cli_general') ? t.client_id.replace(/^cli_/, '').replace(/_\d+$/, '').replace(/_/g, ' ') : 'العميل');
+    const cName = esc(rawCName);
+    const pName = esc(t.plan_name || t.file_name || ('خطة ' + rawCName));
     const amName = esc(t.am_name || 'محمود خالد');
     const rawCap = (t.caption || (t.content_data && t.content_data.caption) || t.description || '').trim();
     const cleanCap = rawCap.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();
