@@ -611,3 +611,61 @@ def test_large_plan_batch_processing_and_natural_sequence():
         assert _resolve_post_number(t) == idx
 
 
+def test_send_due_task_reminders_calculates_correct_buckets(monkeypatch):
+    import api.index as idx
+    from datetime import datetime, date, timedelta
+    
+    # Mock cairo now to a fixed date
+    fixed_now = datetime(2026, 9, 2, 10, 0, 0)
+    monkeypatch.setattr(idx, "_cairo_now", lambda: fixed_now)
+    
+    sample_tasks = [
+        {
+            "task_id": "TASK-001",
+            "title": "مهمة مستحقة غدا",
+            "delivery_deadline": "2026-09-03",
+            "assigned_employee_id": "EMP-8148",
+            "assignee_name": "عمر أحمد",
+            "status": "In Progress",
+            "am_id": "AM-2072-9827",
+            "am_name": "محمود خالد"
+        },
+        {
+            "task_id": "TASK-002",
+            "title": "مهمة مستحقة اليوم",
+            "delivery_deadline": "2026-09-02",
+            "assigned_employee_id": "EMP-8142",
+            "assignee_name": "ندى أيمن",
+            "status": "Assigned",
+            "am_id": "AM-2072-9827",
+            "am_name": "محمود خالد"
+        },
+        {
+            "task_id": "TASK-003",
+            "title": "مهمة مكتملة",
+            "delivery_deadline": "2026-09-02",
+            "assigned_employee_id": "EMP-8143",
+            "assignee_name": "فرح ياسر",
+            "status": "Completed",
+            "am_id": "AM-2072-9827",
+            "am_name": "محمود خالد"
+        }
+    ]
+    
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: sample_tasks)
+    sent_msgs = []
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda chat, text: sent_msgs.append((chat, text)) or True)
+    monkeypatch.setattr(idx, "_emp_chat", lambda eid: f"tg_{eid}")
+    monkeypatch.setattr(idx, "push_setting", lambda k, v: True)
+    
+    sent_count = idx._send_due_task_reminders(force=True)
+    assert sent_count > 0
+    # Verify employee received tomorrow alert
+    assert any("تذكير مسبق" in m[1] and "2026-09-03" in m[1] for m in sent_msgs)
+    # Verify employee received today alert
+    assert any("تنبيه عاجل" in m[1] and "2026-09-02" in m[1] for m in sent_msgs)
+    # Verify AM received reception alert
+    assert any("تنبيه الأكونت مانيجر" in m[1] for m in sent_msgs)
+
+
+
