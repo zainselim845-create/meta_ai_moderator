@@ -2565,24 +2565,50 @@ function renderTasksBoard() {
         var countPending = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'pending'); }).length;
         var countCompleted = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'completed'); }).length;
 
+        var empMap = {};
+        allTasks.forEach(function(t) {
+            var eid = (t.assigned_employee_id || '').trim();
+            var ename = (t.assignee_name || '').trim();
+            if (eid || ename) {
+                var k = eid || ename;
+                if (!empMap[k]) empMap[k] = { id: eid, name: ename || eid, count: 0 };
+                empMap[k].count++;
+            }
+        });
+        var activeEmpsWithTasks = Object.values(empMap);
+
+        var empBarHtml = '';
+        if (activeEmpsWithTasks.length > 0) {
+            empBarHtml = '<div class="flex items-center gap-1.5 flex-wrap border-t border-slate-200/60 pt-2">' +
+                '<span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">👤 فلترة الموظف:</span>' +
+                '<button type="button" onclick="clearEmployeeFilter()" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (!selectedEmployeeFilter ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100') + '">الجميع (' + countAll + ')</button>' +
+                activeEmpsWithTasks.map(function(emp) {
+                    var isSel = (selectedEmployeeFilter === emp.id || (selectedEmployeeName && (selectedEmployeeName === emp.name || selectedEmployeeName === emp.id)));
+                    return '<button type="button" onclick="toggleEmployeeFilter(\'' + esc(emp.id) + '\', \'' + esc(emp.name) + '\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (isSel ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50') + '">' +
+                        '👤 ' + esc(emp.name) + ' (' + emp.count + ')' +
+                    '</button>';
+                }).join('') +
+            '</div>';
+        }
+
         var sortToolbarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 shadow-2xs space-y-2.5 mb-1">' +
             '<div class="flex items-center justify-between gap-2 flex-wrap">' +
                 '<div class="flex items-center gap-1.5 flex-wrap">' +
                     '<span class="text-xs font-bold text-slate-800 flex items-center gap-1"> ترتيب حسب:</span>' +
                     '<button type="button" onclick="setTaskSort(\'sequence\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'sequence' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span> رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span> رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'deadline\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'deadline' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span> موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span> موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'status\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'status' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span> الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span> الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'task_id\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'task_id' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>️ الكود</span>' + (currentTaskSort === 'task_id' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span>️ الكود</span>' + (currentTaskSort === 'task_id' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'created_at\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'created_at' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                        '<span>️ الأحدث</span>' + (currentTaskSort === 'created_at' ? (currentTaskSortDir === 'desc' ? ' ↓' : ' ↑') : '') +
+                    '<span>️ الأحدث</span>' + (currentTaskSort === 'created_at' ? (currentTaskSortDir === 'desc' ? ' ↓' : ' ↑') : '') +
                     '</button>' +
                 '</div>' +
                 '<div class="flex items-center gap-2 w-full sm:w-auto">' +
@@ -2600,6 +2626,7 @@ function renderTasksBoard() {
                 '<button type="button" onclick="setTaskStatusFilter(\'pending\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'pending' ? 'bg-amber-600 text-white shadow-xs' : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50') + '">⏳ بانتظار الإسناد (' + countPending + ')</button>' +
                 '<button type="button" onclick="setTaskStatusFilter(\'completed\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'completed' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50') + '">✅ مكتملة (' + countCompleted + ')</button>' +
             '</div>' +
+            empBarHtml +
         '</div>';
 
         var topBanners = amBarHtml + filterBannerHtml + sortToolbarHtml;

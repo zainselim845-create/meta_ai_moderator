@@ -234,9 +234,6 @@
       </button>
       <a id="btn-header-oauth" href="/api/oauth/start" class="btn-ghost text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-slate-200 flex items-center gap-1 hover:bg-slate-50 transition whitespace-nowrap">
        <i class="w-3.5 h-3.5 text-blue-600" data-lucide="log-in"></i>
-       <span class="hidden sm:inline">ربط فيسبوك</span>
-      </a>
-     </div>
    </header>
    <main class="flex-1 p-4 md:p-6 overflow-y-auto">
     <!-- Employee self-service portal (shown only when role = employee) -->
@@ -244,6 +241,20 @@
      <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
       <h3 class="font-bold text-base text-slate-900 flex items-center gap-2"><i class="w-5 h-5 text-blue-600" data-lucide="user"></i><span id="myportal-name">أهلاً بك</span></h3>
       <p class="text-xs text-slate-500 mt-1">دي مهامك المسندة ليك وسجل حضورك. أي حاجة تخص شغلك بس.</p>
+     </div>
+
+     <!-- Admin Employee Switcher -->
+     <div id="myportal-emp-switcher-container" class="hidden bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 flex-wrap shadow-2xs">
+       <div class="flex items-center gap-2">
+         <span class="text-lg">👑</span>
+         <div>
+           <div class="text-xs font-bold text-indigo-950">عرض الإدارة والتحكم (Admin Switcher):</div>
+           <div class="text-[11px] text-indigo-700">يمكنك كأدمن استعراض بوابة ومهام أي موظف محدد أو متابعة كل الفريق معاً.</div>
+         </div>
+       </div>
+       <select id="myportal-emp-switcher" onchange="switchMyPortalEmployee(this.value)" class="text-xs font-bold bg-white border border-indigo-300 text-indigo-950 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer shadow-2xs">
+         <option value="all">👥 جميع مهام الفريق (عرض الإدارة الكامل)</option>
+       </select>
      </div>
 
      <!-- Employee Dedicated Google Drive Folder Card -->

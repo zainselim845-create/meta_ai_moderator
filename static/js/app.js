@@ -1144,17 +1144,47 @@ function renderMyPortalTasks() {
   }).join('');
 }
 
+let myPortalTargetEid = 'all';
+
+async function switchMyPortalEmployee(eid) {
+  myPortalTargetEid = eid;
+  loadMyPortal();
+}
+window.switchMyPortalEmployee = switchMyPortalEmployee;
+
 async function loadMyPortal() {
   const nameEl = document.getElementById('myportal-name');
+  let isAdm = false;
   try {
     const me = window._me || await safeFetchJson('/api/me');
+    isAdm = me && (me.is_admin || me.role === 'admin');
     const dispName = (me.name || me.full_name || me.employee_name || me.username || '').trim();
     if (nameEl) nameEl.textContent = 'أهلاً ' + dispName;
   } catch(e) {}
+
+  // Admin Switcher setup
+  const empSwitcher = document.getElementById('myportal-emp-switcher-container');
+  if (empSwitcher) {
+    if (isAdm) {
+      empSwitcher.classList.remove('hidden');
+      const empSelect = document.getElementById('myportal-emp-switcher');
+      if (empSelect && empSelect.options.length <= 1) {
+        try {
+          const empsRes = await safeFetchJson('/api/tasks/employees');
+          const emps = (empsRes && empsRes.employees) ? empsRes.employees : [];
+          empSelect.innerHTML = '<option value="all">👥 جميع مهام الفريق (عرض الإدارة الكامل)</option>' +
+            emps.map(e => `<option value="${esc(e.employee_id || e.name)}"${myPortalTargetEid === (e.employee_id || e.name) ? ' selected' : ''}>👤 ${esc(e.name)} (${esc(e.role || 'موظف')})</option>`).join('');
+        } catch(e) {}
+      }
+    } else {
+      empSwitcher.classList.add('hidden');
+    }
+  }
   
   // My tasks
   try {
-    const d = await safeFetchJson('/api/me/tasks');
+    const url = (isAdm && myPortalTargetEid && myPortalTargetEid !== 'all') ? ('/api/me/tasks?employee_id=' + encodeURIComponent(myPortalTargetEid)) : '/api/me/tasks';
+    const d = await safeFetchJson(url);
     const tasks = (d && d.tasks) ? d.tasks : [];
     const planSeqMap = {};
     tasks.forEach(t => {
@@ -1164,6 +1194,7 @@ async function loadMyPortal() {
     });
 
     myPortalTasksRaw = tasks;
+    window._myPortalTasksList = tasks;
 
     // Populate Client & Plan dropdowns in My Portal
     const cFilter = document.getElementById('myportal-client-filter');
