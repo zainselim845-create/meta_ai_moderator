@@ -489,13 +489,13 @@ def test_assigned_clients_scoping_am_vs_admin():
         
         # 2. Account Manager session with assigned clients
         with client.session_transaction() as sess:
-            sess['uid'] = 'EMP-5887-5256'
-            sess['employee_id'] = 'EMP-5887-5256'
+            sess['uid'] = 'AM-TEST-ISOLATED'
+            sess['employee_id'] = 'AM-TEST-ISOLATED'
             sess['role'] = 'account_manager'
-            sess['username'] = 'aya_ahmed'
+            sess['username'] = 'test_am_user'
             sess['user_rec'] = {
-                'employee_id': 'EMP-5887-5256',
-                'name': 'آيه أحمد مجاهد',
+                'employee_id': 'AM-TEST-ISOLATED',
+                'name': 'مدير حسابات تجريبي',
                 'role': 'account_manager',
                 'assigned_clients': ['cli_sk_1788270118']
             }
@@ -504,11 +504,3 @@ def test_assigned_clients_scoping_am_vs_admin():
         am_clients = res_am.get_json()
         assert len(am_clients) == 1
         assert am_clients[0].get('id') == 'cli_sk_1788270118'
-
-
-
-
-
-
-
-
