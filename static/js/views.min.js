@@ -2376,6 +2376,7 @@ function renderTasksBoard() {
         renderClientTabs();
         var board = document.getElementById('tasks-board-grid');
         if (!board) return;
+        var badge = document.getElementById('tasks-count-badge');
         var allTasks = tasksList || [];
         var displayTasks = allTasks.slice();
 
