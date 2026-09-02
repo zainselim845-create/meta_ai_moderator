@@ -3598,6 +3598,23 @@ async function sendMonthlyReportAction() {
     }
 }
 
+async function triggerTasksRemindersAction() {
+    if (!confirm('هل تريد إرسال تنبيهات المواعيد لمديري الحسابات والموظفين فورياً عبر تليجرام؟')) return;
+    try {
+        showToast("جاري فحص المواعيد وإرسال التنبيهات... 🔔");
+        var res = await fetch('/api/tasks/reminders/trigger', { method: 'POST' });
+        var data = await res.json();
+        if (data.success) {
+            showToast(data.message || 'تم إرسال التنبيهات بنجاح 🔔');
+        } else {
+            showToast(data.error || 'تعذّر إرسال التنبيهات', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالخدمة', 'error');
+    }
+}
+window.triggerTasksRemindersAction = triggerTasksRemindersAction;
+
 async function runSystemDiagnostics() {
     var box = document.getElementById('diagnostics-results-box');
     if (!box) return;

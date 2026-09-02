@@ -1596,10 +1596,15 @@
               <i data-lucide="check-square" class="w-5 h-5 text-blue-600"></i>
               <span>إدارة وتفريغ مهام الفريق والعمليات (Plan → Tasks Engine)</span>
             </h3>
-            <button id="btn-tasks-monthly-report" onclick="sendMonthlyReportAction()" class="btn-primary text-xs px-3.5 py-2 rounded-xl flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition whitespace-nowrap">
-              <i data-lucide="mail" class="w-4 h-4"></i>
-              <span>إرسال التقرير الشهري </span>
-            </button>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="triggerTasksRemindersAction()" class="text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold transition whitespace-nowrap shadow-2xs cursor-pointer" title="إرسال تنبيهات المواعيد لمديري الحسابات والموظفين فورياً عبر تليجرام">
+                <span>🔔 إرسال تنبيهات المواعيد</span>
+              </button>
+              <button id="btn-tasks-monthly-report" onclick="sendMonthlyReportAction()" class="btn-primary text-xs px-3.5 py-2 rounded-xl flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition whitespace-nowrap">
+                <i data-lucide="mail" class="w-4 h-4"></i>
+                <span>إرسال التقرير الشهري </span>
+              </button>
+            </div>
           </div>
           <!-- Client & AM & Plan Name Controls -->
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/90">
