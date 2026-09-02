@@ -7352,8 +7352,8 @@ def _universal_heuristic_plan_parser(plan_text):
     marker_indices = []
     header_patterns = [
         r'^\s*(?:[\d\u0660-\u0669]{1,3}[\.\)\-\]\/:]|\([\d\u0660-\u0669]{1,3}\)|\[[\d\u0660-\u0669]{1,3}\])\s*',
-        r'^\s*(?:بوست|البوست|منشور|المنشور|المحتوى|فيديو|الفيديو|ريلز|الريلز|ريل|الريل|فكرة|الفكرة|موضوع|الموضوع|تاسك|التاسك|مهمة|المهمة|post|content|reel|video|topic|idea|concept|task)\s*(?:#?\s*[\d\u0660-\u0669]+|[:\-\(]\s*[\d\u0660-\u0669]+|الأول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|رقم\s*[\d\u0660-\u0669]+|No\.?\s*[\d\u0660-\u0669]+)',
-        r'^\s*(?:---+|===+|\*\*\*+|___+)\s*$',
+        r'^\s*(?:بوست|البوست|منشور|المنشور|المحتوى|فيديو|الفيديو|ريلز|الريلز|ريل|الريل|فكرة|الفكرة|موضوع|الموضوع|تاسك|التاسك|مهمة|المهمة|كوميك|الكوميك|post|content|reel|video|topic|idea|concept|task|comic)\s*(?:#?\s*[\d\u0660-\u0669]+|[:\-\(]\s*[\d\u0660-\u0669]+|الأول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|رقم\s*[\d\u0660-\u0669]+|No\.?\s*[\d\u0660-\u0669]+)',
+        r'^\s*(?:---+|===+|\*\*\*+|___+|\.\.\.+)\s*$',
     ]
     for i, line in enumerate(lines):
         line_s = line.strip()
@@ -7364,10 +7364,10 @@ def _universal_heuristic_plan_parser(plan_text):
                 marker_indices.append(i)
                 break
 
-    # ---- 3. If no numbered markers, check for repeated primary keys (e.g. الهوك: or العنوان:) ----
+    # ---- 3. If no numbered markers, check for repeated primary keys (e.g. الهوك: or العنوان: or ال tov:) ----
     if len(marker_indices) < 2:
         for key_pat in [
-            r'^\s*(?:الهوك|هوك|الـ\s*هوك|hook)[:：\s]',
+            r'^\s*(?:الهوك|هوك|الـ\s*هوك|hook|تاج\s*لاين|تاجلاين|tag\s*line|الـ?\s*tov|tov)[:：\s]',
             r'^\s*(?:العنوان|عنوان|موضوع\s*البوست|فكرة\s*البوست|title|headline)[:：\s]',
             r'^\s*(?:الكابشن|كابشن|النص|الاسكريبت|اسكريبت|caption|script)[:：\s]'
         ]:
@@ -7382,6 +7382,8 @@ def _universal_heuristic_plan_parser(plan_text):
         for b in range(len(marker_indices)):
             block_lines = lines[marker_indices[b]:bounds[b+1]]
             block_text = "\n".join(block_lines).strip()
+            block_text = re.sub(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)\s*\n?', '', block_text).strip()
+            block_text = re.sub(r'\n?\s*(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', '', block_text).strip()
             if block_text:
                 blocks.append(block_text)
     else:
@@ -7411,6 +7413,9 @@ def _universal_heuristic_plan_parser(plan_text):
         pub_time = "10:00"
         dl_date = ""
         urls = url_re.findall(block_text)
+
+        if any(k in block_text.lower() for k in ["كوميك", "comic"]):
+            post_type = "reel" if urls else "post"
         
         if len(b_lines) == 1 and '|' in b_lines[0]:
             parts = [p.strip() for p in b_lines[0].split('|') if p.strip()]
@@ -7422,7 +7427,7 @@ def _universal_heuristic_plan_parser(plan_text):
                     "title": title[:140],
                     "caption": desc,
                     "visual_idea": "",
-                    "post_type": "reel" if any(k in pt for k in ["reel", "ريلز", "فيديو"]) else "post",
+                    "post_type": "reel" if any(k in pt for k in ["reel", "ريلز", "فيديو", "كوميك"]) else "post",
                     "publish_date": "",
                     "publish_time": "10:00",
                     "delivery_deadline": "",
@@ -7431,19 +7436,26 @@ def _universal_heuristic_plan_parser(plan_text):
                 continue
 
         for ln in b_lines:
+            if re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)\s*$', ln):
+                continue
+
             ln_clean = url_re.sub('', ln).strip()
+            if not ln_clean and urls:
+                continue
             if not ln_clean:
                 continue
                 
-            norm = ln_clean.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").lower()
-            
-            if re.match(r'^(?:عنوان|الهوك|هوك|الـ\s*هوك|الـ\s*hook|تاج\s*لاين|تاجلاين|tag\s*line|title|hook|headline|موضوع\s*البوست|فكرة\s*البوست)[:：\s]', ln_clean, re.I):
-                title = re.split(r'[:：]', ln_clean, 1)[-1].strip()
-            elif re.match(r'^(?:التخيل|تخيل|فكرة\s*التصميم|فكرة\s*الفيديو|التصميم|الموشن|visual|design|الرؤية\s*البصرية)[:：\s]', ln_clean, re.I):
-                visual = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+            if re.match(r'^(?:عنوان|الهوك|هوك|الـ\s*هوك|الـ\s*hook|تاج\s*لاين|تاجلاين|tag\s*line|title|hook|headline|موضوع\s*البوست|فكرة\s*البوست|الـ?\s*tov|tov|tone|نبرة\s*الصوت)[:：\s]', ln_clean, re.I):
+                t_val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+                if t_val:
+                    title = t_val
+            elif re.match(r'^(?:التخيل|تخيل|فكرة\s*التصميم|فكرة\s*الفيديو|التصميم|الموشن|visual|design|الرؤية\s*البصرية|الديزاين|ديزاين|فكرة\s*الديزاين|كوميك|الكوميك)[:：\s]', ln_clean, re.I):
+                v_val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+                if v_val:
+                    visual = v_val
             elif re.match(r'^(?:النوع|نوع\s*المحتوى|نوع\s*البوست|type|format)[:：\s]', ln_clean, re.I):
                 val = re.split(r'[:：]', ln_clean, 1)[-1].strip().lower()
-                if any(k in val for k in ["ريلز", "reel", "فيديو", "video", "تيك توك", "tiktok"]):
+                if any(k in val for k in ["ريلز", "reel", "فيديو", "video", "تيك توك", "tiktok", "كوميك"]):
                     post_type = "reel"
                 elif any(k in val for k in ["كاروسيل", "carousel", "سلايدر", "slides"]):
                     post_type = "carousel"
@@ -7471,21 +7483,24 @@ def _universal_heuristic_plan_parser(plan_text):
                     caption_lines.append(body_part)
             else:
                 cleaned_line = re.sub(r'^(?:\d{1,3}[\.\)\-\]]|\(\d{1,3}\)|[٠-٩]{1,3}[\.\)\-\]]|بوست\s*#?\d+[:\s]*|البوست\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر)[:\s]*|Post\s*#?\d+[:\s]*)', '', ln_clean, flags=re.I).strip()
-                if cleaned_line and not re.match(r'^(?:---+|===+|\*\*\*+|___+)$', cleaned_line):
-                    if not any(cleaned_line.startswith(p) for p in ['', '', '', '', '(013)', '(+2)']):
-                        if re.match(r'^(?:الـ?\s*tov|tov|tone|نبرة\s*الصوت)[:：\s]', cleaned_line, re.I):
-                            tov_val = re.split(r'[:：]', cleaned_line, 1)[-1].strip()
-                            if tov_val:
-                                caption_lines.append(tov_val)
-                        else:
-                            caption_lines.append(cleaned_line)
+                if cleaned_line and not re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', cleaned_line):
+                    if not any(cleaned_line.startswith(p) for p in ['(013)', '(+20)', '+201']):
+                        caption_lines.append(cleaned_line)
 
-        if not title and caption_lines:
-            title = caption_lines[0][:100].lstrip("-•*️ ").strip()
-        if not title:
-            title = "منشور جديد"
-            
         full_caption = "\n".join(caption_lines).strip()
+        if not title:
+            if caption_lines:
+                title = caption_lines[0][:100].lstrip("-•*️ ").strip()
+            elif visual:
+                title = visual[:100].strip()
+            elif urls:
+                title = "فيديو / كوميك مرجعي"
+            else:
+                title = "منشور جديد"
+
+        if not full_caption:
+            full_caption = title
+            
         results.append({
             "title": title[:140],
             "caption": full_caption or title,
@@ -7515,8 +7530,8 @@ def _consolidate_and_merge_post_fragments(posts):
 
     def is_visual_idea(text):
         t = (text or '').strip().lower()
-        prefixes = ['صورة ', 'تصميم ', 'شخص ', 'زوج ', 'فيديو ', 'هنعمل ', 'مشهد ', 'فكرة التصميم', 'فكرة الفيديو', 'visual:', 'design:']
-        return any(t.startswith(p) for p in prefixes) or 'فكرة التصميم' in t
+        prefixes = ['صورة', 'تصميم', 'شخص', 'زوج', 'فيديو', 'هنعمل', 'مشهد', 'فكرة', 'الفكرة', 'الرؤية البصرية', 'الديزاين', 'ديزاين', 'visual', 'design', 'ref', 'reference']
+        return any(t.startswith(p) for p in prefixes) or any(k in t for k in ['فكرة التصميم', 'فكرة الفيديو', 'الفكرة البصرية', 'فكرة الديزاين'])
 
     def is_header_post(p):
         t = (p.get('title') or '').lower()
@@ -7538,11 +7553,15 @@ def _consolidate_and_merge_post_fragments(posts):
         t = (p.get('title') or '').strip()
         c = (p.get('caption') or '').strip()
         v = (p.get('visual_idea') or '').strip()
-        if (t in dummy_titles or not t) and (c in dummy_titles or not c) and not v:
+        u = p.get('media_urls') or []
+        if (t in dummy_titles or not t) and (c in dummy_titles or not c) and not v and not u:
             continue
         filtered.append(p)
 
-    # Step 2: Merge adjacent Title-only and Caption-only fragments
+    if not filtered:
+        return posts
+
+    # Step 2: Merge adjacent fragments if any
     merged = []
     skip_next = False
     for idx, p in enumerate(filtered):
@@ -7562,61 +7581,24 @@ def _consolidate_and_merge_post_fragments(posts):
                 merged[-1]['post_type'] = detected_pt
             continue
 
-        # If this item is solely a visual idea
-        if (is_visual_idea(t) or is_visual_idea(c) or (v and not t and not c)) and not (t and c and t != c):
-            vis_text = v or (c if is_visual_idea(c) else t)
-            if merged and not merged[-1].get('visual_idea'):
-                merged[-1]['visual_idea'] = vis_text
+        # If this item is solely a visual idea (and NOT a standalone video/post with media URLs or substantial text)
+        if not (p.get('media_urls')) and (is_visual_idea(t) or is_visual_idea(c) or (v and not t and not c)) and not (t and c and t != c and len(c) > 40):
+            vis_text = v or (c if is_visual_idea(c) or is_visual_idea(t) else t)
+            if merged:
+                if not merged[-1].get('visual_idea'):
+                    merged[-1]['visual_idea'] = vis_text
+                if vis_text and vis_text not in (merged[-1].get('caption') or ''):
+                    merged[-1]['caption'] = ((merged[-1].get('caption') or '') + '\n' + vis_text).strip()
             elif idx + 1 < len(filtered):
                 nxt = filtered[idx + 1]
                 nxt['visual_idea'] = vis_text
+                if vis_text and vis_text not in (nxt.get('caption') or ''):
+                    nxt['caption'] = ((nxt.get('caption') or '') + '\n' + vis_text).strip()
             continue
 
-        # Case A: Title is dummy, but Caption has the real Hook/Title
-        if t in dummy_titles and c not in dummy_titles:
-            if idx + 1 < len(filtered):
-                nxt = filtered[idx + 1]
-                nxt_t = (nxt.get('title') or '').strip()
-                nxt_c = (nxt.get('caption') or '').strip()
-                if nxt_c in dummy_titles and nxt_t not in dummy_titles:
-                    merged.append({
-                        'title': c,
-                        'caption': nxt_t,
-                        'visual_idea': v or nxt.get('visual_idea', ''),
-                        'post_type': 'carousel' if 'slide' in c.lower() or 'slide' in nxt_t.lower() else pt,
-                        'publish_date': p.get('publish_date') or nxt.get('publish_date', ''),
-                        'publish_time': p.get('publish_time', '10:00'),
-                        'delivery_deadline': p.get('delivery_deadline', ''),
-                        'media_urls': (p.get('media_urls') or []) + (nxt.get('media_urls') or [])
-                    })
-                    skip_next = True
-                    continue
-            t = c
-            c = ''
-
-        # Case B: Caption is dummy, but Title has text
-        elif c in dummy_titles and t not in dummy_titles:
-            if idx + 1 < len(filtered):
-                nxt = filtered[idx + 1]
-                nxt_t = (nxt.get('title') or '').strip()
-                nxt_c = (nxt.get('caption') or '').strip()
-                if nxt_t in dummy_titles and nxt_c not in dummy_titles:
-                    merged.append({
-                        'title': t,
-                        'caption': nxt_c,
-                        'visual_idea': v or nxt.get('visual_idea', ''),
-                        'post_type': pt,
-                        'publish_date': p.get('publish_date') or nxt.get('publish_date', ''),
-                        'publish_time': p.get('publish_time', '10:00'),
-                        'delivery_deadline': p.get('delivery_deadline', ''),
-                        'media_urls': (p.get('media_urls') or []) + (nxt.get('media_urls') or [])
-                    })
-                    skip_next = True
-                    continue
-
         merged.append({
-            'title': t if t not in dummy_titles else (c[:80] if c else 'منشور جديد'),
-            'caption': c if c not in dummy_titles else (t if t not in dummy_titles else ''),
+            'title': t if t not in dummy_titles else (c[:80] if c and c not in dummy_titles else 'منشور جديد'),
+            'caption': c if c else t,
             'visual_idea': v,
             'post_type': pt,
             'publish_date': p.get('publish_date', ''),
@@ -7625,58 +7607,7 @@ def _consolidate_and_merge_post_fragments(posts):
             'media_urls': p.get('media_urls', [])
         })
 
-    # Step 2.5: Consolidate consecutive Hook / Headline + Body / Caption pairs
-    merged_pairs = []
-    i = 0
-    while i < len(merged):
-        curr = merged[i]
-        curr_t = (curr.get('title') or '').strip()
-        curr_c = (curr.get('caption') or '').strip()
-        curr_v = (curr.get('visual_idea') or '').strip()
-        curr_pt = (curr.get('post_type') or 'post').lower()
-
-        if i + 1 < len(merged):
-            nxt = merged[i + 1]
-            nxt_t = (nxt.get('title') or '').strip()
-            nxt_c = (nxt.get('caption') or '').strip()
-            nxt_v = (nxt.get('visual_idea') or '').strip()
-
-            is_hook_title = len(curr_t) < 95
-            is_nxt_body = len(nxt_t) >= 15 or len(nxt_c) >= 15 or 'Slide' in curr_t or 'slide' in curr_t.lower()
-
-            if (curr_t == curr_c or not curr_c or len(curr_c) < 95) and is_hook_title and is_nxt_body:
-                cap = nxt_c if len(nxt_c) > len(nxt_t) else nxt_t
-                merged_pairs.append({
-                    'title': curr_t,
-                    'caption': cap,
-                    'visual_idea': curr_v or nxt_v,
-                    'post_type': 'carousel' if 'slide' in curr_t.lower() or 'slide' in nxt_t.lower() else curr_pt,
-                    'publish_date': curr.get('publish_date') or nxt.get('publish_date', ''),
-                    'publish_time': curr.get('publish_time', '10:00'),
-                    'delivery_deadline': curr.get('delivery_deadline', ''),
-                    'media_urls': (curr.get('media_urls') or []) + (nxt.get('media_urls') or [])
-                })
-                i += 2
-                continue
-
-        merged_pairs.append(curr)
-        i += 1
-    
-    merged = merged_pairs
-
-    # Step 3: Final validation & clean up
-    cleaned_final = []
-    for m in merged:
-        if m['title'] in dummy_titles and m['caption'] in dummy_titles:
-            continue
-        if not m['caption']:
-            m['caption'] = m['title']
-        if not m['title']:
-            m['title'] = m['caption'][:100].lstrip("-•*️ ").strip()
-        if m['title'] and not is_just_type(m['title']):
-            cleaned_final.append(m)
-
-    return cleaned_final if cleaned_final else posts
+    return merged if merged else posts
 
 def _universal_extract_plan_posts(plan_text):
     """Combines AI LLM extraction with universal heuristic fallback and intelligent fragment consolidation."""
