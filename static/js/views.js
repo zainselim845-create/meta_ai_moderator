@@ -3014,6 +3014,17 @@ async function uploadPlanImage(input) {
     if (input) input.value = '';
 }
 
+window.promptInsertDriveLinkInQuill = function() {
+    var val = prompt("أدخل رابط Google Drive أو Pinterest أو الفيديو المرجعي:");
+    if (!val || !val.trim()) return;
+    var link = val.trim();
+    if (_planQuill) {
+        var len = _planQuill.getLength();
+        _planQuill.insertText(len - 1, '\nريفرنس: ' + link + '\n');
+        showToast('تمت إضافة الرابط المرجعي للبلان 👍');
+    }
+};
+
 async function createPlan() {
     var clientInput = ((document.getElementById('pb-client')||{}).value || '').trim();
     var planName = ((document.getElementById('pb-plan-name')||{}).value || '').trim();
@@ -4191,15 +4202,22 @@ function onPlanBuilderModalClientChange(val) {
     }
 }
 
+function onPlanBuilderClientSelectChange(val) {
+    var cInput = document.getElementById('pb-client-name');
+    if (cInput) cInput.value = val || '';
+    onPlanBuilderModalClientChange(val);
+}
+
 async function openPlanBuilderModal() {
     var modal = document.getElementById('plan-builder-modal');
     if (!modal) return;
     modal.classList.remove('hidden');
 
-    // Populate all client datalists (including pb-modal-clients-list)
+    // Populate all client datalists (including pb-modal-clients-list and pb-client-select)
     var allClients = await populateClientDatalists();
 
     var clientInput = document.getElementById('pb-client-name');
+    var clientSelect = document.getElementById('pb-client-select');
     var activeCName = '';
     var clientNameEl = document.getElementById('tasks-client-name');
     if (clientNameEl && clientNameEl.textContent) {
@@ -4211,6 +4229,14 @@ async function openPlanBuilderModal() {
     }
     if (clientInput && (!clientInput.value || clientInput.value === 'Domya Marketing Agency')) {
         clientInput.value = activeCName;
+    }
+
+    if (clientSelect) {
+        clientSelect.innerHTML = '<option value="">-- اختر عميلاً مسجلاً في النظام (' + (allClients || []).length + ' عميل) --</option>' + (allClients || []).map(function(c){
+            var cName = esc(c.name || c.company || c.id || '');
+            var isSel = (c.id === currentClient || c.name === activeCName);
+            return '<option value="' + cName + '"' + (isSel ? ' selected' : '') + '>🏢 ' + cName + (c.am_name ? ' [AM: ' + esc(c.am_name) + ']' : '') + '</option>';
+        }).join('');
     }
 
     var planNameInput = document.getElementById('pb-plan-name');
@@ -4235,7 +4261,7 @@ async function openPlanBuilderModal() {
             var opt = document.createElement('option');
             opt.value = a.employee_id || a.id;
             var isMe = myEmpId && String(opt.value) === String(myEmpId);
-            opt.textContent = ' ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager') + (isMe ? ' (أنا ‍️)' : '');
+            opt.textContent = '👤 ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '');
             if (isMe || opt.value === 'AM-2072-9827') opt.selected = true;
             amSelect.appendChild(opt);
         });
@@ -4272,6 +4298,68 @@ function closePlanBuilderModal() {
     if (modal) modal.classList.add('hidden');
 }
 
+window.handlePlanRowFileUpload = async function(input, rowIdx) {
+    var files = input && input.files ? Array.from(input.files) : [];
+    if (!files.length) return;
+    var row = document.getElementById('pb-row-' + rowIdx);
+    if (!row) return;
+    var refInp = row.querySelector('.pb-ref-links');
+    var thumbs = row.querySelector('.pb-row-thumbs');
+    showToast('جاري رفع الصور كمرجع للبوست... ⏳');
+    for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        var fd = new FormData();
+        fd.append('file', f);
+        var cInput = ((document.getElementById('pb-client-name')||{}).value || '').trim();
+        if (cInput) fd.append('client_id', cInput);
+        try {
+            var res = await fetch('/api/plan/upload-image', { method: 'POST', body: fd });
+            var data = await res.json();
+            var link = (data && data.url) ? data.url : '';
+            if (res.ok && link) {
+                if (refInp) {
+                    var cur = refInp.value.trim();
+                    refInp.value = cur ? (cur + ', ' + link) : link;
+                }
+                if (thumbs) {
+                    var isImg = /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(link) || link.startsWith('data:image/');
+                    var thumbHtml = '<a href="' + esc(link) + '" target="_blank" class="inline-flex items-center gap-1 bg-white border border-purple-200 rounded-lg p-1 text-[10px] font-bold text-purple-800 shadow-2xs hover:scale-105 transition" title="' + esc(f.name) + '">' +
+                        (isImg ? ('<img src="' + esc(link) + '" class="w-6 h-6 object-cover rounded" />') : '📁') +
+                        '<span class="max-w-[100px] truncate">' + esc(f.name) + '</span> ↗</a>';
+                    thumbs.insertAdjacentHTML('beforeend', thumbHtml);
+                }
+                showToast('تم رفع المرجع بنجاح ✨');
+            } else {
+                showToast(data.error || 'تعذر رفع المرجع', 'error');
+            }
+        } catch(e) {
+            showToast('خطأ أثناء الرفع', 'error');
+        }
+    }
+    input.value = '';
+};
+
+window.promptAddPlanRowDriveLink = function(rowIdx) {
+    var val = prompt("أدخل رابط Google Drive أو Pinterest أو رابط الفيديو المرجعي لهذا البوست:");
+    if (!val || !val.trim()) return;
+    var link = val.trim();
+    var row = document.getElementById('pb-row-' + rowIdx);
+    if (!row) return;
+    var refInp = row.querySelector('.pb-ref-links');
+    var thumbs = row.querySelector('.pb-row-thumbs');
+    if (refInp) {
+        var cur = refInp.value.trim();
+        refInp.value = cur ? (cur + ', ' + link) : link;
+    }
+    if (thumbs) {
+        var lbl = link.includes('drive.google') ? '📁 Drive' : (link.includes('pinterest') ? '📌 Pinterest' : (link.includes('facebook') ? '📹 Facebook' : (link.includes('instagram') ? '📸 Instagram' : (link.includes('youtube') ? '🎬 YouTube' : '🔗 مرجع'))));
+        var thumbHtml = '<a href="' + esc(link) + '" target="_blank" class="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 text-[10px] font-bold text-blue-800 shadow-2xs hover:scale-105 transition">' +
+            '<span>' + esc(lbl) + '</span> ↗</a>';
+        thumbs.insertAdjacentHTML('beforeend', thumbHtml);
+    }
+    showToast('تمت إضافة الرابط المرجعي للبوست 👍');
+};
+
 function addPlanBuilderRow(postData) {
     var container = document.getElementById('pb-posts-container');
     if (!container) return;
@@ -4288,11 +4376,13 @@ function addPlanBuilderRow(postData) {
         { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' }
     ];
 
-    var assigneeOptions = '<option value=""> اسناد لموظف محدد (اختياري)...</option>';
+    var assigneeOptions = '<option value="">👤 إسناد لموظف محدد (اختياري)...</option>';
     team.forEach(function(e){
         var isSel = (data.assigned_employee_id === e.employee_id || (data.assignee_name && data.assignee_name === e.name));
         assigneeOptions += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + ' (' + esc(e.role) + ')</option>';
     });
+
+    var initialRefs = data.reference_links_str || (Array.isArray(data.reference_links) ? data.reference_links.join(', ') : (data.reference_links || ''));
 
     var row = document.createElement('div');
     row.className = 'pb-post-row bg-white border border-slate-200 hover:border-purple-300 rounded-2xl p-4 sm:p-5 shadow-xs transition space-y-3';
@@ -4303,11 +4393,11 @@ function addPlanBuilderRow(postData) {
             '<div class="flex items-center gap-2 flex-wrap">' +
                 '<span class="bg-purple-600 text-white font-mono font-bold text-xs px-2.5 py-1 rounded-xl shadow-2xs">بوست #' + idx + '</span>' +
                 '<select class="pb-post-type text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-800 focus:outline-none focus:border-purple-500">' +
-                    '<option value="reel"' + (data.post_type === 'reel' ? ' selected' : '') + '> ريلز / فيديو قصير (Reels)</option>' +
-                    '<option value="post"' + (data.post_type === 'post' ? ' selected' : '') + '> منشور صورة مفردة (Single Post)</option>' +
-                    '<option value="carousel"' + (data.post_type === 'carousel' ? ' selected' : '') + '>️ كاروسيل / سلايدات (Carousel)</option>' +
-                    '<option value="story"' + (data.post_type === 'story' ? ' selected' : '') + '> ستوري / قصة (Story)</option>' +
-                    '<option value="motion"' + (data.post_type === 'motion' ? ' selected' : '') + '> موشن جرافيك (Motion Graphic)</option>' +
+                    '<option value="reel"' + (data.post_type === 'reel' ? ' selected' : '') + '>🎬 ريلز / فيديو قصير (Reels)</option>' +
+                    '<option value="post"' + (data.post_type === 'post' ? ' selected' : '') + '>🖼️ منشور صورة مفردة (Single Post)</option>' +
+                    '<option value="carousel"' + (data.post_type === 'carousel' ? ' selected' : '') + '>📑 كاروسيل / سلايدات (Carousel)</option>' +
+                    '<option value="story"' + (data.post_type === 'story' ? ' selected' : '') + '>📱 ستوري / قصة (Story)</option>' +
+                    '<option value="motion"' + (data.post_type === 'motion' ? ' selected' : '') + '>✨ موشن جرافيك (Motion Graphic)</option>' +
                 '</select>' +
                 '<select class="pb-assignee text-xs font-bold bg-purple-50/70 border border-purple-200 rounded-xl px-2.5 py-1 text-purple-900 focus:outline-none focus:border-purple-500">' +
                     assigneeOptions +
@@ -4315,29 +4405,47 @@ function addPlanBuilderRow(postData) {
             '</div>' +
             '<div class="flex items-center gap-2">' +
                 '<div class="flex items-center gap-1.5">' +
-                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline"> موعد النشر (اختياري):</label>' +
+                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 موعد النشر (اختياري):</label>' +
                     '<input type="date" class="pb-publish-date text-xs px-2 py-1 border border-slate-200 rounded-xl bg-slate-50 font-bold" value="' + esc(data.publish_date || '') + '" title="اختياري - يمكنك تركه فارغاً" />' +
                 '</div>' +
                 '<button type="button" onclick="removePlanBuilderRow(this)" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center font-bold text-xs transition" title="حذف هذا البوست">' +
-                    '' +
+                    '✕' +
                 '</button>' +
             '</div>' +
         '</div>' +
 
         '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">' +
             '<div>' +
-                '<label class="block text-[11px] font-bold text-amber-900 mb-1 flex items-center gap-1">️ التاج لاين / الهوك الجذاب (Tagline / Hook):</label>' +
+                '<label class="block text-[11px] font-bold text-amber-900 mb-1 flex items-center gap-1">🏷️ التاج لاين / الهوك الجذاب (Tagline / Hook):</label>' +
                 '<input type="text" class="pb-tagline w-full px-3 py-2 border border-amber-200 rounded-xl bg-amber-50/40 text-xs font-bold text-amber-950 focus:bg-white focus:border-amber-400 focus:outline-none" placeholder="مثال: 3 أخطاء بتضيع ميزانية إعلاناتك..." value="' + esc(data.tagline || data.title || '') + '" />' +
             '</div>' +
             '<div>' +
-                '<label class="block text-[11px] font-bold text-purple-900 mb-1 flex items-center gap-1"> فكرة الفيجوال / اسكربت الفيديو (Visual Idea / Script):</label>' +
+                '<label class="block text-[11px] font-bold text-purple-900 mb-1 flex items-center gap-1">💡 فكرة الفيجوال / اسكربت الفيديو (Visual Idea / Script):</label>' +
                 '<input type="text" class="pb-visual w-full px-3 py-2 border border-purple-200 rounded-xl bg-purple-50/40 text-xs text-purple-950 focus:bg-white focus:border-purple-400 focus:outline-none" placeholder="مثال: تصوير الموديل مع ظهور عناوين موشن وتأثير صوتي..." value="' + esc(data.visual_idea || '') + '" />' +
             '</div>' +
         '</div>' +
 
         '<div>' +
-            '<label class="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1"> نص الكونتنت والكابشن الكامل (Full Copy / Caption / Script):</label>' +
+            '<label class="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">📝 نص الكونتنت والكابشن الكامل (Full Copy / Caption / Script):</label>' +
             '<textarea rows="3" class="pb-caption w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 leading-relaxed focus:border-purple-500 focus:outline-none" placeholder="اكتب نص البوست الكامل هنا مع التفاصيل والـ CTA والهاشتاجات...">' + esc(data.caption || '') + '</textarea>' +
+        '</div>' +
+
+        '<!-- Reference Section -->' +
+        '<div class="bg-purple-50/40 border border-purple-100 rounded-xl p-3 space-y-2">' +
+            '<div class="flex items-center justify-between flex-wrap gap-2">' +
+                '<span class="text-[11px] font-bold text-purple-950 flex items-center gap-1">🖼️ الريفرانس والمراجع (صور من الجهاز أو روابط Google Drive):</span>' +
+                '<div class="flex items-center gap-1.5">' +
+                    '<label class="cursor-pointer bg-white hover:bg-purple-100 text-purple-700 border border-purple-200 text-[11px] font-bold py-1 px-2.5 rounded-lg transition flex items-center gap-1 shadow-2xs">' +
+                        '<span>📁 رفع صورة من الجهاز</span>' +
+                        '<input type="file" accept="image/*,video/*" multiple class="hidden" onchange="handlePlanRowFileUpload(this, ' + idx + ')">' +
+                    '</label>' +
+                    '<button type="button" onclick="promptAddPlanRowDriveLink(' + idx + ')" class="bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold py-1 px-2.5 rounded-lg transition flex items-center gap-1 shadow-2xs">' +
+                        '<span>🔗 إضافة رابط Drive / مرجع</span>' +
+                    '</button>' +
+                '</div>' +
+            '</div>' +
+            '<input type="text" class="pb-ref-links w-full px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-mono text-slate-700 focus:border-purple-500 focus:outline-none" placeholder="الصق روابط Google Drive أو Pinterest أو فيديوهات مفصولة بفاصلة..." value="' + esc(initialRefs) + '" />' +
+            '<div class="pb-row-thumbs flex items-center gap-1.5 flex-wrap pt-0.5"></div>' +
         '</div>';
 
     container.appendChild(row);
@@ -4365,22 +4473,22 @@ function loadSamplePlanTemplate() {
     var samples = [
         {
             post_type: 'reel',
-            tagline: 'سر واحد هيضاعف مبيعاتك في 30 يوم ',
-            caption: 'أغلب البراندات بتركز على الإعلانات وبتنسى أهم خطوة: تجربة العميل بعد أول نقرة!\n\nفي الفيديو ده هنوضح 3 خطوات عملية تقدر تطبقهم النهاردة عشان ترفع نسبة التحويل.\n\n ابعتلنا كلمة (مبيعات) في الرسائل وهنبعتلك الدليل المجاني فوراً!\n\n#تسويق_إلكتروني #مبيعات #ريلز #سوشيال_ميديا',
+            tagline: 'سر واحد هيضاعف مبيعاتك في 30 يوم 🚀',
+            caption: 'أغلب البراندات بتركز على الإعلانات وبتنسى أهم خطوة: تجربة العميل بعد أول نقرة!\n\nفي الفيديو ده هنوضح 3 خطوات عملية تقدر تطبقهم النهاردة عشان ترفع نسبة التحويل.\n\n📲 ابعتلنا كلمة (مبيعات) في الرسائل وهنبعتلك الدليل المجاني فوراً!\n\n#تسويق_إلكتروني #مبيعات #ريلز #سوشيال_ميديا',
             visual_idea: 'فيديو ريلز عمودي 9:16 مع هوك في أول 3 ثواني وظهور التاج لاين بخط واضح ومؤثرات صوتية حماسية',
             publish_date: new Date(Date.now() + 86400000).toISOString().split('T')[0]
         },
         {
             post_type: 'carousel',
-            tagline: '5 أدوات مجانية لازم كل صانع محتوى يستخدمها ️',
-            caption: 'لو بتضيع وقت في التصميم والمونتاج، البوست ده هيوفر عليك ساعات كل أسبوع!\n\nسلايد 1: أداة التغذية البصرية\nسلايد 2: أداة تحسين جودة الصوت\nسلايد 3: أداة استخراج الهاشتاجات\n\n احفظ البوست عشان ترجعله وقت ما تحتاجه!\n\n#صناع_المحتوى #تصميم #جرافيك',
+            tagline: '5 أدوات مجانية لازم كل صانع محتوى يستخدمها 🛠️',
+            caption: 'لو بتضيع وقت في التصميم والمونتاج، البوست ده هيوفر عليك ساعات كل أسبوع!\n\nسلايد 1: أداة التغذية البصرية\nسلايد 2: أداة تحسين جودة الصوت\nسلايد 3: أداة استخراج الهاشتاجات\n\n📌 احفظ البوست عشان ترجعله وقت ما تحتاجه!\n\n#صناع_المحتوى #تصميم #جرافيك',
             visual_idea: 'كاروسيل 5 سلايدات بتدرج ألوان البراند مع أيقونات بارزة لكل أداة وسهم تنقل سلس',
             publish_date: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]
         },
         {
             post_type: 'post',
-            tagline: 'عرض خاص لنهاية الأسبوع — خصم 30% على كل التشكيلة ',
-            caption: 'العرض الأقوى وصل! استمتع بخصم 30% على كل المنتجات الجديدة لفترة محدودة.\n\n التوصيل مجاني للطلبات فوق 500 جنيه.\n\n اطلب الآن من خلال اللينك في البايو أو تواصل معنا عبر رسائل الصفحة.',
+            tagline: 'عرض خاص لنهاية الأسبوع — خصم 30% على كل التشكيلة 🔥',
+            caption: 'العرض الأقوى وصل! استمتع بخصم 30% على كل المنتجات الجديدة لفترة محدودة.\n\n🚚 التوصيل مجاني للطلبات فوق 500 جنيه.\n\n🛒 اطلب الآن من خلال اللينك في البايو أو تواصل معنا عبر رسائل الصفحة.',
             visual_idea: 'تصميم جرافيك احترافي يبرز صورة المنتج الرئيسي مع بادج الخصم 30% بخط جريء',
             publish_date: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0]
         }
@@ -4390,7 +4498,7 @@ function loadSamplePlanTemplate() {
         addPlanBuilderRow(s);
     });
 
-    showToast('تمت تعبئة النموذج التجريبي بنجاح! يمكنك التعديل عليه كما تحب ');
+    showToast('تمت تعبئة النموذج التجريبي بنجاح! يمكنك التعديل عليه كما تحب 🎉');
 }
 
 async function submitPlanBuilder() {
@@ -4425,6 +4533,8 @@ async function submitPlanBuilder() {
         var visual = ((r.querySelector('.pb-visual') || {}).value || '').trim();
         var caption = ((r.querySelector('.pb-caption') || {}).value || '').trim();
         var pdate = ((r.querySelector('.pb-publish-date') || {}).value || '').trim();
+        var refVal = ((r.querySelector('.pb-ref-links') || {}).value || '').trim();
+        var refList = refVal ? refVal.split(/[,;\n]+/).map(function(u){ return u.trim(); }).filter(Boolean) : [];
         var empSelect = r.querySelector('.pb-assignee');
         var empId = empSelect ? empSelect.value : '';
         var empName = (empSelect && empSelect.selectedIndex > 0) ? empSelect.options[empSelect.selectedIndex].text.replace(/^[^\s]+\s*/, '') : '';
@@ -4440,7 +4550,9 @@ async function submitPlanBuilder() {
             publish_date: pdate,
             publish_time: '10:00',
             assigned_employee_id: empId,
-            assignee_name: empName
+            assignee_name: empName,
+            reference_links: refList,
+            media_urls: refList
         };
         structuredPosts.push(postObj);
 
@@ -4448,6 +4560,7 @@ async function submitPlanBuilder() {
             'بوست #' + (idx + 1) + ' | النوع: ' + type + (pdate ? (' | تاريخ النشر: ' + pdate) : '') + (empId ? (' | المسند: ' + empName) : '') + '\n' +
             'التاج لاين: ' + (tagline || ('بوست #' + (idx + 1))) + '\n' +
             (visual ? ('فكرة الفيجوال: ' + visual + '\n') : '') +
+            (refList.length ? ('الريفرانس: ' + refList.join(' , ') + '\n') : '') +
             'الكابشن والكونتنت:\n' + (caption || tagline || 'محتوى البوست');
 
         clientTextBlocks.push(block);
@@ -4455,7 +4568,7 @@ async function submitPlanBuilder() {
 
     var fullPlanText = clientTextBlocks.join('\n\n');
 
-    showToast('جاري إنشاء وحفظ مهام الخطة بالسيستم... ');
+    showToast('جاري إنشاء وحفظ مهام الخطة بالسيستم... ⏳');
 
     try {
         var res = await safeFetchJson('/api/tasks/ingest-plan', {
@@ -4473,7 +4586,7 @@ async function submitPlanBuilder() {
 
         if (res && (res.ok || res.success)) {
             closePlanBuilderModal();
-            showToast(' تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة بنجاح! ', 'success');
+            showToast('🎉 تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة بنجاح! 🚀', 'success');
             
             // Set plan filter to new plan so user sees it instantly
             if (res.plan_name) {

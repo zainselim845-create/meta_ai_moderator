@@ -1558,10 +1558,17 @@
           </div>
         </div>
         <div>
-          <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
             <label class="block text-[11px] font-bold text-slate-600">محتوى البلان</label>
-            <label class="cursor-pointer text-[11px] bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-bold px-2 py-1 rounded-lg">️ ارفع صورة مرجع
-              <input type="file" accept="image/*" multiple class="hidden" onchange="uploadPlanImage(this)"></label>
+            <div class="flex items-center gap-1.5">
+              <label class="cursor-pointer text-[11px] bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-bold px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1">
+                <span>📁 ارفع صورة من الجهاز</span>
+                <input type="file" accept="image/*,video/*" multiple class="hidden" onchange="uploadPlanImage(this)">
+              </label>
+              <button type="button" onclick="promptInsertDriveLinkInQuill()" class="text-[11px] bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1">
+                <span>🔗 إضافة رابط Drive / فيديو</span>
+              </button>
+            </div>
           </div>
           <div id="pb-editor" style="min-height:260px;background:#fff" class="rounded-b-xl"></div>
           <p class="text-[10px] text-slate-400 mt-1">تلميح: ابدأ كل بوست برقم (1) 2) 3)…) وحط "تاج لاين:" للعنوان و"التخيل:" لفكرة الجرافيك. الصور اللي ترفعها بتتحط كمرجع للبوست.</p>
@@ -1996,8 +2003,11 @@
       <!-- Plan Metadata Bar -->
       <div class="p-4 bg-slate-50 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
         <div>
-          <label class="block font-bold text-slate-700 mb-1"> اسم العميل / البراند:</label>
-          <input id="pb-client-name" list="pb-modal-clients-list" type="text" placeholder="اسم العميل أو البراند..." class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-purple-500 focus:outline-none" autocomplete="off" oninput="onPlanBuilderModalClientChange(this.value)" onchange="onPlanBuilderModalClientChange(this.value)" />
+          <label class="block font-bold text-slate-700 mb-1">🏷️ اسم العميل / البراند:</label>
+          <select id="pb-client-select" onchange="onPlanBuilderClientSelectChange(this.value)" class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-purple-500 focus:outline-none mb-1.5">
+            <option value="">-- اختر عميلاً مسجلاً في النظام --</option>
+          </select>
+          <input id="pb-client-name" list="pb-modal-clients-list" type="text" placeholder="أو اكتب اسم عميل جديد..." class="w-full px-3 py-1.5 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:outline-none" autocomplete="off" oninput="onPlanBuilderModalClientChange(this.value)" onchange="onPlanBuilderModalClientChange(this.value)" />
           <datalist id="pb-modal-clients-list"></datalist>
         </div>
         <div>
