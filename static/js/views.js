@@ -5004,7 +5004,7 @@ async function sharePlanWithClient(clientName, planName) {
                             '<p class="text-xs text-slate-500"> ' + esc(cName) + ' · ' + esc(pName) + ' (' + total + ' بوست)</p>' +
                         '</div>' +
                     '</div>' +
-                    '<button type="button" onclick="document.getElementById(\'' + modalId + '\').remove()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-sm font-bold transition cursor-pointer"></button>' +
+                    '<button type="button" onclick="document.getElementById(\'' + modalId + '\').remove()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer" title="إغلاق"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>' +
                 '</div>' +
 
                 '<div class="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 font-medium flex items-center gap-2">' +

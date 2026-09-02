@@ -1522,7 +1522,9 @@
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 space-y-4">
          <div class="flex items-center justify-between">
           <h3 class="font-bold text-sm text-slate-900">إرسال بيانات الدخول</h3>
-          <button onclick="closeOnboardModal()" class="text-slate-400 hover:text-slate-700 text-lg leading-none cursor-pointer"></button>
+          <button onclick="closeOnboardModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer" title="إغلاق">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
          </div>
 
          <div>
@@ -1867,7 +1869,9 @@
       <i class="w-5 h-5 text-blue-600" data-lucide="plus-circle"></i>
       <span>تسجيل عميل جديد (ربط فيسبوك + إنستجرام)</span>
      </h3>
-     <button class="text-slate-400 hover:text-slate-600 font-bold text-lg" onclick="closeAddAccountModal()">&times;</button>
+     <button class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer" onclick="closeAddAccountModal()" title="إغلاق">
+       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+     </button>
     </div>
 
     <!-- Option A: connect via Facebook OAuth (auto-discovers ALL pages) -->
@@ -1924,217 +1928,221 @@
     </div>
    </div>
 
-  <!-- Modal: View Task Details -->
-  <div id="task-details-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 hidden" onclick="if(event.target===this) closeTaskDetailsModal()">
-    <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col">
-      <div class="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 bg-slate-50/80">
-        <div class="flex items-center gap-2 flex-wrap min-w-0" id="tdm-header-badges">
-          <span class="bg-blue-600 text-white font-bold font-mono text-xs px-2.5 py-1 rounded-lg" id="tdm-post-seq">#1</span>
-          <span class="font-mono font-bold text-xs bg-slate-900 text-white px-2.5 py-1 rounded-lg" id="tdm-task-id">TASK-0000</span>
-          <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800" id="tdm-status">معتمد </span>
-          <span class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md" id="tdm-client">العميل</span>
-        </div>
-        <button onclick="closeTaskDetailsModal()" class="text-slate-400 hover:text-slate-700 font-bold text-xl p-1 leading-none rounded-lg hover:bg-slate-200 transition"></button>
-      </div>
-      <div class="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs" id="tdm-body">
-        <div class="text-center py-8 text-slate-400">جارِ تحميل تفاصيل المهمة...</div>
-      </div>
-      <div class="border-t border-slate-100 p-3 sm:p-4 bg-slate-50 flex items-center justify-between gap-2 flex-wrap">
-        <div class="flex items-center gap-2" id="tdm-footer-actions">
-          <button onclick="goToTaskOnBoard()" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 shadow-sm transition">
-            <span> عرض في لوحة المهام</span>
-          </button>
-        </div>
-        <button onclick="closeTaskDetailsModal()" class="text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 transition">
-          إغلاق النافذة
-        </button>
-      </div>
-    </div>
-  </div>
+   <!-- Modal: View Task Details -->
+   <div id="task-details-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 hidden" onclick="if(event.target===this) closeTaskDetailsModal()">
+     <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col">
+       <div class="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 bg-slate-50/80">
+         <div class="flex items-center gap-2 flex-wrap min-w-0" id="tdm-header-badges">
+           <span class="bg-blue-600 text-white font-bold font-mono text-xs px-2.5 py-1 rounded-lg" id="tdm-post-seq">#1</span>
+           <span class="font-mono font-bold text-xs bg-slate-900 text-white px-2.5 py-1 rounded-lg" id="tdm-task-id">TASK-0000</span>
+           <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800" id="tdm-status">معتمد </span>
+           <span class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md" id="tdm-client">العميل</span>
+         </div>
+         <button onclick="closeTaskDetailsModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer" title="إغلاق">
+           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+         </button>
+       </div>
+       <div class="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs" id="tdm-body">
+         <div class="text-center py-8 text-slate-400">جارِ تحميل تفاصيل المهمة...</div>
+       </div>
+       <div class="border-t border-slate-100 p-3 sm:p-4 bg-slate-50 flex items-center justify-between gap-2 flex-wrap">
+         <div class="flex items-center gap-2" id="tdm-footer-actions">
+           <button onclick="goToTaskOnBoard()" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 shadow-sm transition">
+             <span> عرض في لوحة المهام</span>
+           </button>
+         </div>
+         <button onclick="closeTaskDetailsModal()" class="text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 transition">
+           إغلاق النافذة
+         </button>
+       </div>
+     </div>
+   </div>
 
-  <!-- Modal: Task Deliverable Modal (Upload / Paste Drive Link) -->
-  <div id="task-deliverable-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 hidden" onclick="if(event.target===this) closeDeliverableModal()">
-    <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-      <div class="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 bg-slate-50/80">
-        <div class="flex items-center gap-2">
-          <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base"></span>
-          <h3 class="font-bold text-sm text-slate-900" id="tdm-submit-title">تسليم مخرجات المهمة / الفيديو</h3>
-        </div>
-        <button onclick="closeDeliverableModal()" class="text-slate-400 hover:text-slate-700 font-bold text-xl p-1 leading-none rounded-lg hover:bg-slate-200 transition"></button>
-      </div>
-      
-      <div class="p-5 sm:p-6 space-y-4">
-        <!-- Option 1: Direct Google Drive Link (Fastest & Most Reliable) -->
-        <div class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 space-y-2.5">
-          <div class="flex items-center gap-2 text-emerald-950 font-bold text-xs flex-wrap">
-            <span> رابط Google Drive المباشر للفيديو / الملف:</span>
-            <span class="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-bold">الأسرع والموصى به </span>
-          </div>
-          <p class="text-[11px] text-emerald-800 leading-relaxed">
-            انسخ رابط الفيديو أو مجلد التسليم من تطبيق Google Drive والصقه هنا:
-          </p>
-          <div class="space-y-2">
-            <input type="url" id="deliv-drive-input" class="w-full px-3 py-2 border border-emerald-300 rounded-xl text-xs font-mono bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="https://drive.google.com/file/d/... أو أي رابط سحابي" dir="ltr"/>
-            <button type="button" onclick="submitDriveLinkDeliverable()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5">
-              <span> حفظ وتأكيد رابط التسليم</span>
-            </button>
-          </div>
-        </div>
+   <!-- Modal: Task Deliverable Modal (Upload / Paste Drive Link) -->
+   <div id="task-deliverable-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 hidden" onclick="if(event.target===this) closeDeliverableModal()">
+     <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+       <div class="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 bg-slate-50/80">
+         <div class="flex items-center gap-2">
+           <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base"></span>
+           <h3 class="font-bold text-sm text-slate-900" id="tdm-submit-title">تسليم مخرجات المهمة / الفيديو</h3>
+         </div>
+         <button onclick="closeDeliverableModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer" title="إغلاق">
+           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+         </button>
+       </div>
+       
+       <div class="p-5 sm:p-6 space-y-4">
+         <!-- Option 1: Direct Google Drive Link (Fastest & Most Reliable) -->
+         <div class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 space-y-2.5">
+           <div class="flex items-center gap-2 text-emerald-950 font-bold text-xs flex-wrap">
+             <span> رابط Google Drive المباشر للفيديو / الملف:</span>
+             <span class="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-bold">الأسرع والموصى به </span>
+           </div>
+           <p class="text-[11px] text-emerald-800 leading-relaxed">
+             انسخ رابط الفيديو أو مجلد التسليم من تطبيق Google Drive والصقه هنا:
+           </p>
+           <div class="space-y-2">
+             <input type="url" id="deliv-drive-input" class="w-full px-3 py-2 border border-emerald-300 rounded-xl text-xs font-mono bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="https://drive.google.com/file/d/... أو أي رابط سحابي" dir="ltr"/>
+             <button type="button" onclick="submitDriveLinkDeliverable()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5">
+               <span> حفظ وتأكيد رابط التسليم</span>
+             </button>
+           </div>
+         </div>
 
-        <div class="flex items-center gap-2 text-[11px] text-slate-400">
-          <div class="flex-1 h-px bg-slate-200"></div>
-          <span>أو رفع ملف مباشرة من جهازك</span>
-          <div class="flex-1 h-px bg-slate-200"></div>
-        </div>
+         <div class="flex items-center gap-2 text-[11px] text-slate-400">
+           <div class="flex-1 h-px bg-slate-200"></div>
+           <span>أو رفع ملف مباشرة من جهازك</span>
+           <div class="flex-1 h-px bg-slate-200"></div>
+         </div>
 
-        <!-- Option 2: Upload File From Device -->
-        <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-2.5">
-          <div class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-            <span> رفع ملف فيديو أو تصميم من الجهاز</span>
-          </div>
-          <label class="w-full cursor-pointer border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 bg-white transition group">
-            <span class="text-2xl group-hover:scale-110 transition"></span>
-            <span class="text-xs font-bold text-slate-700">اضغط لاختيار فيديو أو صور (يدعم اختيار عدة صور للكاروسيل)</span>
-            <span class="text-[10px] text-slate-400">يدعم MP4, MOV, WEBM, PNG, JPG — اختيار ملف أو عدة ملفات معاً</span>
-            <input type="file" id="deliv-file-input" accept="image/*,video/*" multiple class="hidden" onchange="handleModalFileUpload(this)">
-          </label>
-        </div>
+         <!-- Option 2: Upload File From Device -->
+         <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-2.5">
+           <div class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+             <span> رفع ملف فيديو أو تصميم من الجهاز</span>
+           </div>
+           <label class="w-full cursor-pointer border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 bg-white transition group">
+             <span class="text-2xl group-hover:scale-110 transition"></span>
+             <span class="text-xs font-bold text-slate-700">اضغط لاختيار فيديو أو صور (يدعم اختيار عدة صور للكاروسيل)</span>
+             <span class="text-[10px] text-slate-400">يدعم MP4, MOV, WEBM, PNG, JPG — اختيار ملف أو عدة ملفات معاً</span>
+             <input type="file" id="deliv-file-input" accept="image/*,video/*" multiple class="hidden" onchange="handleModalFileUpload(this)">
+           </label>
+         </div>
 
-        <div class="flex items-center gap-2 text-[11px] text-slate-400">
-          <div class="flex-1 h-px bg-slate-200"></div>
-          <span>أو تسليم مباشر</span>
-          <div class="flex-1 h-px bg-slate-200"></div>
-        </div>
+         <div class="flex items-center gap-2 text-[11px] text-slate-400">
+           <div class="flex-1 h-px bg-slate-200"></div>
+           <span>أو تسليم مباشر</span>
+           <div class="flex-1 h-px bg-slate-200"></div>
+         </div>
 
-        <!-- Option 3: Direct Submit No File -->
-        <button type="button" onclick="submitTaskDirectlyNoFile()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 px-4 rounded-2xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer">
-          <span> تم إنهاء الشغل وتسليم المهمة للمراجعة فوراً (وشكراً)</span>
-        </button>
-      </div>
-    </div>
-  </div>
+         <!-- Option 3: Direct Submit No File -->
+         <button type="button" onclick="submitTaskDirectlyNoFile()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 px-4 rounded-2xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer">
+           <span> تم إنهاء الشغل وتسليم المهمة للمراجعة فوراً (وشكراً)</span>
+         </button>
+       </div>
+     </div>
+   </div>
 
-  <!-- Modal: Live Upload Progress Modal -->
-  <div id="upload-progress-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-2xl text-blue-600 shrink-0" id="upm-icon">
-          
-        </div>
-        <div class="min-w-0 flex-1">
-          <h4 class="font-bold text-sm text-slate-900 truncate" id="upm-title">جاري رفع الفيديو...</h4>
-          <p class="text-xs text-slate-500 truncate" id="upm-filename">video.mp4</p>
-        </div>
-      </div>
-      <div class="space-y-1.5">
-        <div class="flex items-center justify-between text-xs font-bold">
-          <span class="text-slate-600 font-mono" id="upm-stats">0 MB / 0 MB</span>
-          <span class="font-mono text-blue-600 text-sm font-bold" id="upm-percent">0%</span>
-        </div>
-        <div class="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-200">
-          <div id="upm-bar" class="bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-150 ease-out" style="width: 0%"></div>
-        </div>
-      </div>
-      <div class="text-center text-[11px] text-slate-500 font-medium bg-slate-50 p-2.5 rounded-xl border border-slate-100" id="upm-status-text">
-         جاري الرفع المباشر إلى Google Drive... يرجى الانتظار
-      </div>
-    </div>
-  </div>
+   <!-- Modal: Live Upload Progress Modal -->
+   <div id="upload-progress-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+     <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+       <div class="flex items-center gap-3">
+         <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-2xl text-blue-600 shrink-0" id="upm-icon">
+           
+         </div>
+         <div class="min-w-0 flex-1">
+           <h4 class="font-bold text-sm text-slate-900 truncate" id="upm-title">جاري رفع الفيديو...</h4>
+           <p class="text-xs text-slate-500 truncate" id="upm-filename">video.mp4</p>
+         </div>
+       </div>
+       <div class="space-y-1.5">
+         <div class="flex items-center justify-between text-xs font-bold">
+           <span class="text-slate-600 font-mono" id="upm-stats">0 MB / 0 MB</span>
+           <span class="font-mono text-blue-600 text-sm font-bold" id="upm-percent">0%</span>
+         </div>
+         <div class="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-200">
+           <div id="upm-bar" class="bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-150 ease-out" style="width: 0%"></div>
+         </div>
+       </div>
+       <div class="text-center text-[11px] text-slate-500 font-medium bg-slate-50 p-2.5 rounded-xl border border-slate-100" id="upm-status-text">
+          جاري الرفع المباشر إلى Google Drive... يرجى الانتظار
+       </div>
+     </div>
+   </div>
 
-  <!-- Modal: Plan Builder Template (منشئ وقالب كتابة الخطة) -->
-  <div id="plan-builder-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 hidden overflow-y-auto">
-    <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-      
-      <!-- Header -->
-      <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-purple-50 via-indigo-50 to-white">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center text-xl shadow-md">
-            ️
-          </div>
-          <div>
-            <h3 class="font-bold text-base text-slate-900">منشئ وقالب كتابة الخطة التسويقية (Plan Builder)</h3>
-            <p class="text-xs text-slate-500">اكتب خطتك المنظمة مع فصل التاج لاين عن الكابشن وفكرة الفيجوال لكل بوست</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <button type="button" onclick="loadSamplePlanTemplate()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold py-1.5 px-3 rounded-xl transition flex items-center gap-1">
-            <span> تعبئة نموذج تجريبي</span>
-          </button>
-          <button type="button" onclick="closePlanBuilderModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center font-bold transition">
-            
-          </button>
-        </div>
-      </div>
+   <!-- Modal: Plan Builder Template (منشئ وقالب كتابة الخطة) -->
+   <div id="plan-builder-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 hidden overflow-y-auto">
+     <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+       
+       <!-- Header -->
+       <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-purple-50 via-indigo-50 to-white">
+         <div class="flex items-center gap-3">
+           <div class="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center text-xl shadow-md">
+             ️
+           </div>
+           <div>
+             <h3 class="font-bold text-base text-slate-900">منشئ وقالب كتابة الخطة التسويقية (Plan Builder)</h3>
+             <p class="text-xs text-slate-500">اكتب خطتك المنظمة مع فصل التاج لاين عن الكابشن وفكرة الفيجوال لكل بوست</p>
+           </div>
+         </div>
+         <div class="flex items-center gap-2">
+           <button type="button" onclick="loadSamplePlanTemplate()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold py-1.5 px-3 rounded-xl transition flex items-center gap-1">
+             <span> تعبئة نموذج تجريبي</span>
+           </button>
+           <button type="button" onclick="closePlanBuilderModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer" title="إغلاق">
+             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+           </button>
+         </div>
+       </div>
 
-      <!-- Plan Metadata Bar -->
-      <div class="p-4 sm:p-5 bg-slate-50/90 border-b border-slate-200/80 grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
-        <div>
-          <label class="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-            <span>🏢 العميل / البراند:</span>
-            <span class="text-[10px] text-purple-600 font-semibold">اختر أو اكتب جديد</span>
-          </label>
-          <input id="pb-client-name" list="pb-modal-clients-list" type="text" placeholder="اختر من القائمة أو اكتب اسماً جديداً..." class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs" autocomplete="off" oninput="onPlanBuilderModalClientChange(this.value)" onchange="onPlanBuilderModalClientChange(this.value)" />
-          <datalist id="pb-modal-clients-list"></datalist>
-        </div>
-        <div>
-          <label class="block font-bold text-slate-700 mb-1.5">📅 اسم الخطة / الشهر:</label>
-          <input id="pb-plan-name" type="text" placeholder="مثال: خطة شهر سبتمبر 2026..." class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs" />
-        </div>
-        <div>
-          <label class="block font-bold text-slate-700 mb-1.5">👤 الأكونت مانيجر المشرف:</label>
-          <select id="pb-am-select" class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs">
-            <option value="AM-2072-9827" selected>👤 محمود خالد — Account Manager</option>
-            <option value="EMP-5887-5256">👤 آيه أحمد مجاهد — Account Manager</option>
-          </select>
-        </div>
-      </div>
+       <!-- Plan Metadata Bar -->
+       <div class="p-4 sm:p-5 bg-slate-50/90 border-b border-slate-200/80 grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+         <div>
+           <label class="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+             <span>🏢 العميل / البراند:</span>
+             <span class="text-[10px] text-purple-600 font-semibold">اختر أو اكتب جديد</span>
+           </label>
+           <input id="pb-client-name" list="pb-modal-clients-list" type="text" placeholder="اختر من القائمة أو اكتب اسماً جديداً..." class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs" autocomplete="off" oninput="onPlanBuilderModalClientChange(this.value)" onchange="onPlanBuilderModalClientChange(this.value)" />
+           <datalist id="pb-modal-clients-list"></datalist>
+         </div>
+         <div>
+           <label class="block font-bold text-slate-700 mb-1.5">📅 اسم الخطة / الشهر:</label>
+           <input id="pb-plan-name" type="text" placeholder="مثال: خطة شهر سبتمبر 2026..." class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs" />
+         </div>
+         <div>
+           <label class="block font-bold text-slate-700 mb-1.5">👤 الأكونت مانيجر المشرف:</label>
+           <select id="pb-am-select" class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs">
+             <option value="AM-2072-9827" selected>👤 محمود خالد — Account Manager</option>
+             <option value="EMP-5887-5256">👤 آيه أحمد مجاهد — Account Manager</option>
+           </select>
+         </div>
+       </div>
 
-      <!-- Quick Post Navigator (للخطط الكبيرة) -->
-      <div id="pb-quick-nav" class="hidden px-4 sm:px-6 py-2 bg-purple-50/60 border-b border-purple-100/80 flex items-center gap-2 overflow-x-auto text-xs font-bold text-purple-900">
-        <span class="text-[11px] text-purple-700 whitespace-nowrap flex items-center gap-1">🧭 انتقال سريع للبوست:</span>
-        <div id="pb-quick-nav-pills" class="flex items-center gap-1 flex-wrap"></div>
-      </div>
+       <!-- Quick Post Navigator (للخطط الكبيرة) -->
+       <div id="pb-quick-nav" class="hidden px-4 sm:px-6 py-2 bg-purple-50/60 border-b border-purple-100/80 flex items-center gap-2 overflow-x-auto text-xs font-bold text-purple-900">
+         <span class="text-[11px] text-purple-700 whitespace-nowrap flex items-center gap-1">🧭 انتقال سريع للبوست:</span>
+         <div id="pb-quick-nav-pills" class="flex items-center gap-1 flex-wrap"></div>
+       </div>
 
-      <!-- Posts Rows Container -->
-      <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 min-h-[300px]" id="pb-posts-container">
-        <!-- Dynamic Post Cards Injected by JS -->
-      </div>
+       <!-- Posts Rows Container -->
+       <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 min-h-[300px]" id="pb-posts-container">
+         <!-- Dynamic Post Cards Injected by JS -->
+       </div>
 
-      <!-- Footer Controls -->
-      <div class="p-4 border-t border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onclick="addPlanBuilderRow()" class="bg-white hover:bg-slate-100 text-purple-700 border border-purple-200 font-bold text-xs py-2 px-4 rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer">
-          <span>➕ إضافة بوست جديد بالقالب</span>
-        </button>
-        <div class="flex items-center gap-2">
-          <button type="button" onclick="closePlanBuilderModal()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200 font-bold cursor-pointer">
-            إلغاء
-          </button>
-          <button id="pb-submit-btn" type="button" onclick="submitPlanBuilder()" class="btn-primary text-xs py-2.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold hover:opacity-95 shadow-md flex items-center gap-1.5 transition cursor-pointer">
-            <span>🚀 إنشاء وتوزيع الخطة سحابياً</span>
-          </button>
-        </div>
-      </div>
+       <!-- Footer Controls -->
+       <div class="p-4 border-t border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3">
+         <button type="button" onclick="addPlanBuilderRow()" class="bg-white hover:bg-slate-100 text-purple-700 border border-purple-200 font-bold text-xs py-2 px-4 rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+           <span>➕ إضافة بوست جديد بالقالب</span>
+         </button>
+         <div class="flex items-center gap-2">
+           <button type="button" onclick="closePlanBuilderModal()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200 font-bold cursor-pointer">
+             إلغاء
+           </button>
+           <button id="pb-submit-btn" type="button" onclick="submitPlanBuilder()" class="btn-primary text-xs py-2.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold hover:opacity-95 shadow-md flex items-center gap-1.5 transition cursor-pointer">
+             <span>🚀 إنشاء وتوزيع الخطة سحابياً</span>
+           </button>
+         </div>
+       </div>
 
-    </div>
-  </div>
+     </div>
+   </div>
 
-  <!-- Modal: Content Editor (تحرير نصوص وكابشن البوست لكاتب المحتوى) -->
-  <div id="modal-edit-task-content" onclick="if(event.target===this) closeTaskContentEditorModal()" role="dialog" aria-modal="true" aria-labelledby="etc-modal-title" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden overflow-y-auto">
-    <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
-      <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xl shadow-md">
-            ️
-          </div>
-          <div>
-            <h3 id="etc-modal-title" class="font-bold text-base text-slate-900">محرر نصوص البوست (Content Editor)</h3>
-            <p class="text-xs text-slate-500" id="etc-task-subtitle">تعديل التاج لاين والكابشن وفكرة الفيجوال</p>
-          </div>
-        </div>
-        <button type="button" onclick="closeTaskContentEditorModal()" class="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-slate-500 flex items-center justify-center font-bold transition shadow-xs">
-          
-        </button>
-      </div>
+   <!-- Modal: Content Editor (تحرير نصوص وكابشن البوست لكاتب المحتوى) -->
+   <div id="modal-edit-task-content" onclick="if(event.target===this) closeTaskContentEditorModal()" role="dialog" aria-modal="true" aria-labelledby="etc-modal-title" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden overflow-y-auto">
+     <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
+       <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
+         <div class="flex items-center gap-3">
+           <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xl shadow-md">
+             ️
+           </div>
+           <div>
+             <h3 id="etc-modal-title" class="font-bold text-base text-slate-900">محرر نصوص البوست (Content Editor)</h3>
+             <p class="text-xs text-slate-500" id="etc-task-subtitle">تعديل التاج لاين والكابشن وفكرة الفيجوال</p>
+           </div>
+         </div>
+         <button type="button" onclick="closeTaskContentEditorModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition shadow-xs cursor-pointer" title="إغلاق">
+           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+         </button>
+       </div>
 
       <form id="form-edit-task-content" onsubmit="saveTaskContentEditorAction(event)" class="p-4 sm:p-6 space-y-3.5 flex-1 overflow-y-auto text-xs">
         <input type="hidden" id="etc-task-id" />
