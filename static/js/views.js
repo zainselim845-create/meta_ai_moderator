@@ -1730,6 +1730,26 @@ async function saveTaskDates(taskId) {
         else showToast(data.error || 'تعذّر الحفظ', 'error');
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
+
+function copyTaskCaption(taskId) {
+    var t = (tasksList || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
+    if (!t) return;
+    var rawCaption = (t.caption || (t.content_data && t.content_data.caption) || t.description || '').trim();
+    var cleanCaption = rawCaption.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();
+    if (!cleanCaption) {
+        showToast('لا يوجد كابشن لنسخه', 'error');
+        return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(cleanCaption).then(function() {
+            showToast('تم نسخ الكابشن النهائي إلى الحافظة 📋');
+        }).catch(function() {
+            prompt('انسخ الكابشن:', cleanCaption);
+        });
+    } else {
+        prompt('انسخ الكابشن:', cleanCaption);
+    }
+}
 function empOptionsHtml(selectedId) {
     return (employeesList || []).map(function(e) {
         var sel = (String(e.employee_id) === String(selectedId)) ? ' selected' : '';
@@ -1983,11 +2003,26 @@ function renderTaskCard(t, indexInPlan) {
             displayTitle = t.visual_idea.slice(0, 100);
         }
     }
-    if (!displayTitle) displayTitle = 'بوست #' + postSeq;
+    // Clean and extract pure final caption
+    var rawCaption = (t.caption || (t.content_data && t.content_data.caption) || t.description || '').trim();
+    var cleanCaption = rawCaption.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();
 
-    var displayCaption = (t.caption || t.description || '').trim();
-    if (!displayCaption && t.content_data && t.content_data.caption) {
-        displayCaption = String(t.content_data.caption).trim();
+    var captionHtml = '';
+    if (cleanCaption) {
+        captionHtml = '<div class="bg-blue-50/50 border border-blue-200/90 rounded-2xl p-3 text-xs space-y-2 shadow-2xs">' +
+            '<div class="flex items-center justify-between font-bold text-[11px] text-blue-950 border-b border-blue-200/60 pb-1.5">' +
+                '<span class="flex items-center gap-1.5 text-blue-900 font-bold">' +
+                    '<span class="w-2 h-2 rounded-full bg-blue-600 inline-block"></span>' +
+                    '<span>📝 الكابشن النهائي (Final Caption):</span>' +
+                '</span>' +
+                '<button type="button" onclick="copyTaskCaption(\'' + escJs(t.task_id) + '\')" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-1 px-2.5 rounded-lg border border-blue-200 shadow-2xs transition flex items-center gap-1 cursor-pointer" title="نسخ الكابشن النهائي">' +
+                    '<span>📋 نسخ الكابشن</span>' +
+                '</button>' +
+            '</div>' +
+            '<div class="text-xs text-slate-900 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed font-sans select-all bg-white p-2.5 rounded-xl border border-blue-100 shadow-2xs">' +
+                esc(cleanCaption) +
+            '</div>' +
+        '</div>';
     }
 
     var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
@@ -2004,7 +2039,7 @@ function renderTaskCard(t, indexInPlan) {
             '</div>' +
         '</div>' +
         '<h4 class="font-bold text-sm text-slate-900 leading-snug">' + esc(displayTitle) + '</h4>' +
-        (displayCaption ? ('<div class="text-xs text-slate-600 whitespace-pre-wrap max-h-36 overflow-y-auto bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 leading-relaxed font-sans">' + esc(displayCaption) + '</div>') : '') +
+        captionHtml +
         visHtml +
         modHtml +
         refsHtml + links +
