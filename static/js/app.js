@@ -918,52 +918,85 @@ async function loadMyPortal() {
       return `<div class="flex gap-1 flex-wrap mt-1">${imgs.slice(0,4).map(u=>`<a href="${esc(u)}" target="_blank"><img src="${esc(driveThumb(u))}" class="w-11 h-11 rounded-lg object-cover border border-slate-200" onerror="this.style.display='none'"></a>`).join('')}</div>`;
     };
     const canWork = (t) => /Assigned|In Progress/i.test(t.status||'');
-    if (box) box.innerHTML = tasks.length ? tasks.map(t => `
-      <div class="border border-slate-200 rounded-xl p-3 space-y-2">
-        <div class="flex items-start justify-between gap-3 flex-wrap">
-          <div class="flex-1 min-w-[160px]">
-            <div class="flex items-center gap-1.5 flex-wrap mb-1">
-              <span class="bg-blue-600 text-white font-bold font-mono text-[11px] px-2 py-0.5 rounded-md shadow-2xs">#${esc(t.post_number_in_plan || t.post_number || 1)}</span>
-              <span class="font-mono font-bold text-[11px] bg-slate-900 text-white px-2 py-0.5 rounded-md">${esc(t.task_id||'')}</span>
-              <span class="font-bold text-sm text-slate-900">${esc(t.title||'')}</span>
-            </div>
-            <div class="text-[11px] text-slate-500"> موعد التسليم: <b class="text-amber-800 font-mono">${esc(t.delivery_deadline || t.publish_date || '-')}</b></div>
-            ${t.caption ? `<div class="text-[11px] text-slate-600 mt-1 whitespace-pre-line line-clamp-3">${esc(t.caption)}</div>` : ''}
-            ${t.review_note ? `<div class="text-[11px] text-amber-700 mt-0.5"> ملاحظة المراجعة: ${esc(t.review_note)}</div>` : ''}
-            ${refThumbs(t)}
+    if (box) box.innerHTML = tasks.length ? tasks.map(t => {
+      const cName = esc(t.client_name || 'دكتور أحمد حمدي');
+      const pName = esc(t.plan_name || t.file_name || 'خطة المحتوى');
+      const amName = esc(t.am_name || 'محمود خالد');
+      const rawCap = (t.caption || (t.content_data && t.content_data.caption) || t.description || '').trim();
+      const cleanCap = rawCap.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();
+      const visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || (t.video_data && t.video_data.idea) || t.design_brief || '').trim();
+
+      return `
+      <div class="border border-slate-200/90 rounded-2xl p-4 space-y-3 bg-white shadow-xs hover:shadow-md transition">
+        <div class="flex items-start justify-between gap-3 flex-wrap border-b border-slate-100 pb-2.5">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="bg-blue-600 text-white font-bold font-mono text-xs px-2.5 py-0.5 rounded-lg shadow-2xs">#${esc(t.post_number_in_plan || t.post_number || 1)}</span>
+            <span class="font-mono font-bold text-xs bg-slate-900 text-white px-2.5 py-0.5 rounded-lg">${esc(t.task_id||'')}</span>
+            <span class="bg-indigo-50 text-indigo-900 border border-indigo-200 text-xs font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">🏢 ${cName}</span>
+            <span class="bg-purple-50 text-purple-900 border border-purple-200 text-xs font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1">📑 ${pName}</span>
+            <span class="bg-slate-100 text-slate-800 border border-slate-200 text-[11px] font-bold px-2 py-0.5 rounded-lg">👤 AM: ${amName}</span>
           </div>
-          <div class="flex flex-col items-end gap-2">
-            <span class="text-[11px] px-2 py-0.5 rounded-full ${/(Completed|مكتمل)/.test(t.status||'')?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${esc(t.status||'')}</span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full ${/(Completed|مكتمل)/.test(t.status||'')?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${esc(t.status||'')}</span>
             ${actionBtns(t)}
           </div>
         </div>
+
+        <h4 class="font-bold text-sm text-slate-900 leading-snug">${esc(t.title||'')}</h4>
+
+        ${cleanCap ? `
+          <div class="bg-blue-50/50 border border-blue-200/80 rounded-xl p-2.5 text-xs space-y-1.5 shadow-2xs">
+            <div class="flex items-center justify-between font-bold text-[11px] text-blue-950 border-b border-blue-100 pb-1">
+              <span class="flex items-center gap-1 text-blue-900">📝 الكابشن النهائي (Final Caption):</span>
+              <button type="button" onclick="copyTaskCaption('${esc(t.task_id)}')" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-0.5 px-2 rounded border border-blue-200 shadow-2xs transition">📋 نسخ الكابشن</button>
+            </div>
+            <div class="text-xs text-slate-800 whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed bg-white p-2 rounded-lg border border-blue-100 select-all">${esc(cleanCap)}</div>
+          </div>
+        ` : ''}
+
+        ${(visIdea && visIdea !== t.title && visIdea !== cleanCap) ? `
+          <div class="bg-purple-50/80 border border-purple-200/80 rounded-xl p-2.5 text-xs text-purple-950 space-y-1 shadow-2xs">
+            <div class="font-bold text-[11px] text-purple-900">💡 فكرة وتوجيهات التصميم / الإسكربت (Creative Brief):</div>
+            <div class="leading-relaxed text-[11px] whitespace-pre-wrap font-medium">${esc(visIdea)}</div>
+          </div>
+        ` : ''}
+
+        <div class="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+          <span class="flex items-center gap-1 font-bold text-amber-950">📅 موعد التسليم: <b class="text-amber-900 font-mono text-xs">${esc(t.delivery_deadline || t.publish_date || 'غير محدد')}</b></span>
+          ${t.review_note ? `<span class="text-[11px] text-rose-700 font-bold">✍️ ملاحظة المراجعة: ${esc(t.review_note)}</span>` : ''}
+        </div>
+
+        ${refThumbs(t)}
+
         ${t.drive_link ? `
           <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 space-y-1.5 shadow-2xs">
             <div class="flex items-center justify-between text-xs font-bold text-emerald-900">
-              <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? ' مخرجات الفيديو المسلّمة:' : ' ملف التسليم المسجّل:'}</span>
-              <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">محفوظ بالملف </span>
+              <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '🎬 مخرجات الفيديو المسلّمة:' : '📁 ملف التسليم المسجّل:'}</span>
+              <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">محفوظ بالملف ↗</span>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
               <a href="${esc(t.drive_link)}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xs transition flex items-center gap-1">
-                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '▶️ فتح / تشغيل الفيديو ↗️' : ' فتح ملف التسليم ↗️'}</span>
+                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '▶️ فتح / تشغيل الفيديو ↗️' : '📁 فتح ملف التسليم ↗️'}</span>
               </a>
               <button type="button" onclick="copyTaskDriveLink('${esc(t.drive_link)}')" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-lg shadow-2xs transition flex items-center gap-1">
-                <span> نسخ الرابط</span>
+                <span>📋 نسخ الرابط</span>
               </button>
             </div>
           </div>
         ` : ''}
-        <div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2">
+
+        <div class="flex items-center gap-2 flex-wrap border-t border-slate-100 pt-2.5">
           ${canWork(t) ? `
-            <button type="button" onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold py-1.5 px-3 rounded-xl border border-sky-200 shadow-2xs transition flex items-center gap-1.5">
-              <span> تسليم شغلك (فيديو / رابط Google Drive)</span>
+            <button type="button" onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold py-1.5 px-3 rounded-xl border border-sky-200 shadow-2xs transition flex items-center gap-1.5 cursor-pointer">
+              <span>📤 تسليم شغلك (فيديو / رابط Google Drive)</span>
             </button>
           ` : ''}
-          <button type="button" onclick="openTaskContentEditorModal('${esc(t.task_id)}')" class="bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold py-1.5 px-3 rounded-xl border border-amber-200 shadow-2xs transition flex items-center gap-1.5">
-            <span>️ تعديل نصوص وكابشن البوست (Content Editor)</span>
+          <button type="button" onclick="openTaskContentEditorModal('${esc(t.task_id)}')" class="bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold py-1.5 px-3 rounded-xl border border-amber-200 shadow-2xs transition flex items-center gap-1.5 cursor-pointer">
+            <span>✍️ تعديل نصوص وكابشن البوست (Content Editor)</span>
           </button>
         </div>
-      </div>`).join('') : '<div class="p-4 text-center text-xs text-slate-400">مفيش مهام مسندة ليك حالياً</div>';
+      </div>`;
+    }).join('') : '<div class="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200">لا توجد مهام مسندة لحسابك حالياً</div>';
   } catch(e) {}
   // My attendance
   try {
