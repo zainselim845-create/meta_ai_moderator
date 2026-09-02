@@ -19,7 +19,7 @@
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script defer src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <link href="/static/css/styles.css?v=12.7" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=12.8" rel="stylesheet"/>
   <style>
    /* Plan editor: each paragraph auto-directions by its own language (Arabic → RTL, English → LTR) */
    #pb-editor .ql-editor { direction: rtl; text-align: right; }
@@ -1782,15 +1782,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.js?v=12.7">
+  <script defer src="/static/js/app.js?v=12.8">
   </script>
-  <script defer src="/static/js/inbox.js?v=12.7">
+  <script defer src="/static/js/inbox.js?v=12.8">
   </script>
-  <script defer src="/static/js/chatwoot_free.js?v=12.7">
+  <script defer src="/static/js/chatwoot_free.js?v=12.8">
   </script>
-  <script defer src="/static/js/views.js?v=12.7">
+  <script defer src="/static/js/views.js?v=12.8">
   </script>
-  <script defer src="/static/js/clients.js?v=12.7">
+  <script defer src="/static/js/clients.js?v=12.8">
   </script>
  
   <!-- Modal: Add New Connected Account -->
@@ -2023,22 +2023,28 @@
         </div>
       </div>
 
+      <!-- Quick Post Navigator (للخطط الكبيرة) -->
+      <div id="pb-quick-nav" class="hidden px-4 sm:px-6 py-2 bg-purple-50/60 border-b border-purple-100/80 flex items-center gap-2 overflow-x-auto text-xs font-bold text-purple-900">
+        <span class="text-[11px] text-purple-700 whitespace-nowrap flex items-center gap-1">🧭 انتقال سريع للبوست:</span>
+        <div id="pb-quick-nav-pills" class="flex items-center gap-1 flex-wrap"></div>
+      </div>
+
       <!-- Posts Rows Container -->
-      <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4" id="pb-posts-container">
+      <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 min-h-[300px]" id="pb-posts-container">
         <!-- Dynamic Post Cards Injected by JS -->
       </div>
 
       <!-- Footer Controls -->
       <div class="p-4 border-t border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onclick="addPlanBuilderRow()" class="bg-white hover:bg-slate-100 text-purple-700 border border-purple-200 font-bold text-xs py-2 px-4 rounded-xl shadow-xs flex items-center gap-1.5 transition">
-          <span> إضافة بوست جديد بالقالب</span>
+        <button type="button" onclick="addPlanBuilderRow()" class="bg-white hover:bg-slate-100 text-purple-700 border border-purple-200 font-bold text-xs py-2 px-4 rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+          <span>➕ إضافة بوست جديد بالقالب</span>
         </button>
         <div class="flex items-center gap-2">
-          <button type="button" onclick="closePlanBuilderModal()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200 font-bold">
+          <button type="button" onclick="closePlanBuilderModal()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200 font-bold cursor-pointer">
             إلغاء
           </button>
-          <button type="button" onclick="submitPlanBuilder()" class="btn-primary text-xs py-2.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold hover:opacity-95 shadow-md flex items-center gap-1.5 transition">
-            <span> إنشاء الخطة وتحويلها لمهام بالسيستم</span>
+          <button id="pb-submit-btn" type="button" onclick="submitPlanBuilder()" class="btn-primary text-xs py-2.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold hover:opacity-95 shadow-md flex items-center gap-1.5 transition cursor-pointer">
+            <span>🚀 إنشاء وتوزيع الخطة سحابياً</span>
           </button>
         </div>
       </div>

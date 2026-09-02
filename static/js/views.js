@@ -4378,6 +4378,26 @@ window.promptAddPlanRowDriveLink = function(rowIdx) {
 
 window.planBuilderRowCount = 0;
 
+function updatePlanBuilderQuickNav() {
+    var nav = document.getElementById('pb-quick-nav');
+    var pills = document.getElementById('pb-quick-nav-pills');
+    if (!nav || !pills) return;
+    var rows = document.querySelectorAll('.pb-post-row');
+    if (rows.length <= 1) {
+        nav.classList.add('hidden');
+        pills.innerHTML = '';
+        return;
+    }
+    nav.classList.remove('hidden');
+    var html = '';
+    rows.forEach(function(r, idx){
+        var n = idx + 1;
+        var rId = r.id || ('pb-row-' + n);
+        html += '<button type="button" onclick="var el=document.getElementById(\'' + rId + '\'); if(el) el.scrollIntoView({behavior:\'smooth\', block:\'center\'});" class="px-2 py-0.5 rounded-lg bg-white border border-purple-200 hover:bg-purple-600 hover:text-white text-[11px] font-mono font-bold text-purple-900 transition shadow-2xs cursor-pointer">#' + n + '</button>';
+    });
+    pills.innerHTML = html;
+}
+
 window.addPlanBuilderRow = function(postData) {
     var container = document.getElementById('pb-posts-container');
     if (!container) return;
@@ -4394,12 +4414,13 @@ window.addPlanBuilderRow = function(postData) {
         { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' }
     ];
 
-    var assigneeOptions = '<option value="">👤 إسناد لموظف محدد (اختياري)...</option>';
+    var assigneeOptions = '<option value="">👤 إسناد لموظف (اختياري)...</option>';
     team.forEach(function(e){
         var isSel = (data.assigned_employee_id === e.employee_id || (data.assignee_name && data.assignee_name === e.name));
         assigneeOptions += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + ' (' + esc(e.role) + ')</option>';
     });
 
+    var curPillar = data.content_pillar || data.pillar || 'education';
     var initialRefs = data.reference_links_str || (Array.isArray(data.reference_links) ? data.reference_links.join(', ') : (data.reference_links || ''));
 
     var row = document.createElement('div');
@@ -4416,6 +4437,13 @@ window.addPlanBuilderRow = function(postData) {
                     '<option value="carousel"' + (data.post_type === 'carousel' ? ' selected' : '') + '>📑 كاروسيل / سلايدات (Carousel)</option>' +
                     '<option value="story"' + (data.post_type === 'story' ? ' selected' : '') + '>📱 ستوري / قصة (Story)</option>' +
                     '<option value="motion"' + (data.post_type === 'motion' ? ' selected' : '') + '>✨ موشن جرافيك (Motion Graphic)</option>' +
+                '</select>' +
+                '<select class="pb-pillar text-xs font-bold bg-amber-50/90 border border-amber-200 rounded-xl px-2.5 py-1 text-amber-900 focus:outline-none focus:border-amber-500" title="الركيزة التسويقية للبوست">' +
+                    '<option value="education"' + (curPillar === 'education' ? ' selected' : '') + '>💡 تثقيفي وتوعوي</option>' +
+                    '<option value="authority"' + (curPillar === 'authority' ? ' selected' : '') + '>👑 سلطة وخبرة</option>' +
+                    '<option value="social_proof"' + (curPillar === 'social_proof' ? ' selected' : '') + '>🌟 آراء وثقة</option>' +
+                    '<option value="conversion"' + (curPillar === 'conversion' ? ' selected' : '') + '>🎯 عرض وبيعي</option>' +
+                    '<option value="viral"' + (curPillar === 'viral' ? ' selected' : '') + '>🔥 تريند وتفاعل</option>' +
                 '</select>' +
                 '<select class="pb-assignee text-xs font-bold bg-purple-50/70 border border-purple-200 rounded-xl px-2.5 py-1 text-purple-900 focus:outline-none focus:border-purple-500">' +
                     assigneeOptions +
@@ -4467,6 +4495,7 @@ window.addPlanBuilderRow = function(postData) {
         '</div>';
 
     container.appendChild(row);
+    updatePlanBuilderQuickNav();
     row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
 
@@ -4479,6 +4508,7 @@ window.removePlanBuilderRow = function(btn) {
             var badge = r.querySelector('.font-mono');
             if (badge) badge.textContent = 'بوست #' + (idx + 1);
         });
+        updatePlanBuilderQuickNav();
     }
 };
 
@@ -4490,6 +4520,7 @@ window.loadSamplePlanTemplate = function() {
     var samples = [
         {
             post_type: 'reel',
+            content_pillar: 'conversion',
             tagline: 'سر واحد هيضاعف مبيعاتك في 30 يوم 🚀',
             caption: 'أغلب البراندات بتركز على الإعلانات وبتنسى أهم خطوة: تجربة العميل بعد أول نقرة!\n\nفي الفيديو ده هنوضح 3 خطوات عملية تقدر تطبقهم النهاردة عشان ترفع نسبة التحويل.\n\n📲 ابعتلنا كلمة (مبيعات) في الرسائل وهنبعتلك الدليل المجاني فوراً!\n\n#تسويق_إلكتروني #مبيعات #ريلز #سوشيال_ميديا',
             visual_idea: 'فيديو ريلز عمودي 9:16 مع هوك في أول 3 ثواني وظهور التاج لاين بخط واضح ومؤثرات صوتية حماسية',
@@ -4497,6 +4528,7 @@ window.loadSamplePlanTemplate = function() {
         },
         {
             post_type: 'carousel',
+            content_pillar: 'education',
             tagline: '5 أدوات مجانية لازم كل صانع محتوى يستخدمها 🛠️',
             caption: 'لو بتضيع وقت في التصميم والمونتاج، البوست ده هيوفر عليك ساعات كل أسبوع!\n\nسلايد 1: أداة التغذية البصرية\nسلايد 2: أداة تحسين جودة الصوت\nسلايد 3: أداة استخراج الهاشتاجات\n\n📌 احفظ البوست عشان ترجعله وقت ما تحتاجه!\n\n#صناع_المحتوى #تصميم #جرافيك',
             visual_idea: 'كاروسيل 5 سلايدات بتدرج ألوان البراند مع أيقونات بارزة لكل أداة وسهم تنقل سلس',
@@ -4504,6 +4536,7 @@ window.loadSamplePlanTemplate = function() {
         },
         {
             post_type: 'post',
+            content_pillar: 'authority',
             tagline: 'عرض خاص لنهاية الأسبوع — خصم 30% على كل التشكيلة 🔥',
             caption: 'العرض الأقوى وصل! استمتع بخصم 30% على كل المنتجات الجديدة لفترة محدودة.\n\n🚚 التوصيل مجاني للطلبات فوق 500 جنيه.\n\n🛒 اطلب الآن من خلال اللينك في البايو أو تواصل معنا عبر رسائل الصفحة.',
             visual_idea: 'تصميم جرافيك احترافي يبرز صورة المنتج الرئيسي مع بادج الخصم 30% بخط جريء',
@@ -4525,6 +4558,13 @@ async function submitPlanBuilder() {
         return;
     }
 
+    var submitBtn = document.getElementById('pb-submit-btn');
+    var origBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>جاري إنشاء وتوزيع الخطة سحابياً... ⏳</span>';
+    }
+
     var clientNameEl = document.getElementById('tasks-client-name');
     var activeCName = (clientNameEl ? clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim() : '') || 'Domya Marketing Agency';
     var clientName = ((document.getElementById('pb-client-name') || {}).value || '').trim() || activeCName;
@@ -4542,6 +4582,7 @@ async function submitPlanBuilder() {
 
     rows.forEach(function(r, idx){
         var type = (r.querySelector('.pb-post-type') || {}).value || 'post';
+        var pillar = (r.querySelector('.pb-pillar') || {}).value || 'education';
         var tagline = ((r.querySelector('.pb-tagline') || {}).value || '').trim();
         var visual = ((r.querySelector('.pb-visual') || {}).value || '').trim();
         var caption = ((r.querySelector('.pb-caption') || {}).value || '').trim();
@@ -4557,6 +4598,7 @@ async function submitPlanBuilder() {
             title: tagline || ('بوست #' + (idx + 1)),
             tagline: tagline,
             tag_line: tagline,
+            content_pillar: pillar,
             visual_idea: visual,
             caption: caption || tagline || 'محتوى البوست',
             post_type: type,
@@ -4570,7 +4612,7 @@ async function submitPlanBuilder() {
         structuredPosts.push(postObj);
 
         var block = '---' + '\n' +
-            'بوست #' + (idx + 1) + ' | النوع: ' + type + (pdate ? (' | تاريخ النشر: ' + pdate) : '') + (empId ? (' | المسند: ' + empName) : '') + '\n' +
+            'بوست #' + (idx + 1) + ' | النوع: ' + type + ' | الهدف: ' + pillar + (pdate ? (' | تاريخ النشر: ' + pdate) : '') + (empId ? (' | المسند: ' + empName) : '') + '\n' +
             'التاج لاين: ' + (tagline || ('بوست #' + (idx + 1))) + '\n' +
             (visual ? ('فكرة الفيجوال: ' + visual + '\n') : '') +
             (refList.length ? ('الريفرانس: ' + refList.join(' , ') + '\n') : '') +
@@ -4602,6 +4644,7 @@ async function submitPlanBuilder() {
             var cont = document.getElementById('pb-posts-container');
             if (cont) cont.innerHTML = '';
             window.planBuilderRowCount = 0;
+            updatePlanBuilderQuickNav();
             showToast('🎉 تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة وتوزيعها على Drive بنجاح! 🚀', 'success');
             
             if (res.plan_name) {
@@ -4617,6 +4660,11 @@ async function submitPlanBuilder() {
         }
     } catch(e) {
         showToast('خطأ في إرسال الخطة: ' + e.message, 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origBtnHtml;
+        }
     }
 }
 

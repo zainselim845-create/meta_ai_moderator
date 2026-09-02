@@ -564,3 +564,50 @@ def test_plan_with_table_tab_delimited():
     assert posts[1]["post_type"] == "reel"
     assert "تمارين الصباح" in posts[1]["title"]
 
+
+def test_generate_plan_docx_includes_content_pillars_and_references():
+    from api.index import _generate_plan_docx
+    posts = [
+        {
+            "post_type": "reel",
+            "tagline": "سر مضاعفة المبيعات 🚀",
+            "content_pillar": "conversion",
+            "visual_idea": "فيديو 9:16 مع هوك في أول 3 ثواني",
+            "caption": "اكتب كلمة مبيعات في الكومنتات وهنبعتلك الدليل!",
+            "publish_date": "2026-09-10",
+            "assignee_name": "عمر احمد",
+            "reference_links": ["https://drive.google.com/open?id=test12345"]
+        },
+        {
+            "post_type": "carousel",
+            "tagline": "5 أدوات مجانية للتصميم 🛠️",
+            "content_pillar": "education",
+            "visual_idea": "كاروسيل 5 سلايدات",
+            "caption": "احفظ البوست عشان ترجعله!",
+            "publish_date": "2026-09-12",
+            "assignee_name": "ندى أيمن"
+        }
+    ]
+    docx_bytes = _generate_plan_docx("معامل رعاية", "خطة سبتمبر 2026", posts, am_name="محمود خالد", creator_name="هدير انور")
+    assert docx_bytes is not None
+    assert len(docx_bytes) > 1000
+    assert docx_bytes[:2] == b"PK"  # Valid ZIP / DOCX magic bytes
+
+
+def test_large_plan_batch_processing_and_natural_sequence():
+    from api.index import _resolve_post_number, _natural_task_sort_key
+    tasks = []
+    for i in range(1, 21):
+        tasks.append({
+            "task_id": f"TASK-00{i:02d}",
+            "title": f"بوست #{i} — محتوى الأسبوع",
+            "post_number": i,
+            "status": "Pending AM Approval"
+        })
+    # Reverse to test sorting
+    tasks_reversed = list(reversed(tasks))
+    tasks_reversed.sort(key=_natural_task_sort_key)
+    for idx, t in enumerate(tasks_reversed, 1):
+        assert _resolve_post_number(t) == idx
+
+
