@@ -2087,10 +2087,14 @@ function renderTaskCard(t, indexInPlan) {
             return '<a href="' + esc(u) + '" target="_blank" class="inline-flex items-center gap-1 bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-violet-200 transition shadow-2xs hover:border-violet-300">' + esc(label) + ' ↗</a>';
         }).join('') + (refLinks.length > 6 ? '<span class="text-[10px] text-violet-500 font-bold">+' + (refLinks.length - 6) + '</span>' : '') + '</div>' : '';
 
+    // Clean and extract pure final caption first
+    var rawCaption = (t.caption || (t.content_data && t.content_data.caption) || t.description || '').trim();
+    var cleanCaption = rawCaption.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();
+
     // 3) Creative Brief & Visual Idea (فكرة وتوجيهات التصميم / الإسكربت)
     var visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || (t.video_data && t.video_data.idea) || t.design_brief || '').trim();
     visIdea = visIdea.replace(/^[>›»\s*#\-–—:]+/i, '').replace(/^(brief|creative brief|فكرة البوست|توجيه التصميم)\s*[:：\-–—]\s*/i, '').trim();
-    var isVisDup = !visIdea || visIdea === t.title || visIdea === cleanCaption || cleanCaption.includes(visIdea) || visIdea.includes(cleanCaption);
+    var isVisDup = !visIdea || visIdea === t.title || (Boolean(cleanCaption) && (visIdea === cleanCaption || cleanCaption.indexOf(visIdea) !== -1 || visIdea.indexOf(cleanCaption) !== -1));
     var visHtml = (!isVisDup) ?
         '<div class="bg-purple-50/80 border border-purple-200/80 rounded-xl p-2.5 text-xs text-purple-950 space-y-1 shadow-2xs">' +
             '<div class="font-bold text-[11px] text-purple-900 flex items-center gap-1">' +
@@ -2200,9 +2204,7 @@ function renderTaskCard(t, indexInPlan) {
             displayTitle = t.visual_idea.slice(0, 100);
         }
     }
-    // Clean and extract pure final caption
-    var rawCaption = (t.caption || (t.content_data && t.content_data.caption) || t.description || '').trim();
-    var cleanCaption = rawCaption.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();
+    // (Caption already cleaned above)
 
     var captionHtml = '';
     if (cleanCaption) {
