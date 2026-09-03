@@ -2225,7 +2225,7 @@ function renderTaskCard(t, indexInPlan) {
         '</div>';
     }
 
-    var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-3">' +
+    var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner">' +
         '<div class="flex items-center justify-between gap-1 flex-wrap">' +
             '<div class="flex items-center gap-1.5 flex-wrap">' +
                 postBadge +
@@ -2541,31 +2541,59 @@ function renderTaskCard(t, indexInPlan) {
         html += timelineLogHtml;
     }
 
-    // AM controls
-    html += '<div class="flex flex-col gap-1.5 pt-1 border-t border-slate-100">';
+    // AM controls - 100% enclosed within card boundaries with no overflow
+    html += '<div class="pt-2 border-t border-slate-100 w-full space-y-2">';
     if (st === 'Pending AM Approval') {
-        html += '<div class="flex gap-1"><select id="emp-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1">' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
-            '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">إسناد </button></div>';
+        html += '<div class="bg-blue-50/60 border border-blue-200/80 rounded-2xl p-2.5 space-y-1.5 shadow-2xs w-full box-border">' +
+            '<div class="flex items-center justify-between text-[11px] font-bold text-blue-950">' +
+                '<span class="flex items-center gap-1">👤 <span>إسناد المهمة:</span></span>' +
+                '<span class="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md font-bold">⏳ بانتظار الإسناد</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-1.5 w-full">' +
+                '<select id="emp-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-blue-300 bg-white rounded-xl font-bold text-slate-900 truncate focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer">' +
+                    empOptionsHtml(t.assigned_employee_id) +
+                '</select>' +
+                '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0 flex items-center gap-1">' +
+                    '<span>إسناد 🚀</span>' +
+                '</button>' +
+            '</div>' +
+        '</div>';
     }
     if (st === 'Assigned' || st === 'In Progress') {
-        html += '<div class="grid grid-cols-2 gap-1.5 pt-1">' +
-            '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-2 rounded-lg shadow-sm flex items-center justify-center gap-1 transition">↩️ سحب المهمة</button>' +
-            '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[11px] py-1.5 px-2 rounded-lg flex items-center justify-center gap-1"> إرسال للتليجرام</button>' +
+        html += '<div class="space-y-2 w-full">' +
+            '<div class="grid grid-cols-2 gap-1.5">' +
+                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs py-1.5 px-2 rounded-xl shadow-2xs flex items-center justify-center gap-1 transition cursor-pointer">↩️ سحب المهمة</button>' +
+                '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="w-full bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[11px] py-1.5 px-2 rounded-xl shadow-2xs flex items-center justify-center gap-1 transition cursor-pointer">✈️ تليجرام</button>' +
             '</div>' +
-            '<div class="flex gap-1 pt-1"><select id="reassign-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">تحويل لموظف آخر...</option>' + empOptionsHtml(t.assigned_employee_id) + '</select>' +
-            '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap">تحويل </button></div>';
+            '<div class="flex items-center gap-1.5 w-full">' +
+                '<select id="reassign-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-slate-200 rounded-xl truncate bg-white text-slate-800 focus:outline-blue-500 shadow-2xs cursor-pointer">' +
+                    '<option value="">تحويل لموظف آخر...</option>' + empOptionsHtml(t.assigned_employee_id) +
+                '</select>' +
+                '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0">' +
+                    'تحويل' +
+                '</button>' +
+            '</div>' +
+        '</div>';
     }
     if (isSubmitted) {
-        html += '<div class="grid grid-cols-2 gap-1 pt-1">' +
-            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1">↩️ طلب تعديل</button>' +
-            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1"> اعتماد واكتمال</button>' +
+        html += '<div class="space-y-2 w-full">' +
+            '<div class="grid grid-cols-2 gap-1.5">' +
+                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs py-2 rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer">↩️ طلب تعديل</button>' +
+                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">✅ اعتماد واكتمال</button>' +
             '</div>' +
-            '<div class="flex gap-1 pt-1"><select id="fwd-select-' + esc(t.task_id) + '" class="text-xs px-2 py-1.5 border border-slate-200 rounded-lg flex-1"><option value="">مرّرها للي بعده...</option>' + empOptionsHtml('') + '</select>' +
-            '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">مرّر ️</button></div>' +
-            '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-1.5 rounded-lg shadow-sm mt-1">↩️ سحب المهمة من الموظف</button>';
+            '<div class="flex items-center gap-1.5 w-full">' +
+                '<select id="fwd-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-slate-200 rounded-xl truncate bg-white text-slate-800 focus:outline-blue-500 shadow-2xs cursor-pointer">' +
+                    '<option value="">مرّرها للموظف التالي...</option>' + empOptionsHtml('') +
+                '</select>' +
+                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0">' +
+                    'تمرير ➡️' +
+                '</button>' +
+            '</div>' +
+            '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs py-2 rounded-xl shadow-2xs transition cursor-pointer">↩️ سحب المهمة من الموظف</button>' +
+        '</div>';
     }
     if (isCompleted) {
-        html += '<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-center text-xs font-bold text-emerald-800 flex items-center justify-center gap-1"> مكتملة ومعتمدة بنجاح </div>';
+        html += '<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-center text-xs font-bold text-emerald-800 flex items-center justify-center gap-1"> مكتملة ومعتمدة بنجاح ✅</div>';
     }
     html += '</div></div>';
     return html;

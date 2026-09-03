@@ -528,3 +528,22 @@ input[type="month"]::-webkit-datetime-edit-year-field {
   color: #0f172a !important;
   font-weight: 700 !important;
 }
+
+/* Strict boundary containment for task cards */
+.task-card-inner {
+  contain: layout;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.task-card-inner select,
+.task-card-inner input,
+.task-card-inner button {
+  box-sizing: border-box !important;
+}
+
+.task-card-inner select {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
