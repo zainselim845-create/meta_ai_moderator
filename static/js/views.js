@@ -1558,7 +1558,7 @@ function renderAMWorkspaceColumns(columns) {
                 '<h5 class="font-bold text-slate-900 leading-snug">' + esc(t.title) + '</h5>' +
                 '<p class="text-[11px] text-slate-600 line-clamp-2">' + esc(t.description || '') + '</p>' +
                 '<div class="bg-slate-50 p-2 rounded-lg border border-slate-100 text-[10px] space-y-1">' +
-                    '<div class="flex justify-between text-amber-700 font-bold"><span> موعد التسليم:</span><span>' + esc(t.delivery_deadline || t.publish_date || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
+                    '<div class="flex justify-between text-amber-700 font-bold"><span> موعد النشر:</span><span>' + esc(t.publish_date || t.delivery_deadline || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
                 '</div>' +
                 '<div class="flex gap-1">' +
                     '<button onclick="toggleTaskTimerAction(\'' + esc(t.task_id) + '\')" class="flex-1 font-bold text-[10px] py-1 px-2 rounded-lg transition ' + timerBtnClass + '">' + timerBtnText + '</button>' +
@@ -1737,7 +1737,7 @@ async function saveTaskDates(taskId) {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
         var data = await res.json();
-        if (res.ok && data.ok) { showToast('تم حفظ موعد التسليم بنجاح '); loadTasksEngine(); }
+        if (res.ok && data.ok) { showToast('تم حفظ موعد النشر بنجاح '); loadTasksEngine(); }
         else showToast(data.error || 'تعذّر الحفظ', 'error');
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -2102,20 +2102,20 @@ function renderTaskCard(t, indexInPlan) {
             '</button>' +
         '</div>';
 
-    // Delivery Deadline Date
-    var dDead = t.delivery_deadline || t.scheduled_start_date || t.publish_date || '';
+    // Publish / Delivery Date
+    var dDead = t.publish_date || t.delivery_deadline || t.scheduled_start_date || '';
 
     html += '<div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-xs space-y-2 shadow-2xs">' +
         '<div>' +
             '<label class="text-[11px] text-amber-950 font-bold flex items-center justify-between gap-1 mb-1.5">' +
-                '<span class="flex items-center gap-1.5">' + ICONS.calendar + ' <span>موعد التسليم:</span></span>' +
+                '<span class="flex items-center gap-1.5">' + ICONS.calendar + ' <span>موعد النشر:</span></span>' +
                 (dDead ? '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(dDead) + ')</span>' : '') +
             '</label>' +
             '<div class="flex items-center gap-2">' +
                 '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="flex-1 text-xs font-bold font-mono px-3 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
                 '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1 shrink-0">' +
                     ICONS.save +
-                    '<span>حفظ الموعد</span>' +
+                    '<span>حفظ موعد النشر</span>' +
                 '</button>' +
             '</div>' +
         '</div>' +
@@ -2611,7 +2611,7 @@ function renderTasksBoard() {
                     '<span> رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'deadline\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'deadline' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                    '<span> موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span> موعد النشر</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'status\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'status' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                     '<span> الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
@@ -4056,8 +4056,8 @@ async function openTaskDetailsModal(taskId) {
                 '<div class="font-bold text-xs text-slate-800">' + esc(t.assignee_name || 'غير مسند بعد') + '</div>' +
             '</div>' +
             '<div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl space-y-1">' +
-                '<div class="text-[10px] text-slate-500 font-bold"> موعد التسليم:</div>' +
-                '<div class="font-mono font-bold text-xs text-amber-800">' + esc(t.delivery_deadline || t.publish_date || 'غير محدد') + '</div>' +
+                '<div class="text-[10px] text-slate-500 font-bold"> موعد النشر:</div>' +
+                '<div class="font-mono font-bold text-xs text-amber-800">' + esc(t.publish_date || t.delivery_deadline || 'غير محدد') + '</div>' +
             '</div>' +
         '</div>' +
         ((t.tagline || (t.content_data && t.content_data.tagline) || (t.content_data && t.content_data.tag_line)) ? ('<div class="bg-amber-50/90 border border-amber-200 rounded-2xl p-3.5 space-y-1">' +
@@ -4430,10 +4430,45 @@ function onPlanBuilderModalClientChange(val) {
     }
 }
 
+function togglePbCustomClient(forceCustom) {
+    var sel = document.getElementById('pb-client-select');
+    var inp = document.getElementById('pb-client-name');
+    var btn = document.getElementById('btn-pb-custom-toggle');
+    if (!sel || !inp) return;
+    
+    var showCustom = (forceCustom === true) || inp.classList.contains('hidden');
+    if (showCustom) {
+        inp.classList.remove('hidden');
+        sel.classList.add('hidden');
+        if (btn) btn.textContent = '↩ اختيار من القائمة';
+        inp.focus();
+    } else {
+        inp.classList.add('hidden');
+        sel.classList.remove('hidden');
+        if (btn) btn.textContent = '+ عميل جديد';
+        if (sel.value && sel.value !== '__new__') {
+            onPlanBuilderModalClientSelectChange(sel.value);
+        }
+    }
+}
+
+function onPlanBuilderModalClientSelectChange(val) {
+    if (!val) return;
+    if (val === '__new__') {
+        togglePbCustomClient(true);
+        return;
+    }
+    var cSel = document.getElementById('pb-client-select');
+    var cInp = document.getElementById('pb-client-name');
+    var selOpt = cSel ? cSel.options[cSel.selectedIndex] : null;
+    var clientName = (selOpt ? selOpt.getAttribute('data-name') : '') || (selOpt ? selOpt.text.split(' (')[0].trim() : '') || val;
+    if (cInp) cInp.value = clientName;
+
+    onPlanBuilderModalClientChange(clientName);
+}
+
 function onPlanBuilderClientSelectChange(val) {
-    var cInput = document.getElementById('pb-client-name');
-    if (cInput) cInput.value = val || '';
-    onPlanBuilderModalClientChange(val);
+    onPlanBuilderModalClientSelectChange(val);
 }
 
 async function openPlanBuilderModal() {
@@ -4462,6 +4497,7 @@ async function openPlanBuilderModal() {
     }
 
     var clientInput = document.getElementById('pb-client-name');
+    var clientSelect = document.getElementById('pb-client-select');
     var amSelect = document.getElementById('pb-am-select');
     var planNameInput = document.getElementById('pb-plan-name');
     var modalDatalist = document.getElementById('pb-modal-clients-list');
@@ -4492,6 +4528,24 @@ async function openPlanBuilderModal() {
     if (!activeCName || activeCName === 'العميل') {
         var matched = (allClients || []).find(function(c){ return c.id === activeCid || c.name === activeCid; });
         activeCName = matched ? (matched.name || matched.id) : (activeCid || (allClients[0] && allClients[0].name) || '');
+    }
+
+    // Populate pb-client-select with ALL clients
+    if (clientSelect && allClients && allClients.length) {
+        var opts = '<option value="">-- اختر العميل من القائمة --</option>' +
+            allClients.map(function(c) {
+                var amPart = c.am_name ? (' (AM: ' + c.am_name + ')') : '';
+                var isSelected = (c.id === activeCid || c.name === activeCName || (c.company && c.company === activeCName));
+                return '<option value="' + esc(c.id) + '" data-name="' + esc(c.name) + '"' + (isSelected ? ' selected' : '') + '>' + esc(c.name) + amPart + '</option>';
+            }).join('') +
+            '<option value="__new__">+ كتابة اسم عميل جديد...</option>';
+        clientSelect.innerHTML = opts;
+
+        var selectedC = allClients.find(function(c){ return c.id === activeCid || c.name === activeCName; }) || allClients[0];
+        if (selectedC) {
+            clientSelect.value = selectedC.id;
+            activeCName = selectedC.name;
+        }
     }
 
     if (clientInput && activeCName) {
@@ -4839,14 +4893,27 @@ async function submitPlanBuilder() {
         if (_c) activeCName = _c.name;
     }
     activeCName = activeCName || 'العميل';
-    var clientName = ((document.getElementById('pb-client-name') || {}).value || '').trim() || activeCName;
+    var cSel = document.getElementById('pb-client-select');
+    var cInp = document.getElementById('pb-client-name');
+    var selectedCid = (cSel && cSel.value && cSel.value !== '__new__') ? cSel.value : '';
+    var clientName = '';
+    if (cInp && !cInp.classList.contains('hidden') && cInp.value.trim()) {
+        clientName = cInp.value.trim();
+    } else if (cSel && cSel.value && cSel.value !== '__new__') {
+        var selOpt = cSel.options[cSel.selectedIndex];
+        clientName = (selOpt ? selOpt.getAttribute('data-name') : '') || (selOpt ? selOpt.text.split(' (')[0].trim() : '') || cSel.value;
+    } else if (cInp && cInp.value.trim()) {
+        clientName = cInp.value.trim();
+    } else {
+        clientName = activeCName;
+    }
     
     // Resolve exact client object
     var matchedClient = allClients.find(function(c){
-        return c.id === activeCid || (c.name && c.name.toLowerCase() === clientName.toLowerCase()) || (c.company && c.company.toLowerCase() === clientName.toLowerCase());
+        return (selectedCid && c.id === selectedCid) || c.id === activeCid || (c.name && c.name.toLowerCase() === clientName.toLowerCase()) || (c.company && c.company.toLowerCase() === clientName.toLowerCase());
     });
-    var resolvedCid = matchedClient ? matchedClient.id : (activeCid || '');
-    var resolvedCname = matchedClient ? matchedClient.name : clientName;
+    var resolvedCid = selectedCid || (matchedClient ? matchedClient.id : (activeCid || ''));
+    var resolvedCname = (matchedClient && matchedClient.name) || clientName;
 
     var planSubName = ((document.getElementById('pb-plan-name') || {}).value || '').trim();
     var planName = planSubName || ('خطة ' + resolvedCname);

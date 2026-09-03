@@ -2085,12 +2085,17 @@
        <!-- Plan Metadata Bar -->
        <div class="p-4 sm:p-5 bg-slate-50/90 border-b border-slate-200/80 grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
          <div>
-           <label class="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-             <span>🏢 العميل / البراند:</span>
-             <span class="text-[10px] text-purple-600 font-semibold">اختر أو اكتب جديد</span>
-           </label>
-           <input id="pb-client-name" list="pb-modal-clients-list" type="text" placeholder="اختر من القائمة أو اكتب اسماً جديداً..." class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs" autocomplete="off" oninput="onPlanBuilderModalClientChange(this.value)" onchange="onPlanBuilderModalClientChange(this.value)" />
-           <datalist id="pb-modal-clients-list"></datalist>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block font-bold text-slate-700">🏢 العميل / البراند:</label>
+              <button type="button" id="btn-pb-custom-toggle" onclick="togglePbCustomClient()" class="text-[10px] text-purple-700 hover:text-purple-900 font-bold bg-purple-100/70 hover:bg-purple-200/70 px-2 py-0.5 rounded-lg border border-purple-200 transition cursor-pointer">
+                + عميل جديد
+              </button>
+            </div>
+            <select id="pb-client-select" class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs cursor-pointer" onchange="onPlanBuilderModalClientSelectChange(this.value)">
+              <option value="">-- جارِ تحميل العملاء --</option>
+            </select>
+            <input id="pb-client-name" type="text" placeholder="اكتب اسم العميل الجديد..." class="hidden w-full h-10 px-3 py-2 border border-purple-400 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs mt-1" autocomplete="off" oninput="onPlanBuilderModalClientChange(this.value)" onchange="onPlanBuilderModalClientChange(this.value)" />
+            <datalist id="pb-modal-clients-list"></datalist>
          </div>
          <div>
            <label class="block font-bold text-slate-700 mb-1.5">📅 اسم الخطة / الشهر:</label>
