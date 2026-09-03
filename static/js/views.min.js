@@ -1558,7 +1558,7 @@ function renderAMWorkspaceColumns(columns) {
                 '<h5 class="font-bold text-slate-900 leading-snug">' + esc(t.title) + '</h5>' +
                 '<p class="text-[11px] text-slate-600 line-clamp-2">' + esc(t.description || '') + '</p>' +
                 '<div class="bg-slate-50 p-2 rounded-lg border border-slate-100 text-[10px] space-y-1">' +
-                    '<div class="flex justify-between text-amber-700 font-bold"><span> موعد النشر:</span><span>' + esc(t.publish_date || t.delivery_deadline || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
+                    '<div class="flex justify-between text-amber-700 font-bold"><span> موعد التسليم:</span><span>' + esc(t.delivery_deadline || t.publish_date || t.scheduled_start_date || 'غير محدد') + '</span></div>' +
                 '</div>' +
                 '<div class="flex gap-1">' +
                     '<button onclick="toggleTaskTimerAction(\'' + esc(t.task_id) + '\')" class="flex-1 font-bold text-[10px] py-1 px-2 rounded-lg transition ' + timerBtnClass + '">' + timerBtnText + '</button>' +
@@ -1737,7 +1737,7 @@ async function saveTaskDates(taskId) {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
         var data = await res.json();
-        if (res.ok && data.ok) { showToast('تم حفظ موعد النشر بنجاح '); loadTasksEngine(); }
+        if (res.ok && data.ok) { showToast('تم حفظ موعد التسليم بنجاح '); loadTasksEngine(); }
         else showToast(data.error || 'تعذّر الحفظ', 'error');
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -2102,20 +2102,20 @@ function renderTaskCard(t, indexInPlan) {
             '</button>' +
         '</div>';
 
-    // Publish / Delivery Date
-    var dDead = t.publish_date || t.delivery_deadline || t.scheduled_start_date || '';
+    // Delivery Deadline Date
+    var dDead = t.delivery_deadline || t.publish_date || t.scheduled_start_date || '';
 
     html += '<div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-xs space-y-2 shadow-2xs">' +
         '<div>' +
             '<label class="text-[11px] text-amber-950 font-bold flex items-center justify-between gap-1 mb-1.5">' +
-                '<span class="flex items-center gap-1.5">' + ICONS.calendar + ' <span>موعد النشر:</span></span>' +
+                '<span class="flex items-center gap-1.5">' + ICONS.calendar + ' <span>موعد التسليم:</span></span>' +
                 (dDead ? '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(dDead) + ')</span>' : '') +
             '</label>' +
             '<div class="flex items-center gap-2">' +
                 '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="flex-1 text-xs font-bold font-mono px-3 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
                 '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1 shrink-0">' +
                     ICONS.save +
-                    '<span>حفظ موعد النشر</span>' +
+                    '<span>حفظ موعد التسليم</span>' +
                 '</button>' +
             '</div>' +
         '</div>' +
@@ -2606,12 +2606,16 @@ function renderTasksBoard() {
         var sortToolbarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 shadow-2xs space-y-2.5 mb-1">' +
             '<div class="flex items-center justify-between gap-2 flex-wrap">' +
                 '<div class="flex items-center gap-1.5 flex-wrap">' +
-                    '<span class="text-xs font-bold text-slate-800 flex items-center gap-1"> ترتيب حسب:</span>' +
+                    '<button type="button" onclick="triggerGlobalLiveRefresh(this)" class="text-xs px-3 py-1.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 cursor-pointer shadow-xs" title="تحديث فوري لحظي">' +
+                        '<span class="w-2 h-2 rounded-full bg-white animate-ping"></span>' +
+                        '<span>🔄 تحديث فوري</span>' +
+                    '</button>' +
+                    '<span class="text-xs font-bold text-slate-800 flex items-center gap-1">| ترتيب:</span>' +
                     '<button type="button" onclick="setTaskSort(\'sequence\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'sequence' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                     '<span> رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'deadline\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'deadline' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                    '<span> موعد النشر</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span> موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'status\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'status' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                     '<span> الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
@@ -4056,8 +4060,8 @@ async function openTaskDetailsModal(taskId) {
                 '<div class="font-bold text-xs text-slate-800">' + esc(t.assignee_name || 'غير مسند بعد') + '</div>' +
             '</div>' +
             '<div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl space-y-1">' +
-                '<div class="text-[10px] text-slate-500 font-bold"> موعد النشر:</div>' +
-                '<div class="font-mono font-bold text-xs text-amber-800">' + esc(t.publish_date || t.delivery_deadline || 'غير محدد') + '</div>' +
+                '<div class="text-[10px] text-slate-500 font-bold"> موعد التسليم:</div>' +
+                '<div class="font-mono font-bold text-xs text-amber-800">' + esc(t.delivery_deadline || t.publish_date || 'غير محدد') + '</div>' +
             '</div>' +
         '</div>' +
         ((t.tagline || (t.content_data && t.content_data.tagline) || (t.content_data && t.content_data.tag_line)) ? ('<div class="bg-amber-50/90 border border-amber-200 rounded-2xl p-3.5 space-y-1">' +
@@ -4770,7 +4774,7 @@ window.addPlanBuilderRow = function(postData) {
             '</div>' +
             '<div class="flex items-center gap-2">' +
                 '<div class="flex items-center gap-1.5">' +
-                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 موعد النشر (اختياري):</label>' +
+                    '<label class="text-[10px] font-bold text-slate-500 hidden sm:inline">📅 موعد التسليم (اختياري):</label>' +
                     '<input type="date" class="pb-publish-date text-xs px-2 py-1 border border-slate-200 rounded-xl bg-slate-50 font-bold" value="' + esc(data.publish_date || '') + '" title="اختياري - يمكنك تركه فارغاً" />' +
                 '</div>' +
                 '<button type="button" onclick="removePlanBuilderRow(this)" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 flex items-center justify-center font-bold text-xs transition cursor-pointer" title="حذف هذا البوست">' +
@@ -5271,6 +5275,118 @@ window.onTasksIngestClientChange = onTasksIngestClientChange;
         tryBoot();
     }
     window.addEventListener('load', tryBoot);
+})();
+
+async function refreshPlanBuilderClients() {
+    try {
+        var cRes = await fetch('/api/clients?t=' + Date.now());
+        var cData = await cRes.json();
+        var allClients = Array.isArray(cData) ? cData : (cData.clients || []);
+        window._clientsList = allClients;
+        var clientSelect = document.getElementById('pb-client-select');
+        var activeCid = window.activeClientId || (typeof currentClient !== 'undefined' ? currentClient : '');
+        if (clientSelect && allClients && allClients.length) {
+            var curVal = clientSelect.value;
+            var opts = '<option value="">-- اختر العميل من القائمة --</option>' +
+                allClients.map(function(c) {
+                    var amPart = c.am_name ? (' (AM: ' + c.am_name + ')') : '';
+                    var isSelected = (c.id === (curVal || activeCid));
+                    return '<option value="' + esc(c.id) + '" data-name="' + esc(c.name) + '"' + (isSelected ? ' selected' : '') + '>' + esc(c.name) + amPart + '</option>';
+                }).join('') +
+                '<option value="__new__">+ كتابة اسم عميل جديد...</option>';
+            clientSelect.innerHTML = opts;
+            if (curVal) clientSelect.value = curVal;
+        }
+        showToast('تم تحديث قائمة العملاء 🔄');
+    } catch(e) {
+        showToast('تعذّر تحديث قائمة العملاء', 'error');
+    }
+}
+
+async function triggerGlobalLiveRefresh(btn) {
+    var icon = btn ? btn.querySelector('[data-lucide="refresh-cw"], svg, i') : document.getElementById('header-refresh-icon');
+    if (icon) icon.classList.add('animate-spin');
+
+    try {
+        // 1. Invalidate stale localStorage caches for instantaneous fresh pull
+        ['tasks_board_act', 'tasks_board_arch', 'tasks_employees', 'myportal_tasks', 'clients_list'].forEach(function(k){
+            try { localStorage.removeItem('swr_cache_' + k); } catch(e){}
+        });
+
+        // 2. Direct fast refresh from server bypassing cache
+        if (typeof loadTasksEngine === 'function') {
+            await loadTasksEngine();
+        }
+        if (typeof loadAMWorkspace === 'function') {
+            loadAMWorkspace();
+        }
+        if (typeof populateClientDatalists === 'function') {
+            populateClientDatalists();
+        }
+        if (typeof loadAccountsList === 'function' && document.getElementById('v-accounts') && !document.getElementById('v-accounts').classList.contains('hidden')) {
+            await loadAccountsList(true);
+        }
+        if (typeof loadMyPortal === 'function' && document.getElementById('v-myportal') && !document.getElementById('v-myportal').classList.contains('hidden')) {
+            await loadMyPortal();
+        }
+        if (typeof syncInbox === 'function' && document.getElementById('v-inbox') && !document.getElementById('v-inbox').classList.contains('hidden')) {
+            syncInbox();
+        }
+
+        if (window.lucide) lucide.createIcons();
+        showToast('⚡ تم التحديث اللحظي للبيانات والصفحات بنجاح!', 'success');
+    } catch(err) {
+        console.warn('Live refresh error:', err);
+        showToast('تم التحديث اللحظي 🔄', 'info');
+    } finally {
+        setTimeout(function(){
+            if (icon) icon.classList.remove('animate-spin');
+        }, 500);
+    }
+}
+
+window.refreshPlanBuilderClients = refreshPlanBuilderClients;
+window.triggerGlobalLiveRefresh = triggerGlobalLiveRefresh;
+
+// Background Auto-Poll for real-time live updates
+(function initLiveAutoSync() {
+    if (window._liveSyncTimer) return;
+    window._liveSyncTimer = setInterval(function() {
+        if (document.hidden) return; // Skip if tab is in background
+        var vTasks = document.getElementById('v-tasks');
+        var vPortal = document.getElementById('v-myportal');
+        var isTasksActive = vTasks && !vTasks.classList.contains('hidden');
+        var isPortalActive = vPortal && !vPortal.classList.contains('hidden');
+
+        if (isTasksActive) {
+            var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false') + '&t=' + Date.now();
+            fetch(tasksUrl)
+                .then(function(r){ return r.json(); })
+                .then(function(d){
+                    if (d && d.tasks && Array.isArray(d.tasks)) {
+                        var newSig = d.tasks.map(function(t){ return t.task_id + ':' + t.status + ':' + (t.deliverables ? t.deliverables.length : 0); }).join('|');
+                        if (window._lastTasksSig && window._lastTasksSig !== newSig) {
+                            tasksList = d.tasks;
+                            renderTasksBoard();
+                            renderEmployeesStatus();
+                        }
+                        window._lastTasksSig = newSig;
+                    }
+                }).catch(function(){});
+        } else if (isPortalActive && typeof loadMyPortal === 'function') {
+            fetch('/api/my-tasks?t=' + Date.now())
+                .then(function(r){ return r.json(); })
+                .then(function(d){
+                    if (d && d.tasks) {
+                        var newSig = d.tasks.map(function(t){ return t.task_id + ':' + t.status; }).join('|');
+                        if (window._lastPortalSig && window._lastPortalSig !== newSig) {
+                            loadMyPortal();
+                        }
+                        window._lastPortalSig = newSig;
+                    }
+                }).catch(function(){});
+        }
+    }, 12000);
 })();
 
 

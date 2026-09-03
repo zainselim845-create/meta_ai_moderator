@@ -221,6 +221,10 @@
       </div>
      </div>
      <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+      <button id="btn-header-instant-refresh" onclick="triggerGlobalLiveRefresh(this)" class="btn-ghost text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100 text-blue-800 flex items-center gap-1.5 font-bold transition whitespace-nowrap shadow-2xs cursor-pointer" title="تحديث لحظي فوري لجميع البيانات والصفحات">
+       <i class="w-3.5 h-3.5 text-blue-600 transition-transform duration-500" data-lucide="refresh-cw" id="header-refresh-icon"></i>
+       <span class="hidden sm:inline">تحديث لحظي</span>
+      </button>
       <button id="btn-header-add-account" class="btn-primary text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl shadow-sm flex items-center gap-1 bg-blue-600 text-white font-bold hover:bg-blue-700 transition whitespace-nowrap" onclick="openAddAccountModal()">
        <i class="w-3.5 h-3.5" data-lucide="plus-circle"></i>
        <span class="hidden sm:inline">+ إضافة عميل</span>
@@ -1064,6 +1068,19 @@
      </div>
     </div>
     <div class="view hidden space-y-6" id="v-accounts">
+     <div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex-wrap gap-3">
+       <div>
+         <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+           <i data-lucide="share-2" class="w-5 h-5 text-blue-600"></i>
+           <span>إدارة البيدجات والصفحات المربوطة (Connected Pages)</span>
+         </h3>
+         <p class="text-xs text-slate-500 mt-0.5">متابعة صفحات الفيسبوك والحسابات وتحديث حالتها وصلاحياتها لحظياً</p>
+       </div>
+       <button type="button" onclick="loadAccountsList(true); showToast('تم تحديث البيدجات والصفحات بنجاح 🔄');" class="btn-primary text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs cursor-pointer">
+         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+         <span>تحديث البيدجات والصفحات 🔄</span>
+       </button>
+     </div>
      <div id="v-chatwoot">
      </div>
      <div class="space-y-6" id="accounts-full-list">
@@ -1718,9 +1735,9 @@
             <button onclick="ingestPlanAction(event)" class="btn-primary text-xs py-2 px-4 sm:px-5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition">
                تفريغ وتقسيم الملف لمهام
             </button>
-            <button onclick="loadTasksEngine()" class="btn-ghost text-xs py-2 px-3 sm:px-4 rounded-xl border border-slate-200 flex items-center gap-1">
+            <button onclick="triggerGlobalLiveRefresh(this)" class="btn-primary text-xs py-2 px-3 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 shadow-xs cursor-pointer" title="تحديث فوري لحظي للمهام">
               <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-              تحديث
+              <span>تحديث فوري لحظي 🔄</span>
             </button>
             <button id="btn-tasks-clear-all" onclick="clearAllTasks()" class="btn-ghost text-xs py-2 px-3 sm:px-4 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
@@ -2086,7 +2103,10 @@
        <div class="p-4 sm:p-5 bg-slate-50/90 border-b border-slate-200/80 grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
          <div>
             <div class="flex items-center justify-between mb-1.5">
-              <label class="block font-bold text-slate-700">🏢 العميل / البراند:</label>
+              <div class="flex items-center gap-1.5">
+                <label class="block font-bold text-slate-700">🏢 العميل / البراند:</label>
+                <button type="button" onclick="refreshPlanBuilderClients()" title="تحديث قائمة العملاء" class="text-xs text-slate-400 hover:text-purple-600 transition p-0.5 cursor-pointer">🔄</button>
+              </div>
               <button type="button" id="btn-pb-custom-toggle" onclick="togglePbCustomClient()" class="text-[10px] text-purple-700 hover:text-purple-900 font-bold bg-purple-100/70 hover:bg-purple-200/70 px-2 py-0.5 rounded-lg border border-purple-200 transition cursor-pointer">
                 + عميل جديد
               </button>
