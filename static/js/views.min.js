@@ -2245,14 +2245,39 @@ function renderTaskCard(t, indexInPlan) {
             '</button>' +
         '</div>';
 
-    // Delivery Deadline Date
-    var dDead = t.delivery_deadline || t.publish_date || t.scheduled_start_date || '';
+    // Delivery Deadline Date with Smart Visual Urgency
+    var dDead = (t.delivery_deadline || t.publish_date || t.scheduled_start_date || '').trim();
+    var deadlineBoxClass = 'bg-slate-50 border-slate-200';
+    var deadlineBadgeHtml = '';
 
-    html += '<div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-xs space-y-2 shadow-2xs">' +
+    if (dDead) {
+        var todayStr = new Date().toISOString().slice(0, 10);
+        var tomDate = new Date();
+        tomDate.setDate(tomDate.getDate() + 1);
+        var tomorrowStr = tomDate.toISOString().slice(0, 10);
+
+        if (t.status === 'Completed') {
+            deadlineBoxClass = 'bg-emerald-50/40 border-emerald-200';
+            deadlineBadgeHtml = '<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">✅ مكتمل</span>';
+        } else if (dDead < todayStr) {
+            deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
+            deadlineBadgeHtml = '<span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-md animate-pulse">🚨 متأخر عن الموعد!</span>';
+        } else if (dDead === todayStr) {
+            deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
+            deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم اليوم!</span>';
+        } else if (dDead === tomorrowStr) {
+            deadlineBoxClass = 'bg-amber-50/60 border-amber-300';
+            deadlineBadgeHtml = '<span class="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md">⏳ تسليم غداً</span>';
+        } else {
+            deadlineBadgeHtml = '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(dDead) + ')</span>';
+        }
+    }
+
+    html += '<div class="' + deadlineBoxClass + ' p-2.5 rounded-2xl border text-xs space-y-2 shadow-2xs transition">' +
         '<div>' +
             '<label class="text-[11px] text-amber-950 font-bold flex items-center justify-between gap-1 mb-1.5">' +
                 '<span class="flex items-center gap-1.5">' + ICONS.calendar + ' <span>موعد التسليم:</span></span>' +
-                (dDead ? '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(dDead) + ')</span>' : '') +
+                deadlineBadgeHtml +
             '</label>' +
             '<div class="flex items-center gap-2">' +
                 '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="flex-1 text-xs font-bold font-mono px-3 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
@@ -2889,6 +2914,9 @@ function renderTasksBoard() {
                         '</div>' +
                     '</div>' +
                     '<div class="flex items-center gap-2 flex-wrap">' +
+                        '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer" title="إسناد مهام هذه الخطة لموظف محدد دفعة واحدة">' +
+                            '<span>👥 إسناد جماعي</span>' +
+                        '</button>' +
                         '<button type="button" onclick="sharePlanWithClient(\'' + escJs(grp.clientName) + '\', \'' + escJs(grp.fileName) + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">' +
                             ICONS.share +
                             '<span>مشاركة الخطة مع العميل</span>' +
@@ -2933,6 +2961,9 @@ function renderTasksBoard() {
                             '</div>' +
                         '</div>' +
                         '<div class="flex items-center gap-1.5">' +
+                            '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="إسناد جماعي لمهام الخطة">' +
+                                '<span>👥 إسناد</span>' +
+                            '</button>' +
                             '<button type="button" onclick="sharePlanWithClient(\'' + esc(grp.clientName) + '\', \'' + esc(grp.fileName) + '\')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="نسخ رابط مشاركة الخطة للعميل">' +
                                 '<span> مشاركة</span>' +
                             '</button>' +
@@ -3578,6 +3609,152 @@ window.toggleTasksIngestCustomClient = toggleTasksIngestCustomClient;
 window.onTasksIngestClientSelectChange = onTasksIngestClientSelectChange;
 window.loadTasksIngestFields = loadTasksIngestFields;
 window.setTasksIngestSelfAM = setTasksIngestSelfAM;
+
+function toggleTasksIngestBox() {
+    var b = document.getElementById('tasks-ingest-body');
+    var icon = document.getElementById('toggle-ingest-icon');
+    var text = document.getElementById('toggle-ingest-text');
+    if (!b) return;
+    var isHidden = b.classList.toggle('hidden');
+    if (icon) icon.textContent = isHidden ? '▼' : '▲';
+    if (text) text.textContent = isHidden ? 'فتح الصندوق' : 'طي الصندوق';
+    try { localStorage.setItem('tasks_ingest_collapsed', isHidden ? 'true' : 'false'); } catch(e){}
+}
+window.toggleTasksIngestBox = toggleTasksIngestBox;
+
+async function openBulkAssignModal(planName) {
+    var emps = window.allTeamEmployees || employeesList || [];
+    if (!emps || emps.length === 0) {
+        showToast('جاري تحميل قائمة الموظفين...', 'info');
+        try {
+            var r = await fetch('/api/tasks/employees');
+            var d = await r.json();
+            emps = (d && d.employees) ? d.employees : [];
+            window.allTeamEmployees = emps;
+        } catch(e){}
+    }
+    if (!emps || emps.length === 0) {
+        showToast('لا يوجد موظفون مسجلون في النظام حالياً', 'error');
+        return;
+    }
+
+    var modal = document.getElementById('bulk-assign-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'bulk-assign-modal';
+        modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4';
+        document.body.appendChild(modal);
+    }
+
+    var matchingTasks = (tasksList || []).filter(function(t){
+        return (t.plan_name || t.file_name || '').trim() === planName.trim();
+    });
+    var pendingTasks = matchingTasks.filter(function(t){
+        return !t.assigned_employee_id || t.assigned_employee_id === 'unassigned' || t.status === 'Pending';
+    });
+
+    var optionsHtml = emps.map(function(e){
+        return '<option value="' + esc(e.id) + '" data-name="' + esc(e.name) + '">' + esc(e.name) + ' (' + esc(e.role || 'عضو فريق') + ')</option>';
+    }).join('');
+
+    modal.innerHTML = '<div class="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">' +
+        '<div class="flex items-center justify-between border-b border-slate-100 pb-3">' +
+            '<h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">' +
+                '<span class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">👥</span>' +
+                '<span>إسناد جماعي لمهام الخطة</span>' +
+            '</h3>' +
+            '<button type="button" onclick="closeBulkAssignModal()" class="text-slate-400 hover:text-slate-700 text-sm p-1 cursor-pointer">✕</button>' +
+        '</div>' +
+        '<div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 text-xs space-y-1">' +
+            '<div>الخطة المستهدفة: <b class="text-slate-900">' + esc(planName) + '</b></div>' +
+            '<div>إجمالي مهام الخطة: <b class="text-indigo-700 font-mono">' + matchingTasks.length + ' مهمة</b> (' + pendingTasks.length + ' غير مسندة)</div>' +
+        '</div>' +
+        '<div>' +
+            '<label class="block text-xs font-bold text-slate-800 mb-1.5">اختر الموظف لإسناد المهام إليه:</label>' +
+            '<select id="bulk-assign-emp-select" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-blue-500 shadow-2xs cursor-pointer">' +
+                optionsHtml +
+            '</select>' +
+        '</div>' +
+        '<div class="space-y-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">' +
+            '<label class="flex items-center gap-2 cursor-pointer font-bold text-slate-800">' +
+                '<input type="radio" name="bulk_scope" value="pending" checked class="accent-indigo-600">' +
+                '<span>إسناد المهام غير المسندة فقط (عدد: ' + pendingTasks.length + ')</span>' +
+            '</label>' +
+            '<label class="flex items-center gap-2 cursor-pointer text-slate-700">' +
+                '<input type="radio" name="bulk_scope" value="all" class="accent-indigo-600">' +
+                '<span>إسناد كافة مهام الخطة بالكامل (عدد: ' + matchingTasks.length + ')</span>' +
+            '</label>' +
+        '</div>' +
+        '<div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">' +
+            '<button type="button" onclick="closeBulkAssignModal()" class="text-xs px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer">إلغاء</button>' +
+            '<button type="button" onclick="executeBulkAssignAction(\'' + escJs(planName) + '\')" id="btn-confirm-bulk-assign" class="text-xs px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer">' +
+                '<span>تطبيق الإسناد الآن 🚀</span>' +
+            '</button>' +
+        '</div>' +
+    '</div>';
+    modal.classList.remove('hidden');
+}
+
+function closeBulkAssignModal() {
+    var modal = document.getElementById('bulk-assign-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function executeBulkAssignAction(planName) {
+    var sel = document.getElementById('bulk-assign-emp-select');
+    if (!sel) return;
+    var empId = sel.value;
+    var opt = sel.options[sel.selectedIndex];
+    var empName = opt ? (opt.getAttribute('data-name') || opt.textContent.split('(')[0].trim()) : empId;
+
+    var scopeRadio = document.querySelector('input[name="bulk_scope"]:checked');
+    var scope = scopeRadio ? scopeRadio.value : 'pending';
+
+    var btn = document.getElementById('btn-confirm-bulk-assign');
+    if (btn) { btn.disabled = true; btn.textContent = 'جاري الإسناد...'; }
+
+    var targetTasks = (tasksList || []).filter(function(t){
+        if ((t.plan_name || t.file_name || '').trim() !== planName.trim()) return false;
+        if (scope === 'pending') {
+            return !t.assigned_employee_id || t.assigned_employee_id === 'unassigned' || t.status === 'Pending';
+        }
+        return true;
+    });
+
+    if (targetTasks.length === 0) {
+        showToast('لا توجد مهام مطابقة للشروط المحددة', 'info');
+        closeBulkAssignModal();
+        return;
+    }
+
+    try {
+        var count = 0;
+        for (var i = 0; i < targetTasks.length; i++) {
+            var t = targetTasks[i];
+            t.assigned_employee_id = empId;
+            t.assignee_name = empName;
+            if (t.status === 'Pending' || !t.status) t.status = 'In Progress';
+            t.assigned_at = new Date().toISOString();
+            count++;
+            fetch('/api/tasks/' + encodeURIComponent(t.task_id) + '/assign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ employee_id: empId, employee_name: empName })
+            }).catch(function(){});
+        }
+        showToast('تم إسناد ' + count + ' مهمة إلى ' + empName + ' بنجاح! 🚀');
+        closeBulkAssignModal();
+        renderTasksBoard();
+        renderEmployeesStatus();
+        renderClientTabs();
+    } catch(err) {
+        showToast('حدث خطأ أثناء الإسناد الجماعي', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'تطبيق الإسناد الآن 🚀'; }
+    }
+}
+window.openBulkAssignModal = openBulkAssignModal;
+window.closeBulkAssignModal = closeBulkAssignModal;
+window.executeBulkAssignAction = executeBulkAssignAction;
 
 async function ingestPlanAction(ev) {
     if (ev) ev.preventDefault();

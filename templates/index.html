@@ -1668,11 +1668,17 @@
       <!-- Section 1: Top Bar & Quick Ingest -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div id="tasks-ingest-container" class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
-          <div class="flex items-center justify-between flex-wrap gap-2">
-            <h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
-              <i data-lucide="check-square" class="w-5 h-5 text-blue-600"></i>
-              <span>إدارة وتفريغ مهام الفريق والعمليات (Plan → Tasks Engine)</span>
-            </h3>
+          <div class="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2">
+              <h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                <i data-lucide="check-square" class="w-5 h-5 text-blue-600"></i>
+                <span>تفريغ ورفع الخطط الشهرية (Plan Ingest)</span>
+              </h3>
+              <button type="button" onclick="toggleTasksIngestBox()" id="btn-toggle-tasks-ingest" class="text-xs px-3 py-1 rounded-xl flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold transition shadow-2xs cursor-pointer" title="طي أو فتح صندوق رفع وتفريغ الخطط">
+                <span id="toggle-ingest-icon">▲</span>
+                <span id="toggle-ingest-text">طي الصندوق</span>
+              </button>
+            </div>
             <div class="flex items-center gap-2 flex-wrap">
               <button onclick="triggerTasksRemindersAction()" class="text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold transition whitespace-nowrap shadow-2xs cursor-pointer" title="إرسال تنبيهات المواعيد لمديري الحسابات والموظفين فورياً عبر تليجرام">
                 <span>🔔 إرسال تنبيهات المواعيد</span>
@@ -1683,6 +1689,7 @@
               </button>
             </div>
           </div>
+          <div id="tasks-ingest-body" class="space-y-4 pt-1">
           <!-- Client & AM & Plan Name Controls -->
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/90">
             <div>
@@ -1743,6 +1750,7 @@
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
               مسح كل التاسكات الديمو
             </button>
+          </div>
           </div>
         </div>
 
