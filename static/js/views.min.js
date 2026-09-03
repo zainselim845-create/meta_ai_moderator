@@ -2077,7 +2077,7 @@ function renderTaskCard(t, indexInPlan) {
         '<div class="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">' +
         refLinks.slice(0, 6).map(function(u, idx) {
             var uLow = String(u).toLowerCase();
-            var label = uLow.includes('drive.google') ? '📁 ملف Drive' :
+            var label = uLow.includes('drive.google') ? ('📁 ملف Drive ' + (idx + 1)) :
                         uLow.includes('pinterest') || uLow.includes('pin.it') ? '📌 Pinterest' :
                         uLow.includes('facebook.com') || uLow.includes('fb.watch') ? '📹 فيديو Facebook' :
                         uLow.includes('instagram.com') ? '📸 Instagram Reels' :
@@ -2089,10 +2089,15 @@ function renderTaskCard(t, indexInPlan) {
 
     // 3) Creative Brief & Visual Idea (فكرة وتوجيهات التصميم / الإسكربت)
     var visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || (t.video_data && t.video_data.idea) || t.design_brief || '').trim();
-    var visHtml = (visIdea && visIdea !== t.title && visIdea !== t.caption) ?
+    visIdea = visIdea.replace(/^[>›»\s*#\-–—:]+/i, '').replace(/^(brief|creative brief|فكرة البوست|توجيه التصميم)\s*[:：\-–—]\s*/i, '').trim();
+    var isVisDup = !visIdea || visIdea === t.title || visIdea === cleanCaption || cleanCaption.includes(visIdea) || visIdea.includes(cleanCaption);
+    var visHtml = (!isVisDup) ?
         '<div class="bg-purple-50/80 border border-purple-200/80 rounded-xl p-2.5 text-xs text-purple-950 space-y-1 shadow-2xs">' +
-            '<div class="font-bold text-[11px] text-purple-900 flex items-center gap-1">💡 فكرة وتوجيهات التصميم / الإسكربت (Creative Brief):</div>' +
-            '<div class="leading-relaxed text-[11px] whitespace-pre-wrap font-medium">' + esc(visIdea) + '</div>' +
+            '<div class="font-bold text-[11px] text-purple-900 flex items-center gap-1">' +
+                '<span>💡 فكرة وتوجيهات التصميم</span>' +
+                '<span dir="ltr" class="text-[10px] text-purple-600 font-mono font-normal">(Creative Brief)</span>' +
+            '</div>' +
+            '<div dir="rtl" class="leading-relaxed text-[11px] whitespace-pre-wrap font-medium text-right">' + esc(visIdea) + '</div>' +
         '</div>' : '';
 
     // 4) Modification Requests & Notes (طلبات التعديل والملاحظات)
@@ -2204,14 +2209,15 @@ function renderTaskCard(t, indexInPlan) {
         captionHtml = '<div class="bg-blue-50/50 border border-blue-200/90 rounded-2xl p-3 text-xs space-y-2 shadow-2xs">' +
             '<div class="flex items-center justify-between font-bold text-[11px] text-blue-950 border-b border-blue-200/60 pb-1.5">' +
                 '<span class="flex items-center gap-1.5 text-blue-900 font-bold">' +
-                    '<span class="w-2 h-2 rounded-full bg-blue-600 inline-block"></span>' +
-                    '<span>📝 الكابشن النهائي (Final Caption):</span>' +
+                    '<span class="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0"></span>' +
+                    '<span>📝 الكابشن النهائي</span>' +
+                    '<span dir="ltr" class="text-[10px] text-blue-600 font-mono font-normal">(Final Caption)</span>' +
                 '</span>' +
-                '<button type="button" onclick="copyTaskCaption(\'' + escJs(t.task_id) + '\')" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-1 px-2.5 rounded-lg border border-blue-200 shadow-2xs transition flex items-center gap-1 cursor-pointer" title="نسخ الكابشن النهائي">' +
-                    '<span>📋 نسخ الكابشن</span>' +
+                '<button type="button" onclick="copyTaskCaption(\'' + escJs(t.task_id) + '\')" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-1 px-2 rounded-lg border border-blue-200 shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0" title="نسخ الكابشن النهائي">' +
+                    '<span>📋 نسخ</span>' +
                 '</button>' +
             '</div>' +
-            '<div class="text-xs text-slate-900 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed font-sans select-all bg-white p-2.5 rounded-xl border border-blue-100 shadow-2xs">' +
+            '<div dir="rtl" class="text-xs text-slate-900 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed font-sans select-all bg-white p-2.5 rounded-xl border border-blue-100 shadow-2xs text-right">' +
                 esc(cleanCaption) +
             '</div>' +
         '</div>';
@@ -2273,19 +2279,19 @@ function renderTaskCard(t, indexInPlan) {
         }
     }
 
-    html += '<div class="' + deadlineBoxClass + ' p-2.5 rounded-2xl border text-xs space-y-2 shadow-2xs transition">' +
-        '<div>' +
-            '<label class="text-[11px] text-amber-950 font-bold flex items-center justify-between gap-1 mb-1.5">' +
-                '<span class="flex items-center gap-1.5">' + ICONS.calendar + ' <span>موعد التسليم:</span></span>' +
-                deadlineBadgeHtml +
-            '</label>' +
-            '<div class="flex items-center gap-2">' +
-                '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" class="flex-1 text-xs font-bold font-mono px-3 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
-                '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1 shrink-0">' +
-                    ICONS.save +
-                    '<span>حفظ موعد التسليم</span>' +
-                '</button>' +
-            '</div>' +
+    html += '<div class="' + deadlineBoxClass + ' p-2.5 rounded-2xl border text-xs space-y-1.5 shadow-2xs transition">' +
+        '<div class="flex items-center justify-between gap-1 mb-1">' +
+            '<span class="text-[11px] text-amber-950 font-bold flex items-center gap-1.5">' +
+                ICONS.calendar + ' <span>موعد التسليم:</span>' +
+            '</span>' +
+            deadlineBadgeHtml +
+        '</div>' +
+        '<div class="flex items-center gap-1.5">' +
+            '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" onchange="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="flex-1 min-w-0 text-xs font-bold font-mono px-2.5 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
+            '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1 shrink-0" title="حفظ موعد التسليم">' +
+                ICONS.save +
+                '<span>حفظ</span>' +
+            '</button>' +
         '</div>' +
     '</div>';
 
@@ -2946,7 +2952,7 @@ function renderTasksBoard() {
                 var completedCount = fTasks.filter(function(t){ return t.status === 'Completed'; }).length;
 
                 columnsHtml += '<div class="w-88 sm:w-[420px] shrink-0 bg-slate-100/90 border border-slate-200/90 rounded-3xl p-4 shadow-sm space-y-3.5 flex flex-col">' +
-                    '<div class="flex items-center justify-between border-b border-slate-200/90 pb-3 bg-white -m-4 mb-0 p-4 rounded-t-3xl shadow-xs">' +
+                    '<div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200/90 pb-3 bg-white -m-4 mb-0 p-4 rounded-t-3xl shadow-xs">' +
                         '<div class="flex items-center gap-2.5 min-w-0">' +
                             '<div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0"></div>' +
                             '<div class="min-w-0">' +
