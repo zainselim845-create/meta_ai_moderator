@@ -1669,10 +1669,10 @@
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div id="tasks-ingest-container" class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
           <div class="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
-            <div class="flex items-center gap-2">
-              <h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
-                <i data-lucide="check-square" class="w-5 h-5 text-blue-600"></i>
-                <span>تفريغ ورفع الخطط الشهرية (Plan Ingest)</span>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2 whitespace-nowrap">
+                <i data-lucide="check-square" class="w-5 h-5 text-blue-600 shrink-0"></i>
+                <span>تفريغ ورفع الخطط الشهرية</span>
               </h3>
               <button type="button" onclick="toggleTasksIngestBox()" id="btn-toggle-tasks-ingest" class="text-xs px-3 py-1 rounded-xl flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold transition shadow-2xs cursor-pointer" title="طي أو فتح صندوق رفع وتفريغ الخطط">
                 <span id="toggle-ingest-icon">▲</span>
@@ -1693,9 +1693,9 @@
           <!-- Client & AM & Plan Name Controls -->
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/90">
             <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[11px] font-bold text-slate-800">🏢 اختيار العميل:</label>
-                <button type="button" onclick="toggleTasksIngestCustomClient()" id="btn-tasks-ingest-custom" class="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer">+ عميل جديد</button>
+              <div class="flex items-center justify-between mb-1 gap-1">
+                <label class="block text-[11px] font-bold text-slate-800 whitespace-nowrap">🏢 اختيار العميل:</label>
+                <button type="button" onclick="toggleTasksIngestCustomClient()" id="btn-tasks-ingest-custom" class="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer whitespace-nowrap">+ عميل جديد</button>
               </div>
               <select id="tasks-ingest-client-select" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white font-bold text-slate-900 focus:border-blue-500 focus:outline-none shadow-2xs cursor-pointer" onchange="onTasksIngestClientSelectChange(this.value)">
                 <option value="">-- اختر العميل من القائمة --</option>
@@ -1703,9 +1703,9 @@
               <input id="tasks-ingest-client" type="text" placeholder="اكتب اسم العميل الجديد..." class="hidden w-full px-3 py-2 border border-blue-400 rounded-xl text-xs bg-white font-bold text-slate-900 focus:outline-none shadow-2xs mt-1" autocomplete="off" />
             </div>
             <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[11px] font-bold text-slate-800">👤 الأكونت مانيجر (AM):</label>
-                <button type="button" onclick="setTasksIngestSelfAM()" class="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer">🙋‍♂️ أنا الأكونت مانيجر</button>
+              <div class="flex items-center justify-between mb-1 gap-1">
+                <label class="block text-[11px] font-bold text-slate-800 whitespace-nowrap">👤 الأكونت مانيجر:</label>
+                <button type="button" onclick="setTasksIngestSelfAM()" class="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer whitespace-nowrap">🙋‍♂️ أنا AM</button>
               </div>
               <select id="tasks-ingest-am" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white font-bold text-slate-900 focus:border-blue-500 focus:outline-none shadow-2xs cursor-pointer">
                 <option value="AM-2072-9827" selected>محمود خالد — Account Manager</option>
