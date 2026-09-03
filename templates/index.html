@@ -1735,21 +1735,21 @@
               <input id="plan-ingest-drive" type="url" placeholder="https://drive.google.com/file/d/..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
             </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="button" onclick="openPlanBuilderModal()" class="text-xs py-2 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold hover:opacity-95 shadow-sm flex items-center gap-1.5 transition">
-              <span>️ كتابة وتصميم خطة جديدة بالقالب (Plan Builder)</span>
-            </button>
-            <button onclick="ingestPlanAction(event)" class="btn-primary text-xs py-2 px-4 sm:px-5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition">
-               تفريغ وتقسيم الملف لمهام
-            </button>
-            <button onclick="triggerGlobalLiveRefresh(this)" class="btn-primary text-xs py-2 px-3 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 shadow-xs cursor-pointer" title="تحديث فوري لحظي للمهام">
-              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-              <span>تحديث فوري لحظي 🔄</span>
-            </button>
-            <button id="btn-tasks-clear-all" onclick="clearAllTasks()" class="btn-ghost text-xs py-2 px-3 sm:px-4 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-              مسح كل التاسكات الديمو
-            </button>
+          <div class="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
+            <div class="flex items-center gap-2 flex-wrap">
+              <button type="button" onclick="ingestPlanAction(event)" class="text-xs py-2.5 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+                <span>🚀 تفريغ وتقسيم الملف لمهام</span>
+              </button>
+              <button type="button" onclick="openPlanBuilderModal()" class="text-xs py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+                <span>✍️ كتابة خطة جديدة (Plan Builder)</span>
+              </button>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="btn-tasks-clear-all" type="button" onclick="clearAllTasks()" class="text-xs py-2 px-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold flex items-center gap-1 transition cursor-pointer" title="مسح جميع المهام الحالية لبدء خطة جديدة">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                <span>مسح كل التاسكات</span>
+              </button>
+            </div>
           </div>
           </div>
         </div>
@@ -1760,8 +1760,8 @@
               <i data-lucide="users" class="w-4 h-4 text-blue-600"></i>
               <span>حالة وتوفر فريق العمل</span>
             </h3>
-            <button type="button" onclick="renderEmployeesStatus()" title="تحديث حالة الموظفين" class="text-slate-400 hover:text-blue-600 transition text-xs p-1 rounded-lg hover:bg-slate-100">
-              
+            <button type="button" onclick="renderEmployeesStatus()" title="تحديث حالة وتوفر الموظفين" class="text-slate-400 hover:text-blue-600 transition text-xs p-1.5 rounded-lg hover:bg-slate-100 flex items-center justify-center cursor-pointer">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
             </button>
           </div>
           <div id="employees-status-list" class="space-y-1.5 text-xs max-h-72 overflow-y-auto pr-1">

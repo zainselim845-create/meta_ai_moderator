@@ -1963,9 +1963,14 @@ function updateHeaderBadge(clientId) {
   if (!badge) return;
   const list = window._clientsList || [];
   if (!clientId) {
+    if (!list.length) {
+      badge.textContent = '';
+      badge.className = 'hidden';
+      return;
+    }
     const connected = list.filter(c => c.fb_connected || c.ig_connected).length;
-    badge.textContent = list.length ? `${connected}/${list.length} مربوط` : 'لا يوجد عملاء';
-    badge.className = 'text-[11px] px-2.5 py-0.5 rounded-2xl font-bold hidden lg:inline border ' +
+    badge.textContent = `${connected}/${list.length} حساب مربوط`;
+    badge.className = 'text-[11px] px-2.5 py-0.5 rounded-2xl font-bold hidden lg:inline-flex items-center gap-1 border ' +
       (connected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200');
     return;
   }

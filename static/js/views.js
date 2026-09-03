@@ -1353,17 +1353,12 @@ function renderClientTabs() {
 
     html += '</div>';
 
-    // Right Action: Add Plan or Live Refresh
+    // Right Action in Row 1: Archive indicator / switcher
     html += '<div class="flex items-center gap-2 mr-auto shrink-0">';
-    if (!tasksArchiveMode) {
-        html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5">' +
-            ICONS.plus +
-            '<span>خطة جديدة بالقالب</span>' +
-        '</button>';
-    } else {
-        html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-800 text-white hover:bg-slate-900 shadow-sm transition flex items-center gap-1.5">' +
+    if (tasksArchiveMode) {
+        html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-600 text-white hover:bg-amber-700 shadow-sm transition flex items-center gap-1.5">' +
             ICONS.restore +
-            '<span>العودة للنشطة</span>' +
+            '<span>العودة للخطط النشطة</span>' +
         '</button>';
     }
     html += '</div>';
@@ -1460,17 +1455,6 @@ function renderClientTabs() {
         '</button>';
     }
     
-    if (!tasksArchiveMode) {
-        html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5">' +
-            ICONS.plus +
-            '<span>كتابة خطة جديدة بالقالب</span>' +
-        '</button>';
-    } else {
-        html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-slate-800 text-white hover:bg-slate-900 shadow-sm transition flex items-center gap-1.5">' +
-            ICONS.restore +
-            '<span>العودة للخطط النشطة</span>' +
-        '</button>';
-    }
     html += '</div>';
     html += '</div>'; // End Row 2
     html += '</div>'; // End Container
@@ -2818,30 +2802,21 @@ function renderTasksBoard() {
         var sortToolbarHtml = '<div class="col-span-full bg-slate-50 border border-slate-200/90 rounded-2xl p-3 shadow-2xs space-y-2.5 mb-1">' +
             '<div class="flex items-center justify-between gap-2 flex-wrap">' +
                 '<div class="flex items-center gap-1.5 flex-wrap">' +
-                    '<button type="button" onclick="triggerGlobalLiveRefresh(this)" class="text-xs px-3 py-1.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 cursor-pointer shadow-xs" title="تحديث فوري لحظي">' +
-                        '<span class="w-2 h-2 rounded-full bg-white animate-ping"></span>' +
-                        '<span>🔄 تحديث فوري</span>' +
-                    '</button>' +
-                    '<div class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl text-xs font-bold text-amber-900 shadow-2xs">' +
-                        '<span>🗓️ الشهر المعروض:</span>' +
-                        '<span class="bg-white px-2 py-0.5 rounded-lg border border-amber-300 font-mono text-amber-950 font-bold">' + esc(formatMonthLabel(selectedMonthFilter)) + '</span>' +
-                        (selectedMonthFilter !== 'all' ? '<button type="button" onclick="setTaskMonthFilter(\'all\')" class="text-[10px] text-amber-700 hover:text-amber-950 underline mr-1 cursor-pointer">عرض جميع الشهور</button>' : '') +
-                    '</div>' +
-                    '<span class="text-xs font-bold text-slate-800 flex items-center gap-1">| ترتيب:</span>' +
+                    '<span class="text-xs font-bold text-slate-700 flex items-center gap-1">🔀 ترتيب حسب:</span>' +
                     '<button type="button" onclick="setTaskSort(\'sequence\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'sequence' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                    '<span> رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span>🔢 رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'deadline\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'deadline' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                    '<span> موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span>📅 موعد التسليم</span>' + (currentTaskSort === 'deadline' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'status\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'status' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                    '<span> الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span>🚦 الحالة</span>' + (currentTaskSort === 'status' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'task_id\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'task_id' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                    '<span>️ الكود</span>' + (currentTaskSort === 'task_id' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
+                    '<span>🏷️ الكود</span>' + (currentTaskSort === 'task_id' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
                     '</button>' +
                     '<button type="button" onclick="setTaskSort(\'created_at\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'created_at' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
-                    '<span>️ الأحدث</span>' + (currentTaskSort === 'created_at' ? (currentTaskSortDir === 'desc' ? ' ↓' : ' ↑') : '') +
+                    '<span>⚡ الأحدث</span>' + (currentTaskSort === 'created_at' ? (currentTaskSortDir === 'desc' ? ' ↓' : ' ↑') : '') +
                     '</button>' +
                 '</div>' +
                 '<div class="flex items-center gap-2 w-full sm:w-auto">' +
