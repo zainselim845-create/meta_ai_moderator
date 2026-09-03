@@ -199,19 +199,19 @@
    </div>
   </aside>
   <div class="mr-0 md:mr-60 flex flex-col min-h-screen">
-   <header class="bg-white border-b border-slate-200 min-h-[56px] md:h-16 px-3 sm:px-4 py-2 flex items-center justify-between sticky top-0 z-20 shadow-sm gap-2">
+   <header class="bg-white/95 backdrop-blur-md border-b border-slate-200 min-h-[56px] md:h-16 px-3 sm:px-6 py-2 flex items-center justify-between sticky top-0 z-20 shadow-2xs gap-3">
     <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
      <button class="md:hidden text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 flex-shrink-0" onclick="toggleMobileSidebar()" title="فتح القائمة">
       <i class="w-5 h-5" data-lucide="menu">
       </i>
      </button>
-     <div class="flex items-center gap-2 flex-wrap min-w-0">
+     <div class="flex items-center gap-2.5 flex-wrap min-w-0">
        <h2 class="text-sm font-bold text-slate-900 hidden md:block">
         Domya Meta Suite
        </h2>
-       <div id="header-client-selector-box" class="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-inner max-w-[150px] sm:max-w-[220px] truncate">
+       <div id="header-client-selector-box" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/70 transition px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs max-w-[200px] sm:max-w-[260px] truncate">
         <i class="w-3.5 h-3.5 text-blue-600 flex-shrink-0" data-lucide="layers"></i>
-        <select class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer truncate w-full" id="header-account-select" onchange="switchActiveClient(this.value)">
+        <select class="bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer truncate w-full" id="header-account-select" onchange="switchActiveClient(this.value)">
          <option value=""> جميع العملاء</option>
         </select>
        </div>

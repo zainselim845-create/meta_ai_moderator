@@ -529,12 +529,18 @@ input[type="month"]::-webkit-datetime-edit-year-field {
   font-weight: 700 !important;
 }
 
-/* Strict boundary containment for task cards */
+/* Strict boundary containment and styling for task cards */
 .task-card-inner {
   contain: layout;
   box-sizing: border-box !important;
   width: 100% !important;
   max-width: 100% !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.task-card-inner:hover {
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04) !important;
 }
 
 .task-card-inner select,
@@ -547,3 +553,26 @@ input[type="month"]::-webkit-datetime-edit-year-field {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Polished Card Badges & Micro-interactions */
+.badge-pulse {
+  animation: badge-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .65; }
+}
+
+/* Smooth Focus Ring for All Inputs */
+input:focus, select:focus, textarea:focus {
+  outline: none !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Clean Button Tactile Feedback */
+button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
