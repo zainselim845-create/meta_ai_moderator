@@ -9159,6 +9159,23 @@ def api_share_feedback():
     return jsonify({"ok": True, "success": True, "message": "تم إرسال ملاحظاتك لفريق العمل بنجاح!"})
 
 
+def _extract_drive_id(u):
+    if not u:
+        return ""
+    m = re.search(r'/file/d/([a-zA-Z0-9_-]+)', str(u)) or re.search(r'[?&]id=([a-zA-Z0-9_-]+)', str(u)) or re.search(r'thumbnail\?id=([a-zA-Z0-9_-]+)', str(u))
+    return m.group(1) if m else ""
+
+def _drive_img_thumb(u):
+    if not u:
+        return ""
+    u_str = str(u).strip()
+    if "drive.google.com" in u_str or "googleusercontent.com" in u_str:
+        fid = _extract_drive_id(u_str)
+        if fid:
+            return f"https://lh3.googleusercontent.com/d/{fid}=s400"
+    return u_str
+
+
 @app.route("/share/plan/<client_id>", methods=["GET"])
 def share_plan_view(client_id):
     """Public read-only plan view — send this link to clients outside the system."""
@@ -9255,14 +9272,32 @@ def share_plan_view(client_id):
         post_type_badge = " ريلز / فيديو" if is_video else "️ تصميم / بوست"
         badge_bg = "bg-purple-100 text-purple-800 border-purple-200" if is_video else "bg-blue-100 text-blue-800 border-blue-200"
         
-        # Images & Media
-        imgs_list = [u for u in (t.get("media_urls") or []) if str(u).startswith(("http://", "https://", "data:image/"))]
+        # Images & Media (including Google Drive thumbnails, reference images, etc.)
+        raw_imgs = []
+        for m_item in (t.get("media_urls") or []) + (t.get("reference_images") or []):
+            if m_item and str(m_item).strip() and str(m_item).strip() not in raw_imgs:
+                raw_imgs.append(str(m_item).strip())
+        if t.get("image_url") and str(t.get("image_url")).strip() not in raw_imgs:
+            raw_imgs.append(str(t.get("image_url")).strip())
+            
+        imgs_list = [u for u in raw_imgs if str(u).startswith(("http://", "https://", "data:image/"))]
         imgs_html = ""
         if imgs_list:
-            imgs_html = '<div class="flex gap-2 flex-wrap mt-3">' + "".join(
-                f'<a href="{_hx(u)}" target="_blank" class="block w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-2xs hover:opacity-90 transition"><img src="{_hx(u)}" class="w-full h-full object-cover" loading="lazy"></a>'
-                for u in imgs_list[:6]
-            ) + '</div>'
+            imgs_html = f'''
+            <div class="space-y-2 mt-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl p-3">
+                <div class="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                    <span class="flex items-center gap-1.5">🖼️ المرفقات والصور المرجعية ({len(imgs_list)}):</span>
+                    <span class="text-[10px] text-purple-700 font-normal">اضغط على أي صورة لتكبيرها 🔍</span>
+                </div>
+                <div class="flex gap-2.5 flex-wrap">''' + "".join(
+                f'''<div onclick="openImgModal('{_hx(_drive_img_thumb(u))}', '{_hx(u)}')" class="cursor-pointer relative w-20 h-20 rounded-2xl overflow-hidden border border-slate-200 shadow-2xs hover:scale-105 hover:border-purple-400 transition bg-white group shrink-0" title="اضغط لعرض وتكبير الصورة">
+                    <img src="{_hx(_drive_img_thumb(u))}" alt="مرفق" class="w-full h-full object-cover" loading="lazy" onerror="this.onerror=null; var fid=\'{_extract_drive_id(u)}\'; if(fid) {{ this.src=\'https://drive.google.com/thumbnail?id=\' + fid + \'&sz=w400\'; }} else {{ this.parentElement.innerHTML=\'<div class=\\\'w-full h-full flex flex-col items-center justify-center text-slate-400 text-[10px] font-bold p-1 text-center bg-slate-50\\\'>📁 فتح المرفق ↗</div>\'; }}">
+                    <div class="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/25 transition flex items-center justify-center">
+                        <span class="text-white text-xs opacity-0 group-hover:opacity-100 transition bg-black/50 px-1.5 py-0.5 rounded-md">🔍</span>
+                    </div>
+                </div>'''
+                for u in imgs_list
+            ) + '''</div></div>'''
             
         # Deliverable / Video Play button
         deliverable_html = ""
@@ -9378,6 +9413,27 @@ def share_plan_view(client_id):
     <!-- Toast Notification -->
     <div id="toast-msg" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs font-bold px-5 py-2.5 rounded-full shadow-2xl transition-all duration-300 opacity-0 pointer-events-none z-50"></div>
 
+    <!-- Image Preview Lightbox Modal -->
+    <div id="share-img-lightbox" class="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 hidden" onclick="if(event.target===this) closeImgModal()">
+        <div class="bg-white rounded-3xl overflow-hidden max-w-2xl w-full shadow-2xl border border-slate-200 space-y-3 p-4 sm:p-5">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">🖼️ معاينة الصورة المرفقة</span>
+                <button type="button" onclick="closeImgModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-sm transition cursor-pointer">✕</button>
+            </div>
+            <div class="max-h-[65vh] flex items-center justify-center overflow-hidden rounded-2xl bg-slate-950 p-1">
+                <img id="share-lightbox-img" src="" class="max-h-[65vh] w-auto max-w-full object-contain rounded-xl">
+            </div>
+            <div class="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                <a id="share-lightbox-link" href="#" target="_blank" class="text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs">
+                    <span>📁 فتح الملف الأصلي على Google Drive ↗</span>
+                </a>
+                <button type="button" onclick="closeImgModal()" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl transition cursor-pointer">
+                    إغلاق
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function showToast(msg) {{
             var t = document.getElementById('toast-msg');
@@ -9389,6 +9445,25 @@ def share_plan_view(client_id):
                 t.classList.remove('opacity-100');
                 t.classList.add('opacity-0', 'pointer-events-none');
             }}, 2500);
+        }}
+
+        function openImgModal(thumbSrc, fullUrl) {{
+            var modal = document.getElementById('share-img-lightbox');
+            if (!modal) return;
+            var img = document.getElementById('share-lightbox-img');
+            var link = document.getElementById('share-lightbox-link');
+            if (img) img.src = thumbSrc;
+            if (link) link.href = fullUrl || thumbSrc;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }}
+
+        function closeImgModal() {{
+            var modal = document.getElementById('share-img-lightbox');
+            if (modal) {{
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }}
         }}
 
         function copyCaption(text) {{
