@@ -11,6 +11,13 @@
   --gray-900: #0f172a;
 }
 
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'Cairo', system-ui, -apple-system, sans-serif;
   background-color: #f8fafc;
@@ -21,6 +28,10 @@ body {
   font-size: 14px;
 }
 
+button, input, select, textarea {
+  font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+}
+
 /* 5 Allowed Font Sizes Only */
 .text-xs { font-size: 12px !important; }
 .text-13px { font-size: 13px !important; }
@@ -28,14 +39,61 @@ body {
 .text-base { font-size: 16px !important; }
 .text-xl { font-size: 20px !important; }
 
-/* 3 Allowed Border Radius Values Only */
+/* Allowed Border Radius Values */
 .rounded-lg { border-radius: 8px !important; }
 .rounded-xl { border-radius: 12px !important; }
 .rounded-2xl { border-radius: 16px !important; }
+.rounded-3xl { border-radius: 20px !important; }
+.rounded-t-3xl { border-top-left-radius: 20px !important; border-top-right-radius: 20px !important; }
+.rounded-b-3xl { border-bottom-left-radius: 20px !important; border-bottom-right-radius: 20px !important; }
 
-/* Shadows */
+/* Tailwind Utilities Fallback & Bridge */
+.w-88 { width: 22rem !important; }
+.shrink-0 { flex-shrink: 0 !important; }
+
+.shadow-2xs {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03) !important;
+}
+.shadow-xs {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.02) !important;
+}
 .shadow-sm, .shadow {
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.04) !important;
+}
+.shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.04) !important;
+}
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.03) !important;
+}
+.backdrop-blur-xs {
+  backdrop-filter: blur(2px) !important;
+  -webkit-backdrop-filter: blur(2px) !important;
+}
+
+/* Modal Animation Utilities */
+.animate-in {
+  animation-duration: 160ms !important;
+  animation-fill-mode: both !important;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.fade-in {
+  animation-name: modalFadeIn !important;
+}
+.zoom-in-95 {
+  animation-name: modalZoomIn95 !important;
+}
+.duration-150 {
+  animation-duration: 150ms !important;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalZoomIn95 {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* Cards */
@@ -89,6 +147,12 @@ body {
   background-color: #f8fafc !important;
   color: #0f172a !important;
   border-color: #cbd5e1 !important;
+}
+
+/* Smooth Tactile Feedback for Buttons */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+  transition: transform 0.08s ease;
 }
 
 /* View Panes */
@@ -262,7 +326,7 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
@@ -318,18 +382,15 @@ body {
     padding: 12px 10px 32px 10px !important;
   }
 
-  /* Compact header on mobile */
   header {
     padding-left: 8px !important;
     padding-right: 8px !important;
   }
 
-  /* Single-column grid collapse */
   .grid-cols-1, #tasks-board-grid {
     grid-template-columns: 1fr !important;
   }
 
-  /* Modals fit small screens with nice scrolling */
   #acc-modal > div, #onboard-modal > div, .modal-box {
     width: 95% !important;
     max-width: 95vw !important;
@@ -338,12 +399,10 @@ body {
     margin: 8px auto !important;
   }
 
-  /* Task cards on phone */
   .task-card-inner {
     padding: 12px !important;
   }
 
-  /* Mobile toast position */
   #toast {
     left: 12px !important;
     right: 12px !important;
@@ -398,26 +457,50 @@ body {
   scrollbar-width: thin;
 }
 
-/* Horizontal Scrolling Tabs (Smooth on mobile touch) */
+/* Horizontal Scrolling Tabs (Smooth & sleek, no ugly thick bars) */
 #client-tabs {
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  scrollbar-width: thin;
 }
-#client-tabs::-webkit-scrollbar {
-  display: none;
+#client-tabs * {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+#client-tabs *::-webkit-scrollbar {
+  height: 4px;
+}
+#client-tabs *::-webkit-scrollbar-track {
+  background: transparent;
+}
+#client-tabs *::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 4px;
+}
+#client-tabs *::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
 }
 
-/* Universal Date Input Styling - High Contrast & Crisp */
+/* Task Card Hover & Elevation */
+.task-card-inner {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.task-card-inner:hover {
+  box-shadow: 0 6px 16px -3px rgba(0, 0, 0, 0.07) !important;
+}
+
+/* Universal Date & Month Input Styling - High Contrast & Crisp */
 input[type="date"],
+input[type="month"],
 input[type="datetime-local"] {
   color-scheme: light !important;
   color: #0f172a !important;
   background-color: #ffffff !important;
-  font-family: 'JetBrains Mono', 'Segoe UI', Tahoma, monospace !important;
+  font-family: 'JetBrains Mono', 'Cairo', monospace !important;
   font-weight: 700 !important;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.85;
@@ -425,20 +508,23 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
   transform: scale(1.1);
 }
 
-input[type="date"]::-webkit-datetime-edit-text {
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="month"]::-webkit-datetime-edit-text {
   color: #64748b !important;
   padding: 0 0.2em;
 }
 
 input[type="date"]::-webkit-datetime-edit-month-field,
 input[type="date"]::-webkit-datetime-edit-day-field,
-input[type="date"]::-webkit-datetime-edit-year-field {
+input[type="date"]::-webkit-datetime-edit-year-field,
+input[type="month"]::-webkit-datetime-edit-month-field,
+input[type="month"]::-webkit-datetime-edit-year-field {
   color: #0f172a !important;
   font-weight: 700 !important;
 }
-
