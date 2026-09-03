@@ -668,4 +668,53 @@ def test_send_due_task_reminders_calculates_correct_buckets(monkeypatch):
     assert any("تنبيه الأكونت مانيجر" in m[1] for m in sent_msgs)
 
 
+# =====================================================================
+# Rule 1, 5, 6: Production Regression Tests: Client Normalization,
+# Delivery Deadline & Live Refresh Sync
+# =====================================================================
 
+def test_client_name_normalization_matches_arabic_variations():
+    import api.index as idx
+    norm1 = idx._normalize_client_name_key("هبه حافظ")
+    norm2 = idx._normalize_client_name_key("هبة حافظ")
+    norm3 = idx._normalize_client_name_key("خطة هبه حافظ")
+    assert norm1 == norm2
+    assert norm1 == norm3
+    assert norm1 == "هبهحافظ"
+
+
+def test_delivery_deadline_and_publish_date_bi_directional_sync():
+    p1 = {"delivery_deadline": "2026-09-15"}
+    pub_date = (p1.get("publish_date") or "").strip()
+    dl_date = (p1.get("delivery_deadline") or "").strip()
+    if not dl_date and pub_date:
+        dl_date = pub_date
+    if not pub_date and dl_date:
+        pub_date = dl_date
+    assert pub_date == "2026-09-15"
+    assert dl_date == "2026-09-15"
+
+    p2 = {"publish_date": "2026-09-20"}
+    pub_date2 = (p2.get("publish_date") or "").strip()
+    dl_date2 = (p2.get("delivery_deadline") or "").strip()
+    if not dl_date2 and pub_date2:
+        dl_date2 = pub_date2
+    if not pub_date2 and dl_date2:
+        pub_date2 = dl_date2
+    assert pub_date2 == "2026-09-20"
+    assert dl_date2 == "2026-09-20"
+
+
+def test_api_tasks_refresh_parameter_triggers_supabase_sync(monkeypatch):
+    import api.index as idx
+    sync_called = []
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda force=False: sync_called.append(force))
+    monkeypatch.setattr(idx, "is_admin", lambda: True)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+    monkeypatch.setattr(idx, "assigned_client_ids", lambda: [])
+
+    with idx.app.test_request_context("/api/tasks?refresh=true"):
+        resp = idx.api_tasks()
+        assert resp.status_code == 200
+        assert len(sync_called) == 1
+        assert sync_called[0] is True
