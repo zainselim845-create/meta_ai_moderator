@@ -1446,6 +1446,15 @@ function filterTasksByPlan(planName) {
 }
 
 async function switchToClient(id) {
+    window.activeClientId = id;
+    currentClient = id;
+    var cSel = document.getElementById('tasks-ingest-client-select');
+    if (cSel) {
+        cSel.value = id;
+        if (typeof onTasksIngestClientSelectChange === 'function') {
+            onTasksIngestClientSelectChange(id);
+        }
+    }
     try { await fetch('/api/settings/active-client', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: id }) }); } catch(e){}
     loadTasksEngine();
 }
@@ -3330,8 +3339,13 @@ async function loadTasksIngestFields() {
                 }).join('');
             cSel.innerHTML = opts;
             
-            if (!cSel.value) {
-                var defaultC = clients.find(function(c){ return c.id === 'cli_dr_ahmed_1788270119' || (c.name && c.name.includes('أحمد حمدي')); }) || clients[0];
+            var activeCid = window.activeClientId || (typeof currentClient !== 'undefined' ? currentClient : '');
+            var activeMatch = clients.find(function(c){ return c.id === activeCid; });
+            if (activeMatch) {
+                cSel.value = activeMatch.id;
+                onTasksIngestClientSelectChange(activeMatch.id);
+            } else if (!cSel.value) {
+                var defaultC = clients[0];
                 if (defaultC) {
                     cSel.value = defaultC.id;
                     onTasksIngestClientSelectChange(defaultC.id);
@@ -3436,8 +3450,12 @@ async function ingestPlanAction(ev) {
         clientInput = matchedClient.name;
     }
     if (!clientInput) {
-        clientInput = 'دكتور أحمد حمدي';
-        clientId = 'cli_dr_ahmed_1788270119';
+        var activeCid = window.activeClientId || (typeof currentClient !== 'undefined' ? currentClient : '');
+        var activeC = list.find(function(c){ return c.id === activeCid; }) || list[0];
+        if (activeC) {
+            clientInput = activeC.name;
+            clientId = activeC.id;
+        }
     }
 
     // Clean plan name
@@ -4466,16 +4484,17 @@ async function openPlanBuilderModal() {
     }
 
     var activeCName = '';
+    var activeCid = window.activeClientId || (typeof currentClient !== 'undefined' ? currentClient : '');
     var clientNameEl = document.getElementById('tasks-client-name');
     if (clientNameEl && clientNameEl.textContent) {
         activeCName = clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim();
     }
-    if (!activeCName) {
-        var matched = (allClients || []).find(function(c){ return c.id === currentClient || c.name === currentClient; });
-        activeCName = matched ? (matched.name || matched.id) : (currentClient || (allClients[0] && allClients[0].name) || '');
+    if (!activeCName || activeCName === 'العميل') {
+        var matched = (allClients || []).find(function(c){ return c.id === activeCid || c.name === activeCid; });
+        activeCName = matched ? (matched.name || matched.id) : (activeCid || (allClients[0] && allClients[0].name) || '');
     }
 
-    if (clientInput && !clientInput.value && activeCName) {
+    if (clientInput && activeCName) {
         clientInput.value = activeCName;
     }
 
@@ -4811,16 +4830,26 @@ async function submitPlanBuilder() {
         submitBtn.innerHTML = '<span>جاري إنشاء وتوزيع الخطة سحابياً... ⏳</span>';
     }
 
+    var activeCid = window.activeClientId || (typeof currentClient !== 'undefined' ? currentClient : '');
     var clientNameEl = document.getElementById('tasks-client-name');
     var activeCName = (clientNameEl ? clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim() : '');
-    if (!activeCName && window.activeClientId && window._clientsList) {
-        var _c = window._clientsList.find(function(c){ return String(c.id).trim() === String(window.activeClientId).trim(); });
+    var allClients = window._clientsList || window.clientsList || [];
+    if (!activeCName && activeCid) {
+        var _c = allClients.find(function(c){ return String(c.id).trim() === String(activeCid).trim(); });
         if (_c) activeCName = _c.name;
     }
     activeCName = activeCName || 'العميل';
     var clientName = ((document.getElementById('pb-client-name') || {}).value || '').trim() || activeCName;
+    
+    // Resolve exact client object
+    var matchedClient = allClients.find(function(c){
+        return c.id === activeCid || (c.name && c.name.toLowerCase() === clientName.toLowerCase()) || (c.company && c.company.toLowerCase() === clientName.toLowerCase());
+    });
+    var resolvedCid = matchedClient ? matchedClient.id : (activeCid || '');
+    var resolvedCname = matchedClient ? matchedClient.name : clientName;
+
     var planSubName = ((document.getElementById('pb-plan-name') || {}).value || '').trim();
-    var planName = planSubName || ('خطة ' + clientName);
+    var planName = planSubName || ('خطة ' + resolvedCname);
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
 
     var structuredPosts = [];
@@ -4880,8 +4909,10 @@ async function submitPlanBuilder() {
                 plan_text: fullPlanText,
                 plan_name: planName,
                 file_name: planName,
-                client_name: clientName,
-                am_employee_id: amId
+                client_id: resolvedCid,
+                client_name: resolvedCname,
+                am_employee_id: amId,
+                append: true
             })
         });
 

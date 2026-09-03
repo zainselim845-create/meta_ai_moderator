@@ -6411,14 +6411,27 @@ def _drive_find_folder_by_name(parent_id, name_prefix):
     return None
 
 
+def _normalize_client_name_key(s):
+    s = str(s or "").strip().lower()
+    s = re.sub(r'^(?:خطة\s+محتوى|خطة|عميل|شركة|عيادة|مركز|دكتور|د\.)\s*', '', s).strip()
+    s = re.sub(r'[أإآا]', 'ا', s)
+    s = re.sub(r'ة', 'ه', s)
+    s = re.sub(r'ى', 'ي', s)
+    s = re.sub(r'[\s_\-]+', '', s)
+    return s
+
+
 def _ensure_client_record(client_input, am_id=None):
     """Guarantees that client_input (name or ID) exists in AGENCY_CLIENTS_STORE, Supabase,
     and Google Drive with a canonical ID, proper AM assignment, and returns (cid, client_dict)."""
     global AGENCY_CLIENTS_STORE
-    if not client_input:
+    if not client_input or str(client_input).strip() in ("client_default", "Domya Marketing Agency", "عميل عام"):
         cid = current_client_id()
         c = next((cl for cl in AGENCY_CLIENTS_STORE if cl.get("id") == cid), None)
-        return cid, c or {"id": cid, "name": _client_name(cid)}
+        if c:
+            return cid, c
+        if not client_input:
+            return cid, {"id": cid, "name": _client_name(cid)}
 
     client_str = str(client_input).strip()
     
@@ -6433,6 +6446,20 @@ def _ensure_client_record(client_input, am_id=None):
         if c_id == client_str or c_name.lower() == client_str.lower() or (c_comp and c_comp.lower() == client_str.lower()):
             target = c
             break
+
+    # 1b. Search by normalized Arabic client name (handles ه/ة, أ/ا, plan prefixes like 'خطة')
+    if not target:
+        norm_input = _normalize_client_name_key(client_str)
+        if norm_input and len(norm_input) >= 2:
+            for c in AGENCY_CLIENTS_STORE:
+                if not isinstance(c, dict):
+                    continue
+                c_name_norm = _normalize_client_name_key(c.get("name") or "")
+                c_comp_norm = _normalize_client_name_key(c.get("company") or "")
+                if norm_input == c_name_norm or norm_input == c_comp_norm or \
+                   (len(norm_input) >= 3 and (norm_input in c_name_norm or c_name_norm in norm_input)):
+                    target = c
+                    break
             
     if target:
         if am_id:
@@ -7136,6 +7163,9 @@ def api_tasks():
     _cid = current_client_id()
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
+        req_cid = (data.get("client_id") or "").strip()
+        if req_cid and req_cid != "all":
+            _cid = req_cid
         new_id = _generate_system_unique_task_ids(1)[0]
         title = (data.get("title") or "").strip() or "مهمة جديدة"
         description = (data.get("description") or "").strip()
@@ -8516,15 +8546,22 @@ def api_tasks_ingest_plan():
             return jsonify({"error": "تعذر قراءة نص الخطة. يرجى التأكد من رفع ملف DOCX أو CSV سليم أو لصق النص مباشرة.", "success": False}), 400
 
         # 3) Resolve Client Attribution: File name / Doc text / User selection
-        client_input = (request.form.get("client_name") or request.form.get("client_id") if request.form else None) or \
-                       (req_json.get("client_name") or req_json.get("client_id") or "")
-        client_input = str(client_input).strip()
+        client_id_param = (request.form.get("client_id") if request.form else None) or \
+                          (req_json.get("client_id") if isinstance(req_json, dict) else "")
+        client_name_param = (request.form.get("client_name") if request.form else None) or \
+                            (req_json.get("client_name") if isinstance(req_json, dict) else "")
         
-        # If client_input was default or empty, use detected client from file!
-        if (not client_input or client_input in ("client_default", "Domya Marketing Agency")) and doc_client_detected:
+        client_input = ""
+        if client_id_param and str(client_id_param).strip() and str(client_id_param).strip() != "all":
+            client_input = str(client_id_param).strip()
+        elif client_name_param and str(client_name_param).strip():
+            client_input = str(client_name_param).strip()
+        elif current_client_id() and current_client_id() != "client_default":
+            client_input = current_client_id()
+        elif doc_client_detected:
             client_input = doc_client_detected
-        elif not client_input:
-            client_input = doc_client_detected or "عميل عام"
+        else:
+            client_input = "عميل عام"
 
         _cid, target_client = _ensure_client_record(client_input, am_id=am_id)
         c_name_disp = (target_client.get("name") if target_client else "") or _client_name(_cid) or client_input or "عميل عام"
@@ -8554,7 +8591,7 @@ def api_tasks_ingest_plan():
         if not clean_file_title:
             clean_file_title = f"{c_name_disp} - خطة محتوى"
 
-        # 5) Duplicate Plan Guard — prevent re-ingesting the same plan
+        # 5) Duplicate Plan Guard vs Smooth Appending for Same Client
         tasks = get_client_tasks(_cid) or []
         existing_plan_index = {}  # norm_name -> (original_name, count)
         existing_file_names = {}  # norm_filename -> (original_plan_name, count)
@@ -8614,19 +8651,58 @@ def api_tasks_ingest_plan():
                         dup_plan_name, dup_count = ex_orig, ex_cnt
                         break
         
-        if dup_plan_name and dup_count > 0:
+        # Check existing tasks signatures to prevent accidental 100% duplicate file re-uploads
+        existing_signatures = set()
+        for _et in tasks:
+            _sig_c = re.sub(r'[\s_\-]+', '', str(_et.get("caption") or _et.get("description") or ""))
+            _sig_t = re.sub(r'[\s_\-]+', '', str(_et.get("title") or _et.get("tagline") or ""))
+            if _sig_c or _sig_t:
+                existing_signatures.add((_sig_c, _sig_t))
+
+        incoming_signatures = [
+            (
+                re.sub(r'[\s_\-]+', '', str(p.get("caption") or "")),
+                re.sub(r'[\s_\-]+', '', str(p.get("title") or p.get("tagline") or ""))
+            )
+            for p in extracted_posts
+        ]
+        
+        is_plan_builder = bool(isinstance(req_json, dict) and req_json.get("posts"))
+        allow_append = bool(
+            is_plan_builder or
+            (request.form.get("append") == "true" if request.form else False) or
+            (req_json.get("append") is True if isinstance(req_json, dict) else False)
+        )
+
+        all_identical = bool(incoming_signatures and all((s[0], s[1]) in existing_signatures for s in incoming_signatures if (s[0] or s[1])))
+        
+        if dup_plan_name and dup_count > 0 and all_identical and not allow_append:
             return jsonify({
                 "success": False,
-                "error": f"الخطة «{dup_plan_name}» موجودة بالفعل ({dup_count} مهمة). لو عايز تعيد رفعها، احذف الخطة القديمة الأول من تبويب الخطط.",
+                "error": f"جميع هذه المهام ({dup_count} مهمة) موجودة بالفعل في خطة «{dup_plan_name}» لهذا العميل. إذا كنت تريد إضافة مهام جديدة، يرجى تغيير محتوى البوستات أو اسم الخطة.",
                 "duplicate": True,
                 "existing_plan_name": dup_plan_name,
                 "existing_task_count": dup_count
             }), 409
 
+        # If appending to existing plan or client has existing tasks, sequence smoothly
+        if dup_plan_name and dup_count > 0:
+            clean_file_title = dup_plan_name
+            max_existing_num = 0
+            for _et in tasks:
+                if (_et.get("plan_name") or "").strip() == dup_plan_name:
+                    p_num = _et.get("post_number") or _resolve_post_number(_et, default_index=0)
+                    if p_num and p_num > max_existing_num:
+                        max_existing_num = p_num
+            base_post_offset = max_existing_num if max_existing_num > 0 else dup_count
+        else:
+            base_post_offset = 0
+
         system_task_ids = _generate_system_unique_task_ids(len(extracted_posts))
         created_count = 0
 
         for p_idx, p in enumerate(extracted_posts, 1):
+            post_num = base_post_offset + p_idx
             tagline = (p.get("tagline") or p.get("tag_line") or p.get("hook") or "").strip()
             title = (p.get("title") or tagline or "").lstrip("-•*️ ").strip()[:140]
             caption = (p.get("caption") or "").strip()
@@ -8638,11 +8714,11 @@ def api_tasks_ingest_plan():
                     title = tagline[:100]
                 elif caption:
                     lines = [l.strip() for l in caption.splitlines() if l.strip() and not re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', l.strip())]
-                    title = lines[0][:100] if lines else f"بوست #{p_idx}"
+                    title = lines[0][:100] if lines else f"بوست #{post_num}"
                 elif visual:
                     title = visual[:100]
                 else:
-                    title = f"بوست #{p_idx}"
+                    title = f"بوست #{post_num}"
 
             if not tagline:
                 tagline = title
@@ -8655,8 +8731,6 @@ def api_tasks_ingest_plan():
             ref_links = p.get("reference_links") or []
             all_refs = list(set(media_urls + ref_links))
             image_urls = [u for u in all_refs if any(u.lower().split("?")[0].endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) or "drive.google" in u.lower() or u.startswith("data:image/")]
-            
-            post_num = p_idx
             assigned_eid = (p.get("assigned_employee_id") or "").strip()
             assigned_name = (p.get("assignee_name") or "").strip()
 
