@@ -1202,6 +1202,66 @@ function clearEmployeeFilter() {
     renderTasksBoard();
 }
 
+var selectedMonthFilter = localStorage.getItem('tasks_month_filter') || 'all';
+
+var ARABIC_MONTH_NAMES = {
+    '01': 'يناير', '02': 'فبراير', '03': 'مارس', '04': 'أبريل',
+    '05': 'مايو', '06': 'يونيو', '07': 'يوليو', '08': 'أغسطس',
+    '09': 'سبتمبر', '10': 'أكتوبر', '11': 'نوفمبر', '12': 'ديسمبر'
+};
+
+function getTaskMonthKey(t) {
+    if (!t) return 'other';
+    var d = (t.delivery_deadline || t.publish_date || t.scheduled_start_date || '').trim();
+    var mMatch = d.match(/(\d{4})[/-](\d{1,2})/);
+    if (mMatch) {
+        var mNum = parseInt(mMatch[2], 10);
+        return mMatch[1] + '-' + (mNum < 10 ? '0' + mNum : mNum);
+    }
+    var name = (t.plan_name || t.file_name || '').trim();
+    for (var numStr in ARABIC_MONTH_NAMES) {
+        var arName = ARABIC_MONTH_NAMES[numStr];
+        if (name.indexOf(arName) !== -1) {
+            var yrMatch = name.match(/20\d{2}/);
+            var yr = yrMatch ? yrMatch[0] : (new Date().getFullYear().toString());
+            return yr + '-' + numStr;
+        }
+    }
+    var created = (t.created_at || '').trim();
+    var cMatch = created.match(/(\d{4})[/-](\d{1,2})/);
+    if (cMatch) {
+        var cNum = parseInt(cMatch[2], 10);
+        return cMatch[1] + '-' + (cNum < 10 ? '0' + cNum : cNum);
+    }
+    var now = new Date();
+    var curM = now.getMonth() + 1;
+    return now.getFullYear() + '-' + (curM < 10 ? '0' + curM : curM);
+}
+
+function formatMonthLabel(mKey) {
+    if (!mKey || mKey === 'all') return 'جميع الشهور';
+    if (mKey === 'other') return 'أخرى / بدون شهر';
+    var parts = mKey.split('-');
+    if (parts.length === 2) {
+        var yr = parts[0];
+        var mNum = parts[1];
+        var mName = ARABIC_MONTH_NAMES[mNum] || mNum;
+        return mName + ' ' + yr;
+    }
+    return mKey;
+}
+
+function setTaskMonthFilter(mKey) {
+    selectedMonthFilter = mKey || 'all';
+    try { localStorage.setItem('tasks_month_filter', selectedMonthFilter); } catch(e){}
+    selectedPlanFilter = null;
+    renderClientTabs();
+    renderTasksBoard();
+}
+window.setTaskMonthFilter = setTaskMonthFilter;
+window.getTaskMonthKey = getTaskMonthKey;
+window.formatMonthLabel = formatMonthLabel;
+
 var selectedPlanFilter = null;
 
 var tasksArchiveMode = false;
@@ -1217,34 +1277,116 @@ function toggleTasksArchiveMode() {
 function renderClientTabs() {
     var box = document.getElementById('client-tabs');
     if (!box) return;
-    
+
     var allTasks = tasksList || [];
-    var plans = {};
+
+    // Extract all distinct months available in tasksList
+    var monthsMap = {};
     allTasks.forEach(function(t) {
+        var mKey = getTaskMonthKey(t);
+        if (mKey) {
+            if (!monthsMap[mKey]) monthsMap[mKey] = 0;
+            monthsMap[mKey]++;
+        }
+    });
+    var availableMonthKeys = Object.keys(monthsMap).sort().reverse();
+
+    // If selectedMonthFilter is not 'all', filter tasks for plan pills
+    var filteredTasksForPlans = allTasks;
+    if (selectedMonthFilter && selectedMonthFilter !== 'all') {
+        filteredTasksForPlans = allTasks.filter(function(t) {
+            return getTaskMonthKey(t) === selectedMonthFilter;
+        });
+    }
+
+    var plans = {};
+    filteredTasksForPlans.forEach(function(t) {
         var p = (t.plan_name || t.file_name || 'خطة عامة').trim();
         if (!plans[p]) plans[p] = { name: p, total: 0, completed: 0, clientName: t.client_name || '' };
         plans[p].total++;
         if (t.status === 'Completed') plans[p].completed++;
     });
-
     var planNames = Object.keys(plans);
-    
-    var html = '<div class="flex items-center justify-between gap-2 overflow-x-auto pb-2 pt-1 w-full flex-wrap sm:flex-nowrap">';
-    html += '<div class="flex items-center gap-2 overflow-x-auto flex-nowrap shrink-0">';
 
-    // Archive / Active View Mode Switcher Button
-    html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 ' +
-        (tasksArchiveMode ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-300' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '" title="' + (tasksArchiveMode ? 'الرجوع للمهام والخطط النشطة' : 'عرض الخطط المؤرشفة') + '">' +
-        '<span>' + (tasksArchiveMode ? ' الأرشيف (مفعّل)' : ' الأرشيف') + '</span>' +
+    var html = '<div class="w-full space-y-2.5 pb-2 pt-1">';
+
+    // Row 1: Month Filter Bar & Archive Switcher
+    html += '<div class="flex items-center justify-between gap-2 overflow-x-auto pb-1 flex-wrap sm:flex-nowrap bg-slate-50 p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">';
+    html += '<div class="flex items-center gap-1.5 overflow-x-auto flex-nowrap shrink-0">';
+
+    // Archive Toggle
+    html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ' +
+        (tasksArchiveMode ? 'bg-amber-600 text-white shadow-md ring-2 ring-amber-300' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '" title="' + (tasksArchiveMode ? 'الرجوع للمهام والخطط النشطة' : 'عرض الخطط والمهام المؤرشفة') + '">' +
+        '<span>' + (tasksArchiveMode ? '📦 الأرشيف (مفعّل)' : '📦 عرض الأرشيف') + '</span>' +
         '<span dir="ltr" class="' + (tasksArchiveMode ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-900') + ' text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">' + tasksArchivedCount + '</span>' +
     '</button>';
 
-    // All Plans filter button
+    html += '<span class="text-slate-300">|</span>';
+    html += '<span class="text-xs font-bold text-slate-800 flex items-center gap-1">🗓️ فلترة الشهر:</span>';
+
+    // All Months Button
+    var isAllMonths = (!selectedMonthFilter || selectedMonthFilter === 'all');
+    html += '<button type="button" onclick="setTaskMonthFilter(\'all\')" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 ' +
+        (isAllMonths ? 'bg-slate-900 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+        '<span>جميع الشهور</span>' +
+        '<span dir="ltr" class="text-[10px] font-mono ' + (isAllMonths ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-700') + ' px-1.5 py-0.2 rounded-full font-bold">' + allTasks.length + '</span>' +
+    '</button>';
+
+    // Month Pills
+    availableMonthKeys.forEach(function(mKey) {
+        var isSel = (selectedMonthFilter === mKey);
+        var label = formatMonthLabel(mKey);
+        var count = monthsMap[mKey] || 0;
+        html += '<button type="button" onclick="setTaskMonthFilter(\'' + mKey + '\')" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 ' +
+            (isSel ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-300' : 'bg-white text-blue-900 hover:bg-blue-50 border border-blue-200') + '">' +
+            '<span>🗓️ ' + esc(label) + '</span>' +
+            '<span dir="ltr" class="text-[10px] font-mono ' + (isSel ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-800') + ' px-1.5 py-0.2 rounded-full font-bold">' + count + '</span>' +
+        '</button>';
+    });
+
+    // Quick Month Picker input
+    var curValMonth = (selectedMonthFilter && selectedMonthFilter !== 'all' && selectedMonthFilter !== 'other') ? selectedMonthFilter : '';
+    html += '<div class="flex items-center gap-1 shrink-0 bg-white border border-slate-200 rounded-xl px-2 py-1 shadow-2xs">' +
+        '<label class="text-[10px] font-bold text-slate-500 whitespace-nowrap">شهر محدد:</label>' +
+        '<input type="month" value="' + esc(curValMonth) + '" onchange="setTaskMonthFilter(this.value)" class="text-xs font-bold font-mono text-slate-800 bg-transparent focus:outline-none cursor-pointer" style="color-scheme: light;" />' +
+    '</div>';
+
+    html += '</div>';
+
+    // Right Action: Add Plan or Live Refresh
+    html += '<div class="flex items-center gap-2 mr-auto shrink-0">';
+    if (!tasksArchiveMode) {
+        html += '<button type="button" onclick="openPlanBuilderModal()" class="shrink-0 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-95 shadow-sm transition flex items-center gap-1.5">' +
+            ICONS.plus +
+            '<span>خطة جديدة بالقالب</span>' +
+        '</button>';
+    } else {
+        html += '<button type="button" onclick="toggleTasksArchiveMode()" class="shrink-0 text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-800 text-white hover:bg-slate-900 shadow-sm transition flex items-center gap-1.5">' +
+            ICONS.restore +
+            '<span>العودة للنشطة</span>' +
+        '</button>';
+    }
+    html += '</div>';
+    html += '</div>'; // End Row 1
+
+    // Row 2: Plans of the selected month
+    html += '<div class="flex items-center justify-between gap-2 overflow-x-auto pb-1 w-full flex-wrap sm:flex-nowrap">';
+    html += '<div class="flex items-center gap-2 overflow-x-auto flex-nowrap shrink-0">';
+
+    // All Plans filter button (for this month)
+    var allPlansLabel = (selectedMonthFilter && selectedMonthFilter !== 'all') ? 
+        ('جميع خطط ' + formatMonthLabel(selectedMonthFilter)) : 
+        (tasksArchiveMode ? 'جميع الخطط المؤرشفة' : 'جميع الخطط النشطة');
+
     html += '<button type="button" onclick="filterTasksByPlan(null)" class="shrink-0 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-2 ' +
         (!selectedPlanFilter ? (tasksArchiveMode ? 'bg-amber-700 text-white shadow-sm ring-2 ring-amber-400' : 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300') : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '">' +
-        '<span>' + (tasksArchiveMode ? ' جميع الخطط المؤرشفة' : ' جميع الخطط النشطة') + '</span>' +
-        '<span dir="ltr" class="' + (!selectedPlanFilter ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-800') + ' text-[11px] px-2 py-0.5 rounded-full font-mono font-bold">' + allTasks.length + '</span>' +
+        '<span>📁 ' + esc(allPlansLabel) + '</span>' +
+        '<span dir="ltr" class="' + (!selectedPlanFilter ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-800') + ' text-[11px] px-2 py-0.5 rounded-full font-mono font-bold">' + filteredTasksForPlans.length + '</span>' +
     '</button>';
+
+    if (planNames.length === 0) {
+        html += '<span class="text-xs text-slate-500 font-bold px-2 py-1.5 bg-slate-100 rounded-xl">لا توجد خطط مسجلة لهذا الشهر حالياً</span>';
+    }
 
     planNames.forEach(function(pName) {
         var pInfo = plans[pName];
@@ -1330,7 +1472,8 @@ function renderClientTabs() {
         '</button>';
     }
     html += '</div>';
-    html += '</div>';
+    html += '</div>'; // End Row 2
+    html += '</div>'; // End Container
 
     box.innerHTML = html;
 }
@@ -2445,6 +2588,13 @@ function renderTasksBoard() {
         if (!board) return;
         var badge = document.getElementById('tasks-count-badge');
         var allTasks = tasksList || [];
+
+        // 0. Month Filter (both in active mode and archive mode)
+        if (selectedMonthFilter && selectedMonthFilter !== 'all') {
+            allTasks = allTasks.filter(function(t) {
+                return getTaskMonthKey(t) === selectedMonthFilter;
+            });
+        }
         var displayTasks = allTasks.slice();
 
         // 0. Plan/Employee/AM Filters (Task board displays all plans with interactive plan tabs)
@@ -2505,7 +2655,8 @@ function renderTasksBoard() {
 
         if (badge) {
             var done = displayTasks.filter(function(t){ return matchTaskStatus(t.status, 'completed'); }).length;
-            badge.textContent = displayTasks.length + ' مهمة مرتبة · ' + done + ' مكتملة' + 
+            var monthBadge = (selectedMonthFilter && selectedMonthFilter !== 'all') ? (' [' + formatMonthLabel(selectedMonthFilter) + ']') : '';
+            badge.textContent = displayTasks.length + ' مهمة مرتبة · ' + done + ' مكتملة' + monthBadge +
                 (selectedAMFilter ? ' (AM: ' + esc(selectedAMName) + ')' : '') +
                 (selectedEmployeeFilter ? ' (' + esc(selectedEmployeeName) + ')' : '');
         }
@@ -2610,6 +2761,11 @@ function renderTasksBoard() {
                         '<span class="w-2 h-2 rounded-full bg-white animate-ping"></span>' +
                         '<span>🔄 تحديث فوري</span>' +
                     '</button>' +
+                    '<div class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl text-xs font-bold text-amber-900 shadow-2xs">' +
+                        '<span>🗓️ الشهر المعروض:</span>' +
+                        '<span class="bg-white px-2 py-0.5 rounded-lg border border-amber-300 font-mono text-amber-950 font-bold">' + esc(formatMonthLabel(selectedMonthFilter)) + '</span>' +
+                        (selectedMonthFilter !== 'all' ? '<button type="button" onclick="setTaskMonthFilter(\'all\')" class="text-[10px] text-amber-700 hover:text-amber-950 underline mr-1 cursor-pointer">عرض جميع الشهور</button>' : '') +
+                    '</div>' +
                     '<span class="text-xs font-bold text-slate-800 flex items-center gap-1">| ترتيب:</span>' +
                     '<button type="button" onclick="setTaskSort(\'sequence\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer ' + (currentTaskSort === 'sequence' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
                     '<span> رقم البوست</span>' + (currentTaskSort === 'sequence' ? (currentTaskSortDir === 'asc' ? ' ↑' : ' ↓') : '') +
@@ -2654,6 +2810,10 @@ function renderTasksBoard() {
                 emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-800">لا توجد مهام بحالة «<b>' + (stNames[currentTaskStatusFilter] || currentTaskStatusFilter) + '</b>» حالياً.</div>' +
                            '<p class="text-slate-500 text-[11px]">اضغط على «الكل» لعرض كافة مهام الخطط النشطة.</p>' +
                            '<button type="button" onclick="setTaskStatusFilter(\'all\')" class="mt-2 text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs">عرض كافة المهام (الكل)</button></div>';
+            } else if (selectedMonthFilter && selectedMonthFilter !== 'all') {
+                emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-800">لا توجد مهام مسجلة لشهر «<b>' + formatMonthLabel(selectedMonthFilter) + '</b>»' + (tasksArchiveMode ? ' في الأرشيف.' : '.') + '</div>' +
+                           '<p class="text-slate-500 text-[11px]">يمكنك اختيار شهر آخر من شريط الشهور بالأعلى أو الضغط على «عرض جميع الشهور» لعرض كل الخطط.</p>' +
+                           '<button type="button" onclick="setTaskMonthFilter(\'all\')" class="mt-2 text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs">عرض جميع الشهور</button></div>';
             } else if (taskSearchQuery) {
                 emptyMsg = 'لا توجد نتائج تطابق بحثك: <b>' + esc(taskSearchQuery) + '</b><br><button type="button" onclick="onTaskSearchInput(\'\')" class="mt-2 text-xs text-blue-600 font-bold hover:underline cursor-pointer">مسح البحث</button>';
             } else if (selectedEmployeeFilter) {
@@ -2719,8 +2879,10 @@ function renderTasksBoard() {
                                 '<h3 class="font-bold text-base sm:text-lg text-white">خطة: ' + esc(grp.fileName) + '</h3>' +
                                 '<span class="bg-purple-500/30 text-purple-200 text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border border-purple-400/30">' + fTasks.length + ' بوست بالخطة</span>' +
                             '</div>' +
-                            '<div class="flex items-center gap-2 text-xs text-purple-200 mt-1">' +
+                            '<div class="flex items-center gap-2 text-xs text-purple-200 mt-1 flex-wrap">' +
                                 '<span class="font-bold text-white bg-white/20 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1.5">' + ICONS.building + ' ' + esc(grp.clientName) + '</span>' +
+                                '<span>·</span>' +
+                                '<span class="bg-amber-400/20 text-amber-200 border border-amber-400/30 px-2.5 py-0.5 rounded-lg font-bold">🗓️ ' + esc(formatMonthLabel(getTaskMonthKey(fTasks[0]))) + '</span>' +
                                 '<span>·</span>' +
                                 '<span dir="ltr" class="font-mono bg-white/20 px-2 py-0.5 rounded-md text-white font-bold">' + completedCount + ' / ' + fTasks.length + ' منجز</span>' +
                             '</div>' +
@@ -2761,8 +2923,10 @@ function renderTasksBoard() {
                             '<div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0"></div>' +
                             '<div class="min-w-0">' +
                                 '<h4 class="font-bold text-sm text-slate-900 truncate" title="' + esc(grp.fileName) + '">ملف: ' + esc(grp.fileName) + '</h4>' +
-                                '<div class="flex items-center gap-1.5 text-xs mt-0.5">' +
+                                '<div class="flex items-center gap-1.5 text-xs mt-0.5 flex-wrap">' +
                                     '<span class="text-blue-700 font-bold truncate"> ' + esc(grp.clientName) + '</span>' +
+                                    '<span class="text-slate-300">·</span>' +
+                                    '<span class="bg-amber-100 text-amber-900 font-bold text-[10px] px-2 py-0.5 rounded-md">🗓️ ' + esc(formatMonthLabel(getTaskMonthKey(fTasks[0]))) + '</span>' +
                                     '<span class="text-slate-300">·</span>' +
                                     '<span dir="ltr" class="text-slate-500 font-mono text-[11px] whitespace-nowrap font-bold">' + completedCount + ' / ' + fTasks.length + '</span>' +
                                 '</div>' +
