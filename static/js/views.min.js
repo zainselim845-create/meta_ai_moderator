@@ -1065,6 +1065,7 @@ async function renderEmployeesStatus() {
 
         if (empRes && empRes.employees && empRes.employees.length) {
             employeesList = empRes.employees;
+            window.allTeamEmployees = empRes.employees;
         }
 
         load = (workRes && workRes.workload) ? workRes.workload : {};
@@ -1477,6 +1478,7 @@ async function loadTasksEngine() {
     var applyEmpsData = function(dataEmps) {
         if (!dataEmps) return;
         employeesList = (dataEmps && dataEmps.employees) ? dataEmps.employees : (Array.isArray(dataEmps) ? dataEmps : []);
+        window.allTeamEmployees = employeesList;
         renderEmployeesStatus();
     };
 
@@ -1765,7 +1767,8 @@ function copyTaskCaption(taskId, btn) {
 }
 window.copyTaskCaption = copyTaskCaption;
 function empOptionsHtml(selectedId) {
-    return (employeesList || []).map(function(e) {
+    var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+    return team.map(function(e) {
         var sel = (String(e.employee_id) === String(selectedId)) ? ' selected' : '';
         return '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(e.name) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
     }).join('');
@@ -4420,9 +4423,24 @@ async function openPlanBuilderModal() {
     if (!modal) return;
     modal.classList.remove('hidden');
 
+    try {
+        if (!window.allTeamEmployees || !window.allTeamEmployees.length) {
+            var empRes = await safeFetchJson('/api/tasks/employees');
+            if (empRes && empRes.employees && empRes.employees.length) {
+                window.allTeamEmployees = empRes.employees;
+                employeesList = empRes.employees;
+                if (typeof refreshPlanBuilderAssigneeOptions === 'function') {
+                    refreshPlanBuilderAssigneeOptions();
+                }
+            }
+        }
+    } catch(e){}
+
     var container = document.getElementById('pb-posts-container');
     if (container && container.children.length === 0) {
         addPlanBuilderRow();
+    } else if (typeof refreshPlanBuilderAssigneeOptions === 'function') {
+        refreshPlanBuilderAssigneeOptions();
     }
 
     var clientInput = document.getElementById('pb-client-name');
@@ -4597,6 +4615,25 @@ function updatePlanBuilderQuickNav() {
     pills.innerHTML = html;
 }
 
+function refreshPlanBuilderAssigneeOptions() {
+    var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees :
+               ((employeesList && employeesList.length) ? employeesList : []);
+    if (!team.length) return;
+    var rows = document.querySelectorAll('#pb-posts-container .pb-post-row');
+    rows.forEach(function(r) {
+        var sel = r.querySelector('.pb-assignee');
+        if (!sel) return;
+        var currentVal = sel.value;
+        var opts = '<option value="">👤 إسناد لموظف (اختياري)...</option>';
+        team.forEach(function(e) {
+            var isSel = (String(currentVal) === String(e.employee_id) || String(currentVal) === String(e.name));
+            opts += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + ' (' + esc(e.role || 'عضو فريق') + ')</option>';
+        });
+        sel.innerHTML = opts;
+    });
+}
+window.refreshPlanBuilderAssigneeOptions = refreshPlanBuilderAssigneeOptions;
+
 window.addPlanBuilderRow = function(postData) {
     var container = document.getElementById('pb-posts-container');
     if (!container) return;
@@ -4604,19 +4641,29 @@ window.addPlanBuilderRow = function(postData) {
     var idx = window.planBuilderRowCount;
     var data = postData || {};
 
-    var team = window.allTeamEmployees || [
-        { employee_id: 'EMP-8148', name: 'عمر احمد عبدالرحمن', role: 'فيديو ايديتور' },
-        { employee_id: 'EMP-8143', name: 'فرح ياسر ابراهيم', role: 'Video editor' },
-        { employee_id: 'EMP-8142', name: 'ندى أيمن كمال', role: 'جرافيك دزاينر' },
-        { employee_id: 'EMP-8986-4947', name: 'راما ممدوح سرج', role: 'جرافيك ديزاينر' },
-        { employee_id: 'EMP-7189-7780', name: 'عبدالرحمن محمد عربي', role: 'Content' },
-        { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' }
-    ];
+    var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees :
+               ((employeesList && employeesList.length) ? employeesList : [
+                   { employee_id: 'EMP-8148', name: 'عمر احمد عبدالرحمن', role: 'فيديو ايديتور' },
+                   { employee_id: 'EMP-8143', name: 'فرح ياسر ابراهيم', role: 'Video editor' },
+                   { employee_id: 'EMP-8142', name: 'ندى أيمن كمال', role: 'جرافيك دزاينر' },
+                   { employee_id: 'EMP-8986-4947', name: 'راما ممدوح سرج', role: 'جرافيك ديزاينر' },
+                   { employee_id: 'EMP-7189-7780', name: 'عبدالرحمن محمد عربي', role: 'Content' },
+                   { employee_id: 'EMP-8086-4520', name: 'محمد سعيد فوزي', role: 'Ai automation' },
+                   { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
+                   { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' },
+                   { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' },
+                   { employee_id: 'EMP-4481-0404', name: 'Sama Ayman', role: 'سيلز' },
+                   { employee_id: 'EMP-5970-2611', name: 'روضة عبد الحميد', role: 'الاداره' },
+                   { employee_id: 'EMP-3555-1067', name: 'Marwa Saeed', role: 'Wep Developer' },
+                   { employee_id: 'EMP-3264-8790', name: 'ليالي احمد احمد محمد', role: 'كاتب' },
+                   { employee_id: 'EMP-8069-7345', name: 'Walaa Ashraf Mohammed', role: 'Content Creator' },
+                   { employee_id: 'EMP-7775-2303', name: 'Menna gamal', role: 'مصمم' }
+               ]);
 
     var assigneeOptions = '<option value="">👤 إسناد لموظف (اختياري)...</option>';
     team.forEach(function(e){
         var isSel = (data.assigned_employee_id === e.employee_id || (data.assignee_name && data.assignee_name === e.name));
-        assigneeOptions += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + ' (' + esc(e.role) + ')</option>';
+        assigneeOptions += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + ' (' + esc(e.role || 'عضو فريق') + ')</option>';
     });
 
     var curPillar = data.content_pillar || data.pillar || 'education';
