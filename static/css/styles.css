@@ -576,3 +576,21 @@ button:active:not(:disabled) {
   transform: scale(0.985);
 }
 
+
+/* Employee Portal Dedicated Task Card Frame */
+.portal-task-card {
+  border: 2px solid #cbd5e1 !important;
+  border-radius: 1.125rem !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  overflow: hidden !important;
+  position: relative !important;
+  box-sizing: border-box !important;
+}
+
+.portal-task-card:hover {
+  border-color: #94a3b8 !important;
+  box-shadow: 0 12px 24px -4px rgba(15, 23, 42, 0.1), 0 4px 8px -2px rgba(15, 23, 42, 0.05) !important;
+  transform: translateY(-2px);
+}
