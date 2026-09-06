@@ -2423,19 +2423,33 @@ setInterval(function() {
   }
 }, 60000);
 
-function copyTaskDriveLink(link) {
+function copyTaskDriveLink(link, btn) {
   if (!link) {
     if (typeof showToast === 'function') showToast('لا يوجد رابط درايف مسجل لهذه المهمة');
     return;
   }
+  var triggerBtn = function() {
+    if (btn && btn.tagName === 'BUTTON') {
+      var oldText = btn.innerHTML;
+      btn.innerHTML = '✓ تم النسخ!';
+      btn.classList.add('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
+      setTimeout(function() {
+        btn.innerHTML = oldText;
+        btn.classList.remove('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
+      }, 1800);
+    }
+  };
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(link).then(function() {
-      if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح ');
+      if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح 📋');
+      triggerBtn();
     }).catch(function() {
       fallbackCopyText(link);
+      triggerBtn();
     });
   } else {
     fallbackCopyText(link);
+    triggerBtn();
   }
 }
 

@@ -1961,12 +1961,15 @@ function renderTaskCard(t, indexInPlan) {
     visIdea = visIdea.replace(/^[>›»\s*#\-–—:]+/i, '').replace(/^(brief|creative brief|فكرة البوست|توجيه التصميم)\s*[:：\-–—]\s*/i, '').trim();
     var isVisDup = !visIdea || visIdea === t.title || (Boolean(cleanCaption) && (visIdea === cleanCaption || cleanCaption.indexOf(visIdea) !== -1 || visIdea.indexOf(cleanCaption) !== -1));
     var visHtml = (!isVisDup) ?
-        '<div class="bg-purple-50/80 border border-purple-200/80 rounded-xl p-2.5 text-xs text-purple-950 space-y-1 shadow-2xs">' +
-            '<div class="font-bold text-[11px] text-purple-900 flex items-center gap-1">' +
-                '<span>💡 فكرة وتوجيهات التصميم</span>' +
-                '<span dir="ltr" class="text-[10px] text-purple-600 font-mono font-normal">(Creative Brief)</span>' +
+        '<div class="bg-purple-50/70 border border-purple-200/80 rounded-2xl p-3 text-xs text-purple-950 space-y-1.5 shadow-2xs">' +
+            '<div class="font-bold text-[11px] text-purple-900 flex items-center justify-between border-b border-purple-200/50 pb-1">' +
+                '<span class="flex items-center gap-1.5">' +
+                    '<span class="w-2 h-2 rounded-full bg-purple-600 inline-block shrink-0"></span>' +
+                    '<span>💡 فكرة وتوجيهات التصميم</span>' +
+                    '<span dir="ltr" class="text-[10px] text-purple-600 font-mono font-normal">(Creative Brief)</span>' +
+                '</span>' +
             '</div>' +
-            '<div dir="rtl" class="leading-relaxed text-[11px] whitespace-pre-wrap font-medium text-right">' + esc(visIdea) + '</div>' +
+            '<div dir="rtl" class="leading-relaxed text-[12px] whitespace-pre-wrap font-medium text-slate-800 text-right bg-white/80 p-2.5 rounded-xl border border-purple-100/80 shadow-2xs">' + esc(visIdea) + '</div>' +
         '</div>' : '';
 
     // 4) Modification Requests & Notes (طلبات التعديل والملاحظات)
@@ -2037,7 +2040,7 @@ function renderTaskCard(t, indexInPlan) {
                     '<a href="' + esc(viewUrl) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3 rounded-lg transition flex items-center justify-center gap-1.5 shadow-xs">' +
                         '<span>' + (isVid ? '▶️ تشغيل الفيديو على Google Drive ↗️' : '↗️ فتح ملف/مجلد التسليم ↗️') + '</span>' +
                     '</a>' +
-                    '<button type="button" onclick="copyTaskDriveLink(\'' + esc(viewUrl) + '\')" class="bg-white hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-1.5 px-3 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-xs">' +
+                    '<button type="button" onclick="copyTaskDriveLink(\'' + esc(viewUrl) + '\', this)" class="bg-white hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-1.5 px-3 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-xs cursor-pointer">' +
                         '<span>📋 نسخ</span>' +
                     '</button>' +
                 '</div>' +
@@ -2082,11 +2085,11 @@ function renderTaskCard(t, indexInPlan) {
                     '<span>📝 الكابشن النهائي</span>' +
                     '<span dir="ltr" class="text-[10px] text-blue-600 font-mono font-normal">(Final Caption)</span>' +
                 '</span>' +
-                '<button type="button" onclick="copyTaskCaption(\'' + escJs(t.task_id) + '\')" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-1 px-2 rounded-lg border border-blue-200 shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0" title="نسخ الكابشن النهائي">' +
+                '<button type="button" onclick="copyTaskCaption(\'' + escJs(t.task_id) + '\', this)" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-1 px-2.5 rounded-lg border border-blue-200 shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0" title="نسخ الكابشن النهائي">' +
                     '<span>📋 نسخ</span>' +
                 '</button>' +
             '</div>' +
-            '<div dir="rtl" class="text-xs text-slate-900 whitespace-pre-wrap max-h-56 overflow-y-auto leading-relaxed font-sans select-all bg-white p-3 rounded-xl border border-blue-100 shadow-2xs text-right font-normal">' +
+            '<div dir="rtl" class="text-[13px] text-slate-800 whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed font-sans select-all bg-white p-3.5 rounded-xl border border-blue-100 shadow-2xs text-right font-normal">' +
                 esc(cleanCaption) +
             '</div>' +
         '</div>';
