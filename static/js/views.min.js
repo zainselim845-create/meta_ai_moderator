@@ -1,4 +1,4 @@
-function escJs(str) {
+var escJs = window.escJs || function(str) {
     if (str === null || str === undefined) return '';
     return String(str)
         .replace(/\\/g, '\\\\')
@@ -6,7 +6,7 @@ function escJs(str) {
         .replace(/"/g, '\\"')
         .replace(/\n/g, ' ')
         .replace(/\r/g, '');
-}
+};
 window.escJs = escJs;
 
 const ICONS = {
@@ -359,16 +359,6 @@ async function selectAccount(accId, accName) {
     } catch(e) { showToast('حدث خطأ أثناء تفعيل الحساب', 'error'); }
 }
 
-async function deleteAccount(id){
-    if(!confirm('هل أنت تأكد من حذف هذا الحساب؟')) return;
-    try {
-        const res = await fetch('/api/accounts/' + id, {method: 'DELETE'});
-        if (!res.ok) { showToast('فشل حذف الحساب', 'error'); return; }
-        showToast('تم حذف الحساب');
-        loadAccounts();
-    } catch(e) { showToast('خطأ في الاتصال أثناء حذف الحساب', 'error'); }
-}
-
 let currentAspect = '1:1';
 
 function setAspect(mode) {
@@ -601,26 +591,6 @@ async function sendChat(){
 /* setApprovalMode removed here — the richer version in app.js (updates the mode cards
    + badges and posts /api/settings/mode) is used instead. */
 
-async function loadKb() {
-    try {
-        const res = await fetch('/api/kb');
-        const data = await res.json();
-        const grid = document.getElementById('kb-grid') || document.getElementById('kb-list');
-        if (!grid) return;
-        const kbList = Array.isArray(data) ? data : (data && Array.isArray(data.kb) ? data.kb : []);
-        if (!kbList || kbList.length === 0) {
-            grid.innerHTML = '<div class="empty-state">لا توجد أسئلة في قاعدة المعرفة بعد</div>';
-            return;
-        }
-        grid.innerHTML = kbList.map(item => `
-            <div class="p-2 text-xs">
-                <h4 class="text-xs"> ${esc(item.question)}</h4>
-                <p class="text-xs">${esc(item.answer)}</p>
-                <button class="btn-danger" class="text-xs" onclick="deleteKb(${item.id})"><i data-lucide="trash-2" class="w-4 h-4 inline"></i> حذف</button>
-            </div>
-        `).join('');
-    } catch(e) { console.error(e); }
-}
 
 async function addKb(e) {
     if (e && e.preventDefault) e.preventDefault();
@@ -671,31 +641,6 @@ async function uploadCompanyDoc(e) {
     } catch(err) { showToast('حدث خطأ أثناء معالجة الملف', 'error'); }
 }
 
-async function loadRules() {
-    try {
-        const res = await fetch('/api/rules');
-        const data = await res.json();
-        const list = document.getElementById('rule-list') || document.getElementById('rules-table-body');
-        if (!list) return;
-        const ruleList = Array.isArray(data) ? data : (data && Array.isArray(data.rules) ? data.rules : []);
-        if (!ruleList || ruleList.length === 0) {
-            list.innerHTML = '<div class="empty-state">لا توجد قواعد رد مخصصة بعد</div>';
-            return;
-        }
-        list.innerHTML = ruleList.map(r => `
-            <div class="p-2 text-xs">
-                <div>
-                    <h4 class="text-slate-600"><i data-lucide="target" class="w-4 h-4 inline"></i> الكلمة: <span class="text-slate-600">"${esc(r.trigger)}</span> (${esc(r.match_type)})</h4>
-                    <p class="text-xs">الرد العام: ${esc(r.response)} ${r.private_response ? ' | الرد الخاص: ' + esc(r.private_response) : ''}</p>
-                </div>
-                <button class="btn-danger" onclick="deleteRule(${r.id})"><i data-lucide="trash-2" class="w-4 h-4 inline"></i> حذف</button>
-            </div>
-        `).join('');
-    } catch(e) { console.error(e); }
-}
-
-
-
 async function deleteRule(id) {
     if (!confirm('هل أنت تأكد من حذف هذه القاعدة؟')) return;
     try {
@@ -703,91 +648,6 @@ async function deleteRule(id) {
         showToast('تم حذف القاعدة بنجاح');
         loadRules();
     } catch(e) { showToast('حدث خطأ', 'error'); }
-}
-
-async function checkAuth() {
-    try {
-        const res = await fetch('/api/me', { credentials: 'same-origin' });
-        const modal = document.getElementById('auth-modal') || document.getElementById('login-modal-overlay');
-        if (!res.ok) {
-            if (modal) modal.style.display = 'flex';
-            return false;
-        }
-        if (modal) modal.style.display = 'none';
-        if (typeof loadClients === 'function') await loadClients();
-        if (typeof loadInbox === 'function') await loadInbox();
-        return true;
-    } catch(e) {
-        console.warn('[checkAuth]', e);
-    }
-    return false;
-}
-
-async function quickDemoLogin() {
-    // Demo/backdoor login removed for security.
-    const uEl = document.getElementById('auth-username') || document.querySelector('#login-modal-overlay input[type="text"]');
-    if (uEl) uEl.focus();
-}
-
-async function handleLogin(e, demoU, demoP) {
-    if (e && e.preventDefault) e.preventDefault();
-    const uEl = document.getElementById('auth-username') || document.querySelector('#login-modal-overlay input[type="text"]');
-    const pEl = document.getElementById('auth-password') || document.querySelector('#login-modal-overlay input[type="password"]');
-    let u = (uEl ? uEl.value : '').trim();
-    let p = (pEl ? pEl.value : '').trim();
-    const err = document.getElementById('auth-error');
-    if (!u || !p) {
-        if (err) { err.style.display = 'block'; err.textContent = 'من فضلك اكتب اسم المستخدم وكلمة المرور'; }
-        return;
-    }
-    if (err) err.style.display = 'none';
-    const modal = document.getElementById('auth-modal') || document.getElementById('login-modal-overlay');
-    
-    try {
-        const res = await fetch('/api/login', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ username: u, password: p })
-        });
-        const data = await res.json();
-        if (res.ok || data.ok) {
-            sessionStorage.setItem('domya_auth_ok', '1');
-            localStorage.setItem('domya_auth', 'true');
-            if (modal) modal.style.display = 'none';
-            if (typeof showToast === 'function') showToast('تم تسجيل الدخول بنجاح! ');
-            // Role-aware UI: employees get their locked-down portal; managers the full app.
-            if (typeof applyRoleUI === 'function') { await applyRoleUI(); if ((window._me||{}).role === 'employee') return; }
-            if (typeof loadClients === 'function') loadClients();
-            if (typeof loadInbox === 'function') loadInbox();
-            return;
-        } else {
-            if (err) {
-                err.textContent = (data && data.error) || 'اسم المستخدم أو كلمة المرور غير صحيحة!';
-                err.style.display = 'block';
-            }
-        }
-    } catch(e) {
-        console.error('[Login Error]', e);
-        if (err) {
-            err.textContent = 'حدث خطأ في الاتصال بالسيرفر';
-            err.style.display = 'block';
-        }
-    }
-}
-
-async function handleLogout() {
-    if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-        if (!confirm('هل ترغب في تسجيل الخروج من النظام؟')) return;
-    }
-    try {
-        await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
-    } catch(e) {
-        console.error('[logout]', e);
-    }
-    const modal = document.getElementById('auth-modal') || document.getElementById('login-modal-overlay');
-    if (modal) modal.style.display = 'flex';
-    if (typeof showToast === 'function') showToast('تم تسجيل الخروج ');
 }
 
 let agencyClients = [];
@@ -905,23 +765,6 @@ async function saveDirectAccount(e) {
             showToast(d.error || 'حدث خطأ أثناء التسجيل', 'error');
         }
     } catch(err) { showToast('حدث خطأ أثناء الاتصال بالسيرفر', 'error'); }
-}
-
-async function switchActiveAccount(clientId) {
-    try {
-        localStorage.setItem('active_client_id', clientId || '');
-        if (clientId) {
-            await fetch('/api/clients/switch', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({client_id: clientId})
-            });
-        }
-        showToast(clientId ? 'تم تصفية العرض للعميل المختار' : 'عرض جميع العملاء (الكل)');
-        if (typeof loadInbox === 'function') loadInbox(true);
-    } catch(e) {
-        showToast('تعذر تغيير العميل', 'error');
-    }
 }
 
 async function loadRules() {
@@ -1827,33 +1670,6 @@ function toggleTaskTimeline(boxId) {
     }
 }
 
-function copyTaskDriveLink(link) {
-    if (!link) {
-        if (typeof showToast === 'function') showToast('لا يوجد رابط درايف مسجل لهذه المهمة');
-        return;
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(link).then(function() {
-            if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح ');
-        }).catch(function() {
-            fallbackCopyText(link);
-        });
-    } else {
-        fallbackCopyText(link);
-    }
-}
-
-function fallbackCopyText(text) {
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-        document.execCommand('copy');
-        if (typeof showToast === 'function') showToast('تم نسخ رابط Google Drive بنجاح ');
-    } catch(e) {}
-    document.body.removeChild(ta);
-}
 // AM sets start / publish / deadline for a task
 async function saveTaskDates(taskId) {
     var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
@@ -3302,29 +3118,6 @@ async function recallTaskAction(taskId) {
         showToast('خطأ في الاتصال بالسيرفر', 'error');
     }
 }
-
-async function requestReturnMyTask(taskId) {
-    var reason = prompt('اكتب سبب أو تفاصيل التعديل الذي ترغب في إجرائه (اختياري، اضغط موافق للاسترجاع):');
-    if (reason === null) return; // User cancelled
-    try {
-        var res = await fetch('/api/me/tasks/' + encodeURIComponent(taskId) + '/request-return', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason: (reason || '').trim() })
-        });
-        var data = await res.json();
-        if (res.ok && data.ok) {
-            showToast(data.message || 'تم استرجاع المهمة لك بنجاح للبدء في التعديل ↩️');
-            if (typeof loadTasksEngine === 'function') loadTasksEngine();
-            if (typeof loadMyPortal === 'function') loadMyPortal();
-        } else {
-            showToast(data.error || 'تعذّر استرجاع المهمة', 'error');
-        }
-    } catch(err) {
-        showToast('خطأ في الاتصال بالسيرفر', 'error');
-    }
-}
-window.requestReturnMyTask = requestReturnMyTask;
 
 async function reassignTaskFromBoard(taskId) {
     var sel = document.getElementById('reassign-select-' + taskId);

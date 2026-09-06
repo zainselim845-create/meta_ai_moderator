@@ -203,10 +203,12 @@ const FacebookFreeConnectorJS = {
     }
 };
 
-// Global Entry point for Chatwoot Free Login Button
-function loginFromChatwoot() {
-    console.log("[Chatwoot Free] Redirecting to secure OAuth start with CSRF/PKCE...");
-    window.location.href = '/api/oauth/start';
+// Global Entry point for Chatwoot Free Login Button (fallback if not defined)
+if (!window.loginFromChatwoot) {
+    window.loginFromChatwoot = function loginFromChatwoot() {
+        console.log("[Chatwoot Free] Redirecting to secure OAuth start with CSRF/PKCE...");
+        window.location.href = '/api/oauth/start';
+    };
 }
 
 // Expose globally
@@ -216,4 +218,3 @@ window.withFreeCache = withFreeCache;
 window.encryptFree = encryptFree;
 window.decryptFree = decryptFree;
 window.FacebookFreeConnectorJS = FacebookFreeConnectorJS;
-window.loginFromChatwoot = loginFromChatwoot;
