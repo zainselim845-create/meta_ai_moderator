@@ -718,3 +718,33 @@ def test_api_tasks_refresh_parameter_triggers_supabase_sync(monkeypatch):
         assert resp.status_code == 200
         assert len(sync_called) == 1
         assert sync_called[0] is True
+
+
+def test_plan_with_carousel_designs_and_video_links():
+    from api.index import _universal_extract_plan_posts
+    text = """1)
+كونتنت: انتي مش لوحدك احنا حاسيين بيكي 💜
+ديزاين 1: لحظات بتعدي على كل أم جديدة
+ديزاين 2: النوم والراحة بقوا أخر الأولويات
+ديزاين 3: اضطرت تسيب شغلها
+......................................................................
+2)
+نكتب على محمد سعد (انتي) والراجل اللي بيترمي دا نكتب عليه (جوزك)
+https://www.facebook.com/share/v/1BocYfJyfY/?mibextid=wwXIfr
+الدكتور: ابعدي عن اي صغط
+"""
+    posts = _universal_extract_plan_posts(text)
+    assert len(posts) == 2
+    # Post 1: Carousel with all slides preserved
+    assert posts[0]["post_type"] == "carousel"
+    assert posts[0]["content_type"] == "Carousel"
+    assert "سلايد 1" in posts[0]["visual_idea"]
+    assert "سلايد 2" in posts[0]["visual_idea"]
+    assert "سلايد 3" in posts[0]["visual_idea"]
+    assert not posts[0]["title"].startswith("كونتنت:")
+    # Post 2: Reel with video URL and visual instruction
+    assert posts[1]["post_type"] == "reel"
+    assert posts[1]["content_type"] == "Video"
+    assert "محمد سعد" in posts[1]["visual_idea"]
+    assert "https://www.facebook.com/share/v/1BocYfJyfY/?mibextid=wwXIfr" in posts[1]["media_urls"]
+
