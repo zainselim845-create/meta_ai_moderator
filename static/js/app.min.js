@@ -1092,11 +1092,19 @@ function renderMyPortalTasks() {
   });
 
   if (!filtered.length) {
-    box.innerHTML = `<div class="p-8 text-center text-xs text-slate-500 bg-white rounded-2xl border-2 border-slate-200 space-y-1 shadow-xs">
-      <div class="font-bold text-slate-800 text-sm">💾 لا توجد مهام تطابق الفلاتر المحددة حالياً</div>
-      <p class="text-[11px] text-slate-500">كافة مهامك محفوظة بأمان. يمكنك الضغط على «الكل» لعرض كافة المهام المسندة إليك.</p>
-      <button type="button" onclick="setMyPortalStatusFilter('all'); setMyPortalDueFilter('all');" class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition cursor-pointer shadow-xs">عرض كل المهام</button>
-    </div>`;
+    if (!allTasks.length) {
+      box.innerHTML = `<div class="p-8 text-center text-xs text-slate-500 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-xs">
+        <div class="text-2xl">✨</div>
+        <div class="font-bold text-slate-800 text-sm">لا توجد مهام مسندة إليك شخصياً حالياً</div>
+        <p class="text-[11px] text-slate-500 max-w-md mx-auto">أنت غير مسند إليك مهام تصميم أو كتابة في الوقت الحالي. يمكنك استخدام القائمة المنسدلة بالأعلى لاستعراض مهام أي موظف في الفريق أو الانتقال للوحة إدارة المهام.</p>
+      </div>`;
+    } else {
+      box.innerHTML = `<div class="p-8 text-center text-xs text-slate-500 bg-white rounded-2xl border-2 border-slate-200 space-y-1 shadow-xs">
+        <div class="font-bold text-slate-800 text-sm">💾 لا توجد مهام تطابق الفلاتر المحددة حالياً</div>
+        <p class="text-[11px] text-slate-500">كافة مهامك محفوظة بأمان. يمكنك الضغط على «الكل» لعرض كافة المهام المسندة إليك.</p>
+        <button type="button" onclick="setMyPortalStatusFilter('all'); setMyPortalDueFilter('all');" class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition cursor-pointer shadow-xs">عرض كل المهام</button>
+      </div>`;
+    }
     return;
   }
 
@@ -1218,7 +1226,7 @@ function renderMyPortalTasks() {
   }).join('');
 }
 
-let myPortalTargetEid = 'all';
+let myPortalTargetEid = 'me';
 
 async function switchMyPortalEmployee(eid) {
   myPortalTargetEid = eid;
@@ -1242,12 +1250,14 @@ async function loadMyPortal() {
     if (isAdm) {
       empSwitcher.classList.remove('hidden');
       const empSelect = document.getElementById('myportal-emp-switcher');
-      if (empSelect && empSelect.options.length <= 1) {
+      if (empSelect && empSelect.options.length <= 2) {
         try {
           const empsRes = await safeFetchJson('/api/tasks/employees');
           const emps = (empsRes && empsRes.employees) ? empsRes.employees : [];
-          empSelect.innerHTML = '<option value="all">👥 جميع مهام الفريق (عرض الإدارة الكامل)</option>' +
+          empSelect.innerHTML = '<option value="me">👤 مهامي الشخصية فقط</option>' +
+            '<option value="all">👥 جميع مهام الفريق (عرض الإدارة الكامل)</option>' +
             emps.map(e => `<option value="${esc(e.employee_id || e.name)}"${myPortalTargetEid === (e.employee_id || e.name) ? ' selected' : ''}>👤 ${esc(e.name)} (${esc(e.role || 'موظف')})</option>`).join('');
+          empSelect.value = myPortalTargetEid || 'me';
         } catch(e) {}
       }
     } else {
@@ -1257,7 +1267,9 @@ async function loadMyPortal() {
   
   // My tasks
   try {
-    const url = (isAdm && myPortalTargetEid && myPortalTargetEid !== 'all') ? ('/api/me/tasks?employee_id=' + encodeURIComponent(myPortalTargetEid)) : '/api/me/tasks';
+    const url = (isAdm && myPortalTargetEid && myPortalTargetEid !== 'me') ? 
+      (myPortalTargetEid === 'all' ? '/api/me/tasks?employee_id=all' : ('/api/me/tasks?employee_id=' + encodeURIComponent(myPortalTargetEid))) 
+      : '/api/me/tasks';
     
     const applyPortalTasks = (d) => {
       const tasks = (d && d.tasks) ? d.tasks : [];

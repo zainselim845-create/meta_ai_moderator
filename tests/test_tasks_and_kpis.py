@@ -819,3 +819,78 @@ def test_date_parsing_normalizes_out_of_range_years():
     assert dt2.day == 7
 
 
+def test_api_my_tasks_scopes_strictly_to_personal_assigned_tasks_for_admin(monkeypatch):
+    import api.index as idx
+    from flask import session
+
+    sample_tasks = [
+        {"task_id": "T-1", "title": "مهمة راما", "assigned_employee_id": "EMP-8986", "assignee_name": "راما"},
+        {"task_id": "T-2", "title": "مهمة عمر", "assigned_employee_id": "EMP-8148", "assignee_name": "عمر"},
+        {"task_id": "T-3", "title": "مهمة الإدمن الشخصية", "assigned_employee_id": "EMP-ADMIN", "assignee_name": "أحمد الإدمن"}
+    ]
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: sample_tasks)
+    monkeypatch.setattr(idx, "is_admin", lambda: True)
+    monkeypatch.setattr(idx, "current_username", lambda: "admin")
+    monkeypatch.setattr(idx, "_my_employee_id", lambda: "EMP-ADMIN")
+    monkeypatch.setattr(idx, "current_user_rec", lambda: {"name": "أحمد الإدمن", "role": "admin"})
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: True)
+
+    with idx.app.test_request_context("/api/me/tasks"):
+        resp = idx.api_my_tasks()
+        data = resp.get_json()
+        assert len(data["tasks"]) == 1
+        assert data["tasks"][0]["task_id"] == "T-3"
+
+    # When admin has zero personal assigned tasks, verify it does NOT leak other people's tasks!
+    monkeypatch.setattr(idx, "_my_employee_id", lambda: "EMP-NO-TASKS")
+    monkeypatch.setattr(idx, "current_user_rec", lambda: {"name": "مدير جديد", "role": "admin"})
+    monkeypatch.setattr(idx, "current_username", lambda: "new_admin")
+
+    with idx.app.test_request_context("/api/me/tasks"):
+        resp = idx.api_my_tasks()
+        data = resp.get_json()
+        assert len(data["tasks"]) == 0
+
+    # But when explicitly requesting employee_id=all, admin can view all tasks
+    with idx.app.test_request_context("/api/me/tasks?employee_id=all"):
+        resp = idx.api_my_tasks()
+        data = resp.get_json()
+        assert len(data["tasks"]) == 3
+
+
+def test_save_and_distribute_plan_to_drive_includes_all_assigned_employees(monkeypatch):
+    import api.index as idx
+
+    captured_parents = []
+    def mock_drive_upload_bytes(name, data, mime, parent_ids=None, **kwargs):
+        captured_parents.extend(parent_ids or [])
+        return "https://drive.google.com/test-plan-url"
+
+    monkeypatch.setattr(idx, "drive_upload_bytes", mock_drive_upload_bytes)
+    monkeypatch.setattr(idx, "client_month_folder_id", lambda cid: "FID-CLIENT")
+    monkeypatch.setattr(idx, "employee_plan_folder_id", lambda eid, pname, **k: f"FID-{eid}")
+    monkeypatch.setattr(idx, "employee_drive_folder_id", lambda eid, **k: f"FID-ROOT-{eid}")
+
+    posts = [
+        {"task_id": "T-1", "title": "بوست 1", "assigned_employee_id": "EMP-8986-4947", "assignee_name": "راما"},
+        {"task_id": "T-2", "title": "بوست 2", "assigned_employee_id": "EMP-8148", "assignee_name": "عمر"},
+        {"task_id": "T-3", "title": "بوست 3", "assigned_employee_id": "EMP-8986-4947", "assignee_name": "راما"}
+    ]
+
+    link = idx._save_and_distribute_plan_to_drive(
+        client_id="cli_test",
+        client_name="عميل تجريبي",
+        plan_name="خطة تجريبية",
+        posts=posts,
+        am_id="AM-2072-9827",
+        am_name="محمود خالد"
+    )
+
+    assert link == "https://drive.google.com/test-plan-url"
+    assert "FID-CLIENT" in captured_parents
+    assert "FID-AM-2072-9827" in captured_parents
+    assert "FID-EMP-8986-4947" in captured_parents
+    assert "FID-EMP-8148" in captured_parents
+
+
+
