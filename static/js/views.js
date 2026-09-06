@@ -2049,10 +2049,7 @@ function renderTaskCard(t, indexInPlan) {
     '</div>';
 
     var creatorName = (t.creator_name || '').trim();
-    var creatorTag = creatorName ?
-        ('<div class="flex items-center gap-1.5 text-[11px] text-purple-900 bg-purple-50 border border-purple-200/80 px-2.5 py-1 rounded-xl font-bold">' +
-            '<span>✍️ كاتب المحتوى:</span> <span>' + esc(creatorName) + '</span>' +
-        '</div>') : '';
+    var creatorTag = ''; // Removed per user request: '✍️ كاتب المحتوى: Walaa Ashraf Mohammed شيل دي من هنا'
 
     var assigneeName = (t.assignee_name || '').trim();
     var assigneeTag = assigneeName ?
@@ -2247,7 +2244,6 @@ function renderTaskCard(t, indexInPlan) {
         '</div>' +
         '<div class="flex flex-wrap gap-1.5">' +
             amTag +
-            creatorTag +
             assigneeTag +
         '</div>' +
     '</div>';

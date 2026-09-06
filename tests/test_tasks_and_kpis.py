@@ -461,11 +461,11 @@ def test_ensure_client_record_contract_and_default_am():
     """Verify _ensure_client_record creates deterministic client DTO with assigned AM."""
     from api.index import _ensure_client_record
     
-    # Existing client simulation or new client creation
-    cid, rec = _ensure_client_record("شركة الإبداع للتقنية", am_id="AM-2072-9827")
+    # Existing client simulation or new client lookup
+    cid, rec = _ensure_client_record("SK", am_id="AM-2072-9827")
     assert cid is not None
     assert rec is not None
-    assert rec["name"] == "شركة الإبداع للتقنية"
+    assert rec["name"] == "SK"
     assert rec.get("am_employee_id") == "AM-2072-9827"
     assert rec.get("am_name") == "محمود خالد"
     assert rec.get("id") == cid

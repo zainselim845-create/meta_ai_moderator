@@ -108,22 +108,22 @@ function renderClientsGrid() {
                 </div>
 
                 <!-- Google Drive & Files Direct Actions -->
-                <div class="mt-3 bg-indigo-50/50 border border-indigo-100 rounded-xl p-2.5 space-y-2">
+                <div class="mt-3 bg-gradient-to-br from-indigo-50/90 to-blue-50/90 border border-indigo-200/90 rounded-xl p-3 space-y-2.5 shadow-2xs">
                     <div class="flex items-center justify-between text-[11px] font-bold text-slate-700">
-                        <span class="flex items-center gap-1"><i data-lucide="folder" class="w-3.5 h-3.5 text-indigo-600 inline"></i> ملفات وخطة العميل:</span>
-                        <span class="text-[10px] text-indigo-700 font-mono font-bold">${tasksCount} منشور</span>
+                        <span class="flex items-center gap-1.5 text-indigo-950 font-black"><i data-lucide="hard-drive" class="w-4 h-4 text-blue-600 inline"></i> مساحة Google Drive والملفات:</span>
+                        <span class="text-[10px] text-indigo-800 font-mono font-bold bg-white px-2 py-0.5 rounded-full border border-indigo-200 shadow-2xs">${tasksCount} منشور</span>
                     </div>
+                    <button type="button" onclick="openClientFolder('${esc(c.id)}', '${esc(driveFolderUrl)}')" class="w-full text-xs bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-black py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition cursor-pointer">
+                        <i data-lucide="folder-open" class="w-4 h-4 inline text-blue-100"></i> 📂 فتح مجلد Google Drive للعميل ↗
+                    </button>
                     <div class="grid grid-cols-2 gap-1.5">
-                        <button type="button" onclick="openClientPlanDoc('${esc(c.id)}', '${esc(planDriveUrl)}')" class="text-xs bg-white hover:bg-purple-50 text-purple-700 border border-purple-200 hover:border-purple-300 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer" title="${esc(planName)}">
-                            <i data-lucide="file-text" class="w-3.5 h-3.5 inline"></i> ملف الخطة ↗
+                        <button type="button" onclick="openClientPlanDoc('${esc(c.id)}', '${esc(planDriveUrl)}')" class="text-[11px] bg-white hover:bg-purple-50 text-purple-700 border border-purple-200 hover:border-purple-300 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer" title="${esc(planName)}">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5 inline"></i> ملف الخطة (Docx) ↗
                         </button>
-                        <button type="button" onclick="openClientFolder('${esc(c.id)}', '${esc(driveFolderUrl)}')" class="text-xs bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 hover:border-blue-300 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer">
-                            <i data-lucide="hard-drive" class="w-3.5 h-3.5 inline"></i> مجلد Drive ↗
-                        </button>
+                        <a href="${esc(planShareUrl)}" target="_blank" class="text-[11px] bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-500 inline"></i> صفحة الخطة ↗
+                        </a>
                     </div>
-                    <a href="${esc(planShareUrl)}" target="_blank" class="w-full text-xs bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition">
-                        <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-500 inline"></i> عرض صفحة الخطة التفاعلية للعميل ↗
-                    </a>
                 </div>
             </div>
             
