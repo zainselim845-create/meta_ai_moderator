@@ -3860,14 +3860,18 @@ async function openBulkAssignModal(planName) {
     }
 
     var matchingTasks = (tasksList || []).filter(function(t){
-        return (t.plan_name || t.file_name || '').trim() === planName.trim();
+        var p = (t.plan_name || t.file_name || '').trim();
+        var f = (t.file_name || '').trim();
+        return p === planName.trim() || f === planName.trim();
     });
     var pendingTasks = matchingTasks.filter(function(t){
-        return !t.assigned_employee_id || t.assigned_employee_id === 'unassigned' || t.status === 'Pending';
+        var eid = String(t.assigned_employee_id || '').trim();
+        return !eid || eid === 'unassigned' || eid === 'None' || eid === 'null' || t.status === 'Pending' || t.status === 'Pending AM Approval';
     });
 
     var optionsHtml = emps.map(function(e){
-        return '<option value="' + esc(e.id) + '" data-name="' + esc(e.name) + '">' + esc(e.name) + ' (' + esc(e.role || 'عضو فريق') + ')</option>';
+        var eid = e.employee_id || e.id;
+        return '<option value="' + esc(eid) + '" data-name="' + esc(e.name) + '">' + esc(e.name) + ' (' + esc(e.role || 'عضو فريق') + ')</option>';
     }).join('');
 
     modal.innerHTML = '<div class="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">' +
@@ -3924,42 +3928,33 @@ async function executeBulkAssignAction(planName) {
     var scope = scopeRadio ? scopeRadio.value : 'pending';
 
     var btn = document.getElementById('btn-confirm-bulk-assign');
-    if (btn) { btn.disabled = true; btn.textContent = 'جاري الإسناد...'; }
-
-    var targetTasks = (tasksList || []).filter(function(t){
-        if ((t.plan_name || t.file_name || '').trim() !== planName.trim()) return false;
-        if (scope === 'pending') {
-            return !t.assigned_employee_id || t.assigned_employee_id === 'unassigned' || t.status === 'Pending';
-        }
-        return true;
-    });
-
-    if (targetTasks.length === 0) {
-        showToast('لا توجد مهام مطابقة للشروط المحددة', 'info');
-        closeBulkAssignModal();
-        return;
-    }
+    if (btn) { btn.disabled = true; btn.textContent = 'جاري الإسناد السحابي...'; }
 
     try {
-        var count = 0;
-        for (var i = 0; i < targetTasks.length; i++) {
-            var t = targetTasks[i];
-            t.assigned_employee_id = empId;
-            t.assignee_name = empName;
-            if (t.status === 'Pending' || !t.status) t.status = 'In Progress';
-            t.assigned_at = new Date().toISOString();
-            count++;
-            fetch('/api/tasks/' + encodeURIComponent(t.task_id) + '/assign', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ employee_id: empId, employee_name: empName })
-            }).catch(function(){});
+        var res = await fetch('/api/plans/assign-bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                plan_name: planName,
+                employee_id: empId,
+                scope: scope
+            })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+            showToast('تم إسناد ' + (data.count || 0) + ' مهمة إلى ' + empName + ' بنجاح! 🚀');
+            closeBulkAssignModal();
+            if (typeof loadTasksEngine === 'function') {
+                await loadTasksEngine();
+            } else {
+                renderTasksBoard();
+                renderEmployeesStatus();
+                renderClientTabs();
+            }
+        } else {
+            showToast(data.error || 'تعذر الإسناد الجماعي', 'error');
+            if (btn) { btn.disabled = false; btn.textContent = 'تطبيق الإسناد الآن 🚀'; }
         }
-        showToast('تم إسناد ' + count + ' مهمة إلى ' + empName + ' بنجاح! 🚀');
-        closeBulkAssignModal();
-        renderTasksBoard();
-        renderEmployeesStatus();
-        renderClientTabs();
     } catch(err) {
         showToast('حدث خطأ أثناء الإسناد الجماعي', 'error');
         if (btn) { btn.disabled = false; btn.textContent = 'تطبيق الإسناد الآن 🚀'; }

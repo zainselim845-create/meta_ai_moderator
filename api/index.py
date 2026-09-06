@@ -12228,7 +12228,116 @@ def api_tasks_assign_creator(task_id):
 
 
 
+@app.route("/api/plans/assign-bulk", methods=["POST", "PUT"])
+@require_manager
+def api_plans_assign_bulk():
+    """Bulk assign all tasks in a plan to an employee and notify via Telegram."""
+    data = request.get_json(silent=True) or {}
+    plan_name = str(data.get("plan_name") or "").strip()
+    emp_id = str(data.get("employee_id") or "").strip()
+    scope = str(data.get("scope") or "all").strip()
+
+    if not plan_name:
+        return jsonify({"error": "اسم الخطة مطلوب"}), 400
+    if not emp_id:
+        return jsonify({"error": "اختر موظفاً"}), 400
+
+    emp_info = _sheet_emp(emp_id)
+    emp_name = emp_info.get("name") or emp_id
+    tg = str(emp_info.get("telegram_id", "")).replace(".0", "").strip()
+
+    sync_from_supabase()
+    all_tasks = list(_all_tasks_db())
+    matching = []
+    for t in all_tasks:
+        if not isinstance(t, dict):
+            continue
+        p = str(t.get("plan_name") or t.get("file_name") or "").strip()
+        f = str(t.get("file_name") or "").strip()
+        if p == plan_name or f == plan_name:
+            matching.append(t)
+
+    if not matching:
+        return jsonify({"error": "لم يتم العثور على مهام مطابقة لهذه الخطة"}), 404
+
+    target_tasks = []
+    for t in matching:
+        st = str(t.get("status") or "").strip()
+        curr_emp = str(t.get("assigned_employee_id") or "").strip()
+        if scope == "pending":
+            if not curr_emp or curr_emp in ("unassigned", "None", "null") or st in ("Pending", "Pending AM Approval"):
+                target_tasks.append(t)
+        else:
+            target_tasks.append(t)
+
+    if not target_tasks:
+        return jsonify({"ok": True, "count": 0, "message": "لا توجد مهام تحتاج إلى إسناد"})
+
+    assigned_count = 0
+    cids_affected = set()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    actor = current_user_rec().get("name") or current_username()
+
+    for t in target_tasks:
+        cid = t.get("client_id")
+        if cid and not can_see_client(cid):
+            continue
+        t["assigned_employee_id"] = emp_id
+        t["assignee_name"] = emp_name
+        t["status"] = "Assigned"
+        t["assigned_at"] = now_iso
+        _append_task_log(t, "assigned",
+                         actor_name=actor,
+                         actor_type="account_manager",
+                         target_emp_id=emp_id,
+                         target_emp_name=emp_name,
+                         note=f"إسناد جماعي للمهمة إلى الموظف: {emp_name}",
+                         details={"plan_name": plan_name})
+        save_one_task(t, cid)
+        assigned_count += 1
+        if cid:
+            cids_affected.add(cid)
+            try:
+                threading.Thread(target=_ensure_task_plan_in_employee_drive, args=(t, cid), daemon=True).start()
+            except Exception:
+                pass
+
+    # Send summary notification on Telegram to employee
+    tg_sent = False
+    if tg and assigned_count > 0:
+        portal = os.environ.get("PORTAL_URL", "https://metaaimoderator.vercel.app").rstrip("/")
+        first_cid = next(iter(cids_affected)) if cids_affected else ""
+        cname = _client_name(first_cid) if first_cid else ""
+        summary_msg = (f"🚀 <b>تم إسناد خطة محتوى كاملة لك!</b>\n\n"
+                       f"👤 الموظف: <b>{emp_name}</b>\n"
+                       f"🏢 العميل: <b>{cname}</b>\n"
+                       f"📑 الخطة: <b>{plan_name}</b>\n"
+                       f"🔢 عدد المهام المسندة: <b>{assigned_count} مهام</b>\n\n"
+                       f"🔗 افتح بوابتي للاطلاع على كل مهامك وتسليمها:\n{portal}/#myportal")
+        try:
+            tg_sent = bool(send_telegram_bot_notification(tg, summary_msg))
+        except Exception as _e:
+            print(f"[bulk assign tg error] {_e}")
+
+        # Also send interactive card for the first task so they can start right away
+        try:
+            if target_tasks:
+                send_task_to_employee(target_tasks[0], target_tasks[0].get("client_id"))
+        except Exception:
+            pass
+
+    return jsonify({
+        "ok": True,
+        "count": assigned_count,
+        "plan_name": plan_name,
+        "employee_id": emp_id,
+        "employee_name": emp_name,
+        "telegram_sent": tg_sent
+    })
+
+
 @app.route("/api/tasks/<task_id>/resend", methods=["POST", "PUT"])
+
 @require_manager
 def api_task_resend(task_id):
     """Re-send the interactive task card to the currently-assigned employee."""
