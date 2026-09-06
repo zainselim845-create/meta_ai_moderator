@@ -851,7 +851,9 @@ app.config.update(
 def serve_static(filename):
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     static_dir = os.path.join(root_dir, 'static')
-    return send_from_directory(static_dir, filename)
+    res = send_from_directory(static_dir, filename)
+    res.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
+    return res
 
 @app.route("/api/system/performance", methods=["GET"])
 def api_system_performance():
@@ -6038,9 +6040,22 @@ def _gsheet_tasks_save_all(tasks_list):
         return False
 
 
-def _all_tasks_db():
+_tasks_cache_data = None
+_tasks_cache_time = 0.0
+TASKS_CACHE_TTL = 15.0  # 15s in-memory server cache for sub-millisecond response time
+
+def invalidate_tasks_cache():
+    global _tasks_cache_data, _tasks_cache_time
+    _tasks_cache_data = None
+    _tasks_cache_time = 0.0
+
+def _all_tasks_db(force=False):
     """ALL tasks across every client — Supabase (authoritative, ultra-fast sub-50ms SQL)
-    merged with in-memory cache and Google Sheets."""
+    cached in memory with 15s TTL for lightning-fast reads."""
+    global _tasks_cache_data, _tasks_cache_time
+    now = time.time()
+    if not force and _tasks_cache_data is not None and (now - _tasks_cache_time) < TASKS_CACHE_TTL:
+        return [dict(t) for t in _tasks_cache_data]
     tasks_map = {}
     
     # 1. Authoritative: Read from Supabase mam_tasks (instant, persistent)
@@ -6079,6 +6094,8 @@ def _all_tasks_db():
     out = list(tasks_map.values())
     out.sort(key=_natural_task_sort_key)
     cache["tasks"] = out
+    _tasks_cache_data = [dict(t) for t in out]
+    _tasks_cache_time = time.time()
     return out
 
 
@@ -6125,6 +6142,7 @@ def save_client_tasks(tasks_list, _cid=None):
     updated_all = list(task_map.values())
     updated_all.sort(key=_natural_task_sort_key)
     cache["tasks"] = updated_all
+    invalidate_tasks_cache()
 
     # 1. Save to Supabase immediately (authoritative, ultra-fast sub-50ms)
     if SUPABASE_URL and SUPABASE_KEY and len(SUPABASE_URL) > 15:
@@ -7241,6 +7259,7 @@ def api_tasks():
         return jsonify({"success": True, "tasks": [], "is_admin": False, "am_id": _my_employee_id()})
 
     if request.args.get("refresh") == "true":
+        invalidate_tasks_cache()
         try:
             sync_from_supabase(force=True)
         except Exception:
@@ -10044,6 +10063,7 @@ def api_tasks_delete(task_id):
     all_tasks = _all_tasks_db()
     remaining = [x for x in all_tasks if str(x.get("task_id") or x.get("id")) != str(task_id)]
     cache["tasks"] = remaining
+    invalidate_tasks_cache()
     push_setting("meta_ai_tasks", remaining)
 
     if SUPABASE_URL and SUPABASE_KEY and len(SUPABASE_URL) > 15:
@@ -10413,6 +10433,7 @@ def api_tasks_clear():
     all_tasks = cache.get("tasks") or []
     cache["tasks"] = [t for t in all_tasks if (t.get("client_id") or _cid) != _cid]
     push_setting("meta_ai_tasks", cache["tasks"])
+    invalidate_tasks_cache()
 def _is_fake_demo_employee(eid="", nm="", role=""):
     s = f"{eid} {nm} {role}".lower()
     fake_exact = [

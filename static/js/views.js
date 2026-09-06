@@ -1975,9 +1975,13 @@ function setTaskStatusFilter(statusKey) {
     renderTasksBoard();
 }
 
+var _taskSearchDebounceTimer = null;
 function onTaskSearchInput(query) {
-    taskSearchQuery = (query || '').trim().toLowerCase();
-    renderTasksBoard();
+    clearTimeout(_taskSearchDebounceTimer);
+    _taskSearchDebounceTimer = setTimeout(function() {
+        taskSearchQuery = (query || '').trim().toLowerCase();
+        renderTasksBoard();
+    }, 120);
 }
 
 window.matchTaskStatus = matchTaskStatus;

@@ -95,16 +95,22 @@ window.safeFetchJson = safeFetchJson;
   } catch(e){}
 })();
 
+const _swrMemoryCache = new Map();
+
 async function swrFetchJson(url, options, cacheKey, onCachedData) {
   var key = 'swr_cache_' + (cacheKey || url);
-  // 1. Instant render from localStorage
+  // 1. Ultra-instant render from in-memory RAM cache (0.01ms) or localStorage
   try {
-    var cached = localStorage.getItem(key);
-    if (cached) {
-      var parsedCache = JSON.parse(cached);
-      if (parsedCache && typeof onCachedData === 'function') {
-        onCachedData(parsedCache, true);
+    var cachedObj = _swrMemoryCache.get(key);
+    if (!cachedObj) {
+      var cachedStr = localStorage.getItem(key);
+      if (cachedStr) {
+        cachedObj = JSON.parse(cachedStr);
+        if (cachedObj) _swrMemoryCache.set(key, cachedObj);
       }
+    }
+    if (cachedObj && typeof onCachedData === 'function') {
+      onCachedData(cachedObj, true);
     }
   } catch(e){}
 
@@ -112,6 +118,7 @@ async function swrFetchJson(url, options, cacheKey, onCachedData) {
   try {
     var freshData = await safeFetchJson(url, options);
     if (freshData && typeof freshData === 'object') {
+      _swrMemoryCache.set(key, freshData);
       try {
         localStorage.setItem(key, JSON.stringify(freshData));
       } catch(e){}
@@ -907,9 +914,13 @@ function setMyPortalDueFilter(due) {
   renderMyPortalTasks();
 }
 
+let _myPortalSearchTimer = null;
 function onMyPortalSearchInput(q) {
-  myPortalSearchQuery = (q || '').trim().toLowerCase();
-  renderMyPortalTasks();
+  clearTimeout(_myPortalSearchTimer);
+  _myPortalSearchTimer = setTimeout(() => {
+    myPortalSearchQuery = (q || '').trim().toLowerCase();
+    renderMyPortalTasks();
+  }, 120);
 }
 
 window.setMyPortalStatusFilter = setMyPortalStatusFilter;
@@ -1247,8 +1258,46 @@ async function loadMyPortal() {
   // My tasks
   try {
     const url = (isAdm && myPortalTargetEid && myPortalTargetEid !== 'all') ? ('/api/me/tasks?employee_id=' + encodeURIComponent(myPortalTargetEid)) : '/api/me/tasks';
-    const d = await safeFetchJson(url);
-    const tasks = (d && d.tasks) ? d.tasks : [];
+    
+    const applyPortalTasks = (d) => {
+      const tasks = (d && d.tasks) ? d.tasks : [];
+      const planSeqMap = {};
+      tasks.forEach(t => {
+        const pkey = (t.plan_name || t.file_name || 'عام').trim();
+        planSeqMap[pkey] = (planSeqMap[pkey] || 0) + 1;
+        t.post_number_in_plan = planSeqMap[pkey];
+      });
+
+      myPortalTasksRaw = tasks;
+      window._myPortalTasksList = tasks;
+
+      // Populate Client & Plan dropdowns in My Portal
+      const cFilter = document.getElementById('myportal-client-filter');
+      const pFilter = document.getElementById('myportal-plan-filter');
+      if (cFilter) {
+        const cSet = new Set();
+        tasks.forEach(t => { if (t.client_name) cSet.add(t.client_name); });
+        cFilter.innerHTML = '<option value="all">🏢 جميع العملاء</option>' + Array.from(cSet).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+        if (myPortalClientFilter && cSet.has(myPortalClientFilter)) cFilter.value = myPortalClientFilter;
+      }
+      if (pFilter) {
+        const pSet = new Set();
+        tasks.forEach(t => { 
+          const pn = (t.plan_name || t.file_name || '').trim();
+          if (pn) pSet.add(pn); 
+        });
+        pFilter.innerHTML = '<option value="all">📑 جميع الخطط</option>' + Array.from(pSet).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+        if (myPortalPlanFilter && pSet.has(myPortalPlanFilter)) pFilter.value = myPortalPlanFilter;
+      }
+
+      renderMyPortalTasks();
+    };
+
+    const d = await swrFetchJson(url, null, 'myportal_tasks_' + (myPortalTargetEid || 'me'), (cached) => {
+      applyPortalTasks(cached);
+    });
+    if (d) applyPortalTasks(d);
+    return;
     const planSeqMap = {};
     tasks.forEach(t => {
       const pkey = (t.plan_name || t.file_name || 'عام').trim();
