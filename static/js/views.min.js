@@ -2248,12 +2248,14 @@ function renderTaskCard(t, indexInPlan) {
             displayTitle = t.tagline;
         } else if (t.caption) {
             var firstLine = t.caption.split('\n')[0].trim();
-            if (firstLine) displayTitle = firstLine.slice(0, 100);
+            if (firstLine) displayTitle = firstLine.slice(0, 80);
         } else if (t.visual_idea) {
-            displayTitle = t.visual_idea.slice(0, 100);
+            displayTitle = t.visual_idea.slice(0, 80);
         }
     }
-    // (Caption already cleaned above)
+    // If displayTitle is an exact match to the entire caption, show a neat post heading
+    var isTitleExactCaption = Boolean(cleanCaption) && (displayTitle.trim() === cleanCaption.trim());
+    var cardHeading = isTitleExactCaption ? ('منشور #' + postSeq + (t.client_name ? (' — ' + t.client_name) : '')) : displayTitle;
 
     var captionHtml = '';
     if (cleanCaption) {
@@ -2268,7 +2270,7 @@ function renderTaskCard(t, indexInPlan) {
                     '<span>📋 نسخ</span>' +
                 '</button>' +
             '</div>' +
-            '<div dir="rtl" class="text-xs text-slate-900 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed font-sans select-all bg-white p-2.5 rounded-xl border border-blue-100 shadow-2xs text-right">' +
+            '<div dir="rtl" class="text-xs text-slate-900 whitespace-pre-wrap max-h-56 overflow-y-auto leading-relaxed font-sans select-all bg-white p-3 rounded-xl border border-blue-100 shadow-2xs text-right font-normal">' +
                 esc(cleanCaption) +
             '</div>' +
         '</div>';
@@ -2297,7 +2299,7 @@ function renderTaskCard(t, indexInPlan) {
             '<button onclick="deleteTaskAction(\'' + escJs(t.task_id) + '\')" title="حذف المهمة" class="text-slate-400 hover:text-red-600 transition p-1 cursor-pointer flex items-center justify-center">' + ICONS.trash + '</button>' +
         '</div>' +
         teamHtml +
-        '<h4 class="font-bold text-sm text-slate-900 leading-snug break-words">' + esc(displayTitle) + '</h4>' +
+        '<h4 class="font-bold text-sm text-slate-900 leading-snug break-words">' + esc(cardHeading) + '</h4>' +
         captionHtml +
         visHtml +
         modHtml +
@@ -3076,7 +3078,7 @@ function renderTasksBoard() {
                         '</div>' +
                     '</div>' +
                     '<div class="flex items-center gap-2 flex-wrap">' +
-                        '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer" title="إسناد مهام هذه الخطة لموظف محدد دفعة واحدة">' +
+                        '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer" title="إسناد مهام هذه الخطة لموظف محدد دفعة واحدة">' +
                             '<span>👥 إسناد جماعي</span>' +
                         '</button>' +
                         '<button type="button" onclick="sharePlanWithClient(\'' + escJs(grp.clientName) + '\', \'' + escJs(grp.fileName) + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">' +
@@ -3127,7 +3129,7 @@ function renderTasksBoard() {
                                 '<span dir="ltr" class="text-slate-600 font-mono text-[11px] font-bold bg-slate-100 px-2 py-0.5 rounded-md">' + completedCount + ' / ' + fTasks.length + ' منجز</span>' +
                             '</div>' +
                             '<div class="flex items-center gap-1.5">' +
-                                '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="إسناد جماعي لمهام الخطة">' +
+                                '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="إسناد جماعي لمهام الخطة">' +
                                     '<span>👥 إسناد</span>' +
                                 '</button>' +
                                 '<button type="button" onclick="sharePlanWithClient(\'' + escJs(grp.clientName) + '\', \'' + escJs(grp.fileName) + '\')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="نسخ رابط مشاركة الخطة للعميل">' +
@@ -3835,7 +3837,7 @@ function toggleTasksIngestBox() {
 }
 window.toggleTasksIngestBox = toggleTasksIngestBox;
 
-async function openBulkAssignModal(planName) {
+async function openBulkAssignModal(planName, clientId) {
     var emps = window.allTeamEmployees || employeesList || [];
     if (!emps || emps.length === 0) {
         showToast('جاري تحميل قائمة الموظفين...', 'info');
@@ -3859,11 +3861,21 @@ async function openBulkAssignModal(planName) {
         document.body.appendChild(modal);
     }
 
+    function _norm(s) {
+        return String(s || '').replace(/—/g, '-').replace(/–/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+    var qPlan = _norm(planName);
+
     var matchingTasks = (tasksList || []).filter(function(t){
-        var p = (t.plan_name || t.file_name || '').trim();
-        var f = (t.file_name || '').trim();
-        return p === planName.trim() || f === planName.trim();
+        if (clientId && String(t.client_id || '').trim() !== String(clientId).trim()) {
+            return false;
+        }
+        var p = _norm(t.plan_name || t.file_name || '');
+        var f = _norm(t.file_name || '');
+        if (!qPlan) return true;
+        return p === qPlan || f === qPlan || (qPlan.length >= 4 && (p.indexOf(qPlan) !== -1 || qPlan.indexOf(p) !== -1 || f.indexOf(qPlan) !== -1 || qPlan.indexOf(f) !== -1));
     });
+
     var pendingTasks = matchingTasks.filter(function(t){
         var eid = String(t.assigned_employee_id || '').trim();
         return !eid || eid === 'unassigned' || eid === 'None' || eid === 'null' || t.status === 'Pending' || t.status === 'Pending AM Approval';
@@ -3904,7 +3916,7 @@ async function openBulkAssignModal(planName) {
         '</div>' +
         '<div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">' +
             '<button type="button" onclick="closeBulkAssignModal()" class="text-xs px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer">إلغاء</button>' +
-            '<button type="button" onclick="executeBulkAssignAction(\'' + escJs(planName) + '\')" id="btn-confirm-bulk-assign" class="text-xs px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer">' +
+            '<button type="button" onclick="executeBulkAssignAction(\'' + escJs(planName) + '\', \'' + escJs(clientId || '') + '\')" id="btn-confirm-bulk-assign" class="text-xs px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer">' +
                 '<span>تطبيق الإسناد الآن 🚀</span>' +
             '</button>' +
         '</div>' +
@@ -3917,7 +3929,7 @@ function closeBulkAssignModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-async function executeBulkAssignAction(planName) {
+async function executeBulkAssignAction(planName, clientId) {
     var sel = document.getElementById('bulk-assign-emp-select');
     if (!sel) return;
     var empId = sel.value;
@@ -3936,6 +3948,7 @@ async function executeBulkAssignAction(planName) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 plan_name: planName,
+                client_id: clientId || '',
                 employee_id: empId,
                 scope: scope
             })

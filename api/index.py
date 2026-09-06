@@ -12234,11 +12234,12 @@ def api_plans_assign_bulk():
     """Bulk assign all tasks in a plan to an employee and notify via Telegram."""
     data = request.get_json(silent=True) or {}
     plan_name = str(data.get("plan_name") or "").strip()
+    client_id = str(data.get("client_id") or "").strip()
     emp_id = str(data.get("employee_id") or "").strip()
     scope = str(data.get("scope") or "all").strip()
 
-    if not plan_name:
-        return jsonify({"error": "اسم الخطة مطلوب"}), 400
+    if not plan_name and not client_id:
+        return jsonify({"error": "اسم الخطة أو معرف العميل مطلوب"}), 400
     if not emp_id:
         return jsonify({"error": "اختر موظفاً"}), 400
 
@@ -12248,13 +12249,28 @@ def api_plans_assign_bulk():
 
     sync_from_supabase()
     all_tasks = list(_all_tasks_db())
+
+    def _norm_s(s):
+        if not s:
+            return ""
+        return str(s).replace("—", "-").replace("–", "-").replace("  ", " ").strip().lower()
+
+    q_norm = _norm_s(plan_name)
+
     matching = []
     for t in all_tasks:
         if not isinstance(t, dict):
             continue
-        p = str(t.get("plan_name") or t.get("file_name") or "").strip()
-        f = str(t.get("file_name") or "").strip()
-        if p == plan_name or f == plan_name:
+        t_cid = str(t.get("client_id") or "").strip()
+        if client_id and t_cid != client_id:
+            continue
+        p = _norm_s(t.get("plan_name") or t.get("file_name") or "")
+        f = _norm_s(t.get("file_name") or "")
+        if not q_norm:
+            # If no plan_name specified but client_id provided, match all client tasks
+            matching.append(t)
+        elif (p == q_norm or f == q_norm or
+              (len(q_norm) >= 4 and (q_norm in p or p in q_norm or q_norm in f or f in q_norm))):
             matching.append(t)
 
     if not matching:

@@ -1130,6 +1130,9 @@ function renderMyPortalTasks() {
     const cleanCap = rawCap.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();
     const visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || (t.video_data && t.video_data.idea) || t.design_brief || '').trim();
 
+    const isTitleExactCap = Boolean(cleanCap) && (String(t.title||'').trim() === cleanCap.trim());
+    const portalHeading = isTitleExactCap ? ('منشور #' + (t.post_number_in_plan || t.post_number || 1) + (rawCName ? (' — ' + rawCName) : '')) : (t.title || 'منشور #' + (t.post_number_in_plan || t.post_number || 1));
+
     return `
     <div class="portal-task-card border-2 border-slate-300 hover:border-blue-400 bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden mb-5 box-border ${getStatusBorderClass(t)}">
       <!-- Card Header Strip -->
@@ -1149,7 +1152,7 @@ function renderMyPortalTasks() {
 
       <!-- Card Body Content -->
       <div class="p-4 sm:p-5 space-y-3.5 bg-white">
-        <h4 class="font-bold text-sm sm:text-base text-slate-900 leading-snug">${esc(t.title||'')}</h4>
+        <h4 class="font-bold text-sm sm:text-base text-slate-900 leading-snug">${esc(portalHeading)}</h4>
 
         ${cleanCap ? `
           <div class="bg-blue-50/60 border border-blue-200/90 rounded-xl p-3 text-xs space-y-2 shadow-2xs">
