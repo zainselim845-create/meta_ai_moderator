@@ -1191,6 +1191,8 @@ function toggleEmployeeFilter(empId, empName) {
         selectedEmployeeFilter = empId;
         selectedEmployeeName = empName;
     }
+    // Always reset status filter to 'all' so the employee's tasks are immediately visible without conflicting status restrictions
+    currentTaskStatusFilter = 'all';
     renderEmployeesStatus();
     renderTasksBoard();
 }
@@ -1198,6 +1200,7 @@ function toggleEmployeeFilter(empId, empName) {
 function clearEmployeeFilter() {
     selectedEmployeeFilter = null;
     selectedEmployeeName = '';
+    currentTaskStatusFilter = 'all';
     renderEmployeesStatus();
     renderTasksBoard();
 }
@@ -1255,6 +1258,7 @@ function setTaskMonthFilter(mKey) {
     selectedMonthFilter = mKey || 'all';
     try { localStorage.setItem('tasks_month_filter', selectedMonthFilter); } catch(e){}
     selectedPlanFilter = null;
+    currentTaskStatusFilter = 'all';
     renderClientTabs();
     renderTasksBoard();
 }
@@ -1568,6 +1572,7 @@ async function deletePlanAction(planName) {
 
 function filterTasksByPlan(planName) {
     selectedPlanFilter = planName;
+    currentTaskStatusFilter = 'all';
     renderClientTabs();
     renderTasksBoard();
 }
@@ -1921,12 +1926,14 @@ function toggleAMFilter(amId, amName) {
         selectedAMFilter = amId;
         selectedAMName = amName;
     }
+    currentTaskStatusFilter = 'all';
     renderTasksBoard();
 }
 
 function clearAMFilter() {
     selectedAMFilter = null;
     selectedAMName = '';
+    currentTaskStatusFilter = 'all';
     renderTasksBoard();
 }
 
@@ -2644,20 +2651,15 @@ function renderTasksBoard() {
 
         // 0. Plan/Employee/AM Filters (Task board displays all plans with interactive plan tabs)
 
-        // 1. Employee or AM Filter
+        // 1. Employee or AM Filter (Filter directly from allTasks to maintain exact count sync)
         if (selectedEmployeeFilter) {
-            var empAllTasks = (employeesWorkloadData && (employeesWorkloadData[selectedEmployeeFilter] || (selectedEmployeeName && employeesWorkloadData[selectedEmployeeName]))) || [];
-            if (empAllTasks.length > 0) {
-                displayTasks = empAllTasks.slice();
-            } else {
-                displayTasks = displayTasks.filter(function(t) {
-                    var eid = String(t.assigned_employee_id || '').trim();
-                    var aname = String(t.assignee_name || '').trim();
-                    return eid === String(selectedEmployeeFilter).trim() ||
-                           (selectedEmployeeName && aname === String(selectedEmployeeName).trim()) ||
-                           (selectedEmployeeName && (aname.indexOf(selectedEmployeeName) !== -1 || selectedEmployeeName.indexOf(aname) !== -1));
-                });
-            }
+            displayTasks = displayTasks.filter(function(t) {
+                var eid = String(t.assigned_employee_id || '').trim();
+                var aname = String(t.assignee_name || '').trim();
+                return eid === String(selectedEmployeeFilter).trim() ||
+                       (selectedEmployeeName && aname === String(selectedEmployeeName).trim()) ||
+                       (selectedEmployeeName && (aname.indexOf(selectedEmployeeName) !== -1 || selectedEmployeeName.indexOf(aname) !== -1));
+            });
         } else if (selectedAMFilter) {
             displayTasks = displayTasks.filter(function(t) {
                 return String(t.am_id || '').trim() === String(selectedAMFilter).trim() ||
@@ -2674,7 +2676,17 @@ function renderTasksBoard() {
             });
         }
 
-        // 2. Status Filter
+        // Keep scopedTasks before status/search filter to compute accurate scoped status counts
+        var scopedTasks = displayTasks.slice();
+
+        // 2. Status Filter: if current status yields 0 results but scopedTasks has items, auto-reset to 'all' to avoid false empty screen
+        if (currentTaskStatusFilter && currentTaskStatusFilter !== 'all') {
+            var matchingStatusCount = scopedTasks.filter(function(t){ return matchTaskStatus(t.status, currentTaskStatusFilter); }).length;
+            if (matchingStatusCount === 0 && scopedTasks.length > 0) {
+                currentTaskStatusFilter = 'all';
+            }
+        }
+
         if (currentTaskStatusFilter && currentTaskStatusFilter !== 'all') {
             displayTasks = displayTasks.filter(function(t) {
                 return matchTaskStatus(t.status, currentTaskStatusFilter);
@@ -2747,31 +2759,43 @@ function renderTasksBoard() {
         var filterBannerHtml = '';
         if (selectedEmployeeFilter) {
             var currentCid = (window._me && window._me.active_client_id) || '';
-            var otherClientsCount = displayTasks.filter(function(ot){ return ot.client_id !== currentCid; }).length;
+            var empTotalTasks = scopedTasks || [];
+            var otherClientsCount = empTotalTasks.filter(function(ot){ return ot.client_id !== currentCid; }).length;
+
+            var bannerSub = '';
+            if (empTotalTasks.length === 0) {
+                bannerSub = 'لا توجد مهام مسندة لهذا الموظف في الشهر المختار حالياً.';
+            } else if (displayTasks.length < empTotalTasks.length && currentTaskStatusFilter !== 'all') {
+                bannerSub = 'يتم عرض ' + displayTasks.length + ' مهمة تطابق الفلتر من إجمالي ' + empTotalTasks.length + ' مهمة مسندة للموظف.';
+            } else {
+                bannerSub = 'يتم الآن عرض كافة المهام المسندة لهذا الموظف (' + empTotalTasks.length + ' مهمة).';
+            }
 
             filterBannerHtml = '<div class="col-span-full bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 shadow-sm">' +
                 '<div class="flex items-center gap-3">' +
-                    '<div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm"></div>' +
+                    '<div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">👤</div>' +
                     '<div>' +
                         '<div class="font-bold text-sm text-blue-900 flex items-center gap-2">' +
                             '<span>كل مهام الموظف: <b>' + esc(selectedEmployeeName) + '</b> عبر جميع العملاء والمشاريع</span>' +
-                            '<span class="bg-blue-200 text-blue-800 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">' + displayTasks.length + ' مهمة إجمالاً</span>' +
+                            '<span class="bg-blue-200 text-blue-800 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">' + empTotalTasks.length + ' مهمة مسندة</span>' +
                         '</div>' +
-                        '<p class="text-xs text-blue-700 mt-0.5">' + (displayTasks.length ? 'يتم الآن عرض جميع المهام المسندة لهذا الموظف عبر كل حسابات وعملاء الشركة.' : 'لا توجد مهام مسندة لهذا الموظف حالياً.') + 
+                        '<p class="text-xs text-blue-700 mt-0.5">' + bannerSub + 
                         (otherClientsCount > 0 ? ' <span class="font-bold">(' + otherClientsCount + ' منها في عملاء آخرين)</span>' : '') + '</p>' +
                     '</div>' +
                 '</div>' +
-                '<button type="button" onclick="clearEmployeeFilter()" class="text-xs bg-white hover:bg-blue-100 text-blue-800 font-bold border border-blue-300 px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5">' +
-                    '<span>عرض كل مهام الفريق </span>' +
+                '<button type="button" onclick="clearEmployeeFilter()" class="text-xs bg-white hover:bg-blue-100 text-blue-800 font-bold border border-blue-300 px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer">' +
+                    '<span>عرض كل مهام الفريق 👥</span>' +
                 '</button>' +
             '</div>';
         }
 
-        var countAll = allTasks.length;
-        var countInProgress = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'in_progress'); }).length;
-        var countReview = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'review'); }).length;
-        var countPending = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'pending'); }).length;
-        var countCompleted = allTasks.filter(function(t){ return matchTaskStatus(t.status, 'completed'); }).length;
+        // Status filter counts scoped to active employee/plan to prevent showing false non-zero counts
+        var statusBaseTasks = scopedTasks || allTasks;
+        var countAll = statusBaseTasks.length;
+        var countInProgress = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'in_progress'); }).length;
+        var countReview = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'review'); }).length;
+        var countPending = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'pending'); }).length;
+        var countCompleted = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'completed'); }).length;
 
         var empMap = {};
         allTasks.forEach(function(t) {
@@ -2841,25 +2865,35 @@ function renderTasksBoard() {
 
         if (!displayTasks || displayTasks.length === 0) {
             var emptyMsg = '';
+            var totalAvailableTasks = (allTasks || []).length;
+            var scopeTotal = (scopedTasks || []).length;
+            
             if (currentTaskStatusFilter && currentTaskStatusFilter !== 'all') {
                 var stNames = { in_progress: 'جاري العمل', review: 'بانتظار المراجعة', pending: 'بانتظار الإسناد', completed: 'مكتملة' };
-                emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-800">لا توجد مهام بحالة «<b>' + (stNames[currentTaskStatusFilter] || currentTaskStatusFilter) + '</b>» حالياً.</div>' +
-                           '<p class="text-slate-500 text-[11px]">اضغط على «الكل» لعرض كافة مهام الخطط النشطة.</p>' +
-                           '<button type="button" onclick="setTaskStatusFilter(\'all\')" class="mt-2 text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs">عرض كافة المهام (الكل)</button></div>';
+                var stLabel = stNames[currentTaskStatusFilter] || currentTaskStatusFilter;
+                var scopeLabel = selectedEmployeeName ? ('للموظف «' + esc(selectedEmployeeName) + '»') :
+                                 (selectedPlanFilter ? ('في خطة «' + esc(selectedPlanFilter) + '»') : '');
+                emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-900 flex items-center justify-center gap-2"><span>💾 كافة بيانات السيستم محفوظة بالكامل</span></div>' +
+                           '<div class="text-slate-700 text-xs font-semibold">لا توجد مهام بحالة «<b>' + stLabel + '</b>» ' + scopeLabel + ' حالياً. ' + (scopeTotal > 0 ? ('(يوجد <b>' + scopeTotal + '</b> مهمة بحالات أخرى)') : '') + '</div>' +
+                           '<p class="text-slate-500 text-[11px]">اضغط على زر «عرض كافة المهام» لعرض كافة مهام الخطة وفريق العمل.</p>' +
+                           '<button type="button" onclick="setTaskStatusFilter(\'all\')" class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition cursor-pointer shadow-xs">عرض كافة المهام (الكل: ' + (scopeTotal || totalAvailableTasks) + ' مهمة)</button></div>';
             } else if (selectedMonthFilter && selectedMonthFilter !== 'all') {
-                emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-800">لا توجد مهام مسجلة لشهر «<b>' + formatMonthLabel(selectedMonthFilter) + '</b>»' + (tasksArchiveMode ? ' في الأرشيف.' : '.') + '</div>' +
-                           '<p class="text-slate-500 text-[11px]">يمكنك اختيار شهر آخر من شريط الشهور بالأعلى أو الضغط على «عرض جميع الشهور» لعرض كل الخطط.</p>' +
-                           '<button type="button" onclick="setTaskMonthFilter(\'all\')" class="mt-2 text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs">عرض جميع الشهور</button></div>';
+                emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-900 flex items-center justify-center gap-2"><span>🗓️ فلترة الشهر: ' + formatMonthLabel(selectedMonthFilter) + '</span></div>' +
+                           '<p class="text-slate-600 text-xs">لا توجد مهام مسجلة لهذا الشهر المحدد. كافة مهام الشهور الأخرى محفوظة بأمان في السيستم.</p>' +
+                           '<button type="button" onclick="setTaskMonthFilter(\'all\')" class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition cursor-pointer shadow-xs">عرض جميع الشهور (كافة الخطط: ' + totalAvailableTasks + ' مهمة)</button></div>';
             } else if (taskSearchQuery) {
-                emptyMsg = 'لا توجد نتائج تطابق بحثك: <b>' + esc(taskSearchQuery) + '</b><br><button type="button" onclick="onTaskSearchInput(\'\')" class="mt-2 text-xs text-blue-600 font-bold hover:underline cursor-pointer">مسح البحث</button>';
+                emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-800">لا توجد نتائج تطابق بحثك: «<b>' + esc(taskSearchQuery) + '</b>»</div>' +
+                           '<button type="button" onclick="onTaskSearchInput(\'\')" class="mt-2 text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-xs">إلغاء البحث وعرض كل المهام</button></div>';
             } else if (selectedEmployeeFilter) {
-                emptyMsg = 'لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> حالياً';
+                emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-800">لا توجد مهام مسندة للموظف <b>' + esc(selectedEmployeeName) + '</b> في هذا العرض.</div>' +
+                           '<button type="button" onclick="clearEmployeeFilter()" class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition cursor-pointer shadow-xs">عرض كافة مهام الفريق (' + totalAvailableTasks + ' مهمة)</button></div>';
             } else if (selectedAMFilter) {
-                emptyMsg = 'لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b>';
+                emptyMsg = '<div class="space-y-2"><div class="font-bold text-sm text-slate-800">لا توجد مهام مسندة لمدير الحساب <b>' + esc(selectedAMName) + '</b></div>' +
+                           '<button type="button" onclick="clearAMFilter()" class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition cursor-pointer shadow-xs">عرض كافة مهام الفريق (' + totalAvailableTasks + ' مهمة)</button></div>';
             } else {
                 emptyMsg = 'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 📑';
             }
-            board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-600 text-xs bg-slate-50 border border-slate-200 rounded-2xl">' + emptyMsg + '</div>';
+            board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-700 text-xs bg-white border border-slate-200 rounded-2xl shadow-xs">' + emptyMsg + '</div>';
             return;
         }
 
