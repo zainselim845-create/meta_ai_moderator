@@ -6071,12 +6071,13 @@ def _all_tasks_db(force=False):
     except Exception as e:
         print(f"[all tasks db supa] {e}")
 
-    # 2. In-memory cache fallback
-    for t in (cache.get("tasks") or []):
-        if isinstance(t, dict):
-            tid = str(t.get("task_id") or t.get("id") or "")
-            if tid and tid not in tasks_map:
-                tasks_map[tid] = _sanitize_task_record(t)
+    # 2. In-memory cache fallback (only if Supabase had no tasks)
+    if not tasks_map:
+        for t in (cache.get("tasks") or []):
+            if isinstance(t, dict):
+                tid = str(t.get("task_id") or t.get("id") or "")
+                if tid and tid not in tasks_map:
+                    tasks_map[tid] = _sanitize_task_record(t)
 
     # 3. Read from Google Sheets Tasks tab if tasks_map is empty
     if not tasks_map:
@@ -6141,6 +6142,10 @@ def save_client_tasks(tasks_list, _cid=None):
     updated_all.sort(key=_natural_task_sort_key)
     cache["tasks"] = updated_all
     invalidate_tasks_cache()
+    try:
+        push_setting("meta_ai_tasks", updated_all)
+    except Exception as _pse:
+        print(f"[save_client_tasks push_setting err] {_pse}")
 
     # 1. Save to Supabase immediately (authoritative, ultra-fast sub-50ms)
     if SUPABASE_URL and SUPABASE_KEY and len(SUPABASE_URL) > 15:
