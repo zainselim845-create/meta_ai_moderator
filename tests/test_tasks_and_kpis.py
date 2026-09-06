@@ -1159,9 +1159,81 @@ def test_api_my_task_request_return_sets_status_to_in_progress_and_preserves_emp
         assert "طلب استرجاع مهمة للتعديل" in am_notified[0][1]
 
 
+# =====================================================================
+# AM Creator Selection & Assignment Tests
+# =====================================================================
+
+def test_am_can_assign_creator_to_task(monkeypatch):
+    """Account Manager can assign a specific Content Creator to a task."""
+    import api.index as idx
+
+    mock_task = {
+        "task_id": "TASK-CREATOR-TEST-1",
+        "client_id": "cli_dr_ahmed_1788270119",
+        "title": "بوست 1: تجربة تعيين الكاتب",
+        "creator_name": None,
+        "creator_id": None,
+        "activity_log": []
+    }
+    saved_tasks = []
+
+    monkeypatch.setattr(idx, "_find_task_any_client", lambda tid: (mock_task, mock_task["client_id"]))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved_tasks.append((t, cid)))
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+    monkeypatch.setattr(idx, "_sheet_emp", lambda eid: {"employee_id": "EMP-8069-7345", "name": "Walaa Ashraf Mohammed"})
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+
+        res = client.post("/api/tasks/TASK-CREATOR-TEST-1/assign-creator", json={
+            "creator_id": "EMP-8069-7345"
+        })
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["ok"] is True
+        assert d["creator_id"] == "EMP-8069-7345"
+        assert d["creator_name"] == "Walaa Ashraf Mohammed"
+        assert mock_task["creator_id"] == "EMP-8069-7345"
+        assert mock_task["creator_name"] == "Walaa Ashraf Mohammed"
+        assert len(saved_tasks) == 1
+        assert any(log["action"] == "creator_assigned" for log in mock_task["activity_log"])
 
 
+def test_am_can_clear_creator_from_task(monkeypatch):
+    """Account Manager can clear or unassign the content creator from a task."""
+    import api.index as idx
 
+    mock_task = {
+        "task_id": "TASK-CREATOR-TEST-2",
+        "client_id": "cli_dr_ahmed_1788270119",
+        "title": "بوست 2: إزالة الكاتب",
+        "creator_name": "عبدالرحمن محمد عربي",
+        "creator_id": "EMP-7189-7780",
+        "activity_log": []
+    }
+    saved_tasks = []
 
+    monkeypatch.setattr(idx, "_find_task_any_client", lambda tid: (mock_task, mock_task["client_id"]))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved_tasks.append((t, cid)))
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
 
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "account_manager"
 
+        res = client.post("/api/tasks/TASK-CREATOR-TEST-2/assign-creator", json={
+            "creator_id": "",
+            "creator_name": ""
+        })
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["ok"] is True
+        assert d["creator_id"] is None
+        assert d["creator_name"] is None
+        assert mock_task["creator_id"] is None
+        assert mock_task["creator_name"] is None
+        assert len(saved_tasks) == 1
+        assert any(log["action"] == "creator_cleared" for log in mock_task["activity_log"])

@@ -1915,6 +1915,39 @@ function empOptionsHtml(selectedId) {
     }).join('');
 }
 
+function creatorOptionsHtml(selectedId, selectedName) {
+    var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+    var opts = '<option value="">-- بدون كاتب / اختياري --</option>';
+    // First list team members whose roles are related to content creation
+    var creators = team.filter(function(e) {
+        var r = (e.role || '').toLowerCase();
+        return r.includes('content') || r.includes('creator') || r.includes('كاتب') || r.includes('محتوى') || r.includes('writer');
+    });
+    // Fallback if no specific content role found
+    if (!creators.length) creators = team;
+    
+    // Add creators
+    creators.forEach(function(e) {
+        var isSel = (selectedId && String(e.employee_id) === String(selectedId)) ||
+                    (selectedName && String(e.name).trim().toLowerCase() === String(selectedName).trim().toLowerCase());
+        opts += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + (e.role ? ' (' + esc(e.role) + ')' : '') + '</option>';
+    });
+    
+    // If other team members exist and aren't in the creators list, append them under an optgroup
+    var others = team.filter(function(e) { return creators.indexOf(e) === -1; });
+    if (others.length) {
+        opts += '<optgroup label="باقي أعضاء الفريق">';
+        others.forEach(function(e) {
+            var isSel = (selectedId && String(e.employee_id) === String(selectedId)) ||
+                        (selectedName && String(e.name).trim().toLowerCase() === String(selectedName).trim().toLowerCase());
+            opts += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + (e.role ? ' (' + esc(e.role) + ')' : '') + '</option>';
+        });
+        opts += '</optgroup>';
+    }
+    return opts;
+}
+
+
 var selectedAMFilter = null;
 var selectedAMName = '';
 
@@ -2048,8 +2081,11 @@ function renderTaskCard(t, indexInPlan) {
         '<span>👤 مدير الحساب (AM):</span> <span>' + esc(cleanAM) + '</span>' +
     '</div>';
 
-    var creatorName = (t.creator_name || '').trim();
-    var creatorTag = ''; // Removed per user request: '✍️ كاتب المحتوى: Walaa Ashraf Mohammed شيل دي من هنا'
+    var creatorName = (t.creator_name || t.content_creator_name || t.writer_name || '').trim();
+    var creatorTag = creatorName ?
+        ('<div class="flex items-center gap-1.5 text-[11px] text-purple-900 bg-purple-50 border border-purple-200/80 px-2.5 py-1 rounded-xl font-bold">' +
+            '<span>✍️ كاتب المحتوى:</span> <span>' + esc(creatorName) + '</span>' +
+        '</div>') : '';
 
     var assigneeName = (t.assignee_name || '').trim();
     var assigneeTag = assigneeName ?
@@ -2244,9 +2280,11 @@ function renderTaskCard(t, indexInPlan) {
         '</div>' +
         '<div class="flex flex-wrap gap-1.5">' +
             amTag +
+            creatorTag +
             assigneeTag +
         '</div>' +
     '</div>';
+
 
     var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner">' +
         '<div class="flex items-center justify-between gap-1 flex-wrap">' +
@@ -2567,10 +2605,29 @@ function renderTaskCard(t, indexInPlan) {
 
     // AM controls - 100% enclosed within card boundaries with no overflow
     html += '<div class="pt-2 border-t border-slate-100 w-full space-y-2">';
+
+    // AM Creator Selection Row (Allows Account Manager to explicitly select/change the content creator on the task)
+    var curCreatorId = t.creator_id || '';
+    var curCreatorName = t.creator_name || t.content_creator_name || t.writer_name || '';
+    html += '<div class="bg-purple-50/70 border border-purple-200/90 rounded-2xl p-2.5 space-y-1.5 shadow-2xs w-full box-border">' +
+        '<div class="flex items-center justify-between text-[11px] font-bold text-purple-950">' +
+            '<span class="flex items-center gap-1">✍️ <span>كاتب المحتوى (اختيار AM):</span></span>' +
+            (curCreatorName ? ('<span class="text-[10px] text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md font-bold">✓ مُعيّن</span>') : ('<span class="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">لم يُحدد</span>')) +
+        '</div>' +
+        '<div class="flex items-center gap-1.5 w-full">' +
+            '<select id="creator-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-purple-300 bg-white rounded-xl font-bold text-slate-900 truncate focus:ring-2 focus:ring-purple-500 shadow-2xs cursor-pointer">' +
+                creatorOptionsHtml(curCreatorId, curCreatorName) +
+            '</select>' +
+            '<button onclick="assignCreatorFromBoard(\'' + esc(t.task_id) + '\')" class="bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0 flex items-center gap-1" title="حفظ كاتب المحتوى">' +
+                '<span>حفظ ✍️</span>' +
+            '</button>' +
+        '</div>' +
+    '</div>';
+
     if (st === 'Pending AM Approval') {
         html += '<div class="bg-blue-50/60 border border-blue-200/80 rounded-2xl p-2.5 space-y-1.5 shadow-2xs w-full box-border">' +
             '<div class="flex items-center justify-between text-[11px] font-bold text-blue-950">' +
-                '<span class="flex items-center gap-1">👤 <span>إسناد المهمة:</span></span>' +
+                '<span class="flex items-center gap-1">👤 <span>إسناد المهمة (للمصمم/المنفذ):</span></span>' +
                 '<span class="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md font-bold">⏳ بانتظار الإسناد</span>' +
             '</div>' +
             '<div class="flex items-center gap-1.5 w-full">' +
@@ -2584,6 +2641,7 @@ function renderTaskCard(t, indexInPlan) {
         '</div>';
     }
     if (st === 'Assigned' || st === 'In Progress') {
+
         html += '<div class="space-y-2 w-full">' +
             '<div class="grid grid-cols-2 gap-1.5">' +
                 '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs py-1.5 px-2 rounded-xl shadow-2xs flex items-center justify-center gap-1 transition cursor-pointer">↩️ سحب المهمة</button>' +
@@ -3179,7 +3237,31 @@ async function reviewTaskDecision(taskId, action) {
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
+async function assignCreatorFromBoard(taskId) {
+    var sel = document.getElementById('creator-select-' + taskId);
+    var creatorId = sel ? sel.value : '';
+    var creatorName = (sel && sel.selectedIndex > 0) ? sel.options[sel.selectedIndex].text.replace(/\s*\([^)]*\)$/, '').trim() : '';
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/assign-creator', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ creator_id: creatorId, creator_name: creatorName })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+            showToast(data.creator_name ? ('تم تعيين كاتب المحتوى: ' + data.creator_name + ' ✍️') : 'تم إلغاء تعيين كاتب المحتوى ↩️');
+            loadTasksEngine();
+        } else {
+            showToast(data.error || 'تعذّر تعيين كاتب المحتوى', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+window.assignCreatorFromBoard = assignCreatorFromBoard;
+
 async function assignTaskFromBoard(taskId) {
+
     var sel = document.getElementById('emp-select-' + taskId);
     var empId = sel ? sel.value : '';
     if (!empId) return;
