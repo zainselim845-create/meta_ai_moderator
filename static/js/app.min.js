@@ -1213,11 +1213,9 @@ function renderMyPortalTasks() {
               <span>📤 تسليم شغلك (رابط Drive / فيديو)</span>
             </button>
           ` : ''}
-          ${/Awaiting|Submitted|Review|Completed/i.test(t.status||'') ? `
-            <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer" title="استرجاع المهمة للتعديل عليها">
-              <span>↩️ طلب استرجاع للتعديل</span>
-            </button>
-          ` : ''}
+          <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer" title="استرجاع المهمة لقيد التنفيذ لإجراء تعديلات عليها">
+            <span>↩️ طلب استرجاع للتعديل</span>
+          </button>
           <button type="button" onclick="openTaskContentEditorModal('${esc(t.task_id)}')" class="bg-white hover:bg-amber-50 text-amber-900 text-xs font-bold py-2 px-3.5 rounded-xl border border-amber-300 shadow-2xs transition flex items-center gap-1.5 cursor-pointer">
             <span>✍️ تعديل نصوص وكابشن البوست</span>
           </button>

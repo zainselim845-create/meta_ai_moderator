@@ -2268,13 +2268,16 @@ function renderTaskCard(t, indexInPlan) {
         visHtml +
         modHtml +
         refsHtml + links +
-        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">' +
-            '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
+        '<div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">' +
+            '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer">' +
                 ICONS.edit +
-                '<span>تعديل نصوص وكابشن البوست</span>' +
+                '<span>تعديل نصوص البوست</span>' +
             '</button>' +
-            '<button type="button" onclick="openTaskNotesEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-900 text-[11px] font-bold py-1.5 px-2.5 rounded-xl border border-rose-200 shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
-                '<span>✍️ إضافة ملاحظة / طلب تعديل</span>' +
+            '<button type="button" onclick="requestReturnMyTask(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold py-1.5 px-2 rounded-xl shadow-xs transition flex items-center justify-center gap-1 cursor-pointer" title="استرجاع المهمة لقيد التنفيذ لإجراء تعديلات عليها">' +
+                '<span>↩️ طلب استرجاع للتعديل</span>' +
+            '</button>' +
+            '<button type="button" onclick="openTaskNotesEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-900 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-rose-200 shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer">' +
+                '<span>✍️ إضافة ملاحظة</span>' +
             '</button>' +
         '</div>';
 
@@ -2621,7 +2624,10 @@ function renderTaskCard(t, indexInPlan) {
         '</div>';
     }
     if (isCompleted) {
-        html += '<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-center text-xs font-bold text-emerald-800 flex items-center justify-center gap-1"> مكتملة ومعتمدة بنجاح ✅</div>';
+        html += '<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs font-bold text-emerald-800 flex items-center justify-between gap-2 flex-wrap">' +
+            '<span class="flex items-center gap-1">مكتملة ومعتمدة بنجاح ✅</span>' +
+            '<button type="button" onclick="requestReturnMyTask(\'' + escJs(t.task_id) + '\')" class="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-[11px] font-bold px-3 py-1 rounded-lg transition shadow-2xs cursor-pointer flex items-center gap-1" title="إعادة فتح واسترجاع المهمة لإجراء تعديلات"><span>↩️ إعادة فتح للتعديل</span></button>' +
+        '</div>';
     }
     html += '</div></div>';
     return html;
