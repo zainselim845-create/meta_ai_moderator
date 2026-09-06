@@ -8236,28 +8236,44 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                             clean_target = r_target.lstrip("/").replace("word/", "")
                             media_rels[r_id] = clean_target
             
+            # Helper to filter out Word XML namespaces and invalid links
+            def _is_valid_user_url(u):
+                if not u or not isinstance(u, str):
+                    return False
+                u_low = u.lower().strip()
+                if any(bad in u_low for bad in [
+                    'schemas.openxmlformats.org',
+                    'schemas.microsoft.com',
+                    'www.w3.org',
+                    'w3.org',
+                    'purl.org',
+                    'xml.org'
+                ]):
+                    return False
+                return True
+
             doc = _docx.Document(_io.BytesIO(file_bytes))
             
             # Detect Client & Month from paragraphs
             for p in doc.paragraphs:
                 t = p.text.strip()
                 if t: raw_text_accum.append(t)
-                m_c = re.search(r'(?:Client|العميل|البراند|الشركة|Brand|Account)\s*[:=\-]\s*(.+)', t, re.IGNORECASE)
+                m_c = re.search(r'(?:Client|العميل|البراند|الشركة|Brand|Account|Page|الصفحة|بيج)\s*[:=\-]\s*(.+)', t, re.IGNORECASE)
                 if m_c and not doc_client:
                     doc_client = m_c.group(1).strip()
-                m_m = re.search(r'(?:Month|الشهر|شهر)\s*[:=\-]\s*(\d+|سبتمبر|أكتوبر|نوفمبر|ديسمبر|يناير|فبراير|مارس|أبريل|مايو|يونيو|يوليو|أغسطس|Sep|Oct|Nov|Dec|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug)', t, re.IGNORECASE)
+                m_m = re.search(r'(?:Month|الشهر|شهر)\s*[:=\-]\s*(\d+|سبتمبر|أكتوبر|نوفمبر|ديسمبر|يناير|فبراير|مارس|أبريل|مايو|يونيو|يوليو|أغسطس|September|October|November|December|January|February|March|April|May|June|July|August|Sep|Oct|Nov|Dec|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug)', t, re.IGNORECASE)
                 if m_m and not doc_month:
                     doc_month = m_m.group(1).strip()
 
             if not doc_client and filename:
                 clean_fn = re.sub(r'\.(docx|doc|txt|pdf|csv|xlsx)$', '', filename, flags=re.I).strip()
+                clean_fn = re.sub(r'[\(\[]\s*\d+\s*[\)\]]', '', clean_fn).strip()
                 clean_fn = re.sub(r'^\d+[\s\.\-_]+', '', clean_fn).strip()
                 clean_fn = re.sub(r'^(?:خطة\s+محتوى|خطة\s+سوشيال|خطة|Plan)\s+', '', clean_fn, flags=re.I).strip()
-                m_fn = re.search(r'^(.*?)(?:\s+Posts|\s+Plan|\s+خطة|\s+بوستات|\s+Sep|\s+Oct|\s+Nov|\s+Dec|\s+Jan|\s+Feb|\s+Mar|\s+Apr|\s+May|\s+Jun|\s+Jul|\s+Aug|\s+سبتمبر|\s+أكتوبر|[\.\-_]\d+|\d+$)', clean_fn, re.IGNORECASE)
-                if m_fn and m_fn.group(1).strip():
-                    doc_client = m_fn.group(1).strip()
-                else:
-                    doc_client = clean_fn.strip()
+                clean_fn = re.sub(r'[\(\[]?\s*(?:September|October|November|December|January|February|March|April|May|June|July|August|سبتمبر|أكتوبر|نوفمبر|ديسمبر|يناير|فبراير|مارس|أبريل|مايو|يونيو|يوليو|أغسطس|Sep|Oct|Nov|Dec|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug)\b[^\)\]]*[\)\]]?', '', clean_fn, flags=re.I).strip()
+                clean_fn = re.sub(r'\b(?:Posts|Post|Plan|خطة|بوستات|منشورات)\b', '', clean_fn, flags=re.I).strip()
+                clean_fn = re.sub(r'[\(\)\[\]_\-]+', ' ', clean_fn).strip()
+                doc_client = clean_fn.strip() or "عميل جديد"
 
             def _extract_images_from_xml(xml_content, post_idx):
                 media_urls = []
@@ -8282,10 +8298,12 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                             except Exception as _e:
                                 print(f"[Docx image extract error] {_e}")
                     elif rid in hyperlink_rels:
-                        media_urls.append(hyperlink_rels[rid])
-                # Also extract any plaintext URLs inside xml
+                        hl_url = hyperlink_rels[rid]
+                        if _is_valid_user_url(hl_url) and hl_url not in media_urls:
+                            media_urls.append(hl_url)
+                # Also extract any plaintext URLs inside xml (only valid user URLs)
                 for u in re.findall(r'https?://[^\s<>"\'&]+', xml_content):
-                    if u not in media_urls:
+                    if _is_valid_user_url(u) and u not in media_urls:
                         media_urls.append(u)
                 return media_urls
 
@@ -8318,6 +8336,12 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                             cells = [c.text.strip() for c in row.cells]
                             if not any(cells):
                                 continue
+
+                            # Guard against header rows appearing inside the table body
+                            first_cell_clean = cells[0].lower().replace('\n', ' ').strip()
+                            if any(hdr_w in first_cell_clean for hdr_w in ['publishing date', 'تاريخ النشر', 'موعد النشر']) and any(c.lower().strip() in ['tov', 'caption', 'design', 'reference'] for c in cells[1:]):
+                                continue
+
                             p_date = cells[col_map["date"]] if col_map["date"] >= 0 and col_map["date"] < len(cells) else ""
                             p_idea = cells[col_map["idea"]] if col_map["idea"] >= 0 and col_map["idea"] < len(cells) else ""
                             p_tagline = cells[col_map["tagline"]] if col_map["tagline"] >= 0 and col_map["tagline"] < len(cells) else ""
@@ -8328,12 +8352,34 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                             row_media = _extract_images_from_xml(row._tr.xml, len(posts) + 1)
                             if p_idea:
                                 for u in re.findall(r'https?://[^\s<>"\']+', p_idea):
-                                    if u not in row_media: row_media.append(u)
+                                    if _is_valid_user_url(u) and u not in row_media: row_media.append(u)
+                            if p_tagline:
+                                for u in re.findall(r'https?://[^\s<>"\']+', p_tagline):
+                                    if _is_valid_user_url(u) and u not in row_media: row_media.append(u)
                                     
-                            first_line = (p_tagline or p_caption or f"منشور {len(posts) + 1}").split('\n')[0].strip()
-                            first_line = re.sub(r'^(?:Slide\s*\d+\s*[—\-:]*\s*(?:HOOK)*\s*)+', '', first_line, flags=re.IGNORECASE).strip()
-                            title = first_line[:80] if first_line else f"منشور {len(posts) + 1}"
-                            is_carousel = ("كاروسيل" in p_type or "slide" in p_tagline.lower() or "carousel" in p_type.lower() or "slide" in p_caption.lower())
+                            # Detect slides in tagline or idea or caption
+                            combined_text = f"{p_tagline}\n{p_idea}\n{p_caption}"
+                            slide_matches = re.findall(r'(?:slide|سلايد|شريحة)\s*\d+', combined_text, re.IGNORECASE)
+                            has_slides = len(slide_matches) >= 2 or ("slide" in p_tagline.lower() or "سلايد" in p_tagline or "شريحة" in p_tagline)
+                            is_carousel = ("كاروسيل" in p_type or "carousel" in p_type.lower() or has_slides)
+                            
+                            # Clean title from Slide/سلايد prefix
+                            first_line = (p_tagline or p_idea or p_caption or f"منشور {len(posts) + 1}").split('\n')[0].strip()
+                            clean_title = re.sub(r'^(?:(?:Slide|سلايد|شريحة)\s*\d*\s*[:：\-–—]*\s*(?:HOOK|هوك)*\s*[:：\-–—]*\s*)+', '', first_line, flags=re.IGNORECASE).strip()
+                            title = clean_title[:100] if clean_title else f"منشور {len(posts) + 1}"
+
+                            # If tagline has slides or is very long, it's the slide breakdown -> route/merge with visual_idea
+                            if has_slides or (len(p_tagline) > 150 and '\n' in p_tagline):
+                                if p_idea and p_tagline and p_idea != p_tagline:
+                                    full_visual_idea = f"💡 ملاحظات وفكرة التصميم:\n{p_idea}\n\n🎬 تفاصيل الشرائح (Slides):\n{p_tagline}"
+                                elif p_idea:
+                                    full_visual_idea = p_idea
+                                else:
+                                    full_visual_idea = p_tagline
+                                clean_tagline = clean_title
+                            else:
+                                full_visual_idea = p_idea or p_tagline
+                                clean_tagline = p_tagline or clean_title
                             
                             posts.append({
                                 "index": len(posts) + 1,
@@ -8341,14 +8387,14 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                                 "content_type": "Carousel" if is_carousel else "Single Image",
                                 "post_type": "carousel" if is_carousel else "post",
                                 "publish_date": p_date,
-                                "design_brief": p_idea,
-                                "visual_idea": p_idea,
-                                "visual_content": p_tagline,
-                                "tagline": p_tagline,
+                                "design_brief": full_visual_idea,
+                                "visual_idea": full_visual_idea,
+                                "visual_content": p_tagline or full_visual_idea,
+                                "tagline": clean_tagline,
                                 "caption": p_caption,
                                 "platform": p_platform,
-                                "media_urls": [m for m in row_media if not m.startswith("http") or any(m.lower().endswith(ext) for ext in ['.png','.jpg','.jpeg','.gif','.webp']) or 'drive.google' in m.lower()],
-                                "reference_links": row_media
+                                "media_urls": [m for m in row_media if _is_valid_user_url(m) and (not m.startswith("http") or any(m.lower().endswith(ext) for ext in ['.png','.jpg','.jpeg','.gif','.webp']) or 'drive.google' in m.lower())],
+                                "reference_links": [m for m in row_media if _is_valid_user_url(m)]
                             })
 
             # Non-table Headings & Paragraphs
@@ -8472,16 +8518,20 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
         vis = (p.get("visual_idea") or p.get("design_brief") or "").strip()
         title = (p.get("title") or "").strip()
         
-        # 1. Extract all URLs from all text fields
+        # 1. Extract all URLs from all text fields (strictly valid user URLs)
         all_text = f"{title}\n{tag}\n{cap}\n{vis}"
-        found_urls = re.findall(r'https?://[^\s<>"\']+|data:image/[^;\s<>"\']+(?:;base64,[A-Za-z0-9+/=]+)?', all_text)
+        found_urls = [u for u in re.findall(r'https?://[^\s<>"\']+|data:image/[^;\s<>"\']+(?:;base64,[A-Za-z0-9+/=]+)?', all_text) if _is_valid_user_url(u)]
         
-        existing_refs = p.get("reference_links") or []
-        existing_media = p.get("media_urls") or []
+        existing_refs = [u for u in (p.get("reference_links") or []) if _is_valid_user_url(u)]
+        existing_media = [u for u in (p.get("media_urls") or []) if _is_valid_user_url(u)]
         all_refs = list(dict.fromkeys(existing_refs + existing_media + found_urls))
         
         p["reference_links"] = all_refs
-        p["media_urls"] = all_refs
+        # media_urls: only keep actual image assets (Drive links, data URIs, image file URLs)
+        p["media_urls"] = [m for m in all_refs if not m.startswith("http") or any(m.lower().endswith(ext) for ext in ['.png','.jpg','.jpeg','.gif','.webp']) or 'drive.google' in m.lower() or 'googleusercontent.com' in m.lower()]
+
+        # Clean title of any slide/hook prefixes (Arabic & English)
+        title = re.sub(r'^(?:(?:Slide|سلايد|شريحة)\s*\d*\s*[:：\-–—]*\s*(?:HOOK|هوك)*\s*[:：\-–—]*\s*)+', '', title, flags=re.IGNORECASE).strip()
 
         is_generic_title = not title or re.match(r'^(?:منشور|بوست|Post|Item|Task)\s*#?\s*\d*$', title, re.I) or title == "منشور جديد"
         
@@ -8491,7 +8541,8 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
                 tag = lines[0][:100]
                 
         if is_generic_title:
-            title = tag[:100] if tag else (cap.splitlines()[0][:100] if cap else (vis[:100] if vis else f"بوست #{idx}"))
+            cand = tag or (cap.splitlines()[0] if cap else (vis.splitlines()[0] if vis else f"بوست #{idx}"))
+            title = re.sub(r'^(?:(?:Slide|سلايد|شريحة)\s*\d*\s*[:：\-–—]*\s*(?:HOOK|هوك)*\s*[:：\-–—]*\s*)+', '', cand, flags=re.IGNORECASE).strip()[:100] or f"بوست #{idx}"
             
         p["title"] = title
         p["tagline"] = tag or title
@@ -8501,7 +8552,8 @@ def _extract_structured_docx_plan(file_bytes, filename="", parent_id=None, uploa
         p["visual_idea"] = vis
             
         p["post_type"] = (p.get("post_type") or "post").lower()
-        if "carousel" in p["post_type"] or "كاروسيل" in p["post_type"] or "slide" in tag.lower() or "slide" in cap.lower():
+        slide_count = len(re.findall(r'(?:slide|سلايد|شريحة)\s*\d+', all_text, re.IGNORECASE))
+        if "carousel" in p["post_type"] or "كاروسيل" in p["post_type"] or slide_count >= 2 or "slide" in tag.lower() or "سلايد" in tag or "slide" in cap.lower() or "سلايد" in cap:
             p["content_type"] = "Carousel"
             p["post_type"] = "carousel"
         elif any(k in all_text.lower() for k in ["ريلز", "reel", "فيديو", "video", "كوميك", "comic", "facebook.com/share/v/", "facebook.com/reel/", "instagram.com/reel/", "tiktok.com", "youtube.com", "youtu.be"]):

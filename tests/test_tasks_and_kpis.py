@@ -893,4 +893,87 @@ def test_save_and_distribute_plan_to_drive_includes_all_assigned_employees(monke
     assert "FID-EMP-8148" in captured_parents
 
 
+def test_extract_structured_docx_plan_with_tov_slides_and_design_refs():
+    import io, docx
+    from api.index import _extract_structured_docx_plan
+
+    doc = docx.Document()
+    doc.add_paragraph("Page: Domya")
+    doc.add_paragraph("Month: September")
+    table = doc.add_table(rows=1, cols=4)
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = "Publishing date"
+    hdr_cells[1].text = "Design /reference (مش شرط الالتزام بالفكرة بالظبط المهم يكون نفس ال Line)"
+    hdr_cells[2].text = "TOV"
+    hdr_cells[3].text = "Caption"
+
+    row1 = table.add_row().cells
+    row1[0].text = ""
+    row1[1].text = ""
+    row1[2].text = "Slide1: بيان عاجل: حبينا نبلغكم ليه قررنا منشاركش في تريند “قاع الهامور”\nSlide 2: كل البراندات دخلت قاع الهامور"
+    row1[3].text = "قررنا نكلمكم من على سطح الأرض، ومننزلش لقاع الهامور😂"
+
+    row2 = table.add_row().cells
+    row2[0].text = ""
+    row2[1].text = "ده تريند دلوقتي اسمه kinda chic ممكن نسرش عليه أكتر\nhttps://www.instagram.com/p/DcIuZktjRx_/"
+    row2[2].text = "Slide 1: kinda chic to let your social media agency handle content\nSlide 2: kinda chic"
+    row2[3].text = "Not every trend is worth jumping to"
+
+    row3 = table.add_row().cells
+    row3[0].text = ""
+    row3[1].text = ""
+    row3[2].text = "سلايد 1: تفتكر إزاي Apple خلت كلمة \"غالي\" اللي ناس اعتبرتها عيب عندها\nسلايد 2: خلته ميزة"
+    row3[3].text = "أنا بستهدف Class A"
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    file_bytes = buf.getvalue()
+
+    res = _extract_structured_docx_plan(file_bytes, filename="Domya (September Posts) (1).docx")
+    assert res["client_name"] == "Domya"
+    assert res["month"] == "September"
+    assert len(res["posts"]) == 3
+    # Post 1: Carousel, cleaned title, full slides in visual_idea
+    assert res["posts"][0]["content_type"] == "Carousel"
+    assert res["posts"][0]["title"] == "بيان عاجل: حبينا نبلغكم ليه قررنا منشاركش في تريند “قاع الهامور”"
+    assert "Slide 2:" in res["posts"][0]["visual_idea"]
+    assert res["posts"][0]["caption"] == "قررنا نكلمكم من على سطح الأرض، ومننزلش لقاع الهامور😂"
+
+    # Post 2: Carousel, merged design brief and slides in visual_idea, instagram in reference_links
+    assert res["posts"][1]["content_type"] == "Carousel"
+    assert res["posts"][1]["title"] == "kinda chic to let your social media agency handle content"
+    assert "ده تريند دلوقتي" in res["posts"][1]["visual_idea"]
+    assert "Slide 2:" in res["posts"][1]["visual_idea"]
+    assert "https://www.instagram.com/p/DcIuZktjRx_/" in res["posts"][1]["reference_links"]
+    assert not any("schemas.openxmlformats" in u for u in res["posts"][1]["reference_links"])
+
+    # Post 3: Arabic slides detected as Carousel, clean title
+    assert res["posts"][2]["content_type"] == "Carousel"
+    assert res["posts"][2]["title"] == 'تفتكر إزاي Apple خلت كلمة "غالي" اللي ناس اعتبرتها عيب عندها'
+    assert "سلايد 2:" in res["posts"][2]["visual_idea"]
+
+
+def test_extract_real_domya_docx_file():
+    import os
+    from api.index import _extract_structured_docx_plan
+    path = r'C:\Users\mhmd\Downloads\Domya (September Posts) (1).docx'
+    if not os.path.exists(path):
+        return
+    with open(path, 'rb') as f:
+        raw = f.read()
+    res = _extract_structured_docx_plan(raw, filename="Domya (September Posts) (1).docx")
+    assert res["client_name"] == "Domya"
+    assert res["month"] == "September"
+    assert len(res["posts"]) == 10
+    carousels = [p for p in res["posts"] if p["content_type"] == "Carousel"]
+    assert len(carousels) == 8
+    # Ensure no schema urls
+    for p in res["posts"]:
+        for u in p.get("reference_links", []) + p.get("media_urls", []):
+            assert "schemas.openxmlformats" not in u
+            assert "schemas.microsoft" not in u
+
+
+
+
 
