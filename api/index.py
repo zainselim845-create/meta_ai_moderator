@@ -4344,7 +4344,10 @@ def api_clients_get():
             continue
         c_amid = str(c.get("am_employee_id") or c.get("am_id") or "").strip()
         c_amname = str(c.get("am_name") or c.get("account_manager") or "").strip()
-        if not c_amname:
+        if "domya" in str(c.get("name","")).lower() or "domya" in str(c.get("id","")).lower():
+            c["am_name"] = "آيه أحمد مجاهد"
+            c["am_employee_id"] = "EMP-5887-5256"
+        elif not c_amname:
             if c_amid in ("AM-2072-9827", "EMP-2072-9827"):
                 c["am_name"] = "محمود خالد"
                 c["am_employee_id"] = "AM-2072-9827"
@@ -5902,9 +5905,13 @@ def _natural_task_sort_key(t):
 def _sanitize_task_record(d):
     if not isinstance(d, dict):
         return d
+    cid = str(d.get("client_id") or "").strip()
     am_id = str(d.get("am_id") or "").strip()
     am_name = str(d.get("am_name") or "").strip()
-    if not am_id or am_id in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned"] or "EMP-001" in am_name:
+    if "domya" in cid.lower() or "domya" in str(d.get("client_name","")).lower() or cid == "client_100821894800009":
+        d["am_id"] = "EMP-5887-5256"
+        d["am_name"] = "آيه أحمد مجاهد"
+    elif not am_id or am_id in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned"] or "EMP-001" in am_name:
         d["am_id"] = "AM-2072-9827"
         d["am_name"] = "محمود خالد"
         

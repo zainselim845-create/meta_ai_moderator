@@ -149,15 +149,19 @@ async function openClientFolder(clientId, cachedUrl) {
         window.open(cachedUrl, '_blank');
         return;
     }
+    const win = window.open('about:blank', '_blank');
     try {
         const res = await fetch(`/api/clients/drive-url?client_id=${encodeURIComponent(clientId)}`);
         const d = await res.json();
         if (d.ok && d.folder_url) {
-            window.open(d.folder_url, '_blank');
+            if (win) win.location.href = d.folder_url;
+            else window.open(d.folder_url, '_blank');
         } else {
+            if (win) win.close();
             showToast('لم يتم العثور على مجلد Drive لهذا العميل بعد', 'info');
         }
     } catch(e) {
+        if (win) win.close();
         showToast('خطأ في الاتصال بجوجل درايف', 'error');
     }
 }
@@ -167,15 +171,23 @@ async function openClientPlanDoc(clientId, cachedUrl) {
         window.open(cachedUrl, '_blank');
         return;
     }
+    const win = window.open('about:blank', '_blank');
     try {
         const res = await fetch(`/api/clients/drive-url?client_id=${encodeURIComponent(clientId)}`);
         const d = await res.json();
-        if (d.ok && d.plan_url) {
-            window.open(d.plan_url, '_blank');
+        const targetUrl = d.plan_url || d.folder_url;
+        if (d.ok && targetUrl) {
+            if (win) win.location.href = targetUrl;
+            else window.open(targetUrl, '_blank');
+            if (!d.plan_url && d.folder_url) {
+                showToast('تم فتح مجلد Drive الخاص بالعميل لعرض ملفات وخطة العميل', 'info');
+            }
         } else {
-            showToast('لم يتم العثور على ملف خطة Word على Drive لهذا العميل بعد', 'info');
+            if (win) win.close();
+            showToast('لم يتم العثور على ملف خطة Word أو مجلد Drive لهذا العميل بعد', 'info');
         }
     } catch(e) {
+        if (win) win.close();
         showToast('خطأ في الاتصال بجوجل درايف', 'error');
     }
 }
