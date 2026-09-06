@@ -1297,37 +1297,6 @@ async function loadMyPortal() {
       applyPortalTasks(cached);
     });
     if (d) applyPortalTasks(d);
-    return;
-    const planSeqMap = {};
-    tasks.forEach(t => {
-      const pkey = (t.plan_name || t.file_name || 'عام').trim();
-      planSeqMap[pkey] = (planSeqMap[pkey] || 0) + 1;
-      t.post_number_in_plan = planSeqMap[pkey];
-    });
-
-    myPortalTasksRaw = tasks;
-    window._myPortalTasksList = tasks;
-
-    // Populate Client & Plan dropdowns in My Portal
-    const cFilter = document.getElementById('myportal-client-filter');
-    const pFilter = document.getElementById('myportal-plan-filter');
-    if (cFilter) {
-      const cSet = new Set();
-      tasks.forEach(t => { if (t.client_name) cSet.add(t.client_name); });
-      cFilter.innerHTML = '<option value="all">🏢 جميع العملاء</option>' + Array.from(cSet).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-      if (myPortalClientFilter && cSet.has(myPortalClientFilter)) cFilter.value = myPortalClientFilter;
-    }
-    if (pFilter) {
-      const pSet = new Set();
-      tasks.forEach(t => { 
-        const pn = (t.plan_name || t.file_name || '').trim();
-        if (pn) pSet.add(pn); 
-      });
-      pFilter.innerHTML = '<option value="all">📑 جميع الخطط</option>' + Array.from(pSet).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
-      if (myPortalPlanFilter && pSet.has(myPortalPlanFilter)) pFilter.value = myPortalPlanFilter;
-    }
-
-    renderMyPortalTasks();
   } catch(e) {
     console.error("loadMyPortal error:", e);
   }

@@ -748,3 +748,74 @@ https://www.facebook.com/share/v/1BocYfJyfY/?mibextid=wwXIfr
     assert "محمد سعد" in posts[1]["visual_idea"]
     assert "https://www.facebook.com/share/v/1BocYfJyfY/?mibextid=wwXIfr" in posts[1]["media_urls"]
 
+
+def test_plan_with_multiline_slides_and_bullets_and_concept():
+    from api.index import _universal_extract_plan_posts
+    text = """1)
+ديزاين1:
+الصداع المستمر مش هيخف بالمسكنات لو سببه أسنانك 🤕
+ديزاين2:
+عضلات فكك مشدودة وبتضغط على سنانك طول اليوم من التوتر 🦷
+ديزاين 3:
+- التوتر والعصبية
+- التدخين
+- شرب كفايين كتير
+ديزاين 4:
+حلها أسهل مما تتخيل
+الحارس الليلي (night guard) هيحميك ويخلصك من الصداع والتعب
+......................................................................
+2)
+تخيل: سوسة فيكتور ماسكة شاكوش
+ديزاين1: حقيقة السوسة
+سوسة الأسنان مش كائن حقيقي ماسك شاكوش وعمال يكسر في سنانك 😅🔨
+ديزاين 2:
+دي عبارة عن بكتيريا بتنتج أحماض
+ديزاين 3:
+طول ما في أكل راكن بين سنانك
+ديزاين:
+التسوس بيبدأ ببطء ومن غير ما تحس
+......................................................................
+3)
+4 حالات
+"""
+    posts = _universal_extract_plan_posts(text)
+    assert len(posts) == 3
+    # Post 1: Carousel with 4 slides, multiline text and bullets captured into slide 3
+    p1 = posts[0]
+    assert p1["post_type"] == "carousel"
+    assert p1["content_type"] == "Carousel"
+    assert "سلايد 1" in p1["visual_idea"]
+    assert "الصداع المستمر" in p1["visual_idea"]
+    assert "سلايد 3" in p1["visual_idea"]
+    assert "التوتر والعصبية" in p1["visual_idea"]
+    assert "سلايد 4" in p1["visual_idea"]
+
+    # Post 2: Carousel with unnumbered trailing slide 4
+    p2 = posts[1]
+    assert p2["post_type"] == "carousel"
+    assert p2["content_type"] == "Carousel"
+    assert "سوسة فيكتور ماسكة شاكوش" in p2["visual_idea"]
+    assert "سلايد 4" in p2["visual_idea"]
+    assert "التسوس بيبدأ ببطء" in p2["visual_idea"]
+
+    # Post 3: Before & After cases showcase
+    p3 = posts[2]
+    assert "4 حالات" in p3["title"]
+
+
+def test_date_parsing_normalizes_out_of_range_years():
+    from api.index import parse_flexible_date_str
+    # AM typos like 0002-09-01 or 0020-09-01 should normalize year to 2026
+    dt1 = parse_flexible_date_str("0002-09-01")
+    assert dt1 is not None
+    assert dt1.year == 2026
+    assert dt1.month == 9
+    assert dt1.day == 1
+
+    dt2 = parse_flexible_date_str("0020-09-07")
+    assert dt2 is not None
+    assert dt2.year == 2026
+    assert dt2.month == 9
+    assert dt2.day == 7
+
+

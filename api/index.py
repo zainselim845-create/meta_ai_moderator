@@ -6272,22 +6272,28 @@ def parse_flexible_date_str(val_str):
     if not val_str:
         return None
     s = str(val_str).strip()
+    dt = None
     if re.match(r'^\d{4}-\d{2}-\d{2}', s):
         try:
-            return datetime.fromisoformat(s.replace('Z', '+00:00'))
+            dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
         except Exception:
             pass
-    m = re.match(r'^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})(?:\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)?)?', s, re.I)
-    if m:
-        d, mth, y, h, mn, ampm = m.groups()
-        hr = int(h) if h else 0
-        if ampm:
-            if ampm.upper() == 'PM' and hr != 12: hr += 12
-            if ampm.upper() == 'AM' and hr == 12: hr = 0
-        try:
-            return datetime(int(y), int(mth), int(d), hr, int(mn or 0), tzinfo=timezone.utc)
-        except Exception:
-            pass
+    if not dt:
+        m = re.match(r'^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})(?:\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)?)?', s, re.I)
+        if m:
+            d, mth, y, h, mn, ampm = m.groups()
+            hr = int(h) if h else 0
+            if ampm:
+                if ampm.upper() == 'PM' and hr != 12: hr += 12
+                if ampm.upper() == 'AM' and hr == 12: hr = 0
+            try:
+                dt = datetime(int(y), int(mth), int(d), hr, int(mn or 0), tzinfo=timezone.utc)
+            except Exception:
+                pass
+    if dt:
+        if dt.year < 2020:
+            dt = dt.replace(year=2026)
+        return dt
     return None
 
 
@@ -7722,9 +7728,8 @@ def _universal_heuristic_plan_parser(plan_text):
             continue
             
         title = ""
-        visual = ""
         visual_lines = []
-        design_slides = []
+        slides_list = []
         caption_lines = []
         post_type = "post"
         pub_date = ""
@@ -7733,7 +7738,7 @@ def _universal_heuristic_plan_parser(plan_text):
         urls = url_re.findall(block_text)
 
         is_video_url = any(k in block_text.lower() for k in ["/share/v/", "/reel/", "tiktok.com", "youtube.com/shorts", ".mp4"])
-        if is_video_url or any(k in block_text.lower() for k in ["كوميك", "comic", "ريلز", "فيديو"]):
+        if is_video_url or any(k in block_text.lower() for k in ["ريلز", "reel", "فيديو", "video"]):
             post_type = "reel"
         
         if len(b_lines) == 1 and '|' in b_lines[0]:
@@ -7746,13 +7751,15 @@ def _universal_heuristic_plan_parser(plan_text):
                     "title": title[:140],
                     "caption": desc,
                     "visual_idea": "",
-                    "post_type": "reel" if any(k in pt for k in ["reel", "ريلز", "فيديو", "كوميك"]) else "post",
+                    "post_type": "reel" if any(k in pt for k in ["reel", "ريلز", "فيديو", "video"]) else "post",
                     "publish_date": "",
                     "publish_time": "10:00",
                     "delivery_deadline": "",
                     "media_urls": urls
                 })
                 continue
+
+        current_state = "none"
 
         for ln in b_lines:
             if re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)\s*$', ln):
@@ -7766,38 +7773,88 @@ def _universal_heuristic_plan_parser(plan_text):
             if not ln_clean:
                 continue
 
-            # 1. Numbered designs / slides (e.g. ديزاين 1: ..., سلايد 2: ...)
+            # 1. Slide markers: numbered (ديزاين 1: ..., سلايد 2: ...) or unnumbered (ديزاين: ...) when in a slide sequence
             slide_m = re.match(r'^(?:ديزاين|تصميم|سلايد|slide|design)\s*#?(\d+)[:：\s]*(.*)', ln_clean, re.I)
+            if not slide_m and len(slides_list) >= 1:
+                slide_unnum_m = re.match(r'^(?:ديزاين|تصميم|سلايد|slide|design)[:：\s]*(.*)', ln_clean, re.I)
+                if slide_unnum_m:
+                    next_num = len(slides_list) + 1
+                    s_text = slide_unnum_m.group(1).strip()
+                    slides_list.append({"num": next_num, "title": s_text, "content": []})
+                    current_state = "slide"
+                    post_type = "carousel"
+                    continue
+
             if slide_m:
-                s_num = slide_m.group(1)
+                s_num = int(slide_m.group(1))
                 s_text = slide_m.group(2).strip()
-                design_slides.append(f"سلايد {s_num}: {s_text}" if s_text else f"سلايد {s_num}")
+                slides_list.append({"num": s_num, "title": s_text, "content": []})
+                current_state = "slide"
                 post_type = "carousel"
                 continue
 
-            # 2. General visual idea keywords
-            if re.match(r'^(?:التخيل|تخيل|فكرة\s*التصميم|فكرة\s*الفيديو|التصميم|الموشن|visual|design|الرؤية\s*البصرية|الديزاين|ديزاين|فكرة\s*الديزاين|كوميك|الكوميك)[:：\s]', ln_clean, re.I):
-                v_val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+            # 2. General visual idea keywords (when not inside slides sequence)
+            vis_m = re.match(r'^(?:التخيل|تخيل|فكرة\s*التصميم|فكرة\s*الفيديو|التصميم|الموشن|visual|design|الرؤية\s*البصرية|الديزاين|ديزاين|فكرة\s*الديزاين|كوميك|الكوميك)[:：\s]*(.*)', ln_clean, re.I)
+            if vis_m and not slides_list:
+                v_val = vis_m.group(1).strip()
                 if v_val:
                     visual_lines.append(v_val)
+                current_state = "caption"
                 continue
 
-            # 3. Direct visual / design instructions
+            # 3. Reference design header: e.g. "ريفرنس الديزاين:"
+            ref_m = re.match(r'^(?:ريفرنس\s*الديزاين|ريفرنس|مرجع|reference)[:：\s]*(.*)', ln_clean, re.I)
+            if ref_m:
+                ref_text = ref_m.group(1).strip()
+                if ref_text:
+                    visual_lines.append(f"مرجع التصميم: {ref_text}")
+                current_state = "none"
+                continue
+
+            # 4. Direct visual / design instructions
             if re.match(r'^(?:(?:و\s*)?نحط\s+صو[رة]ة?|نكتب\s+على|صورة\s+الدكتورة?|شكل\s+التصميم|الديزاين\s+عبارة\s+عن)', ln_clean, re.I):
                 visual_lines.append(ln_clean)
+                current_state = "caption"
                 continue
                 
-            # 4. Title / Hook / Tagline / TOV
-            if re.match(r'^(?:عنوان|الهوك|هوك|الـ\s*هوك|الـ\s*hook|تاج\s*لاين|تاجلاين|tag\s*line|title|hook|headline|موضوع\s*البوست|فكرة\s*البوست|الـ?\s*tov|tov|tone|نبرة\s*الصوت)[:：\s]', ln_clean, re.I):
-                t_val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+            # 5. Title / Hook / Tagline / TOV
+            tov_m = re.match(r'^(?:عنوان|الهوك|هوك|الـ\s*هوك|الـ\s*hook|تاج\s*لاين|تاجلاين|tag\s*line|title|hook|headline|موضوع\s*البوست|فكرة\s*البوست|الـ?\s*tov|tov|tone|نبرة\s*الصوت)[:：\s]*(.*)', ln_clean, re.I)
+            if tov_m:
+                t_val = tov_m.group(1).strip()
                 if t_val:
                     title = t_val
+                current_state = "none"
                 continue
 
-            # 5. Content type
-            if re.match(r'^(?:النوع|نوع\s*المحتوى|نوع\s*البوست|type|format)[:：\s]', ln_clean, re.I):
-                val = re.split(r'[:：]', ln_clean, 1)[-1].strip().lower()
-                if any(k in val for k in ["ريلز", "reel", "فيديو", "video", "تيك توك", "tiktok", "كوميك"]):
+            # 6. Campaign Concept Header
+            camp_m = re.match(r'^(?:كامبين|كاميبن|campaign)\s*(.*)', ln_clean, re.I)
+            if camp_m:
+                c_val = camp_m.group(1).strip()
+                if c_val:
+                    title = f"كامبين: {c_val}"
+                else:
+                    title = ln_clean
+                caption_lines.append(ln_clean)
+                current_state = "caption"
+                continue
+
+            # 7. Concept / Idea header: "الفكرة: ..."
+            idea_m = re.match(r'^(?:الفكرة|فكرة)[:：\s]*(.*)', ln_clean, re.I)
+            if idea_m:
+                i_val = idea_m.group(1).strip()
+                if i_val:
+                    visual_lines.append(f"الفكرة: {i_val}")
+                    caption_lines.append(f"الفكرة: {i_val}")
+                    if not title:
+                        title = i_val
+                current_state = "none"
+                continue
+
+            # 8. Content type
+            type_m = re.match(r'^(?:النوع|نوع\s*المحتوى|نوع\s*البوست|type|format)[:：\s]*(.*)', ln_clean, re.I)
+            if type_m:
+                val = type_m.group(1).strip().lower()
+                if any(k in val for k in ["ريلز", "reel", "فيديو", "video", "تيك توك", "tiktok"]):
                     post_type = "reel"
                 elif any(k in val for k in ["كاروسيل", "carousel", "سلايدر", "slides"]):
                     post_type = "carousel"
@@ -7805,9 +7862,10 @@ def _universal_heuristic_plan_parser(plan_text):
                     post_type = "story"
                 elif any(k in val for k in ["موشن", "motion"]):
                     post_type = "motion"
+                current_state = "none"
                 continue
 
-            # 6. Publish date
+            # 9. Publish date
             if re.match(r'^(?:تاريخ\s*النزول|تاريخ\s*النشر|النزول|publish\s*date|date)[:：\s]', ln_clean, re.I):
                 val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
                 dm = re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', val)
@@ -7816,51 +7874,93 @@ def _universal_heuristic_plan_parser(plan_text):
                     pub_date = parsed_d.strftime("%Y-%m-%d") if parsed_d else dm.group(0)
                 tm = re.search(r'\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm|ص|م))?', val)
                 if tm: pub_time = tm.group(0)
+                current_state = "none"
                 continue
 
-            # 7. Deadline
+            # 10. Deadline
             if re.match(r'^(?:تاريخ\s*التسليم|موعد\s*التسليم|التسليم|deadline)[:：\s]', ln_clean, re.I):
                 val = re.split(r'[:：]', ln_clean, 1)[-1].strip()
                 dm = re.search(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}', val)
                 if dm:
                     parsed_d = parse_flexible_date_str(dm.group(0))
                     dl_date = parsed_d.strftime("%Y-%m-%d") if parsed_d else dm.group(0)
+                current_state = "none"
                 continue
 
-            # 8. Content / Caption / Script (supporting 'كونتنت')
-            if re.match(r'^(?:كونتنت|المحتوى|محتوى|الكابشن|كابشن|النص|الاسكريبت|اسكريبت|caption|script|content)[:：\s]', ln_clean, re.I):
-                body_part = re.split(r'[:：]', ln_clean, 1)[-1].strip()
+            # 11. Content / Caption / Script (supporting 'كونتنت')
+            cap_m = re.match(r'^(?:الكونتنت|كونتنت|المحتوى|محتوى|الكابشن|كابشن|النص|الاسكريبت|اسكريبت|caption|script|content)[:：\s]*(.*)', ln_clean, re.I)
+            if cap_m:
+                body_part = cap_m.group(1).strip()
                 if body_part:
                     caption_lines.append(body_part)
                     if not title:
                         title = body_part
+                current_state = "caption"
                 continue
 
-            # 9. Fallback line
-            cleaned_line = re.sub(r'^(?:\d{1,3}[\.\)\-\]]|\(\d{1,3}\)|[٠-٩]{1,3}[\.\)\-\]]|بوست\s*#?\d+[:\s]*|البوست\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر)[:\s]*|Post\s*#?\d+[:\s]*)', '', ln_clean, flags=re.I).strip()
-            if cleaned_line and not re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', cleaned_line):
-                if not any(cleaned_line.startswith(p) for p in ['(013)', '(+20)', '+201']):
-                    caption_lines.append(cleaned_line)
+            # 12. State-based line appending
+            if current_state == "slide" and slides_list:
+                slides_list[-1]["content"].append(ln_clean)
+                continue
+            elif current_state == "caption":
+                caption_lines.append(ln_clean)
+                continue
+            else:
+                cleaned_line = re.sub(r'^(?:\d{1,3}[\.\)\-\]]|\(\d{1,3}\)|[٠-٩]{1,3}[\.\)\-\]]|بوست\s*#?\d+[:\s]*|البوست\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر)[:\s]*|Post\s*#?\d+[:\s]*)', '', ln_clean, flags=re.I).strip()
+                if cleaned_line and not re.match(r'^(?:---+|===+|\*\*\*+|___+|\.\.\.+)$', cleaned_line):
+                    if not any(cleaned_line.startswith(p) for p in ['(013)', '(+20)', '+201']):
+                        caption_lines.append(cleaned_line)
 
-        # Combine design slides and visual lines
+        # Assemble slides formatted for visual_idea
+        formatted_slides = []
+        carousel_slide_texts = []
+        for s in slides_list:
+            s_num = s["num"]
+            s_title = s["title"].strip()
+            s_body = "\n".join(s["content"]).strip()
+            if s_title and s_body:
+                slide_str = f"سلايد {s_num}: {s_title}\n{s_body}"
+                carousel_slide_texts.append(f"{s_title}: {s_body}")
+            elif s_title:
+                slide_str = f"سلايد {s_num}: {s_title}"
+                carousel_slide_texts.append(s_title)
+            elif s_body:
+                slide_str = f"سلايد {s_num}:\n{s_body}"
+                carousel_slide_texts.append(s_body)
+            else:
+                slide_str = f"سلايد {s_num}"
+            formatted_slides.append(slide_str)
+
         all_vis = []
-        if design_slides:
-            all_vis.extend(design_slides)
-            if len(design_slides) >= 2:
-                post_type = "carousel"
         if visual_lines:
             all_vis.extend(visual_lines)
-        visual = "\n".join(all_vis).strip()
+        if formatted_slides:
+            all_vis.extend(formatted_slides)
+            if len(formatted_slides) >= 2:
+                post_type = "carousel"
 
-        # Clean title from any prefix like 'كونتنت:' or 'ديزاين:'
-        if title:
-            title = re.sub(r'^(?:كونتنت|محتوى|كابشن|ديزاين)\s*[:：]\s*', '', title, flags=re.I).strip()
+        visual = "\n\n".join(all_vis).strip()
 
+        # Handle clean captions & titles
         full_caption = "\n".join(caption_lines).strip()
+        
+        # If it's a carousel and caption is empty, generate an intelligent carousel summary caption
+        if post_type == "carousel" and not full_caption and carousel_slide_texts:
+            full_caption = "  swipe ➡️\n" + "\n".join(f"• {st.splitlines()[0]}" for st in carousel_slide_texts[:3])
+
+        # Special case: "4 حالات" or short showcase
+        if len(b_lines) == 1 and ("حالات" in b_lines[0] or "cases" in b_lines[0].lower()):
+            title = "4 حالات قبل وبعد (Before & After)"
+            full_caption = "صور 4 حالات قبل وبعد من داخل حياة كلينك 🦷✨"
+            visual = "تصميم معرض / كاروسيل يستعرض 4 حالات قبل وبعد لعلاج وتجميل الأسنان"
+            post_type = "carousel"
+
+        # Fallback title extraction
         if not title:
             if caption_lines:
                 title = caption_lines[0][:100].lstrip("-•*️ ").strip()
-                title = re.sub(r'^(?:كونتنت|محتوى|كابشن|ديزاين)\s*[:：]\s*', '', title, flags=re.I).strip()
+            elif carousel_slide_texts:
+                title = carousel_slide_texts[0][:100].strip()
             elif visual:
                 title = visual.splitlines()[0][:100].strip()
             elif urls:
@@ -7868,8 +7968,12 @@ def _universal_heuristic_plan_parser(plan_text):
             else:
                 title = "منشور جديد"
 
+        title = re.sub(r'^(?:كونتنت|محتوى|كابشن|ديزاين|ريفرنس\s*الديزاين|الـ?\s*tov)\s*[:：]\s*', '', title, flags=re.I).strip()
+
         if not full_caption:
             full_caption = title
+
+        full_caption = re.sub(r'^(?:ريفرنس\s*الديزاين|ريفرنس)\s*[:：]\s*', '', full_caption, flags=re.I).strip()
             
         results.append({
             "title": title[:140],
@@ -7957,11 +8061,16 @@ def _consolidate_and_merge_post_fragments(posts):
             if merged:
                 if not merged[-1].get('visual_idea'):
                     merged[-1]['visual_idea'] = vis_text
+                elif vis_text and vis_text not in merged[-1]['visual_idea']:
+                    merged[-1]['visual_idea'] = (merged[-1]['visual_idea'] + '\n' + vis_text).strip()
                 if vis_text and vis_text not in (merged[-1].get('caption') or ''):
                     merged[-1]['caption'] = ((merged[-1].get('caption') or '') + '\n' + vis_text).strip()
             elif idx + 1 < len(filtered):
                 nxt = filtered[idx + 1]
-                nxt['visual_idea'] = vis_text
+                if not nxt.get('visual_idea'):
+                    nxt['visual_idea'] = vis_text
+                elif vis_text and vis_text not in nxt['visual_idea']:
+                    nxt['visual_idea'] = (nxt['visual_idea'] + '\n' + vis_text).strip()
                 if vis_text and vis_text not in (nxt.get('caption') or ''):
                     nxt['caption'] = ((nxt.get('caption') or '') + '\n' + vis_text).strip()
             continue
@@ -8067,10 +8176,10 @@ def _universal_extract_plan_posts(plan_text):
         p["visual_idea"] = vis
         
         p["post_type"] = (p.get("post_type") or "post").lower()
-        if "carousel" in p["post_type"] or "كاروسيل" in p["post_type"] or "سلايد" in vis or "slide" in vis.lower() or "slide" in tag.lower() or "slide" in cap.lower():
+        if "carousel" in p["post_type"] or "كاروسيل" in p["post_type"] or "سلايد" in vis or "slide" in vis.lower() or "slide" in tag.lower():
             p["content_type"] = "Carousel"
             p["post_type"] = "carousel"
-        elif p["post_type"] in ["reel", "video", "motion"] or any(k in all_text.lower() for k in ["ريلز", "reel", "فيديو", "video", "كوميك", "comic", "facebook.com/share/v/", "facebook.com/reel/", "instagram.com/reel/", "tiktok.com", "youtube.com", "youtu.be"]) or any(k in " ".join(all_refs).lower() for k in ["/share/v/", "/reel/", "tiktok.com", "youtube.com", "youtu.be", ".mp4"]):
+        elif p["post_type"] in ["reel", "video", "motion"] or any(k in (p.get("post_type") or "").lower() for k in ["ريلز", "reel", "فيديو", "video"]) or any(k in " ".join(all_refs).lower() for k in ["/share/v/", "/reel/", "tiktok.com", "youtube.com", "youtu.be", ".mp4"]) or any(k in vis.lower() for k in ["فيديو", "video", "ريلز", "reel"]):
             p["content_type"] = "Video"
             p["post_type"] = "reel"
         else:
@@ -10180,6 +10289,7 @@ def api_plans_delete():
 
     # Update in-memory cache
     cache["tasks"] = remaining
+    invalidate_tasks_cache()
     push_setting("meta_ai_tasks", remaining)
 
     # Save remaining tasks directly to Google Sheets Tasks tab
@@ -10245,6 +10355,7 @@ def api_plans_archive():
 
     # 1. Update in-memory cache
     cache["tasks"] = updated_all
+    invalidate_tasks_cache()
 
     # 2. Update Supabase
     if SUPABASE_URL and SUPABASE_KEY and len(SUPABASE_URL) > 15:
@@ -10320,6 +10431,7 @@ def api_plans_unarchive():
 
     # 1. Update in-memory cache
     cache["tasks"] = updated_all
+    invalidate_tasks_cache()
 
     # 2. Update Supabase
     if SUPABASE_URL and SUPABASE_KEY and len(SUPABASE_URL) > 15:
