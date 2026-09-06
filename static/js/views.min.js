@@ -3831,6 +3831,8 @@ async function ingestPlanAction(ev) {
     }
 
     var amId = amEl ? amEl.value.trim() : '';
+    var creatorEl = document.getElementById('tasks-ingest-creator');
+    var creatorId = (creatorEl && creatorEl.value !== 'auto') ? creatorEl.value.trim() : '';
     var planName = planNameEl ? planNameEl.value.trim() : '';
 
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
@@ -3882,7 +3884,9 @@ async function ingestPlanAction(ev) {
                     plan_name: fileName,
                     client_id: clientId,
                     client_name: clientInput,
-                    am_employee_id: amId
+                    am_employee_id: amId,
+                    content_creator_id: creatorId,
+                    creator_id: creatorId
                 })
             };
         } else if (file.size < 4 * 1024 * 1024) {
@@ -3894,6 +3898,10 @@ async function ingestPlanAction(ev) {
             if (clientId) fd.append('client_id', clientId);
             if (clientInput) fd.append('client_name', clientInput);
             if (amId) fd.append('am_employee_id', amId);
+            if (creatorId) {
+                fd.append('content_creator_id', creatorId);
+                fd.append('creator_id', creatorId);
+            }
             opts = { method: 'POST', body: fd };
         } else {
             showToast('حجم الملف كبير جداً (> 4.5MB). يرجى نسخه ولصقه في المربع أو استخدام رابط Google Drive', 'error');
@@ -3909,7 +3917,9 @@ async function ingestPlanAction(ev) {
                 plan_name: fileName,
                 client_id: clientId,
                 client_name: clientInput,
-                am_employee_id: amId
+                am_employee_id: amId,
+                content_creator_id: creatorId,
+                creator_id: creatorId
             })
         };
     } else {
@@ -3922,7 +3932,9 @@ async function ingestPlanAction(ev) {
                 plan_name: fileName,
                 client_id: clientId,
                 client_name: clientInput,
-                am_employee_id: amId
+                am_employee_id: amId,
+                content_creator_id: creatorId,
+                creator_id: creatorId
             })
         };
     }
@@ -5312,6 +5324,8 @@ async function submitPlanBuilder() {
     var planSubName = ((document.getElementById('pb-plan-name') || {}).value || '').trim();
     var planName = planSubName || ('خطة ' + resolvedCname);
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
+    var creatorEl = document.getElementById('pb-creator-select');
+    var creatorId = (creatorEl && creatorEl.value !== 'auto') ? creatorEl.value.trim() : '';
 
     var structuredPosts = [];
     var clientTextBlocks = [];
@@ -5373,6 +5387,8 @@ async function submitPlanBuilder() {
                 client_id: resolvedCid,
                 client_name: resolvedCname,
                 am_employee_id: amId,
+                content_creator_id: creatorId,
+                creator_id: creatorId,
                 append: true
             })
         });

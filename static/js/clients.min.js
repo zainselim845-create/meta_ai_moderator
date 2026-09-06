@@ -76,6 +76,11 @@ function renderClientsGrid() {
         const phone = (c.phone && /\d{7,}/.test(String(c.phone))) ? String(c.phone) : '';
         const cleanPhone = phone.replace(/\D/g, '');
         const hasPhone = !!phone;
+        const driveFolderUrl = c.drive_folder_url || '';
+        const planDriveUrl = c.plan_drive_url || '';
+        const planShareUrl = c.plan_share_url || `/share/plan/${encodeURIComponent(c.id)}`;
+        const planName = c.plan_name || 'ملف الخطة الأصلي';
+        const tasksCount = c.tasks_count || 0;
 
         return `
         <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3 relative flex flex-col justify-between">
@@ -101,6 +106,25 @@ function renderClientsGrid() {
                     <div><strong>FB Page ID:</strong> <code class="bg-slate-100 px-1 py-0.5 rounded">${esc(c.page_id || 'غير مربوط')}</code></div>
                     <div><strong>IG Account ID:</strong> <code class="bg-slate-100 px-1 py-0.5 rounded">${esc(c.ig_id || 'غير مربوط')}</code></div>
                 </div>
+
+                <!-- Google Drive & Files Direct Actions -->
+                <div class="mt-3 bg-indigo-50/50 border border-indigo-100 rounded-xl p-2.5 space-y-2">
+                    <div class="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                        <span class="flex items-center gap-1"><i data-lucide="folder" class="w-3.5 h-3.5 text-indigo-600 inline"></i> ملفات وخطة العميل:</span>
+                        <span class="text-[10px] text-indigo-700 font-mono font-bold">${tasksCount} منشور</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button type="button" onclick="openClientPlanDoc('${esc(c.id)}', '${esc(planDriveUrl)}')" class="text-xs bg-white hover:bg-purple-50 text-purple-700 border border-purple-200 hover:border-purple-300 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer" title="${esc(planName)}">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5 inline"></i> ملف الخطة ↗
+                        </button>
+                        <button type="button" onclick="openClientFolder('${esc(c.id)}', '${esc(driveFolderUrl)}')" class="text-xs bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 hover:border-blue-300 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer">
+                            <i data-lucide="hard-drive" class="w-3.5 h-3.5 inline"></i> مجلد Drive ↗
+                        </button>
+                    </div>
+                    <a href="${esc(planShareUrl)}" target="_blank" class="w-full text-xs bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-500 inline"></i> عرض صفحة الخطة التفاعلية للعميل ↗
+                    </a>
+                </div>
             </div>
             
             <div class="space-y-2 pt-2 border-t border-slate-100">
@@ -118,6 +142,42 @@ function renderClientsGrid() {
         `;
     }).join('');
     if (window.lucide) lucide.createIcons();
+}
+
+async function openClientFolder(clientId, cachedUrl) {
+    if (cachedUrl && cachedUrl.startsWith('http')) {
+        window.open(cachedUrl, '_blank');
+        return;
+    }
+    try {
+        const res = await fetch(`/api/clients/drive-url?client_id=${encodeURIComponent(clientId)}`);
+        const d = await res.json();
+        if (d.ok && d.folder_url) {
+            window.open(d.folder_url, '_blank');
+        } else {
+            showToast('لم يتم العثور على مجلد Drive لهذا العميل بعد', 'info');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بجوجل درايف', 'error');
+    }
+}
+
+async function openClientPlanDoc(clientId, cachedUrl) {
+    if (cachedUrl && cachedUrl.startsWith('http')) {
+        window.open(cachedUrl, '_blank');
+        return;
+    }
+    try {
+        const res = await fetch(`/api/clients/drive-url?client_id=${encodeURIComponent(clientId)}`);
+        const d = await res.json();
+        if (d.ok && d.plan_url) {
+            window.open(d.plan_url, '_blank');
+        } else {
+            showToast('لم يتم العثور على ملف خطة Word على Drive لهذا العميل بعد', 'info');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بجوجل درايف', 'error');
+    }
 }
 
 async function switchClient(clientId) {

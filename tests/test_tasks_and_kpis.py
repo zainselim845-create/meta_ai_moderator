@@ -974,6 +974,140 @@ def test_extract_real_domya_docx_file():
             assert "schemas.microsoft" not in u
 
 
+def test_resolve_creator_employee_maps_aliases_and_names():
+    from api.index import _resolve_creator_employee
+    
+    # Test Walaa
+    eid, name = _resolve_creator_employee("ولاء أشرف")
+    assert eid == "EMP-8069-7345"
+    assert "Walaa" in name
+    
+    # Test Hadeer
+    eid, name = _resolve_creator_employee("هدير أنور")
+    assert eid == "EMP-2945-2364"
+    assert "هدير" in name
+
+    # Test Abdelrahman
+    eid, name = _resolve_creator_employee("عبدالرحمن عربي")
+    assert eid == "EMP-7189-7780"
+    assert "عبدالرحمن" in name
+
+    # Test with role prefix
+    eid, name = _resolve_creator_employee("الكونتنت كريتور: ولاء")
+    assert eid == "EMP-8069-7345"
+
+    eid, name = _resolve_creator_employee("Content Creator: Hadeer")
+    assert eid == "EMP-2945-2364"
+
+
+def test_save_and_distribute_plan_to_drive_includes_content_creator(monkeypatch):
+    from api.index import _save_and_distribute_plan_to_drive
+    
+    captured_targets = []
+    def mock_drive_upload_bytes(fname, b, mime, parent_ids=None):
+        nonlocal captured_targets
+        captured_targets = list(parent_ids or [])
+        return "https://drive.google.com/file/d/test_plan_creator_doc/view"
+
+    monkeypatch.setattr("api.index.drive_upload_bytes", mock_drive_upload_bytes)
+    monkeypatch.setattr("api.index.client_month_folder_id", lambda cid: "client_fid_123")
+    monkeypatch.setattr("api.index.employee_plan_folder_id", lambda eid, pname, **k: f"folder_for_{eid}")
+
+    posts = [
+        {"assigned_employee_id": "EMP-8986-4947", "assignee_name": "راما ممدوح سرج"},
+    ]
+    
+    link = _save_and_distribute_plan_to_drive(
+        "cli_test_123",
+        "عميل تجريبي",
+        "خطة تجريبية",
+        posts,
+        am_id="AM-2072-9827",
+        am_name="محمود خالد",
+        creator_id="EMP-8069-7345",
+        creator_name="Walaa Ashraf"
+    )
+
+    assert link == "https://drive.google.com/file/d/test_plan_creator_doc/view"
+    assert "client_fid_123" in captured_targets
+    assert "folder_for_AM-2072-9827" in captured_targets
+    assert "folder_for_EMP-8069-7345" in captured_targets
+    assert "folder_for_EMP-8986-4947" in captured_targets
+
+
+def test_client_drive_url_and_clients_enrichment(monkeypatch):
+    from api.index import app, AGENCY_CLIENTS_STORE
+    
+    test_cid = "cli_test_drive_enrichment"
+    monkeypatch.setattr("api.index.client_month_folder_id", lambda cid: "folder_test_123" if cid == test_cid else "")
+    monkeypatch.setattr("api.index.get_client_tasks", lambda cid: [
+        {"task_id": "T-1", "client_id": test_cid, "plan_drive_link": "https://drive.google.com/file/d/test_doc/view", "plan_name": "Test Plan"}
+    ])
+
+    with app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin_user"
+            sess["role"] = "admin"
+
+        res = client.get(f"/api/clients/drive-url?client_id={test_cid}")
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["ok"] is True
+        assert d["folder_id"] == "folder_test_123"
+        assert "folder_test_123" in d["folder_url"]
+        assert d["plan_url"] == "https://drive.google.com/file/d/test_doc/view"
+        assert f"/share/plan/{test_cid}" in d["share_url"]
+
+
+def test_api_share_feedback_records_decision_and_updates_task(monkeypatch):
+    from api.index import app, _tasks_cache_data
+    
+    mock_task = {
+        "task_id": "POST-TEST-FEEDBACK-1",
+        "client_id": "cli_test_feedback",
+        "title": "بوست تجريبي للملاحظات",
+        "status": "pending_approval",
+        "logs": []
+    }
+    
+    monkeypatch.setattr("api.index._find_task_any_client", lambda tid: (mock_task, "cli_test_feedback") if tid == "POST-TEST-FEEDBACK-1" else (None, None))
+    monkeypatch.setattr("api.index.send_telegram_bot_notification", lambda tg, msg: True)
+    monkeypatch.setattr("api.index.save_one_task", lambda t, cid: True)
+
+    with app.test_client() as client:
+        # 1. Approved feedback
+        res1 = client.post("/api/share/feedback", json={
+            "client_id": "cli_test_feedback",
+            "client_name": "عميل تجريبي",
+            "task_id": "POST-TEST-FEEDBACK-1",
+            "decision": "approved",
+            "note": "ممتاز جداً اعتمدوا",
+            "token": "preview"
+        })
+        assert res1.status_code == 200
+        d1 = res1.get_json()
+        assert d1["ok"] is True
+        assert mock_task.get("client_decision") == "approved"
+        assert "client_approved_at" in mock_task
+
+        # 2. Changes requested feedback
+        res2 = client.post("/api/share/feedback", json={
+            "client_id": "cli_test_feedback",
+            "client_name": "عميل تجريبي",
+            "task_id": "POST-TEST-FEEDBACK-1",
+            "decision": "changes_requested",
+            "note": "برجاء تغيير الخط واللون",
+            "token": "valid_token_123456"
+        })
+        assert res2.status_code == 200
+        d2 = res2.get_json()
+        assert d2["ok"] is True
+        assert mock_task.get("client_decision") == "changes_requested"
+        assert mock_task.get("client_feedback_note") == "برجاء تغيير الخط واللون"
+
+
+
+
 
 
 
