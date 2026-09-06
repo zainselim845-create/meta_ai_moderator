@@ -1106,6 +1106,60 @@ def test_api_share_feedback_records_decision_and_updates_task(monkeypatch):
         assert mock_task.get("client_feedback_note") == "برجاء تغيير الخط واللون"
 
 
+def test_api_my_task_request_return_sets_status_to_in_progress_and_preserves_employee(monkeypatch):
+    """Test that employee can recall their task back to 'In Progress' to perform revisions."""
+    import api.index as idx
+    
+    mock_task = {
+        "task_id": "TASK-RECALL-TEST-1",
+        "client_id": "cli_recall_test",
+        "title": "تصميم سوشيال ميديا بحاجة لتعديل",
+        "status": "Awaiting AM Review",
+        "assigned_employee_id": "EMP-8142",
+        "assignee_name": "ندى أيمن كمال",
+        "am_id": "AM-2072-9827",
+        "am_name": "محمود خالد",
+        "activity_log": []
+    }
+
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "_find_task_any_client", lambda tid: (mock_task, "cli_recall_test") if tid == "TASK-RECALL-TEST-1" else (None, None))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: None)
+    monkeypatch.setattr(idx, "_my_employee_id", lambda: "EMP-8142")
+    monkeypatch.setattr(idx, "current_user_rec", lambda: {"name": "ندى أيمن كمال", "employee_id": "EMP-8142", "role": "employee"})
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+    
+    am_notified = []
+    monkeypatch.setattr(idx, "_notify_client_am", lambda cid, msg, task=None: am_notified.append((cid, msg)))
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "nada"
+            sess["role"] = "employee"
+
+        res = client.post("/api/me/tasks/TASK-RECALL-TEST-1/request-return", json={
+            "reason": "عايزة أعدل مقاس الفيديو وأغير الفونت"
+        })
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["ok"] is True
+        assert mock_task["status"] == "In Progress"
+        assert mock_task["assigned_employee_id"] == "EMP-8142"
+        assert mock_task["assignee_name"] == "ندى أيمن كمال"
+        assert "returned_to_employee_at" in mock_task
+
+        # Verify activity log
+        log = mock_task.get("activity_log") or []
+        assert len(log) == 1
+        assert log[0]["action"] == "recalled_by_employee"
+        assert "عايزة أعدل مقاس الفيديو" in log[0]["note"]
+
+        # Verify AM was notified
+        assert len(am_notified) == 1
+        assert "طلب استرجاع مهمة للتعديل" in am_notified[0][1]
+
+
+
 
 
 

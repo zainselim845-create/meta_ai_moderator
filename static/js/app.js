@@ -1049,6 +1049,8 @@ function renderMyPortalTasks() {
     const s = t.status || '';
     if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>⏱️ بدأت العمل</span></button>`;
     if (/In Progress/i.test(s)) return `<button onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>📤 تسليم المهمة</span></button>`;
+    if (/Awaiting|Submitted|Review/i.test(s)) return `<button onclick="requestReturnMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition shadow-xs cursor-pointer flex items-center gap-1" title="استرجاع المهمة للتعديل"><span>↩️ استرجاع للتعديل</span></button>`;
+    if (/Completed|مكتمل/i.test(s)) return `<button onclick="requestReturnMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition shadow-2xs cursor-pointer flex items-center gap-1" title="طلب إعادة فتح واسترجاع المهمة للتعديل"><span>↩️ طلب تعديل</span></button>`;
     return '';
   };
   const driveThumb = (u) => {
@@ -1209,6 +1211,11 @@ function renderMyPortalTasks() {
           ${canWork(t) ? `
             <button type="button" onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
               <span>📤 تسليم شغلك (رابط Drive / فيديو)</span>
+            </button>
+          ` : ''}
+          ${/Awaiting|Submitted|Review|Completed/i.test(t.status||'') ? `
+            <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer" title="استرجاع المهمة للتعديل عليها">
+              <span>↩️ طلب استرجاع للتعديل</span>
             </button>
           ` : ''}
           <button type="button" onclick="openTaskContentEditorModal('${esc(t.task_id)}')" class="bg-white hover:bg-amber-50 text-amber-900 text-xs font-bold py-2 px-3.5 rounded-xl border border-amber-300 shadow-2xs transition flex items-center gap-1.5 cursor-pointer">
@@ -1403,6 +1410,29 @@ async function submitMyTask(id) {
     if (typeof loadTasksEngine === 'function') loadTasksEngine();
   } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
+
+async function requestReturnMyTask(id) {
+  const reason = prompt('اكتب سبب أو تفاصيل التعديل الذي ترغب في إجرائه (اختياري، اضغط موافق للاسترجاع):');
+  if (reason === null) return;
+  try {
+    const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/request-return`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: (reason || '').trim() })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      showToast(d.error || 'تعذّر استرجاع المهمة', 'error');
+      return;
+    }
+    showToast(d.message || 'تم استرجاع المهمة لك بنجاح للبدء في التعديل ↩️');
+    if (typeof loadMyPortal === 'function') loadMyPortal();
+    if (typeof loadTasksEngine === 'function') loadTasksEngine();
+  } catch(e) {
+    showToast('خطأ في الاتصال بالسيرفر', 'error');
+  }
+}
+window.requestReturnMyTask = requestReturnMyTask;
 
 // Manager reviews a submitted task (approve → Completed, reject → back to employee).
 async function reviewTask(id, approve) {

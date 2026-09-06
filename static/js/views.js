@@ -2614,7 +2614,10 @@ function renderTaskCard(t, indexInPlan) {
                     'تمرير ➡️' +
                 '</button>' +
             '</div>' +
-            '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs py-2 rounded-xl shadow-2xs transition cursor-pointer">↩️ سحب المهمة من الموظف</button>' +
+            '<div class="grid grid-cols-2 gap-1.5">' +
+                '<button onclick="requestReturnMyTask(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 rounded-xl shadow-2xs transition cursor-pointer flex items-center justify-center gap-1" title="إرجاع المهمة للموظف نفسه كـ قيد التنفيذ لإجراء تعديلات">↩️ استرجاع للتعديل</button>' +
+                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-bold text-xs py-2 rounded-xl shadow-2xs transition cursor-pointer flex items-center justify-center gap-1" title="سحب المهمة وإلغاء الإسناد">↩️ إلغاء الإسناد</button>' +
+            '</div>' +
         '</div>';
     }
     if (isCompleted) {
@@ -3213,6 +3216,29 @@ async function recallTaskAction(taskId) {
         showToast('خطأ في الاتصال بالسيرفر', 'error');
     }
 }
+
+async function requestReturnMyTask(taskId) {
+    var reason = prompt('اكتب سبب أو تفاصيل التعديل الذي ترغب في إجرائه (اختياري، اضغط موافق للاسترجاع):');
+    if (reason === null) return; // User cancelled
+    try {
+        var res = await fetch('/api/me/tasks/' + encodeURIComponent(taskId) + '/request-return', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: (reason || '').trim() })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+            showToast(data.message || 'تم استرجاع المهمة لك بنجاح للبدء في التعديل ↩️');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            if (typeof loadMyPortal === 'function') loadMyPortal();
+        } else {
+            showToast(data.error || 'تعذّر استرجاع المهمة', 'error');
+        }
+    } catch(err) {
+        showToast('خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+window.requestReturnMyTask = requestReturnMyTask;
 
 async function reassignTaskFromBoard(taskId) {
     var sel = document.getElementById('reassign-select-' + taskId);

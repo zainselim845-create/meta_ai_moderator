@@ -12295,6 +12295,78 @@ def api_my_task_submit(task_id):
     return jsonify({"ok": True, "task": t, "minutes": mins, "drive_link": drive_link})
 
 
+@app.route("/api/me/tasks/<task_id>/request-return", methods=["POST", "PUT"])
+@app.route("/api/tasks/<task_id>/return-to-employee", methods=["POST", "PUT"])
+@auth_guard
+def api_my_task_request_return(task_id):
+    """Employee or AM requests/recalls the task back to 'In Progress' for revision/editing."""
+    sync_from_supabase()
+    t, cid = _find_task_any_client(task_id)
+    if not t:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+        
+    eid = _my_employee_id()
+    emp_rec = current_user_rec() or {}
+    emp_name = str(emp_rec.get("name") or "").strip()
+    t_assignee = str(t.get("assignee_name") or "").strip()
+    t_eid = str(t.get("assigned_employee_id") or "").strip()
+
+    is_allowed = (
+        is_admin() or 
+        is_manager() or 
+        is_content_creator() or
+        (eid and t_eid and t_eid == eid) or
+        (emp_name and t_assignee and (emp_name in t_assignee or t_assignee in emp_name)) or
+        can_see_client(cid)
+    )
+    if not is_allowed:
+        return jsonify({"error": "غير مصرح لك باسترجاع هذه المهمة"}), 403
+
+    data = request.get_json(silent=True) or {}
+    reason = (data.get("reason") or data.get("note") or "").strip()
+    prev_st = t.get("status") or "Awaiting AM Review"
+
+    # Set status back to In Progress so employee can edit and work on it
+    t["status"] = "In Progress"
+    t["returned_to_employee_at"] = datetime.now(timezone.utc).isoformat()
+    
+    # Ensure timer state allows continued work
+    ts = t.get("timer_state") or {"is_running": False, "elapsed_seconds": 0, "last_start": None}
+    t["timer_state"] = ts
+
+    # Record log
+    actor = emp_name or current_username() or t.get("assignee_name") or "الموظف"
+    _append_task_log(t, "recalled_by_employee",
+                     actor_name=actor,
+                     actor_id=eid or t_eid,
+                     actor_type="employee" if not (is_admin() or is_manager()) else "manager",
+                     note=reason or "استرجاع المهمة لإجراء تعديلات عليها من الموظف",
+                     details={"reason": reason, "previous_status": prev_st})
+
+    save_one_task(t, cid)
+
+    # Notify AM via Telegram so they know the task is back with the employee for edits
+    try:
+        am_msg = (
+            f"↩️ <b>طلب استرجاع مهمة للتعديل</b>\n"
+            f"👤 الموظف: {t.get('assignee_name') or actor}\n"
+            f"📌 المهمة: <b>{t.get('title','')}</b>\n"
+            f"🏢 العميل: {_client_name(cid)}\n"
+            f"الحالة السابقة: {prev_st} ⬅️ عادت إلى: <b>قيد التنفيذ (In Progress)</b>\n"
+        )
+        if reason:
+            am_msg += f"📝 ملاحظة التعديل: {reason}\n"
+        _notify_client_am(cid, am_msg, task=t)
+    except Exception as e:
+        print(f"[request_return notify AM error] {e}")
+
+    return jsonify({
+        "ok": True,
+        "task": t,
+        "message": "تم استرجاع المهمة بنجاح! يمكنك الآن تعديل أي شيء وتسليمها مجدداً ↩️"
+    })
+
+
 @app.route("/api/tasks/<task_id>/drive-link", methods=["POST", "PUT"])
 @auth_guard
 def api_tasks_set_drive_link(task_id):
@@ -13434,8 +13506,8 @@ def _tasks_handle_callback(cbq):
             _tasks_edit(chat_id, message_id, f"️ تم حذف الموظف <code>{emp_id}</code> من القائمة.")
         return
 
-    # ---- task actions (start / submit) ----
-    if data.startswith("ts_") or data.startswith("tb_"):
+    # ---- task actions (start / submit / recall) ----
+    if data.startswith("ts_") or data.startswith("tb_") or data.startswith("tr_"):
         tid = data[3:]
         t, cid = _find_task_any_client(tid)
         if not t:
@@ -13463,6 +13535,20 @@ def _tasks_handle_callback(cbq):
                                  note="بدء العمل على المهمة من Telegram Bot")
                 save_one_task(t, cid)
                 _tasks_answer(cb_id, "بدأت الشغل ")
+        elif data.startswith("tr_"):
+            # Recall task back to In Progress for revision
+            t["status"] = "In Progress"
+            _append_task_log(t, "recalled_by_employee",
+                             actor_name=t.get("assignee_name") or "الموظف",
+                             actor_id=t.get("assigned_employee_id"),
+                             actor_type="employee",
+                             note="طلب استرجاع المهمة للتعديل من Telegram Bot")
+            save_one_task(t, cid)
+            _tasks_answer(cb_id, "تم استرجاع المهمة للتعديل بنجاح ↩️")
+            _notify_client_am(cid,
+                f"↩️ <b>طلب استرجاع مهمة للتعديل</b>\n الموظف: {t.get('assignee_name','')}\n المهمة: <b>{t.get('title','')}</b>\n"
+                f" العميل: {_client_name(cid)}\nقام الموظف باسترجاع المهمة لتعديلها قبل الاعتماد.",
+                task=t)
         else: # tb_ submit → ask for a note to the account manager first
             if t.get("status") not in ("In Progress", "Assigned", "Pending AM Approval"):
                 _tasks_answer(cb_id, "المهمة مسلمة بالفعل أو قيد المراجعة")
