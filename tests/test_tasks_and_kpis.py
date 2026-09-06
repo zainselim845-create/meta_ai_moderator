@@ -1343,3 +1343,64 @@ def test_api_plans_assign_bulk_by_client_id_and_normalization(monkeypatch):
         assert mock_tasks[0]["assigned_employee_id"] == "EMP-8986-4947"
 
 
+def test_api_tasks_update_content_and_zero_data_loss(monkeypatch):
+    """Updating post content updates title, caption, visual_idea and preserves all client and assignee data."""
+    import api.index as idx
+
+    task_rec = {
+        "task_id": "TASK-TEST-CONTENT",
+        "client_id": "cli_معامل_رعاية_1788336726",
+        "title": "العنوان القديم",
+        "tagline": "العنوان القديم",
+        "caption": "الكابشن القديم",
+        "visual_idea": "فكرة قديمة",
+        "status": "Assigned",
+        "assigned_employee_id": "EMP-8986-4947",
+        "assignee_name": "راما ممدوح سرج",
+        "drive_link": "https://drive.google.com/test",
+        "content_data": {"post_type": "post"},
+        "graphic_data": {},
+        "activity_log": []
+    }
+    saved_tasks = []
+
+    monkeypatch.setattr(idx, "_find_task_any_client", lambda tid: (task_rec, "cli_معامل_رعاية_1788336726") if tid == "TASK-TEST-CONTENT" else (None, None))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved_tasks.append((t, cid)))
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+
+        res = client.put("/api/tasks/TASK-TEST-CONTENT/content", json={
+            "title": "عنوان وهوك جديد وجذاب",
+            "tagline": "عنوان وهوك جديد وجذاب",
+            "caption": "الكابشن الجديد الكامل مع الهاشتاجات\n#معامل_رعاية",
+            "visual_idea": "تصميم إنفوجرافيك موضح لتحاليل وظائف الكبد",
+            "post_type": "carousel",
+            "reference_links": ["https://instagram.com/ref1", "https://drive.google.com/ref2"]
+        })
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["success"] is True
+
+        # Verify content was updated properly
+        assert task_rec["title"] == "عنوان وهوك جديد وجذاب"
+        assert task_rec["caption"] == "الكابشن الجديد الكامل مع الهاشتاجات\n#معامل_رعاية"
+        assert task_rec["visual_idea"] == "تصميم إنفوجرافيك موضح لتحاليل وظائف الكبد"
+        assert task_rec["content_data"]["post_type"] == "carousel"
+        assert len(task_rec["reference_links"]) == 2
+
+        # ZERO DATA LOSS: Verify critical client and assignee fields were NOT touched
+        assert task_rec["client_id"] == "cli_معامل_رعاية_1788336726"
+        assert task_rec["assigned_employee_id"] == "EMP-8986-4947"
+        assert task_rec["assignee_name"] == "راما ممدوح سرج"
+        assert task_rec["drive_link"] == "https://drive.google.com/test"
+        assert task_rec["status"] == "Assigned"
+        assert any(log["action"] == "content_updated" for log in task_rec["activity_log"])
+        assert len(saved_tasks) == 1
+
+
+
