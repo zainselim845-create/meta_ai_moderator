@@ -1717,24 +1717,32 @@ def test_api_accounts_get_masks_tokens_and_scopes_to_active_client(monkeypatch):
 
 
 def test_hadeer_content_creator_login_and_tab_permissions():
-    """Verify Hadeer (Content Creator) can log in with all aliases and IDs,
+    """Verify Hadeer (Content Creator) can log in with her own personal password (EHTH-g-q45741)
+    as well as company fallback (domya2026), across all aliases and IDs,
     receives the content_creator role, gets allowed_tabs ['myportal', 'tasks', 'plan'],
     and can access /api/me, /api/clients GET, /api/clients/switch, and /api/tasks."""
     from api.index import app
 
     with app.test_client() as client:
-        # Test all login variations
-        for login_input in ["EMP-2945-2364", "هدير", "hadeer", "هدير أنور", "هدير انور", "2945", "1111832945"]:
-            res = client.post("/api/login", json={"username": login_input, "password": "domya2026"})
-            assert res.status_code == 200, f"Failed login for {login_input}"
+        # 1. Test login with Hadeer's real password (EHTH-g-q45741) across all identifier variants
+        for login_input in ["EMP-2945-2364", "emp-2945-2364", "هدير", "hadeer", "هدير أنور", "هدير انور", "2945"]:
+            res = client.post("/api/login", json={"username": login_input, "password": "EHTH-g-q45741"})
+            assert res.status_code == 200, f"Failed personal password login for {login_input}"
             data = res.get_json()
             assert data["ok"] is True
             assert data["role"] == "content_creator"
-            assert data["username"] == "EMP-2945-2364"
+            assert data["is_content_creator"] is True
+            assert data["employee_id"] == "EMP-2945-2364"
+            assert set(data["allowed_tabs"]) == {"myportal", "tasks", "plan"}
             assert "هدير" in data["name"]
             assert "content_creator" in data["token"]
 
-        # 1. /api/me verification
+        # 2. Test fallback password (domya2026) also works seamlessly
+        res_fb = client.post("/api/login", json={"username": "EMP-2945-2364", "password": "domya2026"})
+        assert res_fb.status_code == 200
+        assert res_fb.get_json()["role"] == "content_creator"
+
+        # 3. /api/me verification
         r_me = client.get("/api/me")
         assert r_me.status_code == 200
         me = r_me.get_json()
@@ -1743,28 +1751,82 @@ def test_hadeer_content_creator_login_and_tab_permissions():
         assert me["employee_id"] == "EMP-2945-2364"
         assert set(me["allowed_tabs"]) == {"myportal", "tasks", "plan"}
 
-        # 2. Access to /api/clients GET for plan building and tasks
+        # 4. Access to /api/clients GET for plan building and tasks
         r_clients = client.get("/api/clients")
         assert r_clients.status_code == 200
         clients_list = r_clients.get_json()
         assert isinstance(clients_list, list)
         assert len(clients_list) > 0
 
-        # 3. Access to /api/clients/switch
+        # 5. Access to /api/clients/switch
         cid = clients_list[0]["id"]
         r_switch = client.post("/api/clients/switch", json={"client_id": cid})
         assert r_switch.status_code == 200
         assert r_switch.get_json()["active_client_id"] == cid
 
-        # 4. Access to /api/plan/clients
+        # 6. Access to /api/plan/clients
         r_plan_clients = client.get("/api/plan/clients")
         assert r_plan_clients.status_code == 200
         assert len(r_plan_clients.get_json()["clients"]) > 0
 
-        # 5. Access to /api/tasks
+        # 7. Access to /api/tasks
         r_tasks = client.get("/api/tasks")
         assert r_tasks.status_code == 200
         assert "tasks" in r_tasks.get_json()
+
+
+def test_all_employees_roster_login_passwords_and_roles():
+    """Verify ALL employees authenticate cleanly with their individual passwords + fallback,
+    and receive their exact respective roles and permitted tabs."""
+    from api.index import app
+
+    staff_matrix = [
+        # (identifier, password, expected_role, expected_tabs_subset, forbidden_tabs_subset)
+        ("EMP-2945-2364", "EHTH-g-q45741", "content_creator", {"myportal", "tasks", "plan"}, {"permissions", "hr"}),
+        ("هدير", "EHTH-g-q45741", "content_creator", {"myportal", "tasks", "plan"}, {"permissions"}),
+        ("EMP-8069-7345", "ndeiteaG", "content_creator", {"myportal", "tasks", "plan"}, {"permissions"}),
+        ("ولاء", "ndeiteaG", "content_creator", {"myportal", "tasks", "plan"}, {"permissions"}),
+        ("EMP-3264-8790", "m1Ned1WG", "content_creator", {"myportal", "tasks", "plan"}, {"permissions"}),
+        ("ليالي", "m1Ned1WG", "content_creator", {"myportal", "tasks", "plan"}, {"permissions"}),
+        ("EMP-7775-2303", "vRaAiGd0", "content_creator", {"myportal", "tasks", "plan"}, {"permissions"}),
+        ("منة", "vRaAiGd0", "content_creator", {"myportal", "tasks", "plan"}, {"permissions"}),
+        ("EMP-7189-7780", "domya2026", "content_creator", {"myportal", "tasks", "plan"}, {"permissions"}),
+        ("AM-2072-9827", "sPT9-Fwl", "account_manager", {"dash", "crm", "inbox", "tasks", "plan", "accounts", "analytics"}, {"permissions"}),
+        ("محمود", "sPT9-Fwl", "account_manager", {"dash", "crm", "tasks"}, {"permissions"}),
+        ("EMP-5887-5256", "1jGzGc17", "account_manager", {"dash", "crm", "tasks", "plan"}, {"permissions"}),
+        ("آيه", "1jGzGc17", "account_manager", {"dash", "crm", "tasks"}, {"permissions"}),
+        ("EMP-8086-4520", "EHTH-g-q", "admin", {"dash", "crm", "inbox", "tasks", "plan", "permissions", "hr"}, set()),
+        ("سعيد", "EHTH-g-q", "admin", {"dash", "tasks", "permissions"}, set()),
+        ("EMP-5970-2611", "GbzpTq4O", "admin", {"dash", "tasks", "permissions"}, set()),
+        ("روضة", "GbzpTq4O", "admin", {"dash", "tasks", "permissions"}, set()),
+        ("EMP-8148", "QhEBR-h_", "designer", {"myportal"}, {"permissions"}),
+        ("عمر", "QhEBR-h_", "designer", {"myportal"}, {"permissions"}),
+        ("EMP-8142", "dNR66Ql_", "designer", {"myportal"}, {"permissions"}),
+        ("ندى", "dNR66Ql_", "designer", {"myportal"}, {"permissions"}),
+        ("EMP-3555-1067", "RraJudg1", "employee", {"myportal"}, {"permissions"}),
+        ("مروة", "RraJudg1", "employee", {"myportal"}, {"permissions"}),
+        ("admin", "admin2026", "admin", {"dash", "crm", "permissions"}, set()),
+    ]
+
+    with app.test_client() as client:
+        for ident, pwd, exp_role, exp_tabs, forbidden_tabs in staff_matrix:
+            res = client.post("/api/login", json={"username": ident, "password": pwd})
+            assert res.status_code == 200, f"Login failed for {ident} with status {res.status_code}"
+            data = res.get_json()
+            assert data["ok"] is True, f"Login ok flag False for {ident}"
+            assert data["role"] == exp_role, f"Role mismatch for {ident}: expected {exp_role}, got {data['role']}"
+
+            # Check /api/me
+            r_me = client.get("/api/me")
+            assert r_me.status_code == 200
+            me_data = r_me.get_json()
+            assert me_data["logged_in"] is True
+            assert me_data["role"] == exp_role
+            allowed = set(me_data.get("allowed_tabs") or [])
+            assert exp_tabs.issubset(allowed), f"Missing expected tabs for {ident}: {exp_tabs - allowed}"
+            if forbidden_tabs:
+                assert not (forbidden_tabs & allowed), f"Forbidden tabs granted to {ident}: {forbidden_tabs & allowed}"
+
 
 
 
