@@ -3351,13 +3351,8 @@ function onPlanBuilderTabClientChange(val) {
                 }
             }
         }
-        var pInp = document.getElementById('pb-plan-name');
-        if (pInp && !pInp.value) {
-            var d = new Date();
-            var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-            pInp.value = 'خطة ' + matched.name + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
-        }
     }
+    updatePBTabPlanNameFromMonth();
 }
 
 async function loadPlanBuilder() {
@@ -3366,6 +3361,10 @@ async function loadPlanBuilder() {
     var mSel = document.getElementById('pb-am');
     var crSel = document.getElementById('pb-creator');
     if (!cInput || !mSel) return;
+
+    populatePlanMonthDropdown();
+    updatePBTabPlanNameFromMonth();
+
     // init the open-source rich-text (Word-like) editor once
     if (window.Quill && !_planQuill && document.getElementById('pb-editor')) {
         _planQuill = new Quill('#pb-editor', {
@@ -3454,7 +3453,11 @@ window.promptInsertDriveLinkInQuill = function() {
 
 async function createPlan() {
     var clientInput = ((document.getElementById('pb-client')||{}).value || '').trim();
-    var planName = ((document.getElementById('pb-plan-name')||{}).value || '').trim();
+    var planName = ((document.getElementById('pb-plan-name-tab') || document.getElementById('pb-plan-name') || {}).value || '').trim();
+    if (!planName) {
+        var tabMonth = (document.getElementById('pb-tab-plan-month') || {}).value || '';
+        if (tabMonth && clientInput) planName = 'خطة ' + clientInput + ' — ' + tabMonth;
+    }
     var am = (document.getElementById('pb-am')||{}).value || '';
     var creatorEl = document.getElementById('pb-creator');
     var creatorId = (creatorEl && creatorEl.value !== 'auto') ? creatorEl.value.trim() : '';
@@ -3591,25 +3594,72 @@ function toggleTasksIngestCustomClient() {
 
 var _PLAN_MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
-function populatePlanMonthDropdown() {
-    var sel = document.getElementById('tasks-ingest-plan-month');
-    if (!sel) return;
+function getPlanMonthOptionsHtml(selectedVal) {
     var now = new Date();
     var curMonth = now.getMonth();
     var curYear = now.getFullYear();
     var opts = '';
-    // Show 2 previous months + current + 3 future months
-    for (var offset = -2; offset <= 3; offset++) {
+    // Show 3 previous months + current + 5 future months
+    for (var offset = -3; offset <= 5; offset++) {
         var m = curMonth + offset;
         var y = curYear;
         if (m < 0) { m += 12; y--; }
         if (m > 11) { m -= 12; y++; }
-        var label = _PLAN_MONTHS_AR[m] + ' ' + y;
         var val = _PLAN_MONTHS_AR[m] + ' ' + y;
-        var selected = (offset === 0) ? ' selected' : '';
-        opts += '<option value="' + val + '"' + selected + '>' + label + '</option>';
+        var isSel = selectedVal ? (selectedVal === val) : (offset === 0);
+        opts += '<option value="' + val + '"' + (isSel ? ' selected' : '') + '>' + val + '</option>';
     }
-    sel.innerHTML = opts;
+    return opts;
+}
+
+function populatePlanMonthDropdown() {
+    var targets = ['tasks-ingest-plan-month', 'pb-plan-month', 'pb-tab-plan-month'];
+    targets.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) {
+            var cur = el.value;
+            el.innerHTML = getPlanMonthOptionsHtml(cur);
+        }
+    });
+}
+
+function updatePBPlanNameFromMonth() {
+    var mSel = document.getElementById('pb-plan-month');
+    var pInp = document.getElementById('pb-plan-name');
+    var cSel = document.getElementById('pb-client-select');
+    var cInp = document.getElementById('pb-client-name');
+    if (!pInp) return;
+    var monthVal = (mSel && mSel.value) ? mSel.value : '';
+    var clientName = '';
+    if (cInp && !cInp.classList.contains('hidden') && cInp.value.trim()) {
+        clientName = cInp.value.trim();
+    } else if (cSel && cSel.value && cSel.value !== '__new__') {
+        var selOpt = cSel.options[cSel.selectedIndex];
+        clientName = (selOpt ? selOpt.getAttribute('data-name') : '') || (selOpt ? selOpt.text.split(' (')[0].trim() : '') || cSel.value;
+    } else if (cInp && cInp.value.trim()) {
+        clientName = cInp.value.trim();
+    } else {
+        var clientNameEl = document.getElementById('tasks-client-name');
+        clientName = (clientNameEl ? clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim() : '');
+    }
+    clientName = (clientName || '').replace(/^[—\-\s]+/, '').trim();
+    if (!clientName || clientName === 'العميل') {
+        var activeCid = window.activeClientId || (typeof currentClient !== 'undefined' ? currentClient : '');
+        var allClients = window._clientsList || window.clientsList || [];
+        var matched = allClients.find(function(c){ return c.id === activeCid; });
+        if (matched) clientName = matched.name;
+    }
+    pInp.value = 'خطة ' + (clientName || 'العميل') + (monthVal ? (' — ' + monthVal) : '');
+}
+
+function updatePBTabPlanNameFromMonth() {
+    var mSel = document.getElementById('pb-tab-plan-month');
+    var pInp = document.getElementById('pb-plan-name-tab') || document.getElementById('pb-plan-name');
+    var cInp = document.getElementById('pb-client');
+    if (!pInp) return;
+    var clientName = (cInp ? cInp.value.trim() : '') || 'العميل';
+    var monthVal = (mSel && mSel.value) ? mSel.value : '';
+    pInp.value = 'خطة ' + clientName + (monthVal ? (' — ' + monthVal) : '');
 }
 
 function getSelectedClientNameForPlan() {
@@ -3642,8 +3692,11 @@ function getSelectedPlanName() {
 }
 
 window.populatePlanMonthDropdown = populatePlanMonthDropdown;
+window.getPlanMonthOptionsHtml = getPlanMonthOptionsHtml;
 window.updatePlanNamePreview = updatePlanNamePreview;
 window.getSelectedPlanName = getSelectedPlanName;
+window.updatePBPlanNameFromMonth = updatePBPlanNameFromMonth;
+window.updatePBTabPlanNameFromMonth = updatePBTabPlanNameFromMonth;
 
 function onTasksIngestClientSelectChange(val) {
     if (!val) return;
@@ -4998,13 +5051,8 @@ function onPlanBuilderModalClientChange(val) {
                 }
             }
         }
-        var planNameInput = document.getElementById('pb-plan-name');
-        if (planNameInput) {
-            var d = new Date();
-            var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-            planNameInput.value = 'خطة ' + matched.name + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
-        }
     }
+    updatePBPlanNameFromMonth();
 }
 
 function togglePbCustomClient(forceCustom) {
@@ -5027,12 +5075,14 @@ function togglePbCustomClient(forceCustom) {
             onPlanBuilderModalClientSelectChange(sel.value);
         }
     }
+    updatePBPlanNameFromMonth();
 }
 
 function onPlanBuilderModalClientSelectChange(val) {
     if (!val) return;
     if (val === '__new__') {
         togglePbCustomClient(true);
+        updatePBPlanNameFromMonth();
         return;
     }
     var cSel = document.getElementById('pb-client-select');
@@ -5042,6 +5092,7 @@ function onPlanBuilderModalClientSelectChange(val) {
     if (cInp) cInp.value = clientName;
 
     onPlanBuilderModalClientChange(clientName);
+    updatePBPlanNameFromMonth();
 }
 
 function onPlanBuilderClientSelectChange(val) {
@@ -5129,12 +5180,8 @@ async function openPlanBuilderModal() {
         clientInput.value = activeCName;
     }
 
-    if (planNameInput && !planNameInput.value) {
-        var d = new Date();
-        var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-        var cDisplay = (clientInput && clientInput.value) || activeCName || 'العميل';
-        planNameInput.value = 'خطة ' + cDisplay + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
-    }
+    populatePlanMonthDropdown();
+    updatePBPlanNameFromMonth();
 
     // Load real AMs
     var realAMs = [
@@ -5526,6 +5573,10 @@ async function submitPlanBuilder() {
     var resolvedCname = (matchedClient && matchedClient.name) || clientName;
 
     var planSubName = ((document.getElementById('pb-plan-name') || {}).value || '').trim();
+    if (!planSubName) {
+        var pbMonth = ((document.getElementById('pb-plan-month') || {}).value || '').trim();
+        if (pbMonth) planSubName = 'خطة ' + resolvedCname + ' — ' + pbMonth;
+    }
     var planName = planSubName || ('خطة ' + resolvedCname);
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
     var creatorEl = document.getElementById('pb-creator-select');
@@ -5878,6 +5929,9 @@ window.onTasksIngestClientChange = onTasksIngestClientChange;
 // Auto-initialize Tasks & Team availability immediately when views.js loads
 (function autoBootViewsEngine() {
     function tryBoot() {
+        if (typeof populatePlanMonthDropdown === 'function') {
+            try { populatePlanMonthDropdown(); } catch(e){}
+        }
         var isTasksActive = (window.location.hash || '').indexOf('tasks') !== -1 ||
                             localStorage.getItem('active_tab') === 'tasks' ||
                             (document.getElementById('v-tasks') && !document.getElementById('v-tasks').classList.contains('hidden'));

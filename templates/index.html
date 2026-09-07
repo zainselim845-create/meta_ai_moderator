@@ -1677,8 +1677,19 @@
             <datalist id="pb-clients-list"></datalist>
           </div>
           <div>
-            <label class="block text-[11px] font-bold text-slate-700 mb-1">📅 اسم البلان / الملف (اختياري):</label>
-            <input id="pb-plan-name" type="text" placeholder="مثال: خطة شهر سبتمبر 2026..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500" />
+            <label class="block text-[11px] font-bold text-slate-700 mb-1">🗓️ شهر الخطة:</label>
+            <select id="pb-tab-plan-month" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white font-bold text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 cursor-pointer" onchange="updatePBTabPlanNameFromMonth()">
+              <option value="يونيو 2026">يونيو 2026</option>
+              <option value="يوليو 2026">يوليو 2026</option>
+              <option value="أغسطس 2026">أغسطس 2026</option>
+              <option value="سبتمبر 2026" selected>سبتمبر 2026</option>
+              <option value="أكتوبر 2026">أكتوبر 2026</option>
+              <option value="نوفمبر 2026">نوفمبر 2026</option>
+              <option value="ديسمبر 2026">ديسمبر 2026</option>
+              <option value="يناير 2027">يناير 2027</option>
+              <option value="فبراير 2027">فبراير 2027</option>
+            </select>
+            <input id="pb-plan-name-tab" type="text" placeholder="اسم البلان..." class="w-full px-2.5 py-1 border border-violet-200 rounded-lg bg-violet-50/60 text-xs font-bold text-violet-900 focus:border-violet-500 focus:bg-white focus:outline-none transition mt-1" title="اسم البلان المسحوب تلقائياً من العميل والشهر" />
           </div>
           <div>
             <label class="block text-[11px] font-bold text-slate-700 mb-1">👤 الأكونت مانيجر:</label>
@@ -1789,6 +1800,15 @@
             <div>
               <label class="block text-[11px] font-bold text-slate-800 mb-1">🗓️ شهر الخطة:</label>
               <select id="tasks-ingest-plan-month" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white font-bold text-slate-900 focus:border-blue-500 focus:outline-none shadow-2xs cursor-pointer" onchange="updatePlanNamePreview()">
+                <option value="يونيو 2026">يونيو 2026</option>
+                <option value="يوليو 2026">يوليو 2026</option>
+                <option value="أغسطس 2026">أغسطس 2026</option>
+                <option value="سبتمبر 2026" selected>سبتمبر 2026</option>
+                <option value="أكتوبر 2026">أكتوبر 2026</option>
+                <option value="نوفمبر 2026">نوفمبر 2026</option>
+                <option value="ديسمبر 2026">ديسمبر 2026</option>
+                <option value="يناير 2027">يناير 2027</option>
+                <option value="فبراير 2027">فبراير 2027</option>
               </select>
               <div id="plan-name-preview" class="mt-1 text-[11px] text-indigo-700 font-bold bg-indigo-50/80 px-2.5 py-1 rounded-lg border border-indigo-200/60 truncate flex items-center gap-1"></div>
             </div>
@@ -2202,9 +2222,23 @@
              <datalist id="pb-modal-clients-list"></datalist>
           </div>
           <div>
-            <label class="block font-bold text-slate-700 mb-1.5">📅 اسم الخطة / الشهر:</label>
-            <input id="pb-plan-name" type="text" placeholder="مثال: خطة شهر سبتمبر 2026..." class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs" />
-          </div>
+             <div class="flex items-center justify-between mb-1.5">
+               <label class="block font-bold text-slate-700">🗓️ شهر الخطة:</label>
+               <span class="text-[10px] text-purple-600 font-bold">Month</span>
+             </div>
+             <select id="pb-plan-month" class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs cursor-pointer" onchange="updatePBPlanNameFromMonth()">
+               <option value="يونيو 2026">يونيو 2026</option>
+               <option value="يوليو 2026">يوليو 2026</option>
+               <option value="أغسطس 2026">أغسطس 2026</option>
+               <option value="سبتمبر 2026" selected>سبتمبر 2026</option>
+               <option value="أكتوبر 2026">أكتوبر 2026</option>
+               <option value="نوفمبر 2026">نوفمبر 2026</option>
+               <option value="ديسمبر 2026">ديسمبر 2026</option>
+               <option value="يناير 2027">يناير 2027</option>
+               <option value="فبراير 2027">فبراير 2027</option>
+             </select>
+             <input id="pb-plan-name" type="text" placeholder="اسم الخطة..." class="w-full h-8 px-2.5 py-1 border border-purple-200 rounded-lg bg-purple-50/70 text-[11px] font-bold text-purple-900 focus:border-purple-500 focus:bg-white focus:outline-none transition mt-1.5 shadow-2xs" title="اسم الخطة المسحوب تلقائياً (يمكنك التعديل عليه إذا أردت)" />
+           </div>
           <div>
             <label class="block font-bold text-slate-700 mb-1.5">👤 الأكونت مانيجر المشرف:</label>
             <select id="pb-am-select" class="w-full h-10 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-800 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 focus:outline-none transition shadow-2xs">

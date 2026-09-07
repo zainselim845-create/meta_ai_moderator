@@ -1624,3 +1624,48 @@ def test_api_tasks_backfills_creator_name_from_id(monkeypatch):
         assert tasks[0]["creator_name"] == "Walaa Ashraf Mohammed"
         assert tasks[0]["content_creator_name"] == "Walaa Ashraf Mohammed"
 
+
+def test_api_tasks_ingest_plan_with_month_name_avoids_duplicate_client_prefix(monkeypatch):
+    """Ingesting a plan named 'خطة دومية — سبتمبر 2026' preserves the title without duplicating the client name prefix."""
+    import api.index as idx
+
+    saved_tasks_capture = []
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, cid: saved_tasks_capture.clear() or saved_tasks_capture.extend(tasks))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan")
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+    monkeypatch.setattr(idx, "_ensure_client_record", lambda cname, **k: ("cli_domya_123", {"id": "cli_domya_123", "name": "دومية", "company": "دومية"}))
+    monkeypatch.setattr(idx, "get_client_tasks", lambda cid: [])
+    monkeypatch.setattr(idx, "_sheet_emp", lambda eid: {"name": "محمود خالد", "employee_id": "AM-2072-9827"})
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+            sess["employee_id"] = "AM-2072-9827"
+
+        res = client.post("/api/tasks/ingest-plan", json={
+            "client_id": "cli_domya_123",
+            "client_name": "دومية",
+            "plan_name": "خطة دومية — سبتمبر 2026",
+            "am_employee_id": "AM-2072-9827",
+            "posts": [
+                {
+                    "post_number": 1,
+                    "title": "بوست سبتمبر 1",
+                    "tagline": "هوك العرض",
+                    "visual_idea": "صورة منتج",
+                    "caption": "كابشن سبتمبر",
+                    "post_type": "post"
+                }
+            ]
+        })
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["success"] is True
+        assert d["plan_name"] == "خطة دومية — سبتمبر 2026"
+        assert len(saved_tasks_capture) == 1
+        assert saved_tasks_capture[0]["plan_name"] == "خطة دومية — سبتمبر 2026"
+
+
