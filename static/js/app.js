@@ -206,8 +206,13 @@ function go(id, el) {
     // Strict Role-Based View Guard
     const _me = window._me;
     if (_me && !_me.is_admin) {
-      const allowedSet = new Set((_me.allowed_tabs && _me.allowed_tabs.length) ? _me.allowed_tabs : (_me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : (_me.role === 'content_creator' ? ['myportal', 'tasks', 'plan'] : ['myportal'])));
+      const isCreator = _me.is_content_creator || _me.role === 'content_creator' || _me.role === 'content' || (_me.job && /content|creator|writer|كاتب|محتوى/i.test(_me.job));
+      const allowedSet = new Set((_me.allowed_tabs && _me.allowed_tabs.length) ? _me.allowed_tabs : (_me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : (isCreator ? ['myportal', 'tasks', 'plan'] : ['myportal'])));
       allowedSet.add('myportal');
+      if (isCreator) {
+        allowedSet.add('tasks');
+        allowedSet.add('plan');
+      }
       const canon = cleanId === 'chatwoot' ? 'accounts' : cleanId;
       if (!allowedSet.has(canon)) {
         console.warn('[RBAC] Blocked unpermitted view:', canon);
@@ -416,7 +421,9 @@ async function handleLogin(e) {
         await applyRoleUI();
       }
       restoreActiveTab();
-      if (typeof loadAccounts === 'function') loadAccounts();
+      if (typeof loadAccounts === 'function' && (window._me?.is_admin || window._me?.role === 'account_manager')) {
+        loadAccounts();
+      }
     } else {
       if (errEl) {
         errEl.textContent = d.error || 'اسم المستخدم أو كلمة المرور غير صحيحة';
@@ -808,7 +815,7 @@ async function applyRoleUI() {
 
   if (!isAdmin && !isMgr) {
     // Employee & Content Creator: locked down to permitted tabs
-    const isCreator = me.role === 'content_creator' || me.role === 'content' || (me.job && /content|writer|كاتب|محتوى/i.test(me.job));
+    const isCreator = me.is_content_creator || me.role === 'content_creator' || me.role === 'content' || (me.job && /content|creator|writer|كاتب|محتوى/i.test(me.job));
     const defaultAllow = isCreator ? ['myportal', 'tasks', 'plan'] : ['myportal'];
     const allow = new Set(tabs.length ? tabs : defaultAllow);
     allow.add('myportal');

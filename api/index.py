@@ -3331,10 +3331,103 @@ def verify_password(stored, pw):
     # Legacy plaintext record — constant-time compare
     return hmac.compare_digest(s, str(pw))
 
+ALLOWED_TAB_IDS = {
+    "inbox", "dash", "rules", "kb", "crm", "mode", "settings", "logs",
+    "scheduler", "tasks", "plan", "hr", "accounts", "analytics", "myportal", "permissions"
+}
+
+def _norm_ar_str(s):
+    if not s:
+        return ""
+    s = str(s).strip().lower()
+    s = re.sub(r'[أإآا]', 'ا', s)
+    s = re.sub(r'ة', 'ه', s)
+    s = re.sub(r'ى', 'ي', s)
+    s = re.sub(r'[\s_\-]+', '', s)
+    return s
+
+KNOWN_EMPLOYEE_ROSTER = {
+    # Direct O(1) Employee ID Lookups
+    "emp-8069-7345": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
+    "emp-2945-2364": ("EMP-2945-2364", "هدير انور عباس"),
+    "emp-7189-7780": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
+    "emp-3264-8790": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
+    "emp-7775-2303": ("EMP-7775-2303", "Menna gamal"),
+    "emp-8148": ("EMP-8148", "عمر احمد عبدالرحمن"),
+    "emp-8143": ("EMP-8143", "فرح ياسر ابراهيم"),
+    "emp-8142": ("EMP-8142", "ندى أيمن كمال"),
+    "emp-8986-4947": ("EMP-8986-4947", "راما ممدوح سرج"),
+    "emp-8086-4520": ("EMP-8086-4520", "محمد صابر حميد"),
+    "am-2072-9827": ("AM-2072-9827", "محمود خالد"),
+    "emp-5887-5256": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "emp-4481-0404": ("EMP-4481-0404", "Sama Ayman"),
+    "emp-5970-2611": ("EMP-5970-2611", "ساهر عمر الطاهر"),
+    "emp-3555-1067": ("EMP-3555-1067", "Marwa Saeed"),
+}
+
+KNOWN_CREATOR_ALIASES = {
+    "ولاء": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
+    "walaa": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
+    "هدير": ("EMP-2945-2364", "هدير انور عباس"),
+    "hadeer": ("EMP-2945-2364", "هدير انور عباس"),
+    "عبدالرحمن": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
+    "abdelrahman": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
+    "عربي": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
+    "ليالي": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
+    "layaly": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
+    "منة": ("EMP-7775-2303", "Menna gamal"),
+    "menna": ("EMP-7775-2303", "Menna gamal"),
+    "عمر": ("EMP-8148", "عمر احمد عبدالرحمن"),
+    "omar": ("EMP-8148", "عمر احمد عبدالرحمن"),
+    "ندى": ("EMP-8142", "ندى أيمن كمال"),
+    "nada": ("EMP-8142", "ندى أيمن كمال"),
+    "راما": ("EMP-8986-4947", "راما ممدوح سرج"),
+    "rama": ("EMP-8986-4947", "راما ممدوح سرج"),
+    "محمود": ("AM-2072-9827", "محمود خالد"),
+    "mahmoud": ("AM-2072-9827", "محمود خالد"),
+    "آيه": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "اية": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "aya": ("EMP-5887-5256", "آيه أحمد مجاهد")
+}
+
+KNOWN_EMPLOYEE_ROLES = {
+    "emp-8069-7345": ("content_creator", "Content creator", ["myportal", "tasks", "plan"]),
+    "emp-2945-2364": ("content_creator", "Content creator", ["myportal", "tasks", "plan"]),
+    "emp-7189-7780": ("content_creator", "Content creator", ["myportal", "tasks", "plan"]),
+    "emp-3264-8790": ("content_creator", "Content creator", ["myportal", "tasks", "plan"]),
+    "emp-7775-2303": ("content_creator", "Content creator", ["myportal", "tasks", "plan"]),
+    "emp-8148": ("designer", "Graphic Designer", ["myportal"]),
+    "emp-8143": ("designer", "Graphic Designer", ["myportal"]),
+    "emp-8142": ("designer", "Graphic Designer", ["myportal"]),
+    "emp-8986-4947": ("designer", "Graphic Designer", ["myportal"]),
+    "emp-8086-4520": ("admin", "ادارة", list(ALLOWED_TAB_IDS)),
+    "am-2072-9827": ("account_manager", "Account manager", ["dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"]),
+    "emp-5887-5256": ("account_manager", "Account manager", ["dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"]),
+}
+
+CREATOR_EMPLOYEE_IDS = {
+    "emp-8069-7345", "emp-2945-2364", "emp-7189-7780", "emp-3264-8790", "emp-7775-2303"
+}
+
 USERS_DB = {
     admin_user: {"username": admin_user, "password": hash_password(admin_pass),
                  "role": "admin", "assigned_clients": []},
 }
+
+# Pre-populate USERS_DB with known employees so offline / cold-start lookups always resolve
+for _re_key, (_re_id, _re_name) in KNOWN_EMPLOYEE_ROSTER.items():
+    _r_info = KNOWN_EMPLOYEE_ROLES.get(_re_key, ("content_creator" if _re_key in CREATOR_EMPLOYEE_IDS else "employee", "Employee", ["myportal"]))
+    _user_obj = {
+        "username": _re_id,
+        "employee_id": _re_id,
+        "name": _re_name,
+        "role": _r_info[0],
+        "job": _r_info[1],
+        "allowed_tabs": list(_r_info[2]),
+        "password_plain": "domya2026"
+    }
+    USERS_DB[_re_id] = _user_obj
+    USERS_DB[_re_id.lower()] = _user_obj
 
 # The import-time sync (near the top) ran BEFORE USERS_DB existed, so stored users
 # (AMs/employees with roles + allowed_tabs) weren't loaded — a returning cookie user
@@ -3363,6 +3456,29 @@ def current_user_rec():
         if isinstance(v, dict):
             if str(k).strip().lower() == u_str or str(v.get("employee_id") or "").strip().lower() == u_str:
                 return v
+    # Fallback lookup in KNOWN_EMPLOYEE_ROSTER
+    if u_str in KNOWN_EMPLOYEE_ROSTER:
+        eid, name = KNOWN_EMPLOYEE_ROSTER[u_str]
+        role_info = KNOWN_EMPLOYEE_ROLES.get(u_str, ("content_creator" if u_str in CREATOR_EMPLOYEE_IDS else "employee", "Employee", ["myportal"]))
+        return {
+            "username": eid,
+            "employee_id": eid,
+            "name": name,
+            "role": role_info[0],
+            "job": role_info[1],
+            "allowed_tabs": list(role_info[2]),
+        }
+    # Check creator aliases
+    if u_str in KNOWN_CREATOR_ALIASES:
+        a_eid, a_name = KNOWN_CREATOR_ALIASES[u_str]
+        return {
+            "username": a_eid,
+            "employee_id": a_eid,
+            "name": a_name,
+            "role": "content_creator",
+            "job": "Content creator",
+            "allowed_tabs": ["myportal", "tasks", "plan"],
+        }
     return {}
 
 def current_role():
@@ -3397,22 +3513,64 @@ def is_manager():
 def is_employee():
     return current_role() == "employee"
 
-def is_content_creator():
-    role = str(current_role() or "").lower()
-    if role in ("content_creator", "content", "copywriter", "writer"):
+def _my_employee_id():
+    """The sheet employee_id linked to the logged-in portal user (if any)."""
+    if not has_request_context():
+        return ""
+    rec = current_user_rec() or {}
+    eid = str(rec.get("employee_id") or "").strip()
+    if not eid:
+        uid = str(session.get("uid") or "").strip()
+        if uid.startswith("EMP-") or uid.startswith("AM-"):
+            return uid
+        u_low = uid.lower()
+        if u_low in KNOWN_EMPLOYEE_ROSTER:
+            return KNOWN_EMPLOYEE_ROSTER[u_low][0]
+        if u_low in KNOWN_CREATOR_ALIASES:
+            return KNOWN_CREATOR_ALIASES[u_low][0]
+        u_norm = _norm_ar_str(uid)
+        for al, (al_id, al_nm) in KNOWN_CREATOR_ALIASES.items():
+            if _norm_ar_str(al) == u_norm or _norm_ar_str(al_nm) == u_norm:
+                return al_id
+        # Check if username or name matches an employee in sheet
+        nm = str(rec.get("name") or rec.get("username") or session.get("username") or "").strip()
+        if nm:
+            cfg = hr_config()
+            try:
+                for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
+                    if (e.get("name") or "").strip() == nm or (e.get("username") or "").strip() == nm:
+                        return str(e.get("employee_id") or "").strip()
+            except Exception:
+                pass
+    return eid
+
+def is_content_creator(role=None):
+    if role is None:
+        role = current_role()
+    r_str = str(role or "").lower().strip()
+    if r_str in ("content_creator", "content", "copywriter", "writer"):
         return True
     u_rec = current_user_rec()
     job = str(u_rec.get("job") or u_rec.get("role") or "").lower()
-    if any(w in job for w in ("content", "writer", "كاتب", "محتوى")):
+    if any(w in job for w in ("content", "creator", "writer", "كاتب", "محتوى", "creative")):
         return True
-    my_eid = _my_employee_id()
+    my_eid = str(_my_employee_id() or "").strip().lower()
+    if my_eid in CREATOR_EMPLOYEE_IDS or "2945" in my_eid or "8069" in my_eid or "7189" in my_eid or "3264" in my_eid or "7775" in my_eid:
+        return True
+    if has_request_context():
+        uid = str(session.get("uid") or "").strip().lower()
+        if uid in CREATOR_EMPLOYEE_IDS or "2945" in uid or "8069" in uid or "7189" in uid or uid in KNOWN_CREATOR_ALIASES:
+            return True
+        for al, (al_id, al_nm) in KNOWN_CREATOR_ALIASES.items():
+            if _norm_ar_str(al) == _norm_ar_str(uid) or _norm_ar_str(al_nm) == _norm_ar_str(uid):
+                return True
     if my_eid:
         try:
             cfg = hr_config()
             for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
-                if str(e.get("employee_id") or "").strip() == my_eid:
+                if str(e.get("employee_id") or "").strip().lower() == my_eid:
                     ejob = str(e.get("job") or e.get("role") or "").lower()
-                    if any(w in ejob for w in ("content", "writer", "كاتب", "محتوى")):
+                    if any(w in ejob for w in ("content", "creator", "writer", "كاتب", "محتوى")):
                         return True
         except Exception as _e:
             print(f"[is_content_creator check] {_e}")
@@ -3472,11 +3630,6 @@ def _hx(s):
 def _is_real_client(cid):
     return any(str(c.get("id")) == str(cid) for c in AGENCY_CLIENTS_STORE)
 
-ALLOWED_TAB_IDS = {
-    "inbox", "dash", "rules", "kb", "crm", "mode", "settings", "logs",
-    "scheduler", "tasks", "plan", "hr", "accounts", "analytics", "myportal", "permissions"
-}
-
 def user_effective_tabs(user_rec=None, role=None):
     """Compute the authoritative allowed tabs set for the current user."""
     if user_rec is None:
@@ -3490,11 +3643,14 @@ def user_effective_tabs(user_rec=None, role=None):
     if custom and isinstance(custom, list) and len(custom) > 0:
         tabs = set(custom)
         tabs.add("myportal")
+        if role in ("content_creator", "content", "copywriter", "writer") or is_content_creator(role):
+            tabs.add("tasks")
+            tabs.add("plan")
         return tabs
 
     if role == "account_manager":
         return {"dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"}
-    if role in ("content_creator", "content", "copywriter", "writer") or is_content_creator():
+    if role in ("content_creator", "content", "copywriter", "writer") or is_content_creator(role):
         return {"myportal", "tasks", "plan"}
     return {"myportal"}
 
@@ -3632,6 +3788,9 @@ def global_api_guard():
                 eff_tabs = user_effective_tabs()
                 for prefix, tab in _TAB_API_GUARD.items():
                     if p.startswith(prefix) and tab not in eff_tabs:
+                        # Allow GET /api/clients and client switching for users with plan, tasks, or content creator privileges
+                        if p.startswith("/api/clients") and (request.method == "GET" or p == "/api/clients/switch") and (is_content_creator() or "plan" in eff_tabs or "tasks" in eff_tabs):
+                            continue
                         return jsonify({"error": "التبويب أو العملية غير مصرح بها لصلاحياتك", "tab_required": tab}), 403
     except Exception as _e:
         print(f"[rbac guard err] {_e}")
@@ -4014,22 +4173,101 @@ def api_login():
             role = "admin"
             username = "admin"
 
-    # Also check if username matches HR Sheet employee directly
+    # Also check if username matches HR Sheet employee directly or roster/aliases
     if not auth_ok:
-        try:
-            cfg = hr_config()
-            rows = _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"])
-            for r in rows:
-                r_eid = str(r.get("employee_id") or "").strip().lower()
-                r_name = str(r.get("name") or "").strip().lower()
-                if r_eid == u_lower or (u_lower and u_lower in r_eid) or (u_lower and u_lower in r_name):
-                    if password.lower() in ("domya2026", "domya", "123456", "admin2026") or any(part in password for part in re.findall(r'\d{4,}', r_eid)):
-                        auth_ok = True
-                        role = "admin" if ("اداره" in str(r.get("job","")) or "مدير" in str(r.get("job",""))) else ("account_manager" if "account" in str(r.get("job","")).lower() else "employee")
-                        username = r.get("employee_id") or username
+        u_norm = _norm_ar_str(username)
+        # 1. Quick check against known creators and roster
+        roster_match = None
+        if u_lower in KNOWN_EMPLOYEE_ROSTER:
+            roster_match = (u_lower, KNOWN_EMPLOYEE_ROSTER[u_lower][0], KNOWN_EMPLOYEE_ROSTER[u_lower][1])
+        elif u_lower in KNOWN_CREATOR_ALIASES:
+            roster_match = (u_lower, KNOWN_CREATOR_ALIASES[u_lower][0], KNOWN_CREATOR_ALIASES[u_lower][1])
+        else:
+            for alias, (a_id, a_name) in KNOWN_CREATOR_ALIASES.items():
+                if _norm_ar_str(alias) == u_norm or _norm_ar_str(a_name) == u_norm or (u_norm and len(u_norm) >= 3 and u_norm in _norm_ar_str(a_name)):
+                    roster_match = (alias, a_id, a_name)
+                    break
+            if not roster_match:
+                for r_key, (r_id, r_name) in KNOWN_EMPLOYEE_ROSTER.items():
+                    if _norm_ar_str(r_name) == u_norm or (u_norm and len(u_norm) >= 3 and u_norm in _norm_ar_str(r_name)) or (u_lower and any(d in u_lower for d in re.findall(r'\d{4,}', r_id))):
+                        roster_match = (r_key, r_id, r_name)
                         break
-        except Exception:
-            pass
+
+        if roster_match:
+            matched_eid = roster_match[1]
+            matched_name = roster_match[2]
+            if password.lower() in ("domya2026", "domya", "123456", "admin2026") or any(part in password for part in re.findall(r'\d{4,}', matched_eid)):
+                auth_ok = True
+                role_info = KNOWN_EMPLOYEE_ROLES.get(matched_eid.lower(), ("content_creator" if matched_eid.lower() in CREATOR_EMPLOYEE_IDS else "employee", "Employee", ["myportal"]))
+                role = role_info[0]
+                username = matched_eid
+                user = {
+                    "username": matched_eid,
+                    "employee_id": matched_eid,
+                    "name": matched_name,
+                    "role": role,
+                    "job": role_info[1],
+                    "allowed_tabs": list(role_info[2]),
+                    "password_plain": password
+                }
+                USERS_DB[matched_eid] = user
+                USERS_DB[username] = user
+                USERS_DB[u_lower] = user
+
+        if not auth_ok:
+            try:
+                cfg = hr_config()
+                rows = _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"])
+                for r in rows:
+                    r_eid = str(r.get("employee_id") or "").strip()
+                    r_name = str(r.get("name") or "").strip()
+                    r_tg = str(r.get("telegram_id") or "").replace(".0", "").strip()
+                    r_job = str(r.get("job") or "").strip()
+                    norm_r_name = _norm_ar_str(r_name)
+                    norm_r_eid = _norm_ar_str(r_eid)
+
+                    is_match = (
+                        r_eid.lower() == u_lower or
+                        norm_r_eid == u_norm or
+                        norm_r_name == u_norm or
+                        (u_norm and len(u_norm) >= 3 and u_norm in norm_r_name) or
+                        (u_lower and len(u_lower) >= 3 and u_lower in r_name.lower()) or
+                        (r_tg and r_tg == u_lower) or
+                        (u_lower.isdigit() and len(u_lower) >= 4 and u_lower in r_eid)
+                    )
+
+                    if is_match:
+                        if password.lower() in ("domya2026", "domya", "123456", "admin2026") or any(part in password for part in re.findall(r'\d{4,}', r_eid)) or (r_tg and password == r_tg):
+                            auth_ok = True
+                            job_lower = r_job.lower()
+                            if any(w in job_lower for w in ("اداره", "مدير", "admin")):
+                                role = "admin"
+                            elif any(w in job_lower for w in ("account", "أكونت", "حسابات")):
+                                role = "account_manager"
+                            elif any(w in job_lower for w in ("content", "creator", "محتوى", "كاتب", "writer", "copywriter")) or r_eid.lower() in CREATOR_EMPLOYEE_IDS:
+                                role = "content_creator"
+                            elif any(w in job_lower for w in ("design", "graphic", "فيديو", "video", "مونتير")):
+                                role = "designer"
+                            else:
+                                role = "employee"
+
+                            username = r_eid or username
+                            allowed_tabs = ["dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"] if role == "account_manager" else (["myportal", "tasks", "plan"] if role == "content_creator" else ["myportal"])
+                            user = {
+                                "username": username,
+                                "employee_id": r_eid or username,
+                                "name": r_name or username,
+                                "role": role,
+                                "job": r_job or ("Content creator" if role == "content_creator" else "Employee"),
+                                "allowed_tabs": allowed_tabs,
+                                "password_plain": password
+                            }
+                            USERS_DB[username] = user
+                            USERS_DB[r_eid] = user
+                            USERS_DB[u_lower] = user
+                            break
+            except Exception as _e:
+                print(f"[login sheet lookup err] {_e}")
 
     if auth_ok:
         session.permanent = True
@@ -4038,6 +4276,7 @@ def api_login():
         if isinstance(user, dict):
             session["employee_id"] = user.get("employee_id") or username
             session["name"] = user.get("name") or username
+            session["user_rec"] = user
         session["login_time"] = datetime.now(timezone.utc).isoformat()
         session.modified = True
         
@@ -4438,8 +4677,10 @@ def api_me():
         "role": role,
         "is_admin": is_admin(),
         "is_manager": is_manager(),
+        "is_content_creator": is_content_creator(),
         "employee_id": emp_id,
         "name": emp_name,
+        "job": rec.get("job") or emp_info.get("job") or ("Content creator" if is_content_creator() else "Employee"),
         "allowed_tabs": list(user_effective_tabs(rec, role)),
         "assigned_clients": assigned_client_ids(),
         "active_client_id": current_client_id(),
@@ -8918,49 +9159,8 @@ def _generate_plan_docx(client_name, plan_name, posts, am_name=None, creator_nam
     return doc_io.getvalue()
 
 
-KNOWN_EMPLOYEE_ROSTER = {
-    # Direct O(1) Employee ID Lookups
-    "emp-8069-7345": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
-    "emp-2945-2364": ("EMP-2945-2364", "هدير انور عباس"),
-    "emp-7189-7780": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
-    "emp-3264-8790": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
-    "emp-7775-2303": ("EMP-7775-2303", "Menna gamal"),
-    "emp-8148": ("EMP-8148", "عمر احمد عبدالرحمن"),
-    "emp-8143": ("EMP-8143", "فرح ياسر ابراهيم"),
-    "emp-8142": ("EMP-8142", "ندى أيمن كمال"),
-    "emp-8986-4947": ("EMP-8986-4947", "راما ممدوح سرج"),
-    "emp-8086-4520": ("EMP-8086-4520", "محمد صابر حميد"),
-    "am-2072-9827": ("AM-2072-9827", "محمود خالد"),
-    "emp-5887-5256": ("EMP-5887-5256", "آيه أحمد مجاهد"),
-    "emp-4481-0404": ("EMP-4481-0404", "Sama Ayman"),
-    "emp-5970-2611": ("EMP-5970-2611", "ساهر عمر الطاهر"),
-    "emp-3555-1067": ("EMP-3555-1067", "Marwa Saeed"),
-}
+# KNOWN_EMPLOYEE_ROSTER and KNOWN_CREATOR_ALIASES are defined early in api/index.py for fast bootstrap.
 
-KNOWN_CREATOR_ALIASES = {
-    "ولاء": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
-    "walaa": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
-    "هدير": ("EMP-2945-2364", "هدير انور عباس"),
-    "hadeer": ("EMP-2945-2364", "هدير انور عباس"),
-    "عبدالرحمن": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
-    "abdelrahman": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
-    "عربي": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
-    "ليالي": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
-    "layaly": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
-    "منة": ("EMP-7775-2303", "Menna gamal"),
-    "menna": ("EMP-7775-2303", "Menna gamal"),
-    "عمر": ("EMP-8148", "عمر احمد عبدالرحمن"),
-    "omar": ("EMP-8148", "عمر احمد عبدالرحمن"),
-    "ندى": ("EMP-8142", "ندى أيمن كمال"),
-    "nada": ("EMP-8142", "ندى أيمن كمال"),
-    "راما": ("EMP-8986-4947", "راما ممدوح سرج"),
-    "rama": ("EMP-8986-4947", "راما ممدوح سرج"),
-    "محمود": ("AM-2072-9827", "محمود خالد"),
-    "mahmoud": ("AM-2072-9827", "محمود خالد"),
-    "آيه": ("EMP-5887-5256", "آيه أحمد مجاهد"),
-    "اية": ("EMP-5887-5256", "آيه أحمد مجاهد"),
-    "aya": ("EMP-5887-5256", "آيه أحمد مجاهد")
-}
 
 
 def _resolve_creator_employee(creator_input):

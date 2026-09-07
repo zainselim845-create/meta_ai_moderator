@@ -1716,4 +1716,56 @@ def test_api_accounts_get_masks_tokens_and_scopes_to_active_client(monkeypatch):
         assert d["security"] == "401 Protected"
 
 
+def test_hadeer_content_creator_login_and_tab_permissions():
+    """Verify Hadeer (Content Creator) can log in with all aliases and IDs,
+    receives the content_creator role, gets allowed_tabs ['myportal', 'tasks', 'plan'],
+    and can access /api/me, /api/clients GET, /api/clients/switch, and /api/tasks."""
+    from api.index import app
+
+    with app.test_client() as client:
+        # Test all login variations
+        for login_input in ["EMP-2945-2364", "هدير", "hadeer", "هدير أنور", "هدير انور", "2945", "1111832945"]:
+            res = client.post("/api/login", json={"username": login_input, "password": "domya2026"})
+            assert res.status_code == 200, f"Failed login for {login_input}"
+            data = res.get_json()
+            assert data["ok"] is True
+            assert data["role"] == "content_creator"
+            assert data["username"] == "EMP-2945-2364"
+            assert "هدير" in data["name"]
+            assert "content_creator" in data["token"]
+
+        # 1. /api/me verification
+        r_me = client.get("/api/me")
+        assert r_me.status_code == 200
+        me = r_me.get_json()
+        assert me["role"] == "content_creator"
+        assert me["is_content_creator"] is True
+        assert me["employee_id"] == "EMP-2945-2364"
+        assert set(me["allowed_tabs"]) == {"myportal", "tasks", "plan"}
+
+        # 2. Access to /api/clients GET for plan building and tasks
+        r_clients = client.get("/api/clients")
+        assert r_clients.status_code == 200
+        clients_list = r_clients.get_json()
+        assert isinstance(clients_list, list)
+        assert len(clients_list) > 0
+
+        # 3. Access to /api/clients/switch
+        cid = clients_list[0]["id"]
+        r_switch = client.post("/api/clients/switch", json={"client_id": cid})
+        assert r_switch.status_code == 200
+        assert r_switch.get_json()["active_client_id"] == cid
+
+        # 4. Access to /api/plan/clients
+        r_plan_clients = client.get("/api/plan/clients")
+        assert r_plan_clients.status_code == 200
+        assert len(r_plan_clients.get_json()["clients"]) > 0
+
+        # 5. Access to /api/tasks
+        r_tasks = client.get("/api/tasks")
+        assert r_tasks.status_code == 200
+        assert "tasks" in r_tasks.get_json()
+
+
+
 
