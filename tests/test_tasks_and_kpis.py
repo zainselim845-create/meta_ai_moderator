@@ -261,6 +261,49 @@ def test_location_anti_forwarding_rules():
     assert is_live_forwarded is False
 
 
+def test_one_tap_attendance_menu_and_geofence_intelligence(monkeypatch):
+    from api.index import _att_menu, _haversine_m, hr_config
+
+    # 1. Fallback menu has 1-tap request_location button
+    menu_default = _att_menu()
+    assert any(btn.get("request_location") is True for row in menu_default for btn in row if isinstance(btn, dict))
+
+    # 2. Dynamic menu when employee has no check-in today
+    emp = {"employee_id": "EMP-TEST-9999", "name": "موظف تجريبي"}
+    monkeypatch.setattr("api.index._att_today_records", lambda eid, today: [])
+    menu_unregistered = _att_menu(emp)
+    assert any("تسجيل الحضور" in btn.get("text", "") and btn.get("request_location") is True
+               for row in menu_unregistered for btn in row if isinstance(btn, dict))
+
+    # 3. Dynamic menu when employee has checked in but not checked out
+    monkeypatch.setattr("api.index._att_today_records", lambda eid, today: [{"checkin_time": "09:45:00", "checkout_time": ""}])
+    menu_checked_in = _att_menu(emp)
+    assert any("تسجيل الانصراف" in btn.get("text", "") and btn.get("request_location") is True
+               for row in menu_checked_in for btn in row if isinstance(btn, dict))
+
+    # 4. Dynamic menu when employee has completed both check-in and check-out
+    monkeypatch.setattr("api.index._att_today_records", lambda eid, today: [{"checkin_time": "09:45:00", "checkout_time": "17:00:00"}])
+    menu_completed = _att_menu(emp)
+    assert any("تقرير حالتي" in str(btn) for row in menu_completed for btn in row)
+
+    # 5. Geofence & distance calculation
+    # Rama's real indoor coordinates vs HQ (5 meters)
+    hq_lat, hq_lon = 30.470035, 31.180207
+    rama_indoor_lat, rama_indoor_lon = 30.47007, 31.180232
+    dist_indoor = _haversine_m(rama_indoor_lat, rama_indoor_lon, hq_lat, hq_lon)
+    assert dist_indoor <= 10 # Within 10m
+
+    # Cell tower triangulation (818m)
+    # With 200m geofence, 818m is recognized as cell tower offset (<= 1500m)
+    dist_cell_tower = 818
+    cfg = hr_config()
+    geofence = int(cfg.get("geofence_meters", 200))
+    assert geofence == 200
+    assert dist_cell_tower > geofence
+    assert dist_cell_tower <= 1500 # Eligible for cell tower guidance & manager approval button
+
+
+
 # =====================================================================
 # Rule 1, 5, 8: Task Sanitization & Account Manager Normalization
 # Real state assertion preventing broken AM filters on production

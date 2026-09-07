@@ -11506,7 +11506,7 @@ _HR_DEFAULTS = {
     "employees_gid": "1158009464",
     "attendance_gid": "2023520809",
     "payroll_gid": "253719303",
-    "geofence_meters": int(os.environ.get("ATT_GEOFENCE_M", 500)),
+    "geofence_meters": int(os.environ.get("ATT_GEOFENCE_M", 200)),
     "company_lat": float(os.environ.get("ATT_DEFAULT_LAT", 30.469771)),
     "company_lon": float(os.environ.get("ATT_DEFAULT_LON", 31.180022)),
     "hide_location": os.environ.get("ATT_HIDE_LOCATION", "true").lower() in ("true", "1", "yes"),
@@ -12810,7 +12810,7 @@ def api_task_review(task_id):
 import urllib.request as _urlreq
 import urllib.error as _urlerr
 
-ATT_GEOFENCE_M = float(os.environ.get("ATT_GEOFENCE_M", "500"))
+ATT_GEOFENCE_M = float(os.environ.get("ATT_GEOFENCE_M", "200"))
 ATT_DEFAULT_LAT = float(os.environ.get("ATT_DEFAULT_LAT", "30.469771"))
 ATT_DEFAULT_LON = float(os.environ.get("ATT_DEFAULT_LON", "31.180022"))
 ATT_LATE_AFTER = os.environ.get("ATT_LATE_AFTER", "10:15:00") # HH:MM:SS
@@ -12885,8 +12885,41 @@ def _att_delete_message(chat_id, message_id):
         print(f"[att delete msg] {e}")
         return False
 
-def _att_menu():
-    return [[" تسجيل حضور", " تسجيل انصراف"], [" حالتي اليوم", " تسجيل غياب"]]
+def _att_menu(emp=None):
+    """Dynamic 1-tap Telegram keyboard tailored to the employee's live daily state."""
+    if emp and isinstance(emp, dict):
+        emp_id = str(emp.get("employee_id", "")).strip()
+        if emp_id:
+            try:
+                today, _ = _cairo_now_parts()
+                recs = _att_today_records(emp_id, today) if "_att_today_records" in globals() else []
+                rec = next((r for r in recs if str(r.get("checkin_time", "")).strip() not in ("", "0")), None)
+                has_in = bool(rec)
+                has_out = bool(rec and str(rec.get("checkout_time", "")).strip() not in ("", "0"))
+                
+                if not has_in:
+                    return [
+                        [{"text": "📍 تسجيل الحضور الآن (بضغطة واحدة)", "request_location": True}],
+                        ["📊 حالتي اليوم", "🚫 تسجيل غياب"]
+                    ]
+                elif has_in and not has_out:
+                    return [
+                        [{"text": "🚪 تسجيل الانصراف الآن (بضغطة واحدة)", "request_location": True}],
+                        ["📊 حالتي اليوم"]
+                    ]
+                else:
+                    return [
+                        ["📊 تقرير حالتي اليوم"]
+                    ]
+            except Exception as _e:
+                print(f"[att menu dynamic] {_e}")
+
+    # Fallback / generic menu with 1-tap check-in location request
+    return [
+        [{"text": "📍 تسجيل الحضور الآن (بضغطة واحدة)", "request_location": True}],
+        ["🚪 تسجيل انصراف", "📊 حالتي اليوم"],
+        ["🚫 تسجيل غياب"]
+    ]
 
 # ---- Google Sheets read/write (uses the Drive OAuth token) ----
 def _sheet_title_for_gid(spreadsheet_id, gid):
@@ -13033,6 +13066,27 @@ def _att_emp_by_tg(tg_id):
             return e
     return None
 
+def _att_emp_by_id(emp_id):
+    cfg = hr_config()
+    eid = str(emp_id or "").strip()
+    if not eid:
+        return None
+    try:
+        header, rows = _sheets_get_all(cfg["sheet_id"], cfg["employees_gid"])
+        if header:
+            idx = {h: i for i, h in enumerate(header)}
+            ei = idx.get("employee_id")
+            if ei is not None:
+                for row in rows:
+                    if ei < len(row) and str(row[ei]).strip() == eid:
+                        return {h: (row[i] if i < len(row) else "") for h, i in idx.items()}
+    except Exception as _e:
+        print(f"[att emp by id fresh] {_e}")
+    for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
+        if str(e.get("employee_id", "")).strip() == eid:
+            return e
+    return None
+
 def _att_today_records(emp_id, today):
     """Read TODAY's attendance rows for an employee — FRESH via Sheets API (gviz lags
     minutes and would cause a duplicate check-in row instead of a checkout update)."""
@@ -13083,20 +13137,46 @@ def _att_handle_location(emp, chat_id, loc):
         is_owner = (tg_id == str(_owner_chat()).strip() or str(chat_id) == str(_owner_chat()).strip())
         inline_btn = None
         if is_owner:
-            inline_btn = [[{"text": " تعيين هذا الموقع كمقر رسمي للشركة ", "callback_data": f"sethq_{user_lat}_{user_lon}"}]]
+            inline_btn = [[{"text": "📍 تعيين هذا الموقع كمقر رسمي للشركة", "callback_data": f"sethq_{user_lat}_{user_lon}"}]]
+        else:
+            time_tag = now_t.replace(":", "")
+            cache_key = f"att_req_{emp_id}_{time_tag}"
+            cache[cache_key] = {
+                "emp_id": emp_id,
+                "name": emp.get("name", ""),
+                "chat_id": chat_id,
+                "tg_id": tg_id,
+                "time": now_t,
+                "date": today,
+                "dist": dist,
+                "lat": user_lat,
+                "lon": user_lon
+            }
+            inline_btn = [[{"text": "📩 إرسال طلب اعتماد حضور للمدير", "callback_data": f"req_att_{emp_id}_{time_tag}"}]]
         
         msg_text = (
-            f" <b>أنت خارج نطاق مقر الشركة!</b>\n\n"
-            f" <b>موقعك الحالي المرسل (GPS):</b>\n<code>{user_lat}, {user_lon}</code>\n"
-            f" <b>مقر الشركة المسجل بالنظام:</b>\n<code>{clat}, {clon}</code>\n"
-            f" <b>المسافة الحالية:</b> <b>{fdist}</b> (المسموح {max_geofence} متر)\n\n"
+            f"⚠️ <b>أنت خارج نطاق مقر الشركة!</b>\n\n"
+            f"📍 <b>موقعك الحالي المرسل (GPS):</b>\n<code>{user_lat}, {user_lon}</code>\n"
+            f"🏢 <b>مقر الشركة المسجل بالنظام:</b>\n<code>{clat}, {clon}</code>\n"
+            f"📏 <b>المسافة الحالية:</b> <b>{fdist}</b> (المسموح {max_geofence} متر)\n\n"
         )
         if is_owner:
-            msg_text += " <i>أنت المدير: اضغط على الزر بالأسفل لتعيين هذا الموقع كمقر رسمي للشركة فوراً:</i>"
+            msg_text += "<i>أنت المدير: اضغط على الزر بالأسفل لتعيين هذا الموقع كمقر رسمي للشركة فوراً:</i>"
         else:
-            msg_text += "يجب التواجد داخل مقر الشركة لتسجيل الحضور."
+            if dist <= 1500:
+                msg_text += (
+                    "📡 <b>ملاحظة:</b> إذا كنت متواجداً بالفعل داخل المقر، فقد يكون هاتفك التقط إشارة برج المحمول (Cell Tower) بدلاً من الـ GPS.\n"
+                    "💡 <b>الحل:</b> افتح تطبيق خرائط جوجل (Google Maps) لثوانٍ لتحديث إشارة الـ GPS ثم اضغط على زر الحضور مجدداً، "
+                    "أو اضغط على الزر بالأسفل لإرسال طلب اعتماد مباشر للمدير."
+                )
+            else:
+                msg_text += "يجب التواجد داخل مقر الشركة لتسجيل الحضور."
             
-        _att_send(chat_id, msg_text, keyboard=_att_menu(), inline=inline_btn)
+        _att_send(chat_id, msg_text, keyboard=_att_menu(emp), inline=inline_btn)
+        try:
+            log_activity(None, "attendance_rejected", f"محاولة حضور خارج النطاق من {emp.get('name','')}: المسافة {fdist} في {now_t}")
+        except Exception:
+            pass
         return
     recs = _att_today_records(emp.get("employee_id"), today)
     rec = next((r for r in recs if str(r.get("checkin_time", "")).strip() not in ("", "0")), None)
@@ -13106,12 +13186,15 @@ def _att_handle_location(emp, chat_id, loc):
     fdist = f"{dist} متر" if dist < 1000 else f"{dist/1000:.2f} كم"
     loc_display = f"المسافة: {fdist} (داخل المقر)"
     
-    action_intent = cache.get(f"att_action_{chat_id}", "checkin")
+    action_intent = cache.get(f"att_action_{chat_id}")
+    if not action_intent:
+        # Automatic 1-tap decision: if not checked in -> checkin. If checked in -> checkout!
+        action_intent = "checkout" if has_in else "checkin"
     
     if action_intent == "checkin":
         if has_in:
             cin = rec.get("checkin_time")
-            _att_send(chat_id, f"<b>حضورك مسجّل بالفعل اليوم!</b>\nسجّلت حضورك في تمام الساعة <b>{cin}</b>.\nلتسجيل الانصراف عند انتهاء الدوام، اضغط على زر «تسجيل انصراف» من القائمة.", keyboard=_att_menu())
+            _att_send(chat_id, f"<b>حضورك مسجّل بالفعل اليوم!</b>\nسجّلت حضورك في تمام الساعة <b>{cin}</b>.\nلتسجيل الانصراف عند انتهاء الدوام، اضغط على زر «تسجيل انصراف» من القائمة.", keyboard=_att_menu(emp))
             return
             
         status = "متأخر" if now_t >= late_after else "حاضر"
@@ -13120,33 +13203,43 @@ def _att_handle_location(emp, chat_id, loc):
             {"employee_id": emp_id, "date": today, "name": emp.get("name", ""), "checkin_time": now_t,
              "checkout_time": "", "hours": "", "latitude": str(user_lat), "longitude": str(user_lon),
              "distance": f"{dist}m", "status": status})
+        cache.pop(f"att_action_{chat_id}", None)
         if ok:
-            _att_send(chat_id, f"<b>تم تسجيل الحضور بنجاح!</b>\nالموظف: {emp.get('name','')}\nالتاريخ: {today}\nالوقت: {now_t}\nالحالة: {status}\n{loc_display}", keyboard=_att_menu())
+            _att_send(chat_id, f"<b>تم تسجيل الحضور بنجاح!</b>\nالموظف: {emp.get('name','')}\nالتاريخ: {today}\nالوقت: {now_t}\nالحالة: {status}\n{loc_display}", keyboard=_att_menu(emp))
             _att_notify_owner(f"حضور: {emp.get('name','')} — {now_t} ({status})")
         else:
-            _att_send(chat_id, "حصل خطأ في حفظ الحضور. حاول مرة أخرى.", keyboard=_att_menu())
+            _att_send(chat_id, "حصل خطأ في حفظ الحضور. حاول مرة أخرى.", keyboard=_att_menu(emp))
         return
 
     elif action_intent == "checkout":
         if not has_in:
-            _att_send(chat_id, "<b>لم تسجّل حضورك اليوم بعد!</b>\nيُرجى الضغط على زر «تسجيل حضور» أولاً قبل تسجيل الانصراف.", keyboard=_att_menu())
+            _att_send(chat_id, "<b>لم تسجّل حضورك اليوم بعد!</b>\nيُرجى الضغط على زر «تسجيل حضور» أولاً قبل تسجيل الانصراف.", keyboard=_att_menu(emp))
             return
         if has_out:
             cout = rec.get("checkout_time")
-            _att_send(chat_id, f"<b>تم تسجيل انصرافك بالفعل اليوم!</b>\nسجّلت انصرافك في تمام الساعة <b>{cout}</b>.", keyboard=_att_menu())
+            _att_send(chat_id, f"<b>تم تسجيل انصرافك بالفعل اليوم!</b>\nسجّلت انصرافك في تمام الساعة <b>{cout}</b>.", keyboard=_att_menu(emp))
             return
             
         cin = str(rec.get("checkin_time", "")).strip()
         hours = "0"
+        elapsed_minutes = 999
         try:
             ih, im = int(cin.split(":")[0]), int(cin.split(":")[1])
             oh, om = int(now_t.split(":")[0]), int(now_t.split(":")[1])
-            hours = f"{max(0, round((oh*60+om - (ih*60+im))/60.0, 2)):.2f}"
+            elapsed_minutes = (oh*60+om - (ih*60+im))
+            hours = f"{max(0, round(elapsed_minutes/60.0, 2)):.2f}"
         except Exception:
             pass
+
+        # If user checked in less than 10 minutes ago and didn't explicitly request checkout, prevent accidental double tap
+        if elapsed_minutes < 10 and cache.get(f"att_action_{chat_id}") != "checkout":
+            _att_send(chat_id, f"⚠️ <b>حضورك مسجّل بالفعل منذ قليل ({cin})!</b>\nإذا كنت ترغب فعلاً في تسجيل الانصراف الآن، اضغط على «تسجيل انصراف» من القائمة.", keyboard=_att_menu(emp))
+            return
+
         ok = _sheets_update_match(cfg["sheet_id"], cfg["attendance_gid"],
                                   {"employee_id": emp_id, "date": today},
                                   {"checkout_time": now_t, "hours": hours})
+        cache.pop(f"att_action_{chat_id}", None)
         if ok:
             cache[f"att_pending_note_{chat_id}"] = {"employee_id": emp_id, "date": today, "name": emp.get("name", "")}
             msg_ok = (
@@ -13158,10 +13251,10 @@ def _att_handle_location(emp, chat_id, loc):
                 f"📝 <b>ملاحظة أو ملخص عمل اليوم (اختياري):</b>\n"
                 f"لو حابب تسيب أي ملاحظة أو تقرير مختصر لشغلك النهاردة، اكتبها في رسالة الآن وهتتسجل تلقائياً مع انصرافك."
             )
-            _att_send(chat_id, msg_ok, keyboard=_att_menu())
+            _att_send(chat_id, msg_ok, keyboard=_att_menu(emp))
             _att_notify_owner(f"انصراف: {emp.get('name','')} — {now_t} ({hours}h)")
         else:
-            _att_send(chat_id, "حصل خطأ في حفظ الانصراف. حاول مرة أخرى.", keyboard=_att_menu())
+            _att_send(chat_id, "حصل خطأ في حفظ الانصراف. حاول مرة أخرى.", keyboard=_att_menu(emp))
         return
 
 def _att_status(emp, chat_id):
@@ -13177,7 +13270,7 @@ def _att_status(emp, chat_id):
         txt += (f" الحضور: {rec.get('checkin_time') or '-'}\n"
                 f" الانصراف: {rec.get('checkout_time') or 'لم يُسجل بعد'}\n"
                 f"️ ساعات العمل: {rec.get('hours') or '0'}\n الحالة: {badge}")
-    _att_send(chat_id, txt, keyboard=_att_menu())
+    _att_send(chat_id, txt, keyboard=_att_menu(emp))
 
 def _att_absent(emp, chat_id):
     cfg = hr_config()
@@ -13245,6 +13338,50 @@ def _att_owner_callback(cbq):
     cfg = hr_config()
     data = str(cbq.get("data", ""))
     cb_id = cbq.get("id")
+    # 1. Employee action: requesting manager approval for attendance (when GPS had cell-tower drift)
+    if data.startswith("req_att_"):
+        parts = data.split("_")
+        if len(parts) >= 3:
+            emp_id = parts[2]
+            time_tag = parts[3] if len(parts) > 3 else ""
+            cache_key = f"att_req_{emp_id}_{time_tag}"
+            req_info = cache.get(cache_key)
+            if not req_info:
+                emp = _att_emp_by_id(emp_id) or _att_emp_by_tg(presser)
+                today, now_t = _cairo_now_parts()
+                req_info = {
+                    "emp_id": emp_id,
+                    "name": (emp or {}).get("name", "موظف"),
+                    "chat_id": presser,
+                    "tg_id": presser,
+                    "time": now_t,
+                    "date": today,
+                    "dist": "غير محدد"
+                }
+            
+            _att_answer_callback(cb_id, "تم إرسال طلب الاعتماد للمدير بنجاح")
+            _att_send(presser, "⏳ <b>تم إرسال طلب اعتماد الحضور للمدير بنجاح!</b>\nسيتم إشعارك فور اعتماد حضورك من الإدارة.")
+            
+            owner_msg = (
+                f"🔔 <b>طلب اعتماد حضور استثنائي</b>\n\n"
+                f"👤 <b>الموظف:</b> {req_info.get('name','')}\n"
+                f"🔑 <b>كود الموظف:</b> <code>{emp_id}</code>\n"
+                f"📅 <b>التاريخ:</b> {req_info.get('date','')}\n"
+                f"⏰ <b>توقيت المحاولة:</b> <b>{req_info.get('time','')}</b>\n"
+                f"📍 <b>المسافة:</b> {req_info.get('dist','')} متر (ضعف GPS المحمول داخل المقر)\n\n"
+                f"<i>اضغط بالأسفل للاعتماد أو الرفض:</i>"
+            )
+            approve_btn = [
+                [
+                    {"text": "✅ اعتماد الحضور (حاضر)", "callback_data": f"owner_appr_att_{emp_id}_{time_tag}"},
+                    {"text": "❌ رفض الطلب", "callback_data": f"owner_rejc_att_{emp_id}_{time_tag}"}
+                ]
+            ]
+            _att_send(_owner_chat(), owner_msg, inline=approve_btn)
+            for extra_appr in [x.strip() for x in os.environ.get("OWNER_APPROVERS", "").split(",") if x.strip()]:
+                _att_send(extra_appr, owner_msg, inline=approve_btn)
+        return
+
     # Only the owner (محمد سعيد) may approve/reject. Extra approvers via env
     # OWNER_APPROVERS (comma-separated chat ids). Anyone else is ignored.
     presser = str((cbq.get("from") or {}).get("id", "")).strip()
@@ -13253,6 +13390,51 @@ def _att_owner_callback(cbq):
     if presser not in allowed:
         print(f"[att approval blocked] presser={presser} not in {allowed}")
         _att_answer_callback(cb_id, "غير مصرح لك")
+        return
+
+    if data.startswith("owner_appr_att_"):
+        parts = data.split("_")
+        emp_id = parts[3]
+        time_tag = parts[4] if len(parts) > 4 else ""
+        cache_key = f"att_req_{emp_id}_{time_tag}"
+        req_info = cache.get(cache_key) or {}
+        emp = _att_emp_by_id(emp_id) or _att_emp_by_tg(req_info.get("tg_id"))
+        today, now_t = _cairo_now_parts()
+        target_date = req_info.get("date") or today
+        target_time = req_info.get("time") or now_t
+        target_name = req_info.get("name") or (emp or {}).get("name", "")
+        chat_id = req_info.get("chat_id") or req_info.get("tg_id") or (emp or {}).get("telegram_id")
+        
+        recs = _att_today_records(emp_id, target_date)
+        has_rec = any(str(r.get("checkin_time", "")).strip() not in ("", "0") for r in recs)
+        if has_rec:
+            ok = _sheets_update_match(cfg["sheet_id"], cfg["attendance_gid"],
+                                     {"employee_id": emp_id, "date": target_date},
+                                     {"checkin_time": target_time, "status": "حاضر", "notes": "معتمد من الإدارة (GPS ضعف)"})
+        else:
+            ok = _sheets_append(cfg["sheet_id"], cfg["attendance_gid"],
+                ["employee_id", "date", "name", "checkin_time", "checkout_time", "hours", "latitude", "longitude", "distance", "status", "notes"],
+                {"employee_id": emp_id, "date": target_date, "name": target_name, "checkin_time": target_time,
+                 "checkout_time": "", "hours": "", "latitude": str(req_info.get("lat") or cfg.get("company_lat")),
+                 "longitude": str(req_info.get("lon") or cfg.get("company_lon")),
+                 "distance": f"{req_info.get('dist', '0')}m", "status": "حاضر", "notes": "معتمد من الإدارة (GPS ضعف)"})
+        
+        _att_answer_callback(cb_id, "تم اعتماد الحضور بنجاح")
+        if chat_id:
+            _att_send(chat_id, f"🎉 <b>تم اعتماد حضورك كـ (حاضر) بنجاح بواسطة الإدارة!</b>\n⏰ توقيت الحضور: <b>{target_time}</b>\n📅 التاريخ: <b>{target_date}</b>", keyboard=_att_menu(emp))
+        _att_send(_owner_chat(), f"✅ تم اعتماد حضور <b>{target_name}</b> لتاريخ {target_date} الساعة {target_time}.")
+        return
+
+    if data.startswith("owner_rejc_att_"):
+        parts = data.split("_")
+        emp_id = parts[3]
+        time_tag = parts[4] if len(parts) > 4 else ""
+        cache_key = f"att_req_{emp_id}_{time_tag}"
+        req_info = cache.get(cache_key) or {}
+        chat_id = req_info.get("chat_id") or req_info.get("tg_id")
+        _att_answer_callback(cb_id, "تم رفض الطلب")
+        if chat_id:
+            _att_send(chat_id, "❌ <b>نأسف، تم رفض طلب اعتماد الحضور من الإدارة.</b>\nيُرجى التواجد داخل مقر الشركة وإعادة إرسال موقعك لتسجيل الحضور بالـ GPS.")
         return
 
     if data.startswith("sethq_"):
@@ -13345,35 +13527,35 @@ def telegram_attendance_webhook():
             )
             if is_forwarded:
                 _att_delete_message(chat_id, msg_id)
-                _att_send(chat_id, " <b>تم رفض تسجيل الحضور!</b>\nالموقع تم إرساله عبر إعادة التوجيه (Forwarded Location).\nيجب الضغط على زر « إرسال موقعي المباشر» من هاتفك فقط ", keyboard=_att_menu())
+                _att_send(chat_id, " <b>تم رفض تسجيل الحضور!</b>\nالموقع تم إرساله عبر إعادة التوجيه (Forwarded Location).\nيجب الضغط على زر «تسجيل الحضور» من هاتفك فقط ", keyboard=_att_menu(emp))
                 return jsonify({"ok": True})
 
             # 2) Reject pinned venue/places (search pins) instead of live GPS
             if msg.get("venue") or msg.get("via_bot"):
                 _att_delete_message(chat_id, msg_id)
-                _att_send(chat_id, " <b>تم رفض تسجيل الحضور!</b>\nتم إرسال نقطة خريطة (Venue/Pin) وليس موقعك الجغرافي الفعلي GPS المباشر ", keyboard=_att_menu())
+                _att_send(chat_id, " <b>تم رفض تسجيل الحضور!</b>\nتم إرسال نقطة خريطة (Venue/Pin) وليس موقعك الجغرافي الفعلي GPS المباشر ", keyboard=_att_menu(emp))
                 return jsonify({"ok": True})
 
             # 3) Freshness check: reject old / replayed timestamps (> 5 mins)
             if msg_date and (now_ts - msg_date) > max_age:
                 _att_delete_message(chat_id, msg_id)
-                _att_send(chat_id, "️ انتهت صلاحية وقت الموقع (قديم). يرجى إرسال موقعك المباشر الآن ", keyboard=_att_menu())
+                _att_send(chat_id, "️ انتهت صلاحية وقت الموقع (قديم). يرجى إرسال موقعك المباشر الآن ", keyboard=_att_menu(emp))
                 return jsonify({"ok": True})
 
             # 4) Process attendance & wipe message for privacy
             _att_handle_location(emp, chat_id, loc)
             _att_delete_message(chat_id, msg_id)
-        elif text in ("تسجيل حضور", " تسجيل حضور"):
+        elif text in ("تسجيل حضور", " تسجيل حضور", "📍 تسجيل حضور"):
             cache[f"att_action_{chat_id}"] = "checkin"
             _att_send(chat_id, "لتسجيل الحضور، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
-                      keyboard=[[{"text": "إرسال موقعي المباشر", "request_location": True}], ["حالتي اليوم", "تسجيل غياب"]])
-        elif text in ("تسجيل انصراف", " تسجيل انصراف"):
+                      keyboard=[[{"text": "📍 تسجيل الحضور الآن (بضغطة واحدة)", "request_location": True}], ["حالتي اليوم", "تسجيل غياب"]])
+        elif text in ("تسجيل انصراف", " تسجيل انصراف", "🚪 تسجيل انصراف"):
             cache[f"att_action_{chat_id}"] = "checkout"
             _att_send(chat_id, "لتسجيل الانصراف، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
-                      keyboard=[[{"text": "إرسال موقعي المباشر", "request_location": True}], ["حالتي اليوم", "تسجيل غياب"]])
-        elif text in ("حالتي اليوم", " حالتي اليوم"):
+                      keyboard=[[{"text": "🚪 تسجيل الانصراف الآن (بضغطة واحدة)", "request_location": True}], ["حالتي اليوم", "تسجيل غياب"]])
+        elif text in ("حالتي اليوم", " حالتي اليوم", "📊 حالتي اليوم", "📊 تقرير حالتي اليوم"):
             _att_status(emp, chat_id)
-        elif text in ("تسجيل غياب", " تسجيل غياب"):
+        elif text in ("تسجيل غياب", " تسجيل غياب", "🚫 تسجيل غياب"):
             _att_absent(emp, chat_id)
         else:
             pending_note = cache.pop(f"att_pending_note_{chat_id}", None)
@@ -13382,10 +13564,10 @@ def telegram_attendance_webhook():
                 _sheets_update_match(cfg["sheet_id"], cfg["attendance_gid"],
                                      {"employee_id": pending_note["employee_id"], "date": pending_note["date"]},
                                      {"notes": text.strip(), "note": text.strip(), "ملاحظات": text.strip()})
-                _att_send(chat_id, "تم حفظ ملاحظتك مع تقرير الانصراف بنجاح. شكراً لك!", keyboard=_att_menu())
+                _att_send(chat_id, "تم حفظ ملاحظتك مع تقرير الانصراف بنجاح. شكراً لك!", keyboard=_att_menu(emp))
                 _att_notify_owner(f"📝 ملاحظة انصراف من {pending_note.get('name','')}:\n«{text.strip()}»")
             else:
-                _att_send(chat_id, f"أهلاً {emp.get('name','')}! اختر من القائمة:", keyboard=_att_menu())
+                _att_send(chat_id, f"أهلاً {emp.get('name','')}! اختر من القائمة:", keyboard=_att_menu(emp))
         return jsonify({"ok": True})
     except Exception as e:
         print(f"[att webhook] {e}")
