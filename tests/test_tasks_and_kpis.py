@@ -1493,3 +1493,134 @@ def test_api_plans_assign_bulk_invalidates_cache_and_matches_robustly(monkeypatc
         assert len(invalidated) >= 1  # Cache was invalidated!
         assert mock_tasks[0]["status"] == "Assigned"
         assert mock_tasks[0]["assigned_employee_id"] == "EMP-8986-4947"
+
+
+def test_resolve_creator_employee_with_ids_and_offline_robustness(monkeypatch):
+    """Test that employee IDs match instantly and resolve names even when Google Sheets is offline."""
+    import api.index as idx
+
+    # Mock Google Sheets to raise an exception (simulating network timeout or offline)
+    monkeypatch.setattr(idx, "_gsheet_rows", lambda *a, **k: (_ for _ in ()).throw(Exception("GSheets Offline")))
+
+    # Direct ID tests
+    eid, name = idx._resolve_creator_employee("EMP-8069-7345")
+    assert eid == "EMP-8069-7345"
+    assert name == "Walaa Ashraf Mohammed"
+
+    eid, name = idx._resolve_creator_employee("emp-2945-2364")
+    assert eid == "EMP-2945-2364"
+    assert name == "هدير انور عباس"
+
+    eid, name = idx._resolve_creator_employee("EMP-7189-7780")
+    assert eid == "EMP-7189-7780"
+    assert name == "عبدالرحمن محمد عربي"
+
+    eid, name = idx._resolve_creator_employee("EMP-3264-8790")
+    assert eid == "EMP-3264-8790"
+    assert name == "ليالي احمد احمد محمد"
+
+    eid, name = idx._resolve_creator_employee("EMP-7775-2303")
+    assert eid == "EMP-7775-2303"
+    assert name == "Menna gamal"
+
+    # Direct Name / Alias tests under offline mode
+    eid, name = idx._resolve_creator_employee("ولاء أشرف")
+    assert eid == "EMP-8069-7345"
+    assert "Walaa" in name
+
+    eid, name = idx._resolve_creator_employee("هدير أنور")
+    assert eid == "EMP-2945-2364"
+    assert "هدير" in name
+
+
+def test_api_tasks_ingest_plan_preserves_selected_creator(monkeypatch):
+    """Test that ingesting a plan with an explicit content creator preserves the creator on all tasks without overwriting with AM."""
+    import api.index as idx
+
+    saved_tasks_capture = []
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, cid: saved_tasks_capture.clear() or saved_tasks_capture.extend(tasks))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan")
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+            sess["employee_id"] = "AM-2072-9827"
+
+        # Ingest plan selecting Walaa Ashraf
+        res = client.post("/api/tasks/ingest-plan", json={
+            "client_id": "cli_creator_test_123",
+            "client_name": "عيادات النخبة",
+            "plan_name": "خطة عيادات النخبة - سبتمبر",
+            "am_employee_id": "AM-2072-9827",
+            "content_creator_id": "EMP-8069-7345",
+            "creator_id": "EMP-8069-7345",
+            "posts": [
+                {
+                    "post_number": 1,
+                    "title": "بوست ترحيبي بالنخبة",
+                    "caption": "مرحباً بكم في عيادات النخبة المتخصصة",
+                    "post_type": "post"
+                },
+                {
+                    "post_number": 2,
+                    "title": "كاروسيل نصائح طبية",
+                    "caption": "أهم 5 نصائح لصحة الأسنان",
+                    "post_type": "carousel"
+                }
+            ]
+        })
+
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["success"] is True
+        assert d["ingested_count"] == 2
+
+        # Verify both created tasks have the chosen creator, NOT the Account Manager!
+        assert len(saved_tasks_capture) == 2
+        for t in saved_tasks_capture:
+            assert t["creator_id"] == "EMP-8069-7345"
+            assert t["creator_name"] == "Walaa Ashraf Mohammed"
+            assert t["content_creator_id"] == "EMP-8069-7345"
+            assert t["content_creator_name"] == "Walaa Ashraf Mohammed"
+            # AM is still properly recorded
+            assert t["am_id"] == "AM-2072-9827"
+            assert t["am_name"] == "محمود خالد"
+
+
+def test_api_tasks_backfills_creator_name_from_id(monkeypatch):
+    """GET /api/tasks self-heals tasks with creator_id but missing creator_name."""
+    import api.index as idx
+
+    mock_tasks = [
+        {
+            "task_id": "TASK-CR-1",
+            "client_id": "cli_test",
+            "title": "بوست اختبار",
+            "creator_id": "EMP-8069-7345",
+            "creator_name": "",  # Missing name!
+            "status": "Pending AM Approval",
+            "is_archived": False
+        }
+    ]
+
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: mock_tasks)
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.get("/api/tasks?all=true")
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["success"] is True
+        tasks = d["tasks"]
+        assert len(tasks) == 1
+        assert tasks[0]["creator_name"] == "Walaa Ashraf Mohammed"
+        assert tasks[0]["content_creator_name"] == "Walaa Ashraf Mohammed"
+

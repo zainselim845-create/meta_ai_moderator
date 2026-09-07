@@ -1740,6 +1740,18 @@ function empOptionsHtml(selectedId) {
 
 function creatorOptionsHtml(selectedId, selectedName) {
     var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+    if (!team || !team.length) {
+        team = [
+            { employee_id: 'EMP-8069-7345', name: 'Walaa Ashraf Mohammed', role: 'Content Creator' },
+            { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' },
+            { employee_id: 'EMP-7189-7780', name: 'عبدالرحمن محمد عربي', role: 'Content' },
+            { employee_id: 'EMP-3264-8790', name: 'ليالي احمد احمد محمد', role: 'كاتب' },
+            { employee_id: 'EMP-7775-2303', name: 'Menna gamal', role: 'كاتب' },
+            { employee_id: 'EMP-8148', name: 'عمر احمد عبدالرحمن', role: 'مصمم جرافيك' },
+            { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
+            { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' }
+        ];
+    }
     var opts = '<option value="">-- بدون كاتب / اختياري --</option>';
     // First list team members whose roles are related to content creation
     var creators = team.filter(function(e) {
@@ -1749,10 +1761,17 @@ function creatorOptionsHtml(selectedId, selectedName) {
     // Fallback if no specific content role found
     if (!creators.length) creators = team;
     
+    var matchedAny = false;
+    var normSelId = selectedId ? String(selectedId).trim().toLowerCase() : '';
+    var normSelName = selectedName ? String(selectedName).trim().toLowerCase() : '';
+
     // Add creators
     creators.forEach(function(e) {
-        var isSel = (selectedId && String(e.employee_id) === String(selectedId)) ||
-                    (selectedName && String(e.name).trim().toLowerCase() === String(selectedName).trim().toLowerCase());
+        var eId = String(e.employee_id || '').trim().toLowerCase();
+        var eName = String(e.name || '').trim().toLowerCase();
+        var isSel = (normSelId && eId === normSelId) ||
+                    (normSelName && (eName === normSelName || eName.includes(normSelName) || normSelName.includes(eName)));
+        if (isSel) matchedAny = true;
         opts += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + (e.role ? ' (' + esc(e.role) + ')' : '') + '</option>';
     });
     
@@ -1761,12 +1780,22 @@ function creatorOptionsHtml(selectedId, selectedName) {
     if (others.length) {
         opts += '<optgroup label="باقي أعضاء الفريق">';
         others.forEach(function(e) {
-            var isSel = (selectedId && String(e.employee_id) === String(selectedId)) ||
-                        (selectedName && String(e.name).trim().toLowerCase() === String(selectedName).trim().toLowerCase());
+            var eId = String(e.employee_id || '').trim().toLowerCase();
+            var eName = String(e.name || '').trim().toLowerCase();
+            var isSel = !matchedAny && ((normSelId && eId === normSelId) ||
+                        (normSelName && (eName === normSelName || eName.includes(normSelName) || normSelName.includes(eName))));
+            if (isSel) matchedAny = true;
             opts += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + (e.role ? ' (' + esc(e.role) + ')' : '') + '</option>';
         });
         opts += '</optgroup>';
     }
+
+    // If a creator was selected but wasn't in the roster list, inject it so it is never displayed as unselected
+    if (!matchedAny && (selectedId || selectedName)) {
+        var dispName = selectedName || selectedId;
+        opts += '<option value="' + esc(selectedId || dispName) + '" selected>' + esc(dispName) + ' (مُعيّن)</option>';
+    }
+
     return opts;
 }
 
@@ -2435,12 +2464,30 @@ function renderTaskCard(t, indexInPlan) {
     html += '<div class="pt-2 border-t border-slate-100 w-full space-y-2">';
 
     // AM Creator Selection Row (Allows Account Manager to explicitly select/change the content creator on the task)
-    var curCreatorId = t.creator_id || '';
+    var curCreatorId = t.creator_id || t.content_creator_id || '';
     var curCreatorName = t.creator_name || t.content_creator_name || t.writer_name || '';
+    if (!curCreatorName && curCreatorId) {
+        var _roster = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+        var _match = _roster.find(function(e){ return String(e.employee_id || '').toLowerCase() === String(curCreatorId).toLowerCase(); });
+        if (_match) {
+            curCreatorName = _match.name;
+        } else {
+            var _fallbackMap = {
+                'emp-8069-7345': 'Walaa Ashraf Mohammed',
+                'emp-2945-2364': 'هدير انور عباس',
+                'emp-7189-7780': 'عبدالرحمن محمد عربي',
+                'emp-3264-8790': 'ليالي احمد احمد محمد',
+                'emp-7775-2303': 'Menna gamal',
+                'emp-8148': 'عمر احمد عبدالرحمن',
+                'am-2072-9827': 'محمود خالد'
+            };
+            curCreatorName = _fallbackMap[String(curCreatorId).toLowerCase()] || curCreatorId;
+        }
+    }
     html += '<div class="bg-purple-50/70 border border-purple-200/90 rounded-2xl p-2.5 space-y-1.5 shadow-2xs w-full box-border">' +
         '<div class="flex items-center justify-between text-[11px] font-bold text-purple-950">' +
             '<span class="flex items-center gap-1">✍️ <span>كاتب المحتوى (اختيار AM):</span></span>' +
-            (curCreatorName ? ('<span class="text-[10px] text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md font-bold">✓ مُعيّن</span>') : ('<span class="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">لم يُحدد</span>')) +
+            (curCreatorName ? ('<span class="text-[10px] text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md font-bold truncate max-w-[160px]" title="' + esc(curCreatorName) + '">✓ ' + esc(curCreatorName) + '</span>') : ('<span class="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">لم يُحدد</span>')) +
         '</div>' +
         '<div class="flex items-center gap-1.5 w-full">' +
             '<select id="creator-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-purple-300 bg-white rounded-xl font-bold text-slate-900 truncate focus:ring-2 focus:ring-purple-500 shadow-2xs cursor-pointer">' +
@@ -3317,6 +3364,7 @@ async function loadPlanBuilder() {
     var cInput = document.getElementById('pb-client');
     var dlist = document.getElementById('pb-clients-list');
     var mSel = document.getElementById('pb-am');
+    var crSel = document.getElementById('pb-creator');
     if (!cInput || !mSel) return;
     // init the open-source rich-text (Word-like) editor once
     if (window.Quill && !_planQuill && document.getElementById('pb-editor')) {
@@ -3337,6 +3385,35 @@ async function loadPlanBuilder() {
         ms = ms.filter(function(m){ return (m.name || '').indexOf('روضة') === -1; });
         mSel.innerHTML = '<option value="">— بدون إسناد مباشر —</option>' + ms.map(function(m){ return '<option value="' + esc(m.employee_id) + '">' + esc(m.name) + '</option>'; }).join('');
     } catch(e){}
+
+    if (crSel) {
+        var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+        var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
+        var curVal = crSel.value ? String(crSel.value).trim().toLowerCase() : '';
+        var creators = (team || []).filter(function(e) {
+            var r = (e.role || '').toLowerCase();
+            return r.includes('content') || r.includes('creator') || r.includes('كاتب') || r.includes('محتوى') || r.includes('writer');
+        });
+        if (!creators.length) {
+            creators = [
+                { employee_id: 'EMP-8069-7345', name: 'Walaa Ashraf Mohammed', role: 'Content Creator' },
+                { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' },
+                { employee_id: 'EMP-7189-7780', name: 'عبدالرحمن محمد عربي', role: 'Content' },
+                { employee_id: 'EMP-3264-8790', name: 'ليالي احمد احمد محمد', role: 'كاتب' },
+                { employee_id: 'EMP-7775-2303', name: 'Menna gamal', role: 'كاتب' },
+                { employee_id: 'EMP-8148', name: 'عمر احمد عبدالرحمن', role: 'Creative' }
+            ];
+        }
+        var cOpts = '<option value="">👤 اختيار وتعيين بواسطة AM لاحقاً</option>';
+        creators.forEach(function(c) {
+            var cEid = String(c.employee_id || '').trim().toLowerCase();
+            var isMe = myEmpId && cEid === String(myEmpId).trim().toLowerCase();
+            var isSel = (curVal && curVal === cEid) || (!curVal && isMe);
+            cOpts += '<option value="' + esc(c.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(c.name) + (c.role ? ' (' + esc(c.role) + ')' : '') + (isMe ? ' (أنا ✍️)' : '') + '</option>';
+        });
+        cOpts += '<option value="auto">✨ كشف تلقائي / الحساب الحالي</option>';
+        crSel.innerHTML = cOpts;
+    }
 }
 
 async function uploadPlanImage(input) {
@@ -3379,6 +3456,10 @@ async function createPlan() {
     var clientInput = ((document.getElementById('pb-client')||{}).value || '').trim();
     var planName = ((document.getElementById('pb-plan-name')||{}).value || '').trim();
     var am = (document.getElementById('pb-am')||{}).value || '';
+    var creatorEl = document.getElementById('pb-creator');
+    var creatorId = (creatorEl && creatorEl.value !== 'auto') ? creatorEl.value.trim() : '';
+    var creatorOpt = (creatorEl && creatorEl.selectedIndex >= 0) ? creatorEl.options[creatorEl.selectedIndex] : null;
+    var creatorName = (creatorOpt && creatorOpt.value && creatorOpt.value !== 'auto') ? creatorOpt.text.replace(/\s*\(.*?\)$/, '').replace(/^[^\w\u0600-\u06FF]+/, '').trim() : '';
     var txt = _planQuill ? _planQuill.getText().trim() : (((document.getElementById('pb-text')||{}).value) || '').trim();
     if (!clientInput) { showToast('اكتب أو اختر اسم العميل', 'error'); return; }
     if (!txt) { showToast('اكتب محتوى البلان', 'error'); return; }
@@ -3398,6 +3479,10 @@ async function createPlan() {
                 client_name: clientInput,
                 plan_name: planName,
                 am_employee_id: am,
+                content_creator_id: creatorId,
+                creator_id: creatorId,
+                content_creator_name: creatorName,
+                creator_name: creatorName,
                 plan_text: txt
             })
         });
@@ -3655,7 +3740,38 @@ async function loadTasksIngestFields() {
             amSel.innerHTML = optHtml;
         }
     } catch(e){}
-    
+
+    // 3. Content Creators
+    var creatorSel = document.getElementById('tasks-ingest-creator');
+    if (creatorSel) {
+        var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+        var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
+        var curVal = creatorSel.value ? String(creatorSel.value).trim().toLowerCase() : '';
+        var creators = (team || []).filter(function(e) {
+            var r = (e.role || '').toLowerCase();
+            return r.includes('content') || r.includes('creator') || r.includes('كاتب') || r.includes('محتوى') || r.includes('writer');
+        });
+        if (!creators.length) {
+            creators = [
+                { employee_id: 'EMP-8069-7345', name: 'Walaa Ashraf Mohammed', role: 'Content Creator' },
+                { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' },
+                { employee_id: 'EMP-7189-7780', name: 'عبدالرحمن محمد عربي', role: 'Content' },
+                { employee_id: 'EMP-3264-8790', name: 'ليالي احمد احمد محمد', role: 'كاتب' },
+                { employee_id: 'EMP-7775-2303', name: 'Menna gamal', role: 'كاتب' },
+                { employee_id: 'EMP-8148', name: 'عمر احمد عبدالرحمن', role: 'Creative' }
+            ];
+        }
+        var cOpts = '<option value="">👤 اختيار وتعيين بواسطة AM لاحقاً</option>';
+        creators.forEach(function(c) {
+            var cEid = String(c.employee_id || '').trim().toLowerCase();
+            var isMe = myEmpId && cEid === String(myEmpId).trim().toLowerCase();
+            var isSel = (curVal && curVal === cEid) || (!curVal && isMe);
+            cOpts += '<option value="' + esc(c.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(c.name) + (c.role ? ' (' + esc(c.role) + ')' : '') + (isMe ? ' (أنا ✍️)' : '') + '</option>';
+        });
+        cOpts += '<option value="auto">✨ كشف تلقائي من الملف</option>';
+        creatorSel.innerHTML = cOpts;
+    }
+
     try {
         populatePlanMonthDropdown();
         updatePlanNamePreview();
@@ -3876,6 +3992,8 @@ async function ingestPlanAction(ev) {
     var amId = amEl ? amEl.value.trim() : '';
     var creatorEl = document.getElementById('tasks-ingest-creator');
     var creatorId = (creatorEl && creatorEl.value !== 'auto') ? creatorEl.value.trim() : '';
+    var creatorOpt = (creatorEl && creatorEl.selectedIndex >= 0) ? creatorEl.options[creatorEl.selectedIndex] : null;
+    var creatorName = (creatorOpt && creatorOpt.value && creatorOpt.value !== 'auto') ? creatorOpt.text.replace(/\s*\(.*?\)$/, '').replace(/^[^\w\u0600-\u06FF]+/, '').trim() : '';
     var autoPlanName = (typeof getSelectedPlanName === 'function') ? getSelectedPlanName() : '';
 
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
@@ -3929,7 +4047,9 @@ async function ingestPlanAction(ev) {
                     client_name: clientInput,
                     am_employee_id: amId,
                     content_creator_id: creatorId,
-                    creator_id: creatorId
+                    creator_id: creatorId,
+                    content_creator_name: creatorName,
+                    creator_name: creatorName
                 })
             };
         } else if (file.size < 4 * 1024 * 1024) {
@@ -3944,6 +4064,10 @@ async function ingestPlanAction(ev) {
             if (creatorId) {
                 fd.append('content_creator_id', creatorId);
                 fd.append('creator_id', creatorId);
+                if (creatorName) {
+                    fd.append('content_creator_name', creatorName);
+                    fd.append('creator_name', creatorName);
+                }
             }
             opts = { method: 'POST', body: fd };
         } else {
@@ -3962,7 +4086,9 @@ async function ingestPlanAction(ev) {
                 client_name: clientInput,
                 am_employee_id: amId,
                 content_creator_id: creatorId,
-                creator_id: creatorId
+                creator_id: creatorId,
+                content_creator_name: creatorName,
+                creator_name: creatorName
             })
         };
     } else {
@@ -3977,7 +4103,9 @@ async function ingestPlanAction(ev) {
                 client_name: clientInput,
                 am_employee_id: amId,
                 content_creator_id: creatorId,
-                creator_id: creatorId
+                creator_id: creatorId,
+                content_creator_name: creatorName,
+                creator_name: creatorName
             })
         };
     }
@@ -5030,6 +5158,39 @@ async function openPlanBuilderModal() {
 
     fillAMSelect(realAMs);
 
+    // Load Creators into pb-creator-select
+    var pbCreatorSelect = document.getElementById('pb-creator-select');
+    function fillPBCreatorSelect() {
+        if (!pbCreatorSelect) return;
+        var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+        var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
+        var curVal = pbCreatorSelect.value ? String(pbCreatorSelect.value).trim().toLowerCase() : '';
+        var creators = (team || []).filter(function(e) {
+            var r = (e.role || '').toLowerCase();
+            return r.includes('content') || r.includes('creator') || r.includes('كاتب') || r.includes('محتوى') || r.includes('writer');
+        });
+        if (!creators.length) {
+            creators = [
+                { employee_id: 'EMP-8069-7345', name: 'Walaa Ashraf Mohammed', role: 'Content Creator' },
+                { employee_id: 'EMP-2945-2364', name: 'هدير انور عباس', role: 'Content creator' },
+                { employee_id: 'EMP-7189-7780', name: 'عبدالرحمن محمد عربي', role: 'Content' },
+                { employee_id: 'EMP-3264-8790', name: 'ليالي احمد احمد محمد', role: 'كاتب' },
+                { employee_id: 'EMP-7775-2303', name: 'Menna gamal', role: 'كاتب' },
+                { employee_id: 'EMP-8148', name: 'عمر احمد عبدالرحمن', role: 'Creative' }
+            ];
+        }
+        var opts = '<option value="">👤 اختيار وتعيين بواسطة AM لاحقاً</option>';
+        creators.forEach(function(c) {
+            var cEid = String(c.employee_id || '').trim().toLowerCase();
+            var isMe = myEmpId && cEid === String(myEmpId).trim().toLowerCase();
+            var isSel = (curVal && curVal === cEid) || (!curVal && isMe);
+            opts += '<option value="' + esc(c.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(c.name) + (c.role ? ' — ' + esc(c.role) : '') + (isMe ? ' (أنا ✍️)' : '') + '</option>';
+        });
+        opts += '<option value="auto">✨ كشف تلقائي / الحساب الحالي</option>';
+        pbCreatorSelect.innerHTML = opts;
+    }
+    fillPBCreatorSelect();
+
     try {
         var mgrData = await safeFetchJson('/api/managers');
         if (mgrData && mgrData.managers && mgrData.managers.length) {
@@ -5182,7 +5343,7 @@ window.addPlanBuilderRow = function(postData) {
                    { employee_id: 'EMP-7775-2303', name: 'Menna gamal', role: 'مصمم' }
                ]);
 
-    var assigneeOptions = '<option value="">👤 إسناد لموظف (اختياري)...</option>';
+    var assigneeOptions = '<option value="">👤 إسناد لمصمم/منفذ (اختياري)...</option>';
     team.forEach(function(e){
         var isSel = (data.assigned_employee_id === e.employee_id || (data.assignee_name && data.assignee_name === e.name));
         assigneeOptions += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(e.name) + ' (' + esc(e.role || 'عضو فريق') + ')</option>';
@@ -5213,7 +5374,7 @@ window.addPlanBuilderRow = function(postData) {
                     '<option value="conversion"' + (curPillar === 'conversion' ? ' selected' : '') + '>🎯 عرض وبيعي</option>' +
                     '<option value="viral"' + (curPillar === 'viral' ? ' selected' : '') + '>🔥 تريند وتفاعل</option>' +
                 '</select>' +
-                '<select class="pb-assignee text-xs font-bold bg-purple-50/70 border border-purple-200 rounded-xl px-2.5 py-1 text-purple-900 focus:outline-none focus:border-purple-500">' +
+                '<select class="pb-assignee text-xs font-bold bg-blue-50/70 border border-blue-200 rounded-xl px-2.5 py-1 text-blue-900 focus:outline-none focus:border-blue-500" title="إسناد المهمة للمصمم أو المنفذ">' +
                     assigneeOptions +
                 '</select>' +
             '</div>' +
@@ -5369,6 +5530,8 @@ async function submitPlanBuilder() {
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
     var creatorEl = document.getElementById('pb-creator-select');
     var creatorId = (creatorEl && creatorEl.value !== 'auto') ? creatorEl.value.trim() : '';
+    var creatorOpt = (creatorEl && creatorEl.selectedIndex >= 0) ? creatorEl.options[creatorEl.selectedIndex] : null;
+    var creatorName = (creatorOpt && creatorOpt.value && creatorOpt.value !== 'auto') ? creatorOpt.text.replace(/\s*\(.*?\)$/, '').replace(/^[^\w\u0600-\u06FF]+/, '').trim() : '';
 
     var structuredPosts = [];
     var clientTextBlocks = [];
@@ -5397,6 +5560,10 @@ async function submitPlanBuilder() {
             post_type: type,
             publish_date: pdate,
             publish_time: '10:00',
+            creator_id: creatorId,
+            creator_name: creatorName,
+            content_creator_id: creatorId,
+            content_creator_name: creatorName,
             assigned_employee_id: empId,
             assignee_name: empName,
             reference_links: refList,
@@ -5432,6 +5599,8 @@ async function submitPlanBuilder() {
                 am_employee_id: amId,
                 content_creator_id: creatorId,
                 creator_id: creatorId,
+                content_creator_name: creatorName,
+                creator_name: creatorName,
                 append: true
             })
         });
