@@ -1446,4 +1446,50 @@ def test_api_tasks_update_content_and_zero_data_loss(monkeypatch):
         assert len(saved_tasks) == 1
 
 
+def test_api_plans_assign_bulk_invalidates_cache_and_matches_robustly(monkeypatch):
+    """Bulk assignment invalidates task cache and matches plans robustly."""
+    import api.index as idx
 
+    mock_tasks = [
+        {
+            "task_id": "TASK-SEP-1",
+            "client_id": "cli_hadeer_test",
+            "plan_name": "DR HADEER - خطة DR HADEER — SEPTEMBER",
+            "title": "بوست 1",
+            "status": "Pending AM Approval",
+            "assigned_employee_id": "",
+            "assignee_name": "",
+            "activity_log": []
+        }
+    ]
+    saved = []
+    invalidated = []
+
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: mock_tasks)
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved.append((t, cid)))
+    monkeypatch.setattr(idx, "invalidate_tasks_cache", lambda: invalidated.append(True))
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "_sheet_emp", lambda eid: {"employee_id": "EMP-8986-4947", "name": "راما ممدوح سرج", "telegram_id": "1582058986"})
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda tg, msg: True)
+    monkeypatch.setattr(idx, "send_task_to_employee", lambda t, cid: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+
+        # Bulk assign with normalized hyphen
+        res = client.post("/api/plans/assign-bulk", json={
+            "plan_name": "خطة DR HADEER - SEPTEMBER",
+            "employee_id": "EMP-8986-4947",
+            "scope": "pending"
+        })
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["ok"] is True
+        assert d["count"] == 1
+        assert len(saved) == 1
+        assert len(invalidated) >= 1  # Cache was invalidated!
+        assert mock_tasks[0]["status"] == "Assigned"
+        assert mock_tasks[0]["assigned_employee_id"] == "EMP-8986-4947"

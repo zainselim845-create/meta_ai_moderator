@@ -1434,7 +1434,7 @@ async function switchToClient(id) {
     loadTasksEngine();
 }
 
-async function loadTasksEngine() {
+async function loadTasksEngine(forceRefresh) {
     renderClientTabs();
     if (typeof loadTasksIngestFields === 'function') loadTasksIngestFields();
     
@@ -1467,9 +1467,16 @@ async function loadTasksEngine() {
     };
 
     try {
-        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false');
+        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false') + (forceRefresh ? '&refresh=true' : '');
         var cacheKey = 'tasks_board_' + (tasksArchiveMode ? 'arch' : 'act');
         
+        if (forceRefresh) {
+            try {
+                localStorage.removeItem('swr_cache_' + cacheKey);
+                if (typeof _swrMemoryCache !== 'undefined') _swrMemoryCache.delete('swr_cache_' + cacheKey);
+            } catch(e){}
+        }
+
         swrFetchJson(tasksUrl, null, cacheKey, function(d, isCached) {
             applyTasksData(d, isCached);
         });
@@ -3497,6 +3504,62 @@ function toggleTasksIngestCustomClient() {
     }
 }
 
+var _PLAN_MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+function populatePlanMonthDropdown() {
+    var sel = document.getElementById('tasks-ingest-plan-month');
+    if (!sel) return;
+    var now = new Date();
+    var curMonth = now.getMonth();
+    var curYear = now.getFullYear();
+    var opts = '';
+    // Show 2 previous months + current + 3 future months
+    for (var offset = -2; offset <= 3; offset++) {
+        var m = curMonth + offset;
+        var y = curYear;
+        if (m < 0) { m += 12; y--; }
+        if (m > 11) { m -= 12; y++; }
+        var label = _PLAN_MONTHS_AR[m] + ' ' + y;
+        var val = _PLAN_MONTHS_AR[m] + ' ' + y;
+        var selected = (offset === 0) ? ' selected' : '';
+        opts += '<option value="' + val + '"' + selected + '>' + label + '</option>';
+    }
+    sel.innerHTML = opts;
+}
+
+function getSelectedClientNameForPlan() {
+    var clientSel = document.getElementById('tasks-ingest-client-select');
+    var clientInp = document.getElementById('tasks-ingest-client');
+    if (clientInp && !clientInp.classList.contains('hidden') && clientInp.value.trim()) {
+        return clientInp.value.trim();
+    }
+    if (clientSel && clientSel.value) {
+        var opt = clientSel.options[clientSel.selectedIndex];
+        return (opt ? (opt.getAttribute('data-name') || opt.text.split(' (')[0].trim()) : '') || '';
+    }
+    return '';
+}
+
+function updatePlanNamePreview() {
+    var preview = document.getElementById('plan-name-preview');
+    if (!preview) return;
+    var name = getSelectedPlanName();
+    preview.textContent = name ? ('📋 ' + name) : '';
+}
+
+function getSelectedPlanName() {
+    var clientName = getSelectedClientNameForPlan();
+    var monthSel = document.getElementById('tasks-ingest-plan-month');
+    var monthVal = monthSel ? monthSel.value : '';
+    if (!clientName) return monthVal ? ('خطة — ' + monthVal) : '';
+    if (!monthVal) return 'خطة ' + clientName;
+    return 'خطة ' + clientName + ' — ' + monthVal;
+}
+
+window.populatePlanMonthDropdown = populatePlanMonthDropdown;
+window.updatePlanNamePreview = updatePlanNamePreview;
+window.getSelectedPlanName = getSelectedPlanName;
+
 function onTasksIngestClientSelectChange(val) {
     if (!val) return;
     var list = window._clientsList || window.clientsList || window._planClientsCache || [];
@@ -3519,12 +3582,11 @@ function onTasksIngestClientSelectChange(val) {
                 }
             }
         }
-        var pInp = document.getElementById('tasks-ingest-plan-name');
-        if (pInp && !pInp.value) {
-            var d = new Date();
-            var months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-            pInp.value = 'خطة ' + matched.name + ' — ' + months[d.getMonth()] + ' ' + d.getFullYear();
+        var pMonth = document.getElementById('tasks-ingest-plan-month');
+        if (pMonth && pMonth.options.length <= 1) {
+            populatePlanMonthDropdown();
         }
+        updatePlanNamePreview();
     }
 }
 
@@ -3592,6 +3654,11 @@ async function loadTasksIngestFields() {
             });
             amSel.innerHTML = optHtml;
         }
+    } catch(e){}
+    
+    try {
+        populatePlanMonthDropdown();
+        updatePlanNamePreview();
     } catch(e){}
 }
 
@@ -3663,13 +3730,13 @@ async function openBulkAssignModal(planName, clientId) {
     var qPlan = _norm(planName);
 
     var matchingTasks = (tasksList || []).filter(function(t){
-        if (clientId && String(t.client_id || '').trim() !== String(clientId).trim()) {
-            return false;
-        }
         var p = _norm(t.plan_name || t.file_name || '');
         var f = _norm(t.file_name || '');
-        if (!qPlan) return true;
-        return p === qPlan || f === qPlan || (qPlan.length >= 4 && (p.indexOf(qPlan) !== -1 || qPlan.indexOf(p) !== -1 || f.indexOf(qPlan) !== -1 || qPlan.indexOf(f) !== -1));
+        var isPlanMatch = !qPlan || (p === qPlan || f === qPlan || (qPlan.length >= 4 && (p.indexOf(qPlan) !== -1 || qPlan.indexOf(p) !== -1 || f.indexOf(qPlan) !== -1 || qPlan.indexOf(f) !== -1)));
+        if (clientId && String(t.client_id || '').trim() !== String(clientId).trim()) {
+            if (!isPlanMatch) return false;
+        }
+        return isPlanMatch;
     });
 
     var pendingTasks = matchingTasks.filter(function(t){
@@ -3753,8 +3820,16 @@ async function executeBulkAssignAction(planName, clientId) {
         if (res.ok && data.ok) {
             showToast('تم إسناد ' + (data.count || 0) + ' مهمة إلى ' + empName + ' بنجاح! 🚀');
             closeBulkAssignModal();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_tasks_board_arch');
+                if (typeof _swrMemoryCache !== 'undefined') {
+                    _swrMemoryCache.delete('swr_cache_tasks_board_act');
+                    _swrMemoryCache.delete('swr_cache_tasks_board_arch');
+                }
+            } catch(e){}
             if (typeof loadTasksEngine === 'function') {
-                await loadTasksEngine();
+                await loadTasksEngine(true);
             } else {
                 renderTasksBoard();
                 renderEmployeesStatus();
@@ -3781,7 +3856,7 @@ async function ingestPlanAction(ev) {
     var clientSel = document.getElementById('tasks-ingest-client-select');
     var clientInp = document.getElementById('tasks-ingest-client');
     var amEl = document.getElementById('tasks-ingest-am');
-    var planNameEl = document.getElementById('tasks-ingest-plan-name');
+    var monthSel = document.getElementById('tasks-ingest-plan-month');
 
     var txt = el ? el.value.trim() : '';
     var file = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
@@ -3801,7 +3876,7 @@ async function ingestPlanAction(ev) {
     var amId = amEl ? amEl.value.trim() : '';
     var creatorEl = document.getElementById('tasks-ingest-creator');
     var creatorId = (creatorEl && creatorEl.value !== 'auto') ? creatorEl.value.trim() : '';
-    var planName = planNameEl ? planNameEl.value.trim() : '';
+    var autoPlanName = (typeof getSelectedPlanName === 'function') ? getSelectedPlanName() : '';
 
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
 
@@ -3822,15 +3897,15 @@ async function ingestPlanAction(ev) {
         }
     }
 
-    // Clean plan name
+    // Clean plan name based on client + month directly
     var cleanFileBase = file ? file.name.replace(/\.(docx|doc|txt|pdf)$/i, '').trim() : '';
-    var formattedPlanName = '';
-    if (planName) {
-        formattedPlanName = (planName.includes(clientInput) ? planName : ('خطة ' + clientInput + ' — ' + planName));
-    } else if (cleanFileBase) {
-        formattedPlanName = (cleanFileBase.includes(clientInput) ? cleanFileBase : ('خطة ' + clientInput + ' — ' + cleanFileBase));
-    } else {
-        formattedPlanName = 'خطة ' + clientInput;
+    var formattedPlanName = (typeof getSelectedPlanName === 'function') ? getSelectedPlanName() : autoPlanName;
+    if (!formattedPlanName) {
+        if (cleanFileBase) {
+            formattedPlanName = (cleanFileBase.includes(clientInput) ? cleanFileBase : ('خطة ' + clientInput + ' — ' + cleanFileBase));
+        } else {
+            formattedPlanName = 'خطة ' + clientInput;
+        }
     }
 
     var fileName = formattedPlanName;
