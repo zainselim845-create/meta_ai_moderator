@@ -297,8 +297,8 @@ def test_one_tap_attendance_menu_and_geofence_intelligence(monkeypatch):
     # With 200m geofence, 818m is recognized as cell tower offset (<= 1500m)
     dist_cell_tower = 818
     cfg = hr_config()
-    geofence = int(cfg.get("geofence_meters", 200))
-    assert geofence == 200
+    geofence = int(cfg.get("geofence_meters", 50))
+    assert geofence == 50
     assert dist_cell_tower > geofence
     assert dist_cell_tower <= 1500 # Eligible for cell tower guidance & manager approval button
 

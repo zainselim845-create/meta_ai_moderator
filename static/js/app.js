@@ -2264,6 +2264,7 @@ async function loadSettings() {
     if (ta && d.prompt) { ta.value = d.prompt; updatePromptCharCount(); }
   } catch(e) {}
   if (typeof checkGoogleDriveStatus === 'function') checkGoogleDriveStatus();
+  if (typeof loadHrGeofenceSettings === 'function') loadHrGeofenceSettings();
 }
 
 // Scheduler helpers
@@ -2526,32 +2527,50 @@ async function copyEmployeeDriveFolder(eid) {
 async function loadHrGeofenceSettings() {
   try {
     const r = await fetch('/api/hr/config');
+    if (!r.ok) return;
     const d = await r.json();
     const cfg = d.config || {};
-    const gEl = document.getElementById('hr-cfg-geofence');
-    if (gEl) gEl.value = cfg.geofence_meters || 300;
-    const lEl = document.getElementById('hr-cfg-late');
-    if (lEl) lEl.value = cfg.late_after_time || '10:15';
-    const latEl = document.getElementById('hr-cfg-lat');
-    if (latEl) latEl.value = cfg.company_lat || 30.469771;
-    const lonEl = document.getElementById('hr-cfg-lon');
-    if (lonEl) lonEl.value = cfg.company_lon || 31.180022;
-    const hEl = document.getElementById('hr-cfg-hide-loc');
-    if (hEl) hEl.checked = (cfg.hide_location !== false);
+    const geoVal = cfg.geofence_meters || 50;
+    const lateVal = cfg.late_after_time || '09:45';
+    const latVal = cfg.company_lat || 30.470035;
+    const lonVal = cfg.company_lon || 31.180207;
+    const hideVal = (cfg.hide_location !== false);
+
+    ['hr-cfg', 'settings-cfg'].forEach(prefix => {
+      const gEl = document.getElementById(`${prefix}-geofence`);
+      if (gEl) gEl.value = geoVal;
+      const lEl = document.getElementById(`${prefix}-late`);
+      if (lEl) lEl.value = lateVal;
+      const latEl = document.getElementById(`${prefix}-lat`);
+      if (latEl) latEl.value = latVal;
+      const lonEl = document.getElementById(`${prefix}-lon`);
+      if (lonEl) lonEl.value = lonVal;
+      const hEl = document.getElementById(`${prefix}-hide-loc`);
+      if (hEl) hEl.checked = hideVal;
+    });
   } catch(e) {}
 }
 
 async function saveHrGeofenceSettings() {
-  const gEl = document.getElementById('hr-cfg-geofence');
-  const lEl = document.getElementById('hr-cfg-late');
-  const latEl = document.getElementById('hr-cfg-lat');
-  const lonEl = document.getElementById('hr-cfg-lon');
-  const hEl = document.getElementById('hr-cfg-hide-loc');
+  let gEl = document.getElementById('settings-cfg-geofence');
+  let lEl = document.getElementById('settings-cfg-late');
+  let latEl = document.getElementById('settings-cfg-lat');
+  let lonEl = document.getElementById('settings-cfg-lon');
+  let hEl = document.getElementById('settings-cfg-hide-loc');
+  
+  if (!gEl || !gEl.value) {
+    gEl = document.getElementById('hr-cfg-geofence');
+    lEl = document.getElementById('hr-cfg-late');
+    latEl = document.getElementById('hr-cfg-lat');
+    lonEl = document.getElementById('hr-cfg-lon');
+    hEl = document.getElementById('hr-cfg-hide-loc');
+  }
+
   const body = {
-    geofence_meters: parseInt(gEl?.value || 300, 10),
-    late_after_time: (lEl?.value || '10:15').trim(),
-    company_lat: parseFloat(latEl?.value || 30.469771),
-    company_lon: parseFloat(lonEl?.value || 31.180022),
+    geofence_meters: parseInt(gEl?.value || 50, 10),
+    late_after_time: (lEl?.value || '09:45').trim(),
+    company_lat: parseFloat(latEl?.value || 30.470035),
+    company_lon: parseFloat(lonEl?.value || 31.180207),
     hide_location: hEl ? hEl.checked : true
   };
   try {
@@ -2562,11 +2581,12 @@ async function saveHrGeofenceSettings() {
     });
     const d = await r.json();
     if (r.ok && d.ok) {
-      showToast('تم حفظ إعدادات النطاق الجغرافي وحماية الموقع بنجاح ');
+      showToast(`تم حفظ نطاق الحضور الجغرافي بنجاح (${body.geofence_meters} متر) ✨`);
+      await loadHrGeofenceSettings();
     } else {
       showToast(d.error || 'تعذر حفظ الإعدادات', 'error');
     }
   } catch(e) {
-    showToast('خطأ في حفظ الإعدادات', 'error');
+    showToast('خطأ في الاتصال بالسيرفر لحفظ الإعدادات', 'error');
   }
 }

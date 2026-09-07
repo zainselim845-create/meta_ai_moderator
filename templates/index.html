@@ -169,7 +169,7 @@
      <i class="w-4 h-4" data-lucide="shield-check"></i>
      <span class="flex-1 text-right">الصلاحيات</span>
     </button>
-    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors hidden" id="nav-hr" onclick="go('hr',this)">
+    <button class="nb w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors" id="nav-hr" onclick="go('hr',this)">
      <i class="w-4 h-4 text-blue-600" data-lucide="user-check"></i>
      <span class="flex-1 text-right">الموظفين والحضور</span>
     </button>
@@ -808,6 +808,50 @@
      </div>
     </div>
     <div class="view hidden space-y-6" id="v-settings">
+     <!-- HR: Geofence & Location Settings Card -->
+     <div class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-5 shadow-sm space-y-4" id="settings-geofence-panel">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+       <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-400/30 text-blue-400 flex items-center justify-center font-bold text-base">📍</div>
+        <div>
+         <h4 class="font-bold text-sm text-white">إعدادات النطاق الجغرافي للحضور (Geofence Settings)</h4>
+         <p class="text-xs text-slate-300 mt-0.5">التحكم في أقصى مسافة مسموح بها للموظف لتسجيل الحضور من مقر الشركة وموعد احتساب التأخير.</p>
+        </div>
+       </div>
+       <button type="button" onclick="saveHrGeofenceSettings()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs inline-flex items-center gap-1.5">
+        <i class="w-4 h-4" data-lucide="check"></i>
+        <span>حفظ إعدادات النطاق</span>
+       </button>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+       <div class="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1">
+        <label class="font-bold text-slate-200 block">نطاق السماح (بالمتر):</label>
+        <div class="flex items-center gap-1.5">
+         <input type="number" id="settings-cfg-geofence" min="10" max="5000" step="10" class="w-full bg-slate-800 border border-slate-700 text-white font-bold font-mono px-2.5 py-1.5 rounded-lg text-xs" placeholder="50"/>
+         <span class="text-slate-400 font-bold">متر</span>
+        </div>
+       </div>
+       <div class="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1">
+        <label class="font-bold text-slate-200 block">وقت احتساب التأخير:</label>
+        <input type="time" id="settings-cfg-late" class="w-full bg-slate-800 border border-slate-700 text-white font-bold font-mono px-2.5 py-1.5 rounded-lg text-xs"/>
+       </div>
+       <div class="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1">
+        <label class="font-bold text-slate-200 block">إحداثيات مقر الشركة:</label>
+        <div class="flex gap-1">
+         <input type="text" id="settings-cfg-lat" placeholder="Lat (30.47)" class="w-1/2 bg-slate-800 border border-slate-700 text-white font-mono px-2 py-1.5 rounded-lg text-[11px]"/>
+         <input type="text" id="settings-cfg-lon" placeholder="Lon (31.18)" class="w-1/2 bg-slate-800 border border-slate-700 text-white font-mono px-2 py-1.5 rounded-lg text-[11px]"/>
+        </div>
+       </div>
+       <div class="bg-white/10 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
+        <label class="font-bold text-slate-200 block">حماية خصوصية اللوكيشن:</label>
+        <label class="inline-flex items-center gap-2 cursor-pointer pt-1">
+         <input type="checkbox" id="settings-cfg-hide-loc" class="w-4 h-4 rounded text-blue-600"/>
+         <span class="text-xs text-slate-300 font-bold">إخفاء الأرقام من الموظفين</span>
+        </label>
+       </div>
+      </div>
+     </div>
+
      <!-- Google Drive Integration & Storage Card (Admins Only) -->
      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4" id="google-drive-panel">
       <div class="flex items-center justify-between flex-wrap gap-2">
