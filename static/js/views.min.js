@@ -722,7 +722,7 @@ async function deleteClient(clientId, clientName) {
 
 async function saveDirectAccount(e) {
     if (e && e.preventDefault) e.preventDefault();
-    const name = document.getElementById('acc-name').value.trim();
+    const name = ((document.getElementById('acc-name') || {}).value || '').trim();
     const company = (document.getElementById('acc-company') || {}).value || '';
     const pageId = (document.getElementById('acc-page-id') || {}).value || '';
     const igId = (document.getElementById('acc-ig-id') || {}).value || '';
@@ -5995,8 +5995,8 @@ async function triggerGlobalLiveRefresh(btn) {
         if (typeof populateClientDatalists === 'function') {
             populateClientDatalists();
         }
-        if (typeof loadAccountsList === 'function' && document.getElementById('v-accounts') && !document.getElementById('v-accounts').classList.contains('hidden')) {
-            await loadAccountsList(true);
+        if (typeof loadAccounts === 'function' && document.getElementById('v-accounts') && !document.getElementById('v-accounts').classList.contains('hidden')) {
+            await loadAccounts(true);
         }
         if (typeof loadMyPortal === 'function' && document.getElementById('v-myportal') && !document.getElementById('v-myportal').classList.contains('hidden')) {
             await loadMyPortal();
@@ -6019,6 +6019,7 @@ async function triggerGlobalLiveRefresh(btn) {
 
 window.refreshPlanBuilderClients = refreshPlanBuilderClients;
 window.triggerGlobalLiveRefresh = triggerGlobalLiveRefresh;
+window.loadAccountsList = typeof loadAccounts === 'function' ? loadAccounts : function(){ if(typeof loadAccounts === 'function') loadAccounts(true); };
 
 // Background Auto-Poll for real-time live updates
 (function initLiveAutoSync() {

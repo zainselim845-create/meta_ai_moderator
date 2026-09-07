@@ -1669,3 +1669,51 @@ def test_api_tasks_ingest_plan_with_month_name_avoids_duplicate_client_prefix(mo
         assert saved_tasks_capture[0]["plan_name"] == "خطة دومية — سبتمبر 2026"
 
 
+def test_api_accounts_get_masks_tokens_and_scopes_to_active_client(monkeypatch):
+    """GET /api/accounts masks sensitive tokens and scopes accounts to current client."""
+    import api.index as idx
+
+    mock_accounts = [
+        {
+            "id": "acc_1",
+            "name": "صفحة دومية الرسمية",
+            "client_id": "cli_domya_123",
+            "access_token": "SUPER_SECRET_TOKEN_1",
+            "access_token_enc": "ENC_TOKEN_1"
+        },
+        {
+            "id": "acc_2",
+            "name": "صفحة عميل آخر",
+            "client_id": "cli_other_client",
+            "access_token": "SUPER_SECRET_TOKEN_2"
+        }
+    ]
+
+    monkeypatch.setattr(idx, "ACCOUNTS_STORE", mock_accounts)
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "heal_orphan_accounts", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "current_client_id", lambda: "cli_domya_123")
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.get("/api/accounts")
+        assert res.status_code == 200
+        d = res.get_json()
+        assert "accounts" in d
+        accs = d["accounts"]
+
+        # Only the active client's page is returned
+        assert len(accs) == 1
+        assert accs[0]["id"] == "acc_1"
+        assert accs[0]["name"] == "صفحة دومية الرسمية"
+
+        # Security check: sensitive tokens must be masked / removed
+        assert "access_token" not in accs[0]
+        assert "access_token_enc" not in accs[0]
+        assert d["security"] == "401 Protected"
+
+
+

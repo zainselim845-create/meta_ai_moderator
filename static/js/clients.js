@@ -467,8 +467,11 @@ async function attachPage(pageId) {
             body: JSON.stringify({page_id: pageId})
         });
         const d = await r.json();
-        if (!r.ok) { showToast(d.error || 'فشل الربط', 'error'); return; }
-        document.getElementById('page-picker-modal').classList.add('hidden'); document.getElementById('page-picker-modal').classList.remove('flex');
+        const pickerModal = document.getElementById('page-picker-modal');
+        if (pickerModal) {
+            pickerModal.classList.add('hidden');
+            pickerModal.classList.remove('flex');
+        }
         showToast(`تم ربط ${d.facebook}${d.instagram ? ' و @' + d.instagram : ''} <i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 inline"></i>`);
         window.history.replaceState({}, document.title, '/');
         await loadClients();
