@@ -1109,6 +1109,25 @@ window.setTaskMonthFilter = setTaskMonthFilter;
 window.getTaskMonthKey = getTaskMonthKey;
 window.formatMonthLabel = formatMonthLabel;
 
+function selectTaskClientFilter(cid, cname) {
+    var targetCid = (cid && cid !== '__all__' && cid !== 'all') ? cid : null;
+    window.activeClientId = targetCid;
+    try {
+        if (targetCid) localStorage.setItem('active_client_id', targetCid);
+        else localStorage.removeItem('active_client_id');
+    } catch(e){}
+    selectedPlanFilter = null;
+    currentTaskStatusFilter = 'all';
+
+    if (typeof switchActiveClient === 'function') {
+        switchActiveClient(targetCid || '__all__');
+    } else {
+        renderClientTabs();
+        renderTasksBoard();
+    }
+}
+window.selectTaskClientFilter = selectTaskClientFilter;
+
 var selectedPlanFilter = null;
 
 var tasksArchiveMode = false;
@@ -1156,6 +1175,53 @@ function renderClientTabs() {
     var planNames = Object.keys(plans);
 
     var html = '<div class="w-full space-y-2.5 pb-2 pt-1">';
+
+    // Row 0: Client Selector Bar (فلترة واختيار العميل المباشر)
+    var clientMap = {};
+    allTasks.forEach(function(t) {
+        var cid = t.client_id || 'client_default';
+        var cname = (t.client_name || 'عميل عام').trim();
+        if (!clientMap[cid]) clientMap[cid] = { id: cid, name: cname, count: 0 };
+        clientMap[cid].count++;
+    });
+    var clientList = Object.values(clientMap).sort(function(a, b){ return b.count - a.count; });
+    var curActiveCid = window.activeClientId || (function(){ try { return localStorage.getItem('active_client_id'); } catch(e){ return null; } })();
+    var isAllClients = !curActiveCid || curActiveCid === 'all' || curActiveCid === '__all__' || curActiveCid === 'client_default';
+
+    if (clientList.length > 0) {
+        html += '<div class="flex items-center justify-between gap-2 overflow-x-auto pb-1 flex-wrap sm:flex-nowrap bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-2.5 rounded-2xl text-white shadow-xs">';
+        html += '<div class="flex items-center gap-1.5 overflow-x-auto flex-nowrap shrink-0">';
+        html += '<span class="text-xs font-bold text-slate-200 flex items-center gap-1">🏢 العميل:</span>';
+        
+        // All clients pill
+        html += '<button type="button" onclick="selectTaskClientFilter(\'__all__\')" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer ' +
+            (isAllClients ? 'bg-white text-slate-950 shadow-sm font-extrabold' : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10') + '">' +
+            '<span>🌐 جميع العملاء</span>' +
+            '<span dir="ltr" class="text-[10px] font-mono ' + (isAllClients ? 'bg-slate-900 text-white' : 'bg-white/20 text-white') + ' px-1.5 py-0.2 rounded-full font-bold">' + allTasks.length + '</span>' +
+        '</button>';
+
+        // Individual client pills
+        clientList.forEach(function(cl) {
+            var isSel = (curActiveCid === cl.id);
+            html += '<button type="button" onclick="selectTaskClientFilter(\'' + escJs(cl.id) + '\', \'' + escJs(cl.name) + '\')" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer ' +
+                (isSel ? 'bg-blue-500 text-white shadow-sm ring-2 ring-blue-300 font-extrabold' : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10') + '">' +
+                '<span>🏢 ' + esc(cl.name) + '</span>' +
+                '<span dir="ltr" class="text-[10px] font-mono ' + (isSel ? 'bg-white text-blue-900' : 'bg-white/20 text-white') + ' px-1.5 py-0.2 rounded-full font-bold">' + cl.count + '</span>' +
+            '</button>';
+        });
+        html += '</div>';
+
+        // Right side: Active client indicator or reset
+        if (!isAllClients) {
+            var activeObj = clientList.find(function(c){ return c.id === curActiveCid; });
+            var activeName = activeObj ? activeObj.name : curActiveCid;
+            html += '<div class="flex items-center gap-1.5 mr-auto shrink-0">' +
+                '<span class="text-[11px] text-blue-200 font-bold">الحساب النشط: <b>' + esc(activeName) + '</b></span>' +
+                '<button type="button" onclick="selectTaskClientFilter(\'__all__\')" class="bg-white/20 hover:bg-white/30 text-white text-[10px] font-bold px-2 py-1 rounded-lg transition cursor-pointer" title="إلغاء الفلترة وعرض الكل">✕ إلغاء الفلترة</button>' +
+            '</div>';
+        }
+        html += '</div>';
+    }
 
     // Row 1: Month Filter Bar & Archive Switcher
     html += '<div class="flex items-center justify-between gap-2 overflow-x-auto pb-1 flex-wrap sm:flex-nowrap bg-slate-50 p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">';
@@ -1697,6 +1763,108 @@ async function saveTaskDates(taskId) {
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
 
+function copyTextToClipboard(text, label, btn) {
+    if (!text || !String(text).trim()) {
+        if (typeof showToast === 'function') showToast('لا يوجد نص للنسخ', 'info');
+        return;
+    }
+    var cleanText = String(text).trim();
+    label = label || 'النص';
+    var triggerBtnFeedback = function() {
+        if (btn && btn.tagName === 'BUTTON') {
+            var oldHtml = btn.innerHTML;
+            btn.innerHTML = '✓ تم النسخ!';
+            btn.classList.add('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
+            setTimeout(function() {
+                btn.innerHTML = oldHtml;
+                btn.classList.remove('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
+            }, 1600);
+        }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(cleanText).then(function() {
+            if (typeof showToast === 'function') showToast('تم نسخ ' + label + ' إلى الحافظة 📋', 'success');
+            triggerBtnFeedback();
+        }).catch(function() {
+            prompt('انسخ ' + label + ':', cleanText);
+        });
+    } else {
+        prompt('انسخ ' + label + ':', cleanText);
+    }
+}
+window.copyTextToClipboard = copyTextToClipboard;
+
+function splitCaptionIntoParts(caption) {
+    if (!caption) return [];
+    var raw = String(caption).trim();
+    if (!raw) return [];
+
+    // 1. Check if slides/carousel format (e.g. "Slide 1:", "شريحة 1:", "سلايد 1", "Frame 1")
+    var slideRegex = /(?:^|\n\s*)(?:#+\s*)?(?:شريحة|سلايد|Slide|الشريحة|السلايد|الصورة|Image|Frame)\s*#?\s*(\d+|[أ-ي]+|[A-Za-z]+)\s*[:：\-–—]/i;
+    if (slideRegex.test(raw)) {
+        var lines = raw.split('\n');
+        var parts = [];
+        var currentLabel = '';
+        var currentBuffer = [];
+
+        lines.forEach(function(line) {
+            var m = line.match(/(?:^|\s*)(?:#+\s*)?(?:شريحة|سلايد|Slide|الشريحة|السلايد|الصورة|Image|Frame)\s*#?\s*(\d+|[أ-ي]+|[A-Za-z]+)\s*[:：\-–—]\s*(.*)/i);
+            if (m) {
+                if (currentBuffer.length > 0) {
+                    parts.push({
+                        label: currentLabel || 'المقدمة',
+                        text: currentBuffer.join('\n').trim()
+                    });
+                    currentBuffer = [];
+                }
+                currentLabel = 'شريحة ' + m[1];
+                if (m[2] && m[2].trim()) {
+                    currentBuffer.push(m[2].trim());
+                }
+            } else {
+                currentBuffer.push(line);
+            }
+        });
+        if (currentBuffer.length > 0) {
+            parts.push({
+                label: currentLabel || ('شريحة ' + (parts.length + 1)),
+                text: currentBuffer.join('\n').trim()
+            });
+        }
+        if (parts.length > 1) return parts;
+    }
+
+    // 2. Check for numbered points e.g. "1- ...", "2- ..."
+    var numBlocks = raw.split(/(?:^|\n)(?=\s*\d+[\.\-\)\:]\s+)/);
+    if (numBlocks.length > 1) {
+        return numBlocks.map(function(b, idx) {
+            var cleanB = b.trim();
+            var m = cleanB.match(/^(\d+)[\.\-\)\:]\s*(.*)/s);
+            return {
+                label: m ? ('نقطة #' + m[1]) : ('جزء #' + (idx + 1)),
+                text: cleanB
+            };
+        }).filter(function(p){ return p.text.length > 0; });
+    }
+
+    // 3. Check for distinct paragraphs separated by blank lines
+    var paragraphs = raw.split(/\n\s*\n+/).map(function(p){ return p.trim(); }).filter(Boolean);
+    if (paragraphs.length >= 2) {
+        return paragraphs.map(function(p, idx) {
+            var label = (idx === 0) ? 'الهوك / الافتتاحية' :
+                        (idx === paragraphs.length - 1 && (p.includes('#') || p.includes('احجز') || p.includes('تواصل') || p.includes('للتفاصيل') || p.includes('واتساب'))) ? 'الدعوة للتفاعل (CTA)' :
+                        ('فقرة ' + (idx + 1));
+            return {
+                label: label,
+                text: p
+            };
+        });
+    }
+
+    return [{ label: 'النص كاملاً', text: raw }];
+}
+window.splitCaptionIntoParts = splitCaptionIntoParts;
+
 function copyTaskCaption(taskId, btn) {
     var t = (tasksList || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); }) ||
             (window._myPortalTasksList || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
@@ -1707,29 +1875,10 @@ function copyTaskCaption(taskId, btn) {
         showToast('لا يوجد كابشن لنسخه', 'error');
         return;
     }
-    var triggerBtnFeedback = function() {
-        if (btn && btn.tagName === 'BUTTON') {
-            var oldText = btn.innerHTML;
-            btn.innerHTML = '✓ تم النسخ!';
-            btn.classList.add('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
-            setTimeout(function() {
-                btn.innerHTML = oldText;
-                btn.classList.remove('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
-            }, 1800);
-        }
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(cleanCaption).then(function() {
-            showToast('تم نسخ الكابشن النهائي إلى الحافظة 📋');
-            triggerBtnFeedback();
-        }).catch(function() {
-            prompt('انسخ الكابشن:', cleanCaption);
-        });
-    } else {
-        prompt('انسخ الكابشن:', cleanCaption);
-    }
+    copyTextToClipboard(cleanCaption, 'الكابشن النهائي', btn);
 }
 window.copyTaskCaption = copyTaskCaption;
+
 function empOptionsHtml(selectedId) {
     var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
     return team.map(function(e) {
@@ -2004,8 +2153,11 @@ function renderTaskCard(t, indexInPlan) {
                     '<span>💡 فكرة وتوجيهات التصميم</span>' +
                     '<span dir="ltr" class="text-[10px] text-purple-600 font-mono font-normal">(Creative Brief)</span>' +
                 '</span>' +
+                '<button type="button" onclick="copyTextToClipboard(\'' + escJs(visIdea) + '\', \'فكرة وتوجيهات التصميم\', this)" class="bg-white hover:bg-purple-100 text-purple-800 text-[10px] font-bold py-0.5 px-2 rounded-lg border border-purple-200 shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0" title="نسخ فكرة وتوجيهات التصميم">' +
+                    '<span>📋 نسخ الفكرة</span>' +
+                '</button>' +
             '</div>' +
-            '<div dir="rtl" class="leading-relaxed text-[12px] whitespace-pre-wrap font-medium text-slate-800 text-right bg-white/80 p-2.5 rounded-xl border border-purple-100/80 shadow-2xs">' + esc(visIdea) + '</div>' +
+            '<div dir="rtl" class="leading-relaxed text-[12px] whitespace-pre-wrap font-medium text-slate-800 text-right bg-white/80 p-2.5 rounded-xl border border-purple-100/80 shadow-2xs select-all">' + esc(visIdea) + '</div>' +
         '</div>' : '';
 
     // 4) Modification Requests & Notes (طلبات التعديل والملاحظات)
@@ -2014,9 +2166,12 @@ function renderTaskCard(t, indexInPlan) {
         '<div class="bg-rose-50/90 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-950 space-y-1 shadow-2xs">' +
             '<div class="font-bold text-[11px] text-rose-800 flex items-center justify-between">' +
                 '<span class="flex items-center gap-1">✍️ طلبات التعديل والملاحظات:</span>' +
-                '<button type="button" onclick="openTaskNotesEditorModal(\'' + escJs(t.task_id) + '\')" class="text-[10px] text-rose-700 hover:text-rose-900 underline font-bold cursor-pointer">تعديل</button>' +
+                '<div class="flex items-center gap-1.5">' +
+                    '<button type="button" onclick="copyTextToClipboard(\'' + escJs(modNotes) + '\', \'ملاحظات التعديل\', this)" class="bg-white hover:bg-rose-100 text-rose-800 text-[10px] font-bold py-0.5 px-2 rounded-md border border-rose-200 transition flex items-center gap-1 cursor-pointer">📋 نسخ</button>' +
+                    '<button type="button" onclick="openTaskNotesEditorModal(\'' + escJs(t.task_id) + '\')" class="text-[10px] text-rose-700 hover:text-rose-900 underline font-bold cursor-pointer">تعديل</button>' +
+                '</div>' +
             '</div>' +
-            '<div class="leading-relaxed text-[11px] whitespace-pre-wrap font-semibold">' + esc(modNotes) + '</div>' +
+            '<div class="leading-relaxed text-[11px] whitespace-pre-wrap font-semibold select-all">' + esc(modNotes) + '</div>' +
         '</div>' : '';
 
     // 5) Employee Deliverables (ZERO bleed from references! Carousel & Multi-File Aware)
@@ -2114,20 +2269,54 @@ function renderTaskCard(t, indexInPlan) {
 
     var captionHtml = '';
     if (cleanCaption) {
+        var captionParts = splitCaptionIntoParts(cleanCaption);
+        var hasMultipleParts = captionParts.length > 1;
+
+        var partsPillsHtml = '';
+        var partsCardsHtml = '';
+
+        if (hasMultipleParts) {
+            partsPillsHtml = '<div class="flex items-center gap-1.5 flex-wrap pt-1 pb-1 border-b border-blue-100/80">' +
+                '<span class="text-[10px] font-bold text-blue-900 flex items-center gap-1">📋 نسخ مفرد:</span>' +
+                captionParts.map(function(part, pIdx) {
+                    return '<button type="button" onclick="copyTextToClipboard(\'' + escJs(part.text) + '\', \'' + escJs(part.label) + '\', this)" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-0.5 px-2 rounded-md border border-blue-200 transition shadow-2xs flex items-center gap-1 cursor-pointer shrink-0" title="نسخ ' + esc(part.label) + '">' +
+                        '<span>' + esc(part.label) + '</span>' +
+                    '</button>';
+                }).join('') +
+            '</div>';
+
+            partsCardsHtml = '<div class="space-y-1.5 pt-1.5 max-h-72 overflow-y-auto pr-0.5">' +
+                captionParts.map(function(part, pIdx) {
+                    return '<div class="bg-white p-2.5 rounded-xl border border-blue-100 shadow-2xs space-y-1 hover:border-blue-300 transition group">' +
+                        '<div class="flex items-center justify-between text-[10px] font-bold text-blue-700 border-b border-slate-100 pb-1">' +
+                            '<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span> ' + esc(part.label) + '</span>' +
+                            '<button type="button" onclick="copyTextToClipboard(\'' + escJs(part.text) + '\', \'' + escJs(part.label) + '\', this)" class="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-800 px-2 py-0.5 rounded-md border border-blue-200 transition text-[9px] font-bold flex items-center gap-1 cursor-pointer">' +
+                                '<span>📋 نسخ</span>' +
+                            '</button>' +
+                        '</div>' +
+                        '<div dir="rtl" class="text-[12px] text-slate-800 whitespace-pre-wrap leading-relaxed font-sans text-right select-all">' + esc(part.text) + '</div>' +
+                    '</div>';
+                }).join('') +
+            '</div>';
+        }
+
         captionHtml = '<div class="bg-blue-50/50 border border-blue-200/90 rounded-2xl p-3 text-xs space-y-2 shadow-2xs">' +
             '<div class="flex items-center justify-between font-bold text-[11px] text-blue-950 border-b border-blue-200/60 pb-1.5">' +
                 '<span class="flex items-center gap-1.5 text-blue-900 font-bold">' +
                     '<span class="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0"></span>' +
-                    '<span>📝 الكابشن النهائي</span>' +
-                    '<span dir="ltr" class="text-[10px] text-blue-600 font-mono font-normal">(Final Caption)</span>' +
+                    '<span>📝 الكابشن والاسكريبت</span>' +
+                    (hasMultipleParts ? ('<span class="bg-blue-200/70 text-blue-900 font-mono text-[9px] px-1.5 py-0.2 rounded-full font-bold">' + captionParts.length + ' أجزاء</span>') : '') +
                 '</span>' +
-                '<button type="button" onclick="copyTaskCaption(\'' + escJs(t.task_id) + '\', this)" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-1 px-2.5 rounded-lg border border-blue-200 shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0" title="نسخ الكابشن النهائي">' +
-                    '<span>📋 نسخ</span>' +
+                '<button type="button" onclick="copyTaskCaption(\'' + escJs(t.task_id) + '\', this)" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-1 px-2.5 rounded-lg border border-blue-200 shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0" title="نسخ الكابشن كاملاً">' +
+                    '<span>📋 نسخ الكابشن كاملاً</span>' +
                 '</button>' +
             '</div>' +
-            '<div dir="rtl" class="text-[13px] text-slate-800 whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed font-sans select-all bg-white p-3.5 rounded-xl border border-blue-100 shadow-2xs text-right font-normal">' +
-                esc(cleanCaption) +
-            '</div>' +
+            partsPillsHtml +
+            (hasMultipleParts ? partsCardsHtml :
+                '<div dir="rtl" class="text-[13px] text-slate-800 whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed font-sans select-all bg-white p-3.5 rounded-xl border border-blue-100 shadow-2xs text-right font-normal">' +
+                    esc(cleanCaption) +
+                '</div>'
+            ) +
         '</div>';
     }
 
@@ -2154,7 +2343,10 @@ function renderTaskCard(t, indexInPlan) {
             '<button onclick="deleteTaskAction(\'' + escJs(t.task_id) + '\')" title="حذف المهمة" class="text-slate-400 hover:text-red-600 transition p-1 cursor-pointer flex items-center justify-center">' + ICONS.trash + '</button>' +
         '</div>' +
         teamHtml +
-        '<h4 class="font-bold text-sm text-slate-900 leading-snug break-words">' + esc(cardHeading) + '</h4>' +
+        '<div class="flex items-start justify-between gap-2">' +
+            '<h4 class="font-bold text-sm text-slate-900 leading-snug break-words flex-1">' + esc(cardHeading) + '</h4>' +
+            (displayTitle ? ('<button type="button" onclick="copyTextToClipboard(\'' + escJs(displayTitle) + '\', \'عنوان البوست\', this)" class="shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 shadow-2xs transition flex items-center gap-1 cursor-pointer" title="نسخ العنوان / التاج لاين"><span>📋 نسخ العنوان</span></button>') : '') +
+        '</div>' +
         captionHtml +
         visHtml +
         modHtml +
@@ -2177,7 +2369,24 @@ function renderTaskCard(t, indexInPlan) {
     var deadlineBoxClass = 'bg-slate-50 border-slate-200';
     var deadlineBadgeHtml = '';
 
-    if (dDead) {
+    // Check if task has an active modification request / note
+    var modNotes = (t.review_note || t.modification_request || t.notes || '').trim();
+    var hasActiveMod = (t.status !== 'Completed' && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && t.status !== 'Submitted / In Review')));
+    var effectiveDeadline = dDead;
+
+    if (hasActiveMod) {
+        if (t.modification_deadline) {
+            effectiveDeadline = String(t.modification_deadline).slice(0, 10);
+        } else if (t.modification_requested_at) {
+            try {
+                var mDt = new Date(t.modification_requested_at);
+                mDt.setDate(mDt.getDate() + 1);
+                effectiveDeadline = mDt.toISOString().slice(0, 10);
+            } catch(e){}
+        }
+    }
+
+    if (effectiveDeadline) {
         var todayStr = new Date().toISOString().slice(0, 10);
         var tomDate = new Date();
         tomDate.setDate(tomDate.getDate() + 1);
@@ -2186,29 +2395,41 @@ function renderTaskCard(t, indexInPlan) {
         if (t.status === 'Completed') {
             deadlineBoxClass = 'bg-emerald-50/40 border-emerald-200';
             deadlineBadgeHtml = '<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">✅ مكتمل</span>';
-        } else if (dDead < todayStr) {
+        } else if (hasActiveMod) {
+            if (effectiveDeadline < todayStr) {
+                deadlineBoxClass = 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-300';
+                deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md animate-pulse">🚨 متأخر عن موعد التعديل!</span>';
+            } else if (effectiveDeadline === todayStr) {
+                deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
+                deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم التعديل اليوم!</span>';
+            } else {
+                deadlineBoxClass = 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-200';
+                deadlineBadgeHtml = '<span class="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">✍️ جاري التعديل</span>';
+            }
+        } else if (effectiveDeadline < todayStr) {
             deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
             deadlineBadgeHtml = '<span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-md animate-pulse">🚨 متأخر عن الموعد!</span>';
-        } else if (dDead === todayStr) {
+        } else if (effectiveDeadline === todayStr) {
             deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
             deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم اليوم!</span>';
-        } else if (dDead === tomorrowStr) {
+        } else if (effectiveDeadline === tomorrowStr) {
             deadlineBoxClass = 'bg-amber-50/60 border-amber-300';
             deadlineBadgeHtml = '<span class="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md">⏳ تسليم غداً</span>';
         } else {
-            deadlineBadgeHtml = '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(dDead) + ')</span>';
+            deadlineBadgeHtml = '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(effectiveDeadline) + ')</span>';
         }
     }
 
+    var deadlineLabel = hasActiveMod ? 'موعد تسليم التعديل:' : 'موعد التسليم:';
     html += '<div class="' + deadlineBoxClass + ' p-2.5 rounded-2xl border text-xs space-y-1.5 shadow-2xs transition">' +
         '<div class="flex items-center justify-between gap-1 mb-1">' +
             '<span class="text-[11px] text-amber-950 font-bold flex items-center gap-1.5">' +
-                ICONS.calendar + ' <span>موعد التسليم:</span>' +
+                ICONS.calendar + ' <span>' + deadlineLabel + '</span>' +
             '</span>' +
             deadlineBadgeHtml +
         '</div>' +
         '<div class="flex items-center gap-1.5">' +
-            '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(dDead) + '" onchange="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="flex-1 min-w-0 text-xs font-bold font-mono px-2.5 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
+            '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(effectiveDeadline || dDead) + '" onchange="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="flex-1 min-w-0 text-xs font-bold font-mono px-2.5 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
             '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1 shrink-0" title="حفظ موعد التسليم">' +
                 ICONS.save +
                 '<span>حفظ</span>' +
@@ -2301,12 +2522,14 @@ function renderTaskCard(t, indexInPlan) {
     var hasKpis = (t.assigned_at && (t.submitted_at || t.status === 'Completed' || t.status === 'Awaiting AM Review')) || (kpis && kpis.turnaround_hours !== undefined);
     
     if (hasKpis) {
+        var isModTask = Boolean(t.modification_requested_at || t.returned_to_employee_at || (kpis && kpis.is_modification));
         var turnaroundText = '';
         if (kpis && kpis.turnaround_hours !== undefined) {
             var th = kpis.turnaround_hours;
             turnaroundText = th < 1 ? (Math.round(th * 60) + ' دقيقة') : (th + ' ساعة');
-        } else if (t.assigned_at && t.submitted_at) {
-            var diffMs = new Date(t.submitted_at) - new Date(t.assigned_at);
+        } else if ((t.modification_requested_at || t.assigned_at) && t.submitted_at) {
+            var startIso = t.modification_requested_at || t.assigned_at;
+            var diffMs = new Date(t.submitted_at) - new Date(startIso);
             if (diffMs > 0) {
                 var diffHrs = (diffMs / (1000 * 60 * 60)).toFixed(1);
                 turnaroundText = diffHrs < 1 ? (Math.round(diffMs / 60000) + ' دقيقة') : (diffHrs + ' ساعة');
@@ -2314,28 +2537,32 @@ function renderTaskCard(t, indexInPlan) {
         }
         
         var isOnTime = kpis ? kpis.is_on_time : undefined;
-        if (isOnTime === undefined && t.delivery_deadline && t.submitted_at) {
-            var dl = String(t.delivery_deadline).slice(0, 10);
+        var effectiveDl = (t.modification_deadline || t.delivery_deadline);
+        if (isOnTime === undefined && effectiveDl && t.submitted_at) {
+            var dl = String(effectiveDl).slice(0, 10);
             var sub = String(t.submitted_at).slice(0, 10);
             isOnTime = sub <= dl;
         }
 
         var kpiBadge = isOnTime === true ?
-            '<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0"> تم التسليم في الموعد</span>' :
+            '<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0">' + (isModTask ? '✅ تم إنجاز التعديل في الموعد' : '✅ تم التسليم في الموعد') + '</span>' :
             (isOnTime === false ?
-                '<span class="bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0">️ تأخير عن موعد التسليم</span>' : '');
+                '<span class="bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0">' + (isModTask ? '⚠️ تأخير عن موعد التعديل' : '⚠️ تأخير عن موعد التسليم') + '</span>' : '');
 
         kpisHtml = '<div class="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-2.5 text-xs space-y-1.5 shadow-2xs">' +
             '<div class="flex items-center justify-between font-bold text-[11px] text-indigo-900 border-b border-indigo-100 pb-1">' +
-                '<span class="flex items-center gap-1"> تقرير الـ KPIs والسرعة:</span>' +
+                '<span class="flex items-center gap-1">📊 تقرير الـ KPIs والسرعة:</span>' +
                 kpiBadge +
             '</div>' +
             '<div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-700 pt-0.5">' +
-                '<div> المسلم: <b class="text-indigo-950">' + esc(t.am_name || 'مدير الحساب') + '</b></div>' +
-                '<div> المستلم: <b class="text-indigo-950">' + esc(t.assignee_name || 'غير محدد') + '</b></div>' +
-                (t.assigned_at ? '<div> تاريخ الإسناد: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.assigned_at)) + '</span></div>' : '') +
-                (t.submitted_at ? '<div> تاريخ التسليم: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.submitted_at)) + '</span></div>' : '') +
-                (turnaroundText ? '<div class="col-span-2 text-indigo-900 font-bold bg-white/80 px-2 py-1 rounded-lg border border-indigo-100 flex items-center justify-between mt-1"><span>️ مدة إنجاز الموظف:</span><span class="font-mono text-xs text-indigo-700">' + turnaroundText + '</span></div>' : '') +
+                '<div>👤 المسلم: <b class="text-indigo-950">' + esc(t.am_name || 'مدير الحساب') + '</b></div>' +
+                '<div>👤 المستلم: <b class="text-indigo-950">' + esc(t.assignee_name || 'غير محدد') + '</b></div>' +
+                (t.modification_requested_at ?
+                    '<div>✍️ تاريخ طلب التعديل: <span class="font-mono text-[10px] block text-rose-700 font-bold">' + esc(fmtCairoTime(t.modification_requested_at)) + '</span></div>' :
+                    (t.assigned_at ? '<div>📅 تاريخ الإسناد: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.assigned_at)) + '</span></div>' : '')
+                ) +
+                (t.submitted_at ? '<div>🚀 تاريخ التسليم: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.submitted_at)) + '</span></div>' : '') +
+                (turnaroundText ? '<div class="col-span-2 text-indigo-900 font-bold bg-white/80 px-2 py-1 rounded-lg border border-indigo-100 flex items-center justify-between mt-1"><span>' + (isModTask ? '⏱️ مدة إنجاز التعديل:' : '⏱️ مدة إنجاز الموظف:') + '</span><span class="font-mono text-xs text-indigo-700">' + turnaroundText + '</span></div>' : '') +
             '</div>' +
         '</div>';
     }
@@ -2612,6 +2839,16 @@ function renderTasksBoard() {
         if (!board) return;
         var badge = document.getElementById('tasks-count-badge');
         var allTasks = tasksList || [];
+
+        // Scope tasks to the active client if one is selected
+        var curCid = window.activeClientId || (function(){ try { return localStorage.getItem('active_client_id'); } catch(e){ return null; } })();
+        if (curCid && curCid !== 'all' && curCid !== '__all__' && curCid !== 'client_default') {
+            allTasks = allTasks.filter(function(t) {
+                var tCid = String(t.client_id || '').toLowerCase();
+                var sCid = String(curCid).toLowerCase();
+                return tCid === sCid || (t.client_id && t.client_id === curCid);
+            });
+        }
 
         // Ensure AM is strictly normalized across all loaded tasks
         allTasks.forEach(function(t) {
@@ -3592,6 +3829,62 @@ function toggleTasksIngestCustomClient() {
     }
 }
 
+function toggleTasksIngestCustomCreator() {
+    var sel = document.getElementById('tasks-ingest-creator');
+    var inp = document.getElementById('tasks-ingest-custom-creator');
+    var btn = document.getElementById('btn-tasks-ingest-custom-creator');
+    if (!sel || !inp) return;
+    if (inp.classList.contains('hidden')) {
+        inp.classList.remove('hidden');
+        sel.classList.add('hidden');
+        if (btn) btn.textContent = '↩ اختيار من القائمة';
+        inp.focus();
+    } else {
+        inp.classList.add('hidden');
+        sel.classList.remove('hidden');
+        if (btn) btn.textContent = '+ كاتب جديد';
+    }
+}
+
+function toggleTasksIngestCustomAssignee() {
+    var sel = document.getElementById('tasks-ingest-assignee');
+    var inp = document.getElementById('tasks-ingest-custom-assignee');
+    var btn = document.getElementById('btn-tasks-ingest-custom-assignee');
+    if (!sel || !inp) return;
+    if (inp.classList.contains('hidden')) {
+        inp.classList.remove('hidden');
+        sel.classList.add('hidden');
+        if (btn) btn.textContent = '↩ اختيار من القائمة';
+        inp.focus();
+    } else {
+        inp.classList.add('hidden');
+        sel.classList.remove('hidden');
+        if (btn) btn.textContent = '+ منفذ جديد';
+    }
+}
+
+function togglePbCustomCreator(forceCustom) {
+    var sel = document.getElementById('pb-creator-select');
+    var inp = document.getElementById('pb-custom-creator');
+    var btn = document.getElementById('btn-pb-custom-creator-toggle');
+    if (!sel || !inp) return;
+    var showCustom = (forceCustom === true) || inp.classList.contains('hidden');
+    if (showCustom) {
+        inp.classList.remove('hidden');
+        sel.classList.add('hidden');
+        if (btn) btn.textContent = '↩ اختيار من القائمة';
+        inp.focus();
+    } else {
+        inp.classList.add('hidden');
+        sel.classList.remove('hidden');
+        if (btn) btn.textContent = '+ كاتب جديد';
+    }
+}
+
+window.toggleTasksIngestCustomCreator = toggleTasksIngestCustomCreator;
+window.toggleTasksIngestCustomAssignee = toggleTasksIngestCustomAssignee;
+window.togglePbCustomCreator = togglePbCustomCreator;
+
 var _PLAN_MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
 function getPlanMonthOptionsHtml(selectedVal) {
@@ -3820,6 +4113,17 @@ async function loadTasksIngestFields() {
         });
         cOpts += '<option value="auto">✨ كشف تلقائي من الملف</option>';
         creatorSel.innerHTML = cOpts;
+    }
+
+    // 4. Direct Assignee (Designers, Video Editors, Content Creators)
+    var assigneeSel = document.getElementById('tasks-ingest-assignee');
+    if (assigneeSel) {
+        var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+        var aOpts = '<option value="">👤 إسناد لاحقاً (Pending AM)</option>';
+        (team || []).forEach(function(e) {
+            aOpts += '<option value="' + esc(e.employee_id) + '">' + esc(e.name) + (e.role ? ' (' + esc(e.role) + ')' : '') + '</option>';
+        });
+        assigneeSel.innerHTML = aOpts;
     }
 
     try {
@@ -4090,10 +4394,35 @@ async function ingestPlanAction(ev) {
     }
 
     var amId = amEl ? amEl.value.trim() : '';
+    
+    // Creator resolution (dropdown or custom input)
+    var creatorInp = document.getElementById('tasks-ingest-custom-creator');
     var creatorEl = document.getElementById('tasks-ingest-creator');
-    var creatorId = (creatorEl && creatorEl.value !== 'auto') ? creatorEl.value.trim() : '';
-    var creatorOpt = (creatorEl && creatorEl.selectedIndex >= 0) ? creatorEl.options[creatorEl.selectedIndex] : null;
-    var creatorName = (creatorOpt && creatorOpt.value && creatorOpt.value !== 'auto') ? creatorOpt.text.replace(/\s*\(.*?\)$/, '').replace(/^[^\w\u0600-\u06FF]+/, '').trim() : '';
+    var creatorId = '';
+    var creatorName = '';
+    if (creatorInp && !creatorInp.classList.contains('hidden') && creatorInp.value.trim()) {
+        creatorName = creatorInp.value.trim();
+        creatorId = creatorName;
+    } else if (creatorEl && creatorEl.value !== 'auto') {
+        creatorId = creatorEl.value.trim();
+        var creatorOpt = (creatorEl.selectedIndex >= 0) ? creatorEl.options[creatorEl.selectedIndex] : null;
+        creatorName = (creatorOpt && creatorOpt.value && creatorOpt.value !== 'auto') ? creatorOpt.text.replace(/\s*\(.*?\)$/, '').replace(/^[^\w\u0600-\u06FF]+/, '').trim() : '';
+    }
+
+    // Direct Assignee resolution (dropdown or custom input)
+    var assigneeInp = document.getElementById('tasks-ingest-custom-assignee');
+    var assigneeEl = document.getElementById('tasks-ingest-assignee');
+    var assignedEid = '';
+    var assignedName = '';
+    if (assigneeInp && !assigneeInp.classList.contains('hidden') && assigneeInp.value.trim()) {
+        assignedName = assigneeInp.value.trim();
+        assignedEid = assignedName;
+    } else if (assigneeEl && assigneeEl.value) {
+        assignedEid = assigneeEl.value.trim();
+        var aOpt = (assigneeEl.selectedIndex >= 0) ? assigneeEl.options[assigneeEl.selectedIndex] : null;
+        assignedName = (aOpt && aOpt.value) ? aOpt.text.replace(/\s*\(.*?\)$/, '').replace(/^[^\w\u0600-\u06FF]+/, '').trim() : '';
+    }
+
     var autoPlanName = (typeof getSelectedPlanName === 'function') ? getSelectedPlanName() : '';
 
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
@@ -4169,7 +4498,9 @@ async function ingestPlanAction(ev) {
                     content_creator_id: creatorId,
                     creator_id: creatorId,
                     content_creator_name: creatorName,
-                    creator_name: creatorName
+                    creator_name: creatorName,
+                    assigned_employee_id: assignedEid,
+                    assignee_name: assignedName
                 })
             };
         } else if (file.size < 4 * 1024 * 1024) {
@@ -4188,6 +4519,10 @@ async function ingestPlanAction(ev) {
                     fd.append('content_creator_name', creatorName);
                     fd.append('creator_name', creatorName);
                 }
+            }
+            if (assignedEid) {
+                fd.append('assigned_employee_id', assignedEid);
+                if (assignedName) fd.append('assignee_name', assignedName);
             }
             opts = { method: 'POST', body: fd };
         } else {
@@ -4208,7 +4543,9 @@ async function ingestPlanAction(ev) {
                 content_creator_id: creatorId,
                 creator_id: creatorId,
                 content_creator_name: creatorName,
-                creator_name: creatorName
+                creator_name: creatorName,
+                assigned_employee_id: assignedEid,
+                assignee_name: assignedName
             })
         };
     } else {
@@ -4225,7 +4562,9 @@ async function ingestPlanAction(ev) {
                 content_creator_id: creatorId,
                 creator_id: creatorId,
                 content_creator_name: creatorName,
-                creator_name: creatorName
+                creator_name: creatorName,
+                assigned_employee_id: assignedEid,
+                assignee_name: assignedName
             })
         };
     }
@@ -4245,9 +4584,18 @@ async function ingestPlanAction(ev) {
             if (el) el.value = '';
             if (fileEl) fileEl.value = '';
             if (driveEl) driveEl.value = '';
+            var planNameEl = document.getElementById('pb-plan-name');
             if (planNameEl) planNameEl.value = '';
             if (data.client_id) {
-                currentClient = data.client_id;
+                if (typeof switchActiveClient === 'function') {
+                    await switchActiveClient(data.client_id);
+                } else {
+                    window.activeClientId = data.client_id;
+                    currentClient = data.client_id;
+                }
+            }
+            if (data.plan_name) {
+                selectedPlanFilter = data.plan_name;
             }
             if (typeof loadClientsList === 'function') loadClientsList();
             loadTasksEngine();
@@ -5308,6 +5656,15 @@ async function openPlanBuilderModal() {
     }
     fillPBCreatorSelect();
 
+    var pbCustomInp = document.getElementById('pb-custom-creator');
+    if (pbCustomInp) {
+        pbCustomInp.value = '';
+        pbCustomInp.classList.add('hidden');
+    }
+    if (pbCreatorSelect) pbCreatorSelect.classList.remove('hidden');
+    var pbToggleBtn = document.getElementById('btn-pb-custom-creator-toggle');
+    if (pbToggleBtn) pbToggleBtn.textContent = '+ كاتب جديد';
+
     try {
         var mgrData = await safeFetchJson('/api/managers');
         if (mgrData && mgrData.managers && mgrData.managers.length) {
@@ -5329,6 +5686,15 @@ async function openPlanBuilderModal() {
 function closePlanBuilderModal() {
     var modal = document.getElementById('plan-builder-modal');
     if (modal) modal.classList.add('hidden');
+    var pbCustomInp = document.getElementById('pb-custom-creator');
+    if (pbCustomInp) {
+        pbCustomInp.value = '';
+        pbCustomInp.classList.add('hidden');
+    }
+    var pbCreatorSelect = document.getElementById('pb-creator-select');
+    if (pbCreatorSelect) pbCreatorSelect.classList.remove('hidden');
+    var pbToggleBtn = document.getElementById('btn-pb-custom-creator-toggle');
+    if (pbToggleBtn) pbToggleBtn.textContent = '+ كاتب جديد';
 }
 
 window.handlePlanRowFileUpload = async function(input, rowIdx) {
@@ -5649,10 +6015,18 @@ async function submitPlanBuilder() {
     }
     var planName = planSubName || ('خطة ' + resolvedCname);
     var amId = (document.getElementById('pb-am-select') || {}).value || '';
+    var creatorInp = document.getElementById('pb-custom-creator');
     var creatorEl = document.getElementById('pb-creator-select');
-    var creatorId = (creatorEl && creatorEl.value !== 'auto') ? creatorEl.value.trim() : '';
-    var creatorOpt = (creatorEl && creatorEl.selectedIndex >= 0) ? creatorEl.options[creatorEl.selectedIndex] : null;
-    var creatorName = (creatorOpt && creatorOpt.value && creatorOpt.value !== 'auto') ? creatorOpt.text.replace(/\s*\(.*?\)$/, '').replace(/^[^\w\u0600-\u06FF]+/, '').trim() : '';
+    var creatorId = '';
+    var creatorName = '';
+    if (creatorInp && !creatorInp.classList.contains('hidden') && creatorInp.value.trim()) {
+        creatorName = creatorInp.value.trim();
+        creatorId = creatorName;
+    } else if (creatorEl && creatorEl.value !== 'auto') {
+        creatorId = creatorEl.value.trim();
+        var creatorOpt = (creatorEl.selectedIndex >= 0) ? creatorEl.options[creatorEl.selectedIndex] : null;
+        creatorName = (creatorOpt && creatorOpt.value && creatorOpt.value !== 'auto') ? creatorOpt.text.replace(/\s*\(.*?\)$/, '').replace(/^[^\w\u0600-\u06FF]+/, '').trim() : '';
+    }
 
     var structuredPosts = [];
     var clientTextBlocks = [];
@@ -5738,7 +6112,15 @@ async function submitPlanBuilder() {
                 selectedPlanFilter = res.plan_name;
             }
             if (res.client_id) {
-                await switchToClient(res.client_id);
+                if (typeof switchActiveClient === 'function') {
+                    await switchActiveClient(res.client_id);
+                } else if (typeof switchToClient === 'function') {
+                    await switchToClient(res.client_id);
+                } else {
+                    window.activeClientId = res.client_id;
+                    currentClient = res.client_id;
+                    if (typeof loadTasksEngine === 'function') loadTasksEngine();
+                }
             } else if (typeof loadTasksEngine === 'function') {
                 loadTasksEngine();
             }

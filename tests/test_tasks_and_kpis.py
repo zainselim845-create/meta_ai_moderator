@@ -1915,6 +1915,100 @@ def test_api_tasks_client_name_always_synced_with_canonical(monkeypatch):
         assert t_hayat["client_name"] == "HAYAT DENTAL CENTER"
 
 
+def test_kpi_modification_recalculates_from_modification_date():
+    """Verify that when a modification is requested, turnaround time and deadline
+    are calculated from the modification date, NOT from the expired original delivery date."""
+    from api.index import _append_task_log
+
+    # Original assignment was on 2026-08-01, original deadline was 2026-08-03
+    # Modification requested on 2026-08-10 at 10:00, submitted on 2026-08-10 at 14:00
+    # Original deadline 2026-08-03 has LONG passed.
+    task = {
+        "task_id": "TASK-MOD-01",
+        "assigned_at": "2026-08-01T10:00:00+00:00",
+        "delivery_deadline": "2026-08-03",
+        "modification_requested_at": "2026-08-10T10:00:00+00:00",
+        "submitted_at": "2026-08-10T14:00:00+00:00",
+        "activity_log": [],
+    }
+
+    _append_task_log(task, "submitted", actor_name="المصمم", actor_type="employee")
+    kpis = task.get("kpis") or {}
+
+    # Turnaround must be ~4 hours (from modification request), NOT 9+ days!
+    assert 3.9 <= kpis.get("turnaround_hours", 0) <= 4.1
+    # Must be on time for the revision!
+    assert kpis.get("is_on_time") is True
+    assert kpis.get("is_modification") is True
+
+
+def test_api_active_client_switching_all_clears_session():
+    """Verify that calling /api/settings/active-client with __all__ or all clears active client."""
+    import api.index as idx
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+            sess["active_client_id"] = "cli_dr_ahmed_1788270119"
+
+        res = client.post("/api/settings/active-client", json={"client_id": "__all__"})
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data.get("ok") is True
+        assert data.get("active_client_id") is None
+
+
+def test_ingest_plan_with_new_creator_and_assignee(monkeypatch):
+    """Verify that ingesting a plan with a new creator and new assignee generates deterministic IDs,
+    assigns the tasks accurately to the client, and updates the active client session."""
+    import api.index as idx
+
+    saved_tasks_capture = []
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, cid: saved_tasks_capture.clear() or saved_tasks_capture.extend(tasks))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan")
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+
+        res = client.post("/api/tasks/ingest-plan", json={
+            "client_name": "عيادة النور للتجميل",
+            "plan_name": "خطة عيادة النور — سبتمبر 2026",
+            "content_creator_name": "سارة الشافعي",
+            "assignee_name": "أحمد مصطفى ديزاينر",
+            "posts": [
+                {
+                    "title": "بوست 1 تجريبي",
+                    "caption": "محتوى بوست تجريبي للنور",
+                    "post_type": "post"
+                }
+            ]
+        })
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data.get("ok") is True or data.get("success") is True
+        assert data.get("ingested_count") == 1
+
+        # Verify saved tasks
+        assert len(saved_tasks_capture) == 1
+        task = saved_tasks_capture[0]
+        assert task["client_name"] == "عيادة النور للتجميل"
+        assert task["status"] == "Assigned"
+        # Verify creator has deterministic EMP ID
+        assert task["creator_name"] == "سارة الشافعي"
+        assert task["creator_id"].startswith("EMP-")
+        # Verify assignee has deterministic EMP ID
+        assert task["assignee_name"] == "أحمد مصطفى ديزاينر"
+        assert task["assigned_employee_id"].startswith("EMP-")
+
+
+
+
 
 
 

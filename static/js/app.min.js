@@ -2135,7 +2135,22 @@ async function switchActiveClient(clientId) {
     try { localStorage.removeItem('active_client_id'); } catch(e){}
     if (typeof updateHeaderBadge === 'function') updateHeaderBadge(null);
     showToast('عرض جميع العملاء والحسابات');
+    try {
+      fetch('/api/settings/active-client', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: '__all__'})}).catch(e=>{});
+    } catch(e){}
+    const hdd = document.getElementById('header-account-select');
+    if (hdd) hdd.value = '';
+    const dd = document.getElementById('active-client-dropdown');
+    if (dd) dd.value = '';
+    const tSel = document.getElementById('tasks-ingest-client-select');
+    if (tSel) tSel.value = '';
+    const pbSel = document.getElementById('pb-client-select');
+    if (pbSel) pbSel.value = '';
+    const cNameEl = document.getElementById('tasks-client-name');
+    if (cNameEl) cNameEl.textContent = '— جميع العملاء';
+    if (typeof selectedPlanFilter !== 'undefined') selectedPlanFilter = null;
     if (typeof loadInbox === 'function') loadInbox(true);
+    if (typeof loadTasksEngine === 'function') loadTasksEngine();
     return;
   }
   try { localStorage.setItem('active_client_id', clientId); } catch(e){}
@@ -2144,9 +2159,18 @@ async function switchActiveClient(clientId) {
   
   const hdd = document.getElementById('header-account-select');
   const dd = document.getElementById('active-client-dropdown');
+  const tSel = document.getElementById('tasks-ingest-client-select');
+  const pbSel = document.getElementById('pb-client-select');
   
   if (hdd && hdd.value !== clientId) hdd.value = clientId;
   if (dd && dd.value !== clientId) dd.value = clientId;
+  if (tSel && tSel.value !== clientId) {
+    tSel.value = clientId;
+    if (typeof onTasksIngestClientSelectChange === 'function') {
+      onTasksIngestClientSelectChange(clientId);
+    }
+  }
+  if (pbSel && pbSel.value !== clientId) pbSel.value = clientId;
 
   let txt = clientId;
   if (hdd && hdd.options[hdd.selectedIndex]) {
@@ -2154,10 +2178,10 @@ async function switchActiveClient(clientId) {
   } else if (dd && dd.options[dd.selectedIndex]) {
       txt = dd.options[dd.selectedIndex].text;
   }
+  const cNameEl = document.getElementById('tasks-client-name');
+  if (cNameEl) cNameEl.textContent = '— ' + txt.replace(/^[🏢👤\s—]+/, '').trim();
+
   showToast('تم التبديل إلى: ' + txt);
-  // IMPORTANT: wait for the server to actually switch the active client BEFORE
-  // reloading any view — otherwise loadInbox() races the switch and fetches the
-  // previous client's data (stuck on old page until a manual reload).
   try {
     await fetch('/api/settings/active-client', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({client_id: clientId})});
   } catch(e) {}
