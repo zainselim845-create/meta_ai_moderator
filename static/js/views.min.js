@@ -3750,16 +3750,13 @@ async function loadTasksIngestFields() {
             cSel.innerHTML = opts;
             
             var activeCid = window.activeClientId || (typeof currentClient !== 'undefined' ? currentClient : '');
-            var activeMatch = clients.find(function(c){ return c.id === activeCid; });
+            var activeMatch = (activeCid && activeCid !== '__all__') ? clients.find(function(c){ return c.id === activeCid; }) : null;
             if (activeMatch) {
                 cSel.value = activeMatch.id;
                 onTasksIngestClientSelectChange(activeMatch.id);
-            } else if (!cSel.value) {
-                var defaultC = clients[0];
-                if (defaultC) {
-                    cSel.value = defaultC.id;
-                    onTasksIngestClientSelectChange(defaultC.id);
-                }
+            } else {
+                cSel.value = '';
+                updatePlanNamePreview();
             }
         }
     } catch(e){}
@@ -4017,6 +4014,56 @@ window.openBulkAssignModal = openBulkAssignModal;
 window.closeBulkAssignModal = closeBulkAssignModal;
 window.executeBulkAssignAction = executeBulkAssignAction;
 
+function detectClientFromFileNameOrText(fileName, fileText) {
+    var allClients = window._clientsList || window.clientsList || [];
+    if (!allClients.length) return null;
+    
+    var fLower = (fileName || '').toLowerCase();
+    var tLower = (fileText || '').substring(0, 1500).toLowerCase();
+
+    var brandRules = [
+        { keys: ['fahmy', 'فهمي'], cid: 'cli_dr_ahmed_fahmy_1788683119' },
+        { keys: ['hamdy', 'حمدي'], cid: 'cli_dr_ahmed_1788270119' },
+        { keys: ['شاهنده', 'شاهندة', 'shahinda', 'حياة', 'hayat', 'أسنان', 'اسنان', 'dental', 'فينير', 'فينيرز'], cid: 'cli_hayat_dental_center_1788685057' },
+        { keys: ['حافظ', 'hafez', 'هبه', 'هبة'], cid: 'cli_هبه_حافظ_1788431922' },
+        { keys: ['شيماء', 'shimaa', 'shymaa', 'عاطف', 'atef'], cid: 'cli_dr_shimaa_atef_1788298157' },
+        { keys: ['هدير', 'hadeer'], cid: 'cli_dr_hadeer_1788684282' },
+        { keys: ['رعاية', 'reaya', 'rayah'], cid: 'cli_معامل_رعاية_1788336726' },
+        { keys: ['انفينيتي', 'infinity', 'إنفينيتي'], cid: 'cli_انفينيتي_1788270119' },
+        { keys: ['sk'], cid: 'cli_sk_1788270118' },
+        { keys: ['domya', 'دمية', 'دميه'], cid: 'client_100821894800009' }
+    ];
+
+    for (var i = 0; i < brandRules.length; i++) {
+        var rule = brandRules[i];
+        for (var j = 0; j < rule.keys.length; j++) {
+            var k = rule.keys[j];
+            if (fLower.includes(k) || tLower.includes(k)) {
+                return allClients.find(function(c){ return c.id === rule.cid; });
+            }
+        }
+    }
+    return null;
+}
+window.detectClientFromFileNameOrText = detectClientFromFileNameOrText;
+
+function onPlanIngestFileSelected(inputEl) {
+    if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
+    var file = inputEl.files[0];
+    var detected = detectClientFromFileNameOrText(file.name, '');
+    if (detected) {
+        var cSel = document.getElementById('tasks-ingest-client-select');
+        if (cSel) {
+            cSel.value = detected.id;
+            if (typeof onTasksIngestClientSelectChange === 'function') {
+                onTasksIngestClientSelectChange(detected.id);
+            }
+            showToast('تم التعرف على العميل تلقائياً من اسم الملف: ' + detected.name + ' ✨', 'success');
+        }
+    }
+}
+window.onPlanIngestFileSelected = onPlanIngestFileSelected;
+
 async function ingestPlanAction(ev) {
     if (ev) ev.preventDefault();
     var el = document.getElementById('plan-ingest-input');
@@ -4052,6 +4099,17 @@ async function ingestPlanAction(ev) {
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
 
     var list = window._clientsList || window.clientsList || window._planClientsCache || [];
+
+    // Auto-detect brand from file or doc text if client was left unselected or set to Domya
+    if (file && (!clientId || clientId === '__all__' || clientId === 'client_100821894800009')) {
+        var detected = detectClientFromFileNameOrText(file.name, txt);
+        if (detected) {
+            clientId = detected.id;
+            clientInput = detected.name;
+            if (clientSel) clientSel.value = detected.id;
+        }
+    }
+
     var matchedClient = list.find(function(c) {
         return c.id === clientId || (c.name && c.name.toLowerCase() === clientInput.toLowerCase());
     });
@@ -4059,13 +4117,22 @@ async function ingestPlanAction(ev) {
         clientId = matchedClient.id;
         clientInput = matchedClient.name;
     }
-    if (!clientInput) {
+
+    if (!clientId || clientId === '__all__' || !clientInput) {
         var activeCid = window.activeClientId || (typeof currentClient !== 'undefined' ? currentClient : '');
-        var activeC = list.find(function(c){ return c.id === activeCid; }) || list[0];
-        if (activeC) {
-            clientInput = activeC.name;
-            clientId = activeC.id;
+        if (activeCid && activeCid !== '__all__') {
+            var activeC = list.find(function(c){ return c.id === activeCid; });
+            if (activeC) {
+                clientInput = activeC.name;
+                clientId = activeC.id;
+            }
         }
+    }
+
+    if (!clientId || clientId === '__all__' || !clientInput) {
+        showToast('يرجى اختيار العميل أولاً من القائمة المنسدلة 🏢', 'error');
+        if (clientSel) clientSel.focus();
+        return;
     }
 
     // Clean plan name based on client + month directly
@@ -5154,8 +5221,8 @@ async function openPlanBuilderModal() {
         activeCName = clientNameEl.textContent.replace(/^[—\-\s]+/, '').trim();
     }
     if (!activeCName || activeCName === 'العميل') {
-        var matched = (allClients || []).find(function(c){ return c.id === activeCid || c.name === activeCid; });
-        activeCName = matched ? (matched.name || matched.id) : (activeCid || (allClients[0] && allClients[0].name) || '');
+        var matched = (activeCid && activeCid !== '__all__') ? (allClients || []).find(function(c){ return c.id === activeCid || c.name === activeCid; }) : null;
+        activeCName = matched ? (matched.name || matched.id) : '';
     }
 
     // Populate pb-client-select with ALL clients
@@ -5163,16 +5230,19 @@ async function openPlanBuilderModal() {
         var opts = '<option value="">-- اختر العميل من القائمة --</option>' +
             allClients.map(function(c) {
                 var amPart = c.am_name ? (' (AM: ' + c.am_name + ')') : '';
-                var isSelected = (c.id === activeCid || c.name === activeCName || (c.company && c.company === activeCName));
+                var isSelected = (activeCid && activeCid !== '__all__' && (c.id === activeCid || c.name === activeCName || (c.company && c.company === activeCName)));
                 return '<option value="' + esc(c.id) + '" data-name="' + esc(c.name) + '"' + (isSelected ? ' selected' : '') + '>' + esc(c.name) + amPart + '</option>';
             }).join('') +
             '<option value="__new__">+ كتابة اسم عميل جديد...</option>';
         clientSelect.innerHTML = opts;
 
-        var selectedC = allClients.find(function(c){ return c.id === activeCid || c.name === activeCName; }) || allClients[0];
+        var selectedC = (activeCid && activeCid !== '__all__') ? allClients.find(function(c){ return c.id === activeCid || c.name === activeCName; }) : null;
         if (selectedC) {
             clientSelect.value = selectedC.id;
             activeCName = selectedC.name;
+        } else {
+            clientSelect.value = '';
+            activeCName = '';
         }
     }
 

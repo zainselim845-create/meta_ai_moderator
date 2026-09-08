@@ -1828,6 +1828,94 @@ def test_all_employees_roster_login_passwords_and_roles():
                 assert not (forbidden_tabs & allowed), f"Forbidden tabs granted to {ident}: {forbidden_tabs & allowed}"
 
 
+def test_client_attribution_strict_disambiguation():
+    """Verify that every brand resolves strictly to its canonical client without collision or contamination."""
+    from api.index import _ensure_client_record, app
+
+    test_matrix = [
+        # (Input, Expected Client ID, Expected Official Name)
+        ("دكتور أحمد فهمي", "cli_dr_ahmed_fahmy_1788683119", "DR AHMED FAHMY"),
+        ("DR AHMED FAHMY", "cli_dr_ahmed_fahmy_1788683119", "DR AHMED FAHMY"),
+        ("FAHMY CONTENT PLAN", "cli_dr_ahmed_fahmy_1788683119", "DR AHMED FAHMY"),
+        ("دكتور أحمد حمدي", "cli_dr_ahmed_1788270119", "دكتور أحمد حمدي"),
+        ("Dr Ahmed Hamdy", "cli_dr_ahmed_1788270119", "دكتور أحمد حمدي"),
+        ("هبه حافظ", "cli_هبه_حافظ_1788431922", "هبه حافظ"),
+        ("Heba Hafez", "cli_هبه_حافظ_1788431922", "هبه حافظ"),
+        ("HEBA HAFEZ REEEL", "cli_هبه_حافظ_1788431922", "هبه حافظ"),
+        ("د شاهنده", "cli_hayat_dental_center_1788685057", "HAYAT DENTAL CENTER"),
+        ("ريل د شاهنده", "cli_hayat_dental_center_1788685057", "HAYAT DENTAL CENTER"),
+        ("مركز حياة للأسنان", "cli_hayat_dental_center_1788685057", "HAYAT DENTAL CENTER"),
+        ("HAYAT DENTAL CENTER", "cli_hayat_dental_center_1788685057", "HAYAT DENTAL CENTER"),
+        ("معامل رعاية", "cli_معامل_رعاية_1788336726", "معامل رعاية"),
+        ("Reaya Lab", "cli_معامل_رعاية_1788336726", "معامل رعاية"),
+        ("انفينيتي", "cli_انفينيتي_1788270119", "انفينيتي"),
+        ("Infinity", "cli_انفينيتي_1788270119", "انفينيتي"),
+        ("SK", "cli_sk_1788270118", "SK"),
+        ("عيادة SK", "cli_sk_1788270118", "SK"),
+        ("Domya Marketing Agency", "client_100821894800009", "Domya Marketing Agency"),
+        ("Domya", "client_100821894800009", "Domya Marketing Agency"),
+        ("عميل عام", "client_default", "عميل عام"),
+        ("", "client_default", "عميل عام")
+    ]
+
+    with app.test_request_context("/"):
+        for inp, expected_cid, expected_name in test_matrix:
+            cid, cdata = _ensure_client_record(inp)
+            assert cid == expected_cid, f"Input '{inp}' expected '{expected_cid}' but got '{cid}'"
+            if expected_name:
+                assert cdata.get("name") == expected_name or cdata.get("company") == expected_name, \
+                    f"Input '{inp}' expected name '{expected_name}' but got '{cdata.get('name')}'"
+
+
+def test_api_tasks_client_name_always_synced_with_canonical(monkeypatch):
+    """Verify that tasks queried via /api/tasks always show their true canonical brand name."""
+    import api.index as idx
+
+    mock_tasks = [
+        {
+            "task_id": "TASK-FAHMY-1",
+            "client_id": "cli_dr_ahmed_fahmy_1788683119",
+            "client_name": "Domya Marketing Agency",  # stale/corrupted name in DB
+            "plan_name": "خطة DR AHMED FAHMY — سبتمبر 2026",
+            "title": "بوست اختبار",
+            "status": "Assigned",
+            "assigned_employee_id": "EMP-8069-7345",
+            "assignee_name": "Walaa Ashraf"
+        },
+        {
+            "task_id": "TASK-HAYAT-1",
+            "client_id": "cli_hayat_dental_center_1788685057",
+            "client_name": "",  # missing name
+            "plan_name": "خطة HAYAT DENTAL CENTER — سبتمبر 2026",
+            "title": "بوست أسنان",
+            "status": "Assigned",
+            "assigned_employee_id": "EMP-7775-2303",
+            "assignee_name": "Menna gamal"
+        }
+    ]
+
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: list(mock_tasks))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda **kw: None)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+
+        res = client.get("/api/tasks?all=true")
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["success"] is True
+        tasks = data["tasks"]
+        t_fahmy = next(t for t in tasks if t["task_id"] == "TASK-FAHMY-1")
+        t_hayat = next(t for t in tasks if t["task_id"] == "TASK-HAYAT-1")
+
+        # Canonical sync: Fahmy must show DR AHMED FAHMY, NOT Domya
+        assert t_fahmy["client_name"] == "DR AHMED FAHMY"
+        assert t_hayat["client_name"] == "HAYAT DENTAL CENTER"
+
+
+
 
 
 
