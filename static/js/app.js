@@ -92,14 +92,16 @@ window.safeFetchJson = safeFetchJson;
       });
       localStorage.setItem('domya_app_v', CURRENT_APP_VERSION);
     }
-  } catch(e){}
+  } catch(e){
+    console.debug('[Storage Init]', e);
+  }
 })();
 
 const _swrMemoryCache = new Map();
 
 async function swrFetchJson(url, options, cacheKey, onCachedData) {
   var key = 'swr_cache_' + (cacheKey || url);
-  // 1. Ultra-instant render from in-memory RAM cache (0.01ms) or localStorage
+  // Ultra-instant render from in-memory RAM cache (0.01ms) or localStorage
   try {
     var cachedObj = _swrMemoryCache.get(key);
     if (!cachedObj) {
@@ -112,16 +114,20 @@ async function swrFetchJson(url, options, cacheKey, onCachedData) {
     if (cachedObj && typeof onCachedData === 'function') {
       onCachedData(cachedObj, true);
     }
-  } catch(e){}
+  } catch(e){
+    console.debug('[SWR Cache Read]', e);
+  }
 
-  // 2. Background fresh network fetch
+  // Background fresh network fetch
   try {
     var freshData = await safeFetchJson(url, options);
     if (freshData && typeof freshData === 'object') {
       _swrMemoryCache.set(key, freshData);
       try {
         localStorage.setItem(key, JSON.stringify(freshData));
-      } catch(e){}
+      } catch(e){
+        console.debug('[SWR Cache Storage Quota]', e);
+      }
       if (typeof onCachedData === 'function') {
         onCachedData(freshData, false);
       }
@@ -294,7 +300,9 @@ function go(id, el) {
         window.location.hash = '#' + cleanId;
       }
       localStorage.setItem('active_tab', cleanId);
-    } catch(err){}
+    } catch(err){
+      console.debug('[Active Tab State]', err);
+    }
 
     initLucideIcons();
   } catch (e) {
@@ -798,8 +806,8 @@ async function applyRoleUI() {
     if (portalNav) portalNav.classList.remove('hidden');
     if (btnAddAcc) btnAddAcc.classList.remove('hidden');
     if (btnOauth) btnOauth.classList.remove('hidden');
-    if (clientSelBox) clientSelBox.classList.remove('hidden');
-    ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) el.closest('div')?.classList.remove('hidden'); });
+    if (clientSelBox) { clientSelBox.style.setProperty('display', 'none', 'important'); clientSelBox.classList.add('hidden'); }
+    ['header-account-select','bot-status-badge'].forEach(id => { const el=document.getElementById(id); if(el) { el.style.setProperty('display', 'none', 'important'); el.closest('div')?.style.setProperty('display', 'none', 'important'); } });
     
     // Admin sees team workload and full tools
     const teamWorkloadBox = document.getElementById('team-workload-widget-box');
@@ -874,11 +882,11 @@ async function applyRoleUI() {
     });
     if (btnAddAcc) btnAddAcc.classList.remove('hidden');
     if (btnOauth) btnOauth.classList.remove('hidden');
-    if (clientSelBox) clientSelBox.classList.remove('hidden');
+    if (clientSelBox) { clientSelBox.style.setProperty('display', 'none', 'important'); clientSelBox.classList.add('hidden'); }
 
     ['header-account-select','bot-status-badge'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.closest('div')?.classList.remove('hidden');
+      if (el) { el.style.setProperty('display', 'none', 'important'); el.closest('div')?.style.setProperty('display', 'none', 'important'); }
     });
 
     // Account Manager sees team workload widget and reports
@@ -1009,10 +1017,11 @@ function renderMyPortalTasks() {
       const pName = String(t.plan_name || t.file_name || '').trim();
       if (pName !== myPortalPlanFilter) return false;
     }
+    const isDoneOrSubmitted = /Completed|مكتمل|Approved|Awaiting|Submitted|Review|قيد مراجعة/i.test(t.status || '') || Boolean(t.submitted_at) || Boolean(t.drive_link) || (Array.isArray(t.deliverables) && t.deliverables.length > 0);
     const dVal = String(t.delivery_deadline || t.publish_date || t.scheduled_start_date || '').slice(0, 10);
-    if (myPortalDueFilter === 'today' && dVal !== todayStr) return false;
-    if (myPortalDueFilter === 'tomorrow' && dVal !== tomorrowStr) return false;
-    if (myPortalDueFilter === 'overdue' && (!dVal || dVal >= todayStr || /Completed|مكتمل/i.test(t.status||''))) return false;
+    if (myPortalDueFilter === 'today' && (dVal !== todayStr || isDoneOrSubmitted)) return false;
+    if (myPortalDueFilter === 'tomorrow' && (dVal !== tomorrowStr || isDoneOrSubmitted)) return false;
+    if (myPortalDueFilter === 'overdue' && (!dVal || dVal >= todayStr || isDoneOrSubmitted)) return false;
 
     if (myPortalSearchQuery) {
       const hay = (String(t.title||'') + ' ' + String(t.task_id||'') + ' ' + String(t.caption||'') + ' ' + String(t.client_name||'') + ' ' + String(t.plan_name||'')).toLowerCase();
@@ -1035,6 +1044,48 @@ function renderMyPortalTasks() {
   const formatDeadline = (t) => {
     const dStr = (t.delivery_deadline || t.publish_date || '').trim();
     if (!dStr) return '<span class="text-slate-400 font-normal">غير محدد</span>';
+    const isDone = /Completed|مكتمل|Approved/i.test(t.status || '');
+    const isSubmitted = /Awaiting|Submitted|Review|قيد مراجعة/i.test(t.status || '') || Boolean(t.submitted_at) || Boolean(t.drive_link) || (Array.isArray(t.deliverables) && t.deliverables.length > 0);
+
+    const modNotes = (t.review_note || t.modification_request || t.notes || '').trim();
+    const hasActiveMod = (!isDone && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && !isSubmitted)));
+    if (hasActiveMod && t.modification_deadline) {
+      const mStr = String(t.modification_deadline).slice(0, 10);
+      try {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const parts = mStr.split('-');
+        if (parts.length === 3) {
+          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          d.setHours(0,0,0,0);
+          const diffDays = Math.round((d - today) / (1000 * 60 * 60 * 24));
+          if (diffDays === 0) return `<span class="bg-rose-600 text-white px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⏰ تسليم التعديل اليوم! (${mStr})</span>`;
+          if (diffDays === 1) return `<span class="bg-amber-500 text-white px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⏳ تسليم التعديل غداً (${mStr})</span>`;
+          if (diffDays < 0) return `<span class="bg-rose-600 text-white px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1 animate-pulse">🚨 متأخر عن موعد التعديل! (${mStr})</span>`;
+          return `<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px]">✍️ تعديل (${mStr} - باقي ${diffDays} يوم)</span>`;
+        }
+      } catch(e){}
+    }
+
+    if (isDone || isSubmitted) {
+      let isOnTime = (t.kpis && typeof t.kpis.is_on_time === 'boolean') ? t.kpis.is_on_time : null;
+      if (isOnTime === null && t.submitted_at && dStr) {
+        const subDate = String(t.submitted_at).slice(0, 10);
+        const dlDate = String(dStr).slice(0, 10);
+        isOnTime = subDate <= dlDate;
+      }
+
+      if (isOnTime === true) {
+        return `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">✅ تم التسليم في الموعد (${dStr})</span>`;
+      }
+      if (isOnTime === false) {
+        return `<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⚠️ تم التسليم بعد الموعد (${dStr})</span>`;
+      }
+      if (isDone) {
+        return `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">✅ معتمدة ومكتملة (${dStr})</span>`;
+      }
+      return `<span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">📤 تم التسليم / قيد المراجعة (${dStr})</span>`;
+    }
     try {
       const today = new Date();
       today.setHours(0,0,0,0);
@@ -1045,12 +1096,13 @@ function renderMyPortalTasks() {
         const diffDays = Math.round((d - today) / (1000 * 60 * 60 * 24));
         if (diffDays === 0) return `<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">🚨 اليوم (${dStr})</span>`;
         if (diffDays === 1) return `<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⏰ غداً (${dStr})</span>`;
-        if (diffDays < 0) return `<span class="bg-rose-100 text-rose-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⚠️ متأخرة (${dStr})</span>`;
+        if (diffDays < 0) return `<span class="bg-rose-100 text-rose-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⚠️ متأخرة عن الموعد (${dStr})</span>`;
         return `<span class="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px]">${dStr} (باقي ${diffDays} يوم)</span>`;
       }
     } catch(e) {}
     return `<span class="font-bold font-mono text-xs">${esc(dStr)}</span>`;
   };
+
 
   const actionBtns = (t) => {
     const s = t.status || '';
@@ -1073,14 +1125,22 @@ function renderMyPortalTasks() {
   };
   const canWork = (t) => /Assigned|In Progress/i.test(t.status||'');
 
-  // Sort tasks by delivery deadline (earliest/urgent first) for maximum productivity
+  // Sort tasks by priority: Active work (In Progress -> Assigned) first, then Submitted / In Review, then Completed
   filtered.sort((a, b) => {
-    // 1. Incomplete tasks come before completed tasks
-    const aDone = /Completed|مكتمل|Approved/i.test(a.status || '');
-    const bDone = /Completed|مكتمل|Approved/i.test(b.status || '');
-    if (aDone !== bDone) return aDone ? 1 : -1;
+    const stageRank = (t) => {
+      const s = (t.status || '').toLowerCase();
+      if (s === 'in progress') return 1;
+      if (s === 'assigned') return 2;
+      if (/awaiting|submitted|review|مراجعة/.test(s) || Boolean(t.submitted_at)) return 3;
+      if (/completed|مكتمل|approved/.test(s)) return 4;
+      return 2;
+    };
 
-    // 2. Compare delivery deadline (earliest dates first)
+    const aRank = stageRank(a);
+    const bRank = stageRank(b);
+    if (aRank !== bRank) return aRank - bRank;
+
+    // 2. Compare delivery deadline (earliest dates first within same stage)
     const aDate = String(a.delivery_deadline || a.publish_date || a.scheduled_start_date || '').trim();
     const bDate = String(b.delivery_deadline || b.publish_date || b.scheduled_start_date || '').trim();
 
@@ -1150,6 +1210,20 @@ function renderMyPortalTasks() {
           <span class="bg-white text-slate-800 border border-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs">🏢 ${cName}</span>
           <span class="bg-white text-slate-800 border border-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs">📑 ${pName}</span>
           <span class="bg-indigo-50 text-indigo-900 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-lg">👤 AM: ${amName}</span>
+          ${(t.secondary_assignee_name || t.secondary_employee_id) ? `
+            <span class="bg-purple-100 text-purple-900 border border-purple-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs" title="هذه المهمة عمل مشترك بين شخصين">
+              👥 عمل مشترك: ${esc(t.assignee_name || 'المنفذ الأول')} + ${esc(t.secondary_assignee_name || 'شريك العمل')}
+            </span>
+          ` : ''}
+          ${t.submitted_by ? `
+            <span class="bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold px-2 py-0.5 rounded-md" title="الشخص الذي قام بتسليم العمل">
+              👤 سلمه: ${esc(t.submitted_by)}
+            </span>
+          ` : ''}
+          <span class="bg-amber-50 text-amber-950 border border-amber-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-2xs" title="موعد تسليم العمل">
+            <span>📅 التسليم:</span>
+            ${formatDeadline(t)}
+          </span>
         </div>
         <div class="flex items-center gap-2">
           ${statusBadge(t)}
@@ -1159,6 +1233,21 @@ function renderMyPortalTasks() {
 
       <!-- Card Body Content -->
       <div class="p-4 sm:p-5 space-y-3.5 bg-white">
+        ${(t.review_note || t.modification_request) && !/Completed|مكتمل|Approved/i.test(t.status||'') ? `
+          <div class="bg-rose-50 border-2 border-rose-400 rounded-xl p-3.5 text-xs text-rose-950 space-y-2 shadow-xs">
+            <div class="flex items-center justify-between font-bold text-xs text-rose-900 border-b border-rose-200 pb-1.5 flex-wrap gap-1">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block animate-ping"></span>
+                <span class="font-bold text-xs sm:text-sm">✍️ مطلوب تعديل من مدير الحسابات (AM):</span>
+              </span>
+              ${t.modification_deadline ? `<span class="text-[11px] bg-rose-600 text-white px-2 py-0.5 rounded font-mono font-bold">موعد تسليم التعديل: ${esc(String(t.modification_deadline).slice(0, 10))}</span>` : ''}
+            </div>
+            <div class="text-xs text-rose-950 font-bold bg-white p-3 rounded-lg border border-rose-200 whitespace-pre-wrap leading-relaxed shadow-2xs select-all">
+              ${esc(t.review_note || t.modification_request)}
+            </div>
+          </div>
+        ` : ''}
+
         <h4 class="font-bold text-sm sm:text-base text-slate-900 leading-snug">${esc(portalHeading)}</h4>
 
         ${cleanCap ? `
@@ -1232,8 +1321,8 @@ function renderMyPortalTasks() {
         </div>
         <div class="text-[11px] font-bold text-slate-500">
           ${/Completed|مكتمل/i.test(t.status||'') ? '✅ تم إنجاز المهمة واعتمادها' :
+            /Awaiting|Submitted|Review/i.test(t.status||'') ? '📤 تم تسليم العمل — بانتظار مراجعة وقرار مدير الحسابات (AM)' :
             /In Progress/i.test(t.status||'') ? '⏱️ قيد العمل الحالي — سلّم العمل عند الانتهاء' :
-            /Awaiting/i.test(t.status||'') ? '🔍 بانتظار مراجعة وقرار الـ AM' :
             '📌 مهمة جديدة مسندة إليك'}
         </div>
       </div>
@@ -1248,6 +1337,44 @@ async function switchMyPortalEmployee(eid) {
   loadMyPortal();
 }
 window.switchMyPortalEmployee = switchMyPortalEmployee;
+
+function toggleMyAttendanceAccordion() {
+  const body = document.getElementById('my-attendance-collapse-body');
+  const arrow = document.getElementById('my-attendance-arrow');
+  const badge = document.getElementById('my-attendance-badge');
+  const header = document.getElementById('my-attendance-toggle-header');
+  if (!body) return;
+
+  const isClosed = body.classList.contains('hidden');
+  if (isClosed) {
+    body.classList.remove('hidden');
+    if (arrow) arrow.style.transform = 'rotate(180deg)';
+    if (badge) {
+      badge.innerHTML = '<span>مفتوح</span> ▴';
+      badge.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 inline-flex items-center gap-1 transition-all';
+    }
+    if (header) header.classList.add('bg-blue-50/40');
+  } else {
+    body.classList.add('hidden');
+    if (arrow) arrow.style.transform = 'rotate(0deg)';
+    if (badge) {
+      badge.innerHTML = '<span>مغلق</span> ▾';
+      badge.className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1 transition-all';
+    }
+    if (header) header.classList.remove('bg-blue-50/40');
+  }
+}
+window.toggleMyAttendanceAccordion = toggleMyAttendanceAccordion;
+
+function updatePlanFileNameLabel(input) {
+  const label = document.getElementById('plan-file-chosen-label');
+  if (label && input && input.files && input.files.length > 0) {
+    const file = input.files[0];
+    const safeName = (typeof esc === 'function') ? esc(file.name) : file.name;
+    label.innerHTML = '📄 <span class="text-blue-700 font-bold">' + safeName + '</span> (' + Math.round(file.size / 1024) + ' KB)';
+  }
+}
+window.updatePlanFileNameLabel = updatePlanFileNameLabel;
 
 async function loadMyPortal() {
   const nameEl = document.getElementById('myportal-name');
@@ -2058,15 +2185,13 @@ async function populateAccountSwitcher() {
     const hdr = document.getElementById('header-account-select');
     if (hdr) hdr.innerHTML = opts;
 
-    // Preserve saved active client across reloads
+    // Preserve saved active client across reloads (default to all clients to prevent hiding tasks)
     const savedClient = localStorage.getItem('active_client_id');
     let targetClient = '__all__';
     if (savedClient && savedClient !== '__all__' && list.some(c => c.id === savedClient)) {
       targetClient = savedClient;
-    } else if (savedClient === '__all__') {
+    } else {
       targetClient = '__all__';
-    } else if (list.length) {
-      targetClient = list.some(c => c.id === 'cli_dr_ahmed_1788270119') ? 'cli_dr_ahmed_1788270119' : list[0].id;
     }
 
     if (targetClient && targetClient !== '__all__') {

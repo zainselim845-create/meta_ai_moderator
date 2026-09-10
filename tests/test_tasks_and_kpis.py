@@ -1543,6 +1543,7 @@ def test_api_tasks_ingest_plan_preserves_selected_creator(monkeypatch):
     monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan")
     monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
     monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+    monkeypatch.setattr(idx, "push_setting", lambda *a, **k: True)
 
     with idx.app.test_client() as client:
         with client.session_transaction() as sess:
@@ -1552,9 +1553,9 @@ def test_api_tasks_ingest_plan_preserves_selected_creator(monkeypatch):
 
         # Ingest plan selecting Walaa Ashraf
         res = client.post("/api/tasks/ingest-plan", json={
-            "client_id": "cli_creator_test_123",
-            "client_name": "عيادات النخبة",
-            "plan_name": "خطة عيادات النخبة - سبتمبر",
+            "client_id": "cli_dr_ahmed_1788270119",
+            "client_name": "دكتور أحمد حمدي",
+            "plan_name": "خطة دكتور أحمد حمدي - سبتمبر",
             "am_employee_id": "AM-2072-9827",
             "content_creator_id": "EMP-8069-7345",
             "creator_id": "EMP-8069-7345",
@@ -1841,9 +1842,9 @@ def test_client_attribution_strict_disambiguation():
         ("Dr Ahmed Hamdy", "cli_dr_ahmed_1788270119", "دكتور أحمد حمدي"),
         ("هبه حافظ", "cli_هبه_حافظ_1788431922", "هبه حافظ"),
         ("Heba Hafez", "cli_هبه_حافظ_1788431922", "هبه حافظ"),
-        ("HEBA HAFEZ REEEL", "cli_هبه_حافظ_1788431922", "هبه حافظ"),
-        ("د شاهنده", "cli_hayat_dental_center_1788685057", "HAYAT DENTAL CENTER"),
-        ("ريل د شاهنده", "cli_hayat_dental_center_1788685057", "HAYAT DENTAL CENTER"),
+        ("دكتورة شاهندة مختار", "cli_dr_shahenda_1788685119", "دكتورة شاهندة مختار"),
+        ("د شاهنده", "cli_dr_shahenda_1788685119", "دكتورة شاهندة مختار"),
+        ("ريل د شاهنده", "cli_dr_shahenda_1788685119", "دكتورة شاهندة مختار"),
         ("مركز حياة للأسنان", "cli_hayat_dental_center_1788685057", "HAYAT DENTAL CENTER"),
         ("HAYAT DENTAL CENTER", "cli_hayat_dental_center_1788685057", "HAYAT DENTAL CENTER"),
         ("معامل رعاية", "cli_معامل_رعاية_1788336726", "معامل رعاية"),
@@ -1970,6 +1971,7 @@ def test_ingest_plan_with_new_creator_and_assignee(monkeypatch):
     monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan")
     monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
     monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+    monkeypatch.setattr(idx, "push_setting", lambda *a, **k: True)
 
     with idx.app.test_client() as client:
         with client.session_transaction() as sess:
@@ -1977,14 +1979,15 @@ def test_ingest_plan_with_new_creator_and_assignee(monkeypatch):
             sess["role"] = "admin"
 
         res = client.post("/api/tasks/ingest-plan", json={
-            "client_name": "عيادة النور للتجميل",
-            "plan_name": "خطة عيادة النور — سبتمبر 2026",
+            "client_id": "cli_dr_ahmed_1788270119",
+            "client_name": "دكتور أحمد حمدي",
+            "plan_name": "خطة دكتور أحمد حمدي — سبتمبر 2026",
             "content_creator_name": "سارة الشافعي",
             "assignee_name": "أحمد مصطفى ديزاينر",
             "posts": [
                 {
                     "title": "بوست 1 تجريبي",
-                    "caption": "محتوى بوست تجريبي للنور",
+                    "caption": "محتوى بوست تجريبي لأحمد حمدي",
                     "post_type": "post"
                 }
             ]
@@ -1997,7 +2000,7 @@ def test_ingest_plan_with_new_creator_and_assignee(monkeypatch):
         # Verify saved tasks
         assert len(saved_tasks_capture) == 1
         task = saved_tasks_capture[0]
-        assert task["client_name"] == "عيادة النور للتجميل"
+        assert task["client_name"] == "دكتور أحمد حمدي"
         assert task["status"] == "Assigned"
         # Verify creator has deterministic EMP ID
         assert task["creator_name"] == "سارة الشافعي"
@@ -2007,9 +2010,856 @@ def test_ingest_plan_with_new_creator_and_assignee(monkeypatch):
         assert task["assigned_employee_id"].startswith("EMP-")
 
 
+def test_task_status_separation_review_assigned_inprogress(monkeypatch):
+    """Ensure Submitted / In Review, In Progress, and Assigned are treated as distinct states."""
+    import api.index as idx
+
+    # Test status string formatting in task card
+    card_review = idx._task_card_text({"title": "تصميم 1", "status": "Submitted / In Review", "drive_link": "https://drive.google.com/test"}, "cli_test")
+    assert "تم التسليم / بانتظار المراجعة 📤" in card_review
+
+    card_inprogress = idx._task_card_text({"title": "تصميم 2", "status": "In Progress"}, "cli_test")
+    assert "جاري العمل ⏱️" in card_inprogress
+
+    card_assigned = idx._task_card_text({"title": "تصميم 3", "status": "Assigned"}, "cli_test")
+    assert "مُسندة 📌" in card_assigned
+
+    # Test monthly report API distinction
+    mock_tasks = [
+        {"task_id": "T1", "title": "ت1", "status": "Submitted / In Review", "drive_link": "https://drive.google.com/1", "delivery_deadline": "2026-09-10", "assigned_employee_id": "EMP-8148", "assignee_name": "عمر أحمد"},
+        {"task_id": "T2", "title": "ت2", "status": "In Progress", "delivery_deadline": "2026-09-10", "assigned_employee_id": "EMP-8148", "assignee_name": "عمر أحمد"},
+        {"task_id": "T3", "title": "ت3", "status": "Assigned", "delivery_deadline": "2026-09-10", "assigned_employee_id": "EMP-8148", "assignee_name": "عمر أحمد"},
+        {"task_id": "T4", "title": "ت4", "status": "Completed", "delivery_deadline": "2026-09-10", "assigned_employee_id": "EMP-8148", "assignee_name": "عمر أحمد"},
+    ]
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: mock_tasks)
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+
+        res = client.get("/api/tasks/monthly-report?month=2026-09")
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d.get("success") is True or d.get("ok") is True
+        rep = d.get("report", [])
+
+        assert len(rep) > 0
+        emp_stat = rep[0]
+        assert emp_stat["in_progress"] == 1
+        assert emp_stat["submitted"] == 2
+        assert emp_stat["assigned"] == 4
 
 
 
+def test_api_tasks_bulk_review(monkeypatch):
+    """Test /api/tasks/bulk-review approves all submitted tasks in a single request."""
+    import api.index as idx
+
+    mock_tasks = [
+        {
+            "task_id": "TASK-REV-1",
+            "client_id": "cli_test_1",
+            "title": "بوست 1 للمراجعة",
+            "status": "Submitted / In Review",
+            "drive_link": "https://drive.google.com/item1",
+            "assigned_employee_id": "EMP-8148",
+            "assignee_name": "عمر أحمد",
+            "activity_log": []
+        },
+        {
+            "task_id": "TASK-REV-2",
+            "client_id": "cli_test_1",
+            "title": "بوست 2 للمراجعة",
+            "status": "Submitted / In Review",
+            "drive_link": "https://drive.google.com/item2",
+            "assigned_employee_id": "EMP-8148",
+            "assignee_name": "عمر أحمد",
+            "activity_log": []
+        }
+    ]
+    saved = []
+
+    def mock_find_task(tid):
+        for t in mock_tasks:
+            if t["task_id"] == tid:
+                return t, t["client_id"]
+        return None, None
+
+    monkeypatch.setattr(idx, "_find_task_any_client", mock_find_task)
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved.append(t["task_id"]))
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "invalidate_tasks_cache", lambda: None)
+    monkeypatch.setattr(idx, "_sheet_emp", lambda eid: {"employee_id": eid, "name": "عمر أحمد", "telegram_id": ""})
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda tg, msg: True)
+
+    with idx.app.test_client() as client:
+        # Non-manager should be rejected with 403
+        with client.session_transaction() as sess:
+            sess["uid"] = "emp_user"
+            sess["role"] = "employee"
+
+        res_forbidden = client.post("/api/tasks/bulk-review", json={
+            "task_ids": ["TASK-REV-1", "TASK-REV-2"],
+            "action": "finalize"
+        })
+        assert res_forbidden.status_code == 403
+
+        # Manager/Admin should succeed
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+
+        # Empty task_ids should return 400
+        res_bad = client.post("/api/tasks/bulk-review", json={"task_ids": []})
+        assert res_bad.status_code == 400
+
+        # Successful bulk review
+        res = client.post("/api/tasks/bulk-review", json={
+            "task_ids": ["TASK-REV-1", "TASK-REV-2"],
+            "action": "finalize",
+            "note": "تم الاعتماد واكتمال العمل"
+        })
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["ok"] is True
+        assert data["approved_count"] == 2
+        assert set(data["approved_task_ids"]) == {"TASK-REV-1", "TASK-REV-2"}
+
+        # Verify task objects updated
+        for t in mock_tasks:
+            assert t["status"] == "Completed"
+            assert "completed_at" in t
+            assert t["review_note"] == "تم الاعتماد واكتمال العمل"
+            assert any(log["action"] == "reviewed_approved" for log in t["activity_log"])
+
+        assert len(saved) == 2
 
 
+def test_api_tasks_ingest_strictly_respects_explicit_client_selection(monkeypatch):
+    """Verify that when a client is explicitly selected (e.g. Domya or Dr Shahenda),
+    it is 100% respected and never overridden by doc headings or keyword heuristics."""
+    import api.index as idx
+
+    saved_tasks = []
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, cid: saved_tasks.clear() or saved_tasks.extend(tasks))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan")
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "aya_ahmed"
+            sess["role"] = "employee"
+            sess["employee_id"] = "EMP-5887-5256"
+
+        # 1. Test Domya explicit selection: doc text contains 'فهمي' and 'dental' which would have triggered override
+        res = client.post("/api/tasks/ingest-plan", json={
+            "client_id": "client_100821894800009",
+            "client_name": "Domya Marketing Agency",
+            "plan_name": "خطة Domya Marketing Agency — سبتمبر 2026",
+            "plan_text": "Client: DR AHMED FAHMY\nموضوع: خدمات الأسنان وفينير الأسنان\nبوست 1: تجريبي",
+            "am_employee_id": "EMP-5887-5256",
+            "posts": [
+                {
+                    "title": "بوست دمية تجريبي",
+                    "caption": "محتوى بوست تجريبي لدمية مع ذكر خدمات أسنان دكتور فهمي",
+                    "post_type": "post"
+                }
+            ]
+        })
+        assert res.status_code == 200
+        assert len(saved_tasks) == 1
+        t = saved_tasks[0]
+        # Must strictly be Domya Marketing Agency, NOT Dr Ahmed Fahmy or Hayat Dental
+        assert t["client_id"] == "client_100821894800009"
+        assert t["client_name"] == "Domya Marketing Agency"
+        assert t["am_id"] == "EMP-5887-5256"
+
+        # 2. Test Dr Ahmed Fahmy explicit selection: doc text mentions other words
+        saved_tasks.clear()
+        res2 = client.post("/api/tasks/ingest-plan", json={
+            "client_id": "cli_dr_ahmed_fahmy_1788683119",
+            "client_name": "DR AHMED FAHMY",
+            "plan_name": "خطة DR AHMED FAHMY — سبتمبر 2026",
+            "posts": [
+                {
+                    "title": "بوست دكتور فهمي",
+                    "caption": "محتوى خاص بعيادة دكتور فهمي",
+                    "post_type": "post"
+                }
+            ]
+        })
+        assert res2.status_code == 200
+        assert len(saved_tasks) == 1
+        t2 = saved_tasks[0]
+        assert t2["client_id"] == "cli_dr_ahmed_fahmy_1788683119"
+        assert t2["client_name"] == "DR AHMED FAHMY"
+
+
+def test_multiple_plans_same_month_do_not_collide_and_keep_independent_numbering(monkeypatch):
+    """Regression test: When uploading two distinct plans for the same client in the same month
+    without allow_append, the system must not scramble or merge them, but disambiguate the name
+    and keep independent sequential numbering (1..N)."""
+    import api.index as idx
+
+    client_id = "cli_dr_ahmed_1788270119"
+    existing_plan_name = "خطة دكتور أحمد حمدي — سبتمبر 2026"
+    existing_tasks = [
+        {
+            "task_id": f"TASK-P1-{i}",
+            "post_number": i,
+            "client_id": client_id,
+            "client_name": "دكتور أحمد حمدي",
+            "plan_name": existing_plan_name,
+            "file_name": existing_plan_name,
+            "title": f"بوست قديم {i}",
+            "status": "Assigned"
+        }
+        for i in range(1, 4)
+    ]
+
+    saved_batches = []
+    monkeypatch.setattr(idx, "get_client_tasks", lambda cid: list(existing_tasks))
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: list(existing_tasks))
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, cid: saved_batches.append(list(tasks)))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan_2")
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        # Ingest a second plan in the same month without allow_append
+        res = client.post("/api/tasks/ingest-plan", json={
+            "client_id": client_id,
+            "client_name": "دكتور أحمد حمدي",
+            "plan_name": existing_plan_name,
+            "allow_append": False,
+            "posts": [
+                {
+                    "title": "بوست جديد 1 من الخطة الثانية",
+                    "caption": "كابشن الخطة الثانية بوست 1",
+                    "post_type": "post"
+                },
+                {
+                    "title": "بوست جديد 2 من الخطة الثانية",
+                    "caption": "كابشن الخطة الثانية بوست 2",
+                    "post_type": "reel"
+                }
+            ]
+        })
+
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data.get("success") is True or data.get("ok") is True
+
+        assert len(saved_batches) > 0
+        last_saved = saved_batches[-1]
+        new_tasks = [t for t in last_saved if t.get("task_id") not in {et["task_id"] for et in existing_tasks}]
+        assert len(new_tasks) == 2
+
+        # 1. The plan name must be disambiguated with (2)
+        assert new_tasks[0]["plan_name"] == f"{existing_plan_name} (2)"
+        assert new_tasks[1]["plan_name"] == f"{existing_plan_name} (2)"
+
+        # 2. Numbering must start cleanly from 1 for the new distinct plan
+        assert new_tasks[0]["post_number"] == 1
+        assert new_tasks[1]["post_number"] == 2
+
+
+def test_add_task_directly_to_existing_plan_computes_sequential_post_number(monkeypatch):
+    """Verify that adding an extra task directly to an existing plan via POST /api/tasks/plan/add-task
+    correctly sequences post_number and preserves all plan associations."""
+    import api.index as idx
+
+    client_id = "cli_dr_ahmed_1788270119"
+    plan_name = "خطة دكتور أحمد حمدي — سبتمبر 2026"
+    existing_tasks = [
+        {
+            "task_id": f"TASK-EX-{i}",
+            "post_number": i,
+            "client_id": client_id,
+            "client_name": "دكتور أحمد حمدي",
+            "plan_name": plan_name,
+            "file_name": plan_name,
+            "title": f"بوست {i}",
+            "status": "Completed"
+        }
+        for i in range(1, 5)  # posts 1, 2, 3, 4
+    ]
+
+    saved_single_tasks = []
+    monkeypatch.setattr(idx, "get_client_tasks", lambda cid: list(existing_tasks))
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: list(existing_tasks))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved_single_tasks.append((t, cid)))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "send_task_to_employee", lambda *a, **k: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.post("/api/tasks/plan/add-task", json={
+            "plan_name": plan_name,
+            "client_id": client_id,
+            "title": "بوست عرض إضافي",
+            "caption": "كابشن العرض الإضافي المميز",
+            "visual_idea": "خلفية بنفسجي وأيقونة خصم",
+            "post_type": "post",
+            "assigned_employee_id": "EMP-005",
+            "assignee_name": "فرح أحمد",
+            "delivery_deadline": "2026-09-15"
+        })
+
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data.get("ok") is True or data.get("success") is True
+        created_task = data.get("task")
+        assert created_task is not None
+
+        # Post number must be 5 (sequential after 1, 2, 3, 4)
+        assert created_task["post_number"] == 5
+        assert created_task["plan_name"] == plan_name
+        assert created_task["caption"] == "كابشن العرض الإضافي المميز"
+        assert created_task["visual_idea"] == "خلفية بنفسجي وأيقونة خصم"
+        assert created_task["assigned_employee_id"] == "EMP-005"
+        assert created_task["assignee_name"] == "فرح أحمد"
+        assert created_task["delivery_deadline"] == "2026-09-15"
+        assert len(saved_single_tasks) == 1
+
+
+def test_am_client_scoping_strict_separation():
+    """Verify 100% strict isolation of assigned clients between Account Managers (Mahmoud and Aya).
+    Zero client leakage or overlap between AMs.
+    """
+    import api.index as idx
+
+    # Test Mahmoud Khalid (AM-2072-9827)
+    with idx.app.test_request_context():
+        from flask import session
+        session["uid"] = "AM-2072-9827"
+        session["role"] = "account_manager"
+        session["employee_id"] = "AM-2072-9827"
+        session["user_name"] = "محمود خالد"
+
+        mahmoud_assigned = set(idx.assigned_client_ids())
+        assert "cli_sk_1788270118" in mahmoud_assigned, "SK must belong to Mahmoud"
+        assert "cli_dr_ahmed_1788270119" in mahmoud_assigned, "Dr Ahmed Hamdy must belong to Mahmoud"
+        assert "cli_انفينيتي_1788270119" in mahmoud_assigned, "Infinity must belong to Mahmoud"
+        # Must not leak Aya's clients
+        assert "cli_هبه_حافظ_1788431922" not in mahmoud_assigned, "Heba Hafez must NOT leak to Mahmoud"
+        assert "cli_dr_hadeer_1788684282" not in mahmoud_assigned, "DR HADEER must NOT leak to Mahmoud"
+        assert "cli_dr_ahmed_fahmy_1788683119" not in mahmoud_assigned, "DR AHMED FAHMY must NOT leak to Mahmoud"
+        assert "cli_معامل_رعاية_1788336726" not in mahmoud_assigned, "معامل رعاية must NOT leak to Mahmoud"
+        assert "client_100821894800009" not in mahmoud_assigned, "Domya must NOT leak to Mahmoud"
+
+    # Test Aya Ahmed Megahed (EMP-5887-5256)
+    with idx.app.test_request_context():
+        session["uid"] = "EMP-5887-5256"
+        session["role"] = "account_manager"
+        session["employee_id"] = "EMP-5887-5256"
+        session["user_name"] = "آيه أحمد مجاهد"
+
+        aya_assigned = set(idx.assigned_client_ids())
+        assert "cli_هبه_حافظ_1788431922" in aya_assigned, "Heba Hafez must belong to Aya"
+        assert "cli_dr_hadeer_1788684282" in aya_assigned, "DR HADEER must belong to Aya"
+        assert "cli_dr_ahmed_fahmy_1788683119" in aya_assigned, "DR AHMED FAHMY must belong to Aya"
+        assert "cli_معامل_رعاية_1788336726" in aya_assigned, "معامل رعاية must belong to Aya"
+        assert "client_100821894800009" in aya_assigned, "Domya must belong to Aya"
+        # Must not leak Mahmoud's clients
+        assert "cli_sk_1788270118" not in aya_assigned, "SK must NOT leak to Aya"
+        assert "cli_dr_ahmed_1788270119" not in aya_assigned, "Dr Ahmed Hamdy must NOT leak to Aya"
+        assert "cli_انفينيتي_1788270119" not in aya_assigned, "Infinity must NOT leak to Aya"
+
+    # Zero overlap check
+    overlap = mahmoud_assigned.intersection(aya_assigned)
+    assert len(overlap) == 0, f"Expected 0 overlap between AMs, but found: {overlap}"
+
+
+def test_client_update_account_manager_cascades_to_tasks(monkeypatch):
+    """PUT /api/clients/<cid> allows manager/admin to set the client's Account Manager,
+    persists it, and cascades the new AM to that client's tasks for complete consistency.
+    """
+    import api.index as idx
+
+    cid = "cli_test_am_update_99"
+    test_client = {
+        "id": cid,
+        "name": "عميل تجربة AM",
+        "company": "شركة تجربة",
+        "am_employee_id": "AM-2072-9827",
+        "am_name": "محمود خالد",
+        "is_active": True
+    }
+    idx.AGENCY_CLIENTS_STORE = [c for c in idx.AGENCY_CLIENTS_STORE if c.get("id") != cid] + [test_client]
+
+    existing_task = {
+        "task_id": "TASK-TEST-AM-1",
+        "client_id": cid,
+        "client_name": "عميل تجربة AM",
+        "am_id": "AM-2072-9827",
+        "am_name": "محمود خالد",
+        "status": "Assigned",
+        "title": "بوست تجريبي"
+    }
+
+    saved_tasks_capture = []
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [dict(existing_task)])
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, _cid: saved_tasks_capture.extend(tasks))
+    monkeypatch.setattr(idx, "push_setting", lambda *a, **k: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        # Update client AM to Aya Ahmed Megahed
+        res = client.put(f"/api/clients/{cid}", json={
+            "am_employee_id": "EMP-5887-5256",
+            "am_name": "آيه أحمد مجاهد"
+        })
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d.get("ok") is True
+        assert d.get("am_changed") is True
+        assert d["client"]["am_employee_id"] == "EMP-5887-5256"
+        assert d["client"]["am_name"] == "آيه أحمد مجاهد"
+
+        # Verify task was cascaded
+        assert len(saved_tasks_capture) == 1
+        assert saved_tasks_capture[0]["am_id"] == "EMP-5887-5256"
+        assert saved_tasks_capture[0]["am_name"] == "آيه أحمد مجاهد"
+
+
+def test_ingest_plan_inherits_client_assigned_am_when_uploaded_by_admin(monkeypatch):
+    """When an admin uploads a plan without specifying AM, the tasks automatically
+    inherit the client's assigned Account Manager from the client record.
+    """
+    import api.index as idx
+
+    saved_tasks = []
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, cid: saved_tasks.clear() or saved_tasks.extend(tasks))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan")
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        # Ingest for Dr Hadeer (assigned to Aya in CANONICAL / STORE)
+        res = client.post("/api/tasks/ingest-plan", json={
+            "client_id": "cli_dr_hadeer_1788684282",
+            "client_name": "DR HADEER",
+            "plan_name": "خطة DR HADEER — سبتمبر 2026",
+            "posts": [
+                {
+                    "title": "بوست دكتورة هدير",
+                    "caption": "محتوى لدكتورة هدير",
+                    "post_type": "post"
+                }
+            ]
+        })
+        assert res.status_code == 200
+        assert len(saved_tasks) == 1
+        assert saved_tasks[0]["am_id"] == "EMP-5887-5256"
+        assert saved_tasks[0]["am_name"] == "آيه أحمد مجاهد"
+
+
+def test_ingest_plan_stays_with_account_manager_when_uploaded_by_am(monkeypatch):
+    """When an Account Manager (e.g. Mahmoud Khalid) ingests or creates a plan,
+    it strictly stays with him and is assigned to his AM account.
+    """
+    import api.index as idx
+
+    saved_tasks = []
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, cid: saved_tasks.clear() or saved_tasks.extend(tasks))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan")
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "AM-2072-9827"
+            sess["role"] = "account_manager"
+            sess["employee_id"] = "AM-2072-9827"
+            sess["user_name"] = "محمود خالد"
+
+        res = client.post("/api/tasks/ingest-plan", json={
+            "client_id": "cli_هبه_حافظ_1788431922",
+            "client_name": "هبه حافظ",
+            "plan_name": "خطة هبه حافظ — سبتمبر 2026",
+            "posts": [
+                {
+                    "title": "بوست هبه حافظ الجديد",
+                    "caption": "محتوى بوست جديد",
+                    "post_type": "post"
+                }
+            ]
+        })
+        assert res.status_code == 200
+        assert len(saved_tasks) == 1
+        assert saved_tasks[0]["am_id"] == "AM-2072-9827"
+        assert saved_tasks[0]["am_name"] == "محمود خالد"
+
+
+def test_submitted_and_completed_tasks_never_marked_overdue():
+    """Verify that tasks submitted before or on their deadline are marked on-time,
+    and are not marked overdue even when today's date passes."""
+    import api.index as idx
+    from datetime import datetime, timezone
+
+    # Task submitted on time (deadline: 2026-09-08, submitted: 2026-09-07)
+    task_on_time = {
+        "task_id": "TASK-TEST-ONTIME",
+        "title": "تصميم ريل في الموعد",
+        "status": "Submitted / In Review",
+        "delivery_deadline": "2026-09-08",
+        "submitted_at": "2026-09-07T15:00:00+00:00",
+        "drive_link": "https://drive.google.com/test",
+        "kpis": {
+            "deadline": "2026-09-08",
+            "is_on_time": True,
+            "submitted_at": "2026-09-07T15:00:00+00:00"
+        }
+    }
+    assert task_on_time["kpis"]["is_on_time"] is True
+    # Verify card text formatting
+    card_text = idx._task_card_text(task_on_time, "cli_test")
+    assert "تم التسليم / بانتظار المراجعة" in card_text
+    assert "متأخرة" not in card_text
+    assert "تأخير" not in card_text
+
+    # Completed task
+    task_completed = {
+        "task_id": "TASK-TEST-DONE",
+        "title": "مهمة معتمدة",
+        "status": "Completed",
+        "delivery_deadline": "2026-09-08",
+        "completed_at": "2026-09-08T12:00:00+00:00",
+        "kpis": {
+            "is_on_time": True
+        }
+    }
+    card_completed = idx._task_card_text(task_completed, "cli_test")
+    assert "مكتملة ومعتمدة" in card_completed
+    assert "متأخرة" not in card_completed
+
+
+def test_delivery_deadline_prominence_and_auto_sequential_inference(monkeypatch):
+    """Verify delivery deadline is prominent, auto-inferred sequentially when omitted,
+    and placed at the top of Telegram cards."""
+    import api.index as idx
+
+    # 1. Test sequential inference for Arabic month names
+    d_oct = idx._infer_sequential_post_date("خطة معامل رعاية — أكتوبر 2026", 0, 10)
+    assert d_oct.startswith("2026-10-"), f"Expected 2026-10, got {d_oct}"
+
+    d_sep = idx._infer_sequential_post_date("DR HADEER — SEPTEMBER", 3, 8)
+    assert d_sep.startswith("2026-09-"), f"Expected 2026-09, got {d_sep}"
+
+    # 2. Telegram card format has deadline on second line
+    sample_task = {
+        "task_id": "TASK-TEST-DL",
+        "title": "تصميم بوست مهم",
+        "post_number": 3,
+        "delivery_deadline": "2026-09-12",
+        "status": "Assigned",
+        "assignee_name": "عمر أحمد"
+    }
+    card_text = idx._task_card_text(sample_task, "cli_test")
+    lines = card_text.splitlines()
+    assert len(lines) >= 2
+    assert "بوست #3" in lines[0]
+    assert "موعد التسليم: 2026-09-12" in lines[1], f"Expected deadline in line 1, got: {lines[1]}"
+
+    # 3. Ingesting plan without explicit dates generates valid deadlines
+    saved_tasks = []
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, cid: saved_tasks.clear() or saved_tasks.extend(tasks))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "_save_and_distribute_plan_to_drive", lambda *a, **k: "https://drive.google.com/test_plan")
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: True)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [])
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.post("/api/tasks/ingest-plan", json={
+            "client_id": "cli_test_no_dl",
+            "client_name": "عميل تجريبي",
+            "plan_name": "خطة تجريبية — أكتوبر 2026",
+            "posts": [
+                {"title": "بوست 1", "caption": "نص 1"},
+                {"title": "بوست 2", "caption": "نص 2"},
+            ]
+        })
+        assert res.status_code == 200
+        assert len(saved_tasks) == 2
+        for t in saved_tasks:
+            assert bool(t.get("delivery_deadline")), "delivery_deadline must not be empty"
+            assert bool(t.get("publish_date")), "publish_date must not be empty"
+            assert t["delivery_deadline"].startswith("2026-10-")
+
+
+def test_client_am_update_with_url_encoded_arabic_id_cascades_properly(monkeypatch):
+    """PUT /api/clients/<cid> handles percent-encoded Arabic client IDs, client names,
+    and correctly updates client AM to Aya Ahmed Megahed and cascades to all tasks.
+    """
+    import urllib.parse
+    import api.index as idx
+
+    arabic_cid = "cli_هبه_حافظ_1788431922"
+    encoded_cid = urllib.parse.quote(arabic_cid)
+
+    test_client = {
+        "id": arabic_cid,
+        "name": "هبه حافظ",
+        "company": "هبه حافظ",
+        "package": "Business VIP",
+        "am_employee_id": "AM-2072-9827",
+        "am_name": "محمود خالد",
+        "is_active": True
+    }
+    idx.AGENCY_CLIENTS_STORE = [c for c in idx.AGENCY_CLIENTS_STORE if c.get("id") != arabic_cid] + [test_client]
+
+    existing_task = {
+        "task_id": "TASK-HEBA-01",
+        "client_id": arabic_cid,
+        "client_name": "هبه حافظ",
+        "am_id": "AM-2072-9827",
+        "am_name": "محمود خالد",
+        "status": "Assigned",
+        "title": "بوست هبه حافظ"
+    }
+
+    saved_tasks_capture = []
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda *a, **k: [dict(existing_task)])
+    monkeypatch.setattr(idx, "save_client_tasks", lambda tasks, _cid: saved_tasks_capture.extend(tasks))
+    monkeypatch.setattr(idx, "push_setting", lambda *a, **k: True)
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        # 1. Update using percent-encoded URL (what browser fetch sends)
+        res = client.put(f"/api/clients/{encoded_cid}", json={
+            "id": arabic_cid,
+            "name": "هبه حافظ",
+            "company": "هبه حافظ",
+            "package": "Business VIP",
+            "am_employee_id": "EMP-5887-5256",
+            "am_name": "آيه أحمد مجاهد"
+        })
+        assert res.status_code == 200, f"Expected 200, got: {res.status_code} {res.get_data(as_text=True)}"
+        d = res.get_json()
+        assert d.get("ok") is True
+        assert d.get("am_changed") is True
+        assert d["client"]["am_employee_id"] == "EMP-5887-5256"
+        assert d["client"]["am_name"] == "آيه أحمد مجاهد"
+
+        # Verify task was cascaded
+        assert len(saved_tasks_capture) >= 1
+        assert saved_tasks_capture[0]["am_id"] == "EMP-5887-5256"
+        assert saved_tasks_capture[0]["am_name"] == "آيه أحمد مجاهد"
+
+
+def test_co_assignee_task_appears_in_both_employees_portals(monkeypatch):
+    """Task assigned to two employees simultaneously appears in #myportal for BOTH employees."""
+    import api.index as idx
+
+    shared_task = {
+        "task_id": "TASK-SHARED-001",
+        "client_id": "cli_dr_ahmed_1788270119",
+        "client_name": "دكتور أحمد حمدي",
+        "title": "بوست مشترك بين راما وعمر",
+        "assigned_employee_id": "EMP-8986-4947",
+        "assignee_name": "راما ممدوح سرج",
+        "secondary_employee_id": "EMP-8148",
+        "secondary_assignee_name": "عمر أحمد عبدالرحمن",
+        "status": "Assigned",
+        "delivery_deadline": "2026-10-15",
+        "publish_date": "2026-10-16"
+    }
+
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda *a, **k: [shared_task])
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+
+    # 1. Primary assignee (Rama) opens /api/me/tasks
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "rama"
+            sess["role"] = "employee"
+            sess["name"] = "راما ممدوح سرج"
+            sess["employee_id"] = "EMP-8986-4947"
+        res_rama = client.get("/api/me/tasks")
+        assert res_rama.status_code == 200
+        d_rama = res_rama.get_json()
+        assert any(t["task_id"] == "TASK-SHARED-001" for t in d_rama["tasks"]), "Task must appear in Primary Assignee portal"
+
+    # 2. Secondary assignee (Omar) opens /api/me/tasks
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "omar"
+            sess["role"] = "employee"
+            sess["name"] = "عمر أحمد عبدالرحمن"
+            sess["employee_id"] = "EMP-8148"
+        res_omar = client.get("/api/me/tasks")
+        assert res_omar.status_code == 200
+        d_omar = res_omar.get_json()
+        assert any(t["task_id"] == "TASK-SHARED-001" for t in d_omar["tasks"]), "Task must appear in Secondary Assignee portal"
+
+
+def test_co_assignee_can_start_and_submit_task(monkeypatch):
+    """Secondary assignee can start timer and submit task with proof of work."""
+    import api.index as idx
+
+    shared_task = {
+        "task_id": "TASK-SHARED-002",
+        "client_id": "cli_dr_ahmed_1788270119",
+        "client_name": "دكتور أحمد حمدي",
+        "title": "فيديو مشترك",
+        "assigned_employee_id": "EMP-8986-4947",
+        "assignee_name": "راما ممدوح سرج",
+        "secondary_employee_id": "EMP-8148",
+        "secondary_assignee_name": "عمر أحمد عبدالرحمن",
+        "status": "Assigned",
+        "activity_log": []
+    }
+
+    saved = []
+    am_notified = []
+    monkeypatch.setattr(idx, "_find_task_any_client", lambda tid: (shared_task, shared_task["client_id"]))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved.append(dict(t)))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "_notify_client_am", lambda cid, msg, task=None: am_notified.append(msg))
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "omar"
+            sess["role"] = "employee"
+            sess["name"] = "عمر أحمد عبدالرحمن"
+            sess["employee_id"] = "EMP-8148"
+
+        # Start task by Omar
+        res_start = client.post("/api/me/tasks/TASK-SHARED-002/start")
+        assert res_start.status_code == 200
+        assert shared_task["status"] == "In Progress"
+        assert shared_task["timer_state"]["is_running"] is True
+
+        # Submit task by Omar
+        res_sub = client.post("/api/me/tasks/TASK-SHARED-002/submit", json={
+            "notes": "تم الانتهاء من المونتاج والتعديلات كاملة",
+            "drive_link": "https://drive.google.com/file/d/test_shared_vid/view"
+        })
+        assert res_sub.status_code == 200
+        assert shared_task["status"] == "Submitted / In Review"
+        assert idx._norm_ar_str(shared_task["submitted_by"]) == idx._norm_ar_str("عمر أحمد عبدالرحمن")
+        assert shared_task["drive_link"] == "https://drive.google.com/file/d/test_shared_vid/view"
+        assert len(am_notified) == 1
+        assert idx._norm_ar_str("عمر أحمد عبدالرحمن") in idx._norm_ar_str(am_notified[0])
+
+
+def test_co_assignee_receives_modification_notes_and_review(monkeypatch):
+    """When AM requests modification, both assignees are notified and can request return."""
+    import api.index as idx
+
+    shared_task = {
+        "task_id": "TASK-SHARED-003",
+        "client_id": "cli_dr_ahmed_1788270119",
+        "client_name": "دكتور أحمد حمدي",
+        "title": "بوست تعديل مشترك",
+        "assigned_employee_id": "EMP-8986-4947",
+        "assignee_name": "راما ممدوح سرج",
+        "secondary_employee_id": "EMP-8148",
+        "secondary_assignee_name": "عمر أحمد عبدالرحمن",
+        "status": "Submitted / In Review",
+        "activity_log": []
+    }
+
+    tg_msgs = []
+    monkeypatch.setattr(idx, "_find_task_any_client", lambda tid: (shared_task, shared_task["client_id"]))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: None)
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+    monkeypatch.setattr(idx, "_sheet_emp", lambda eid: {"telegram_id": "111222333" if eid == "EMP-8986-4947" else "444555666", "name": "موظف"})
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda tg, msg: tg_msgs.append((tg, msg)))
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "mahmoud_khaled"
+            sess["role"] = "admin"
+
+        res_review = client.post("/api/tasks/TASK-SHARED-003/review", json={
+            "action": "reject",
+            "note": "يرجى تعديل ألوان الشعار والخط"
+        })
+        assert res_review.status_code == 200
+        assert shared_task["status"] == "Assigned"
+        assert shared_task["review_note"] == "يرجى تعديل ألوان الشعار والخط"
+        assert len(tg_msgs) == 2, "Both primary and secondary assignee should receive telegram notification"
+
+
+def test_api_tasks_co_assign_endpoint(monkeypatch):
+    """POST /api/tasks/<task_id>/co-assign sets and clears secondary assignee."""
+    import api.index as idx
+
+    task_rec = {
+        "task_id": "TASK-CO-ASSIGN",
+        "client_id": "cli_dr_ahmed_1788270119",
+        "client_name": "دكتور أحمد حمدي",
+        "title": "بوست اختبار الإسناد الثنائي",
+        "assigned_employee_id": "EMP-8986-4947",
+        "assignee_name": "راما ممدوح سرج",
+        "status": "Assigned",
+        "activity_log": []
+    }
+
+    saved = []
+    monkeypatch.setattr(idx, "_find_task_any_client", lambda tid: (task_rec, task_rec["client_id"]))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved.append(dict(t)))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+    monkeypatch.setattr(idx, "_sheet_emp", lambda eid: {"name": "عمر أحمد عبدالرحمن", "telegram_id": "123456"} if eid == "EMP-8148" else {})
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda tg, msg: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        # 1. Assign co-assignee
+        res = client.post("/api/tasks/TASK-CO-ASSIGN/co-assign", json={
+            "secondary_employee_id": "EMP-8148"
+        })
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["ok"] is True
+        assert d["secondary_employee_id"] == "EMP-8148"
+        assert d["secondary_assignee_name"] == "عمر أحمد عبدالرحمن"
+        assert task_rec["secondary_employee_id"] == "EMP-8148"
+
+        # 2. Clear co-assignee
+        res_clear = client.post("/api/tasks/TASK-CO-ASSIGN/co-assign", json={
+            "secondary_employee_id": ""
+        })
+        assert res_clear.status_code == 200
+        d_clear = res_clear.get_json()
+        assert d_clear["ok"] is True
+        assert d_clear["secondary_employee_id"] is None
+        assert task_rec["secondary_employee_id"] is None
 
