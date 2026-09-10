@@ -4473,9 +4473,13 @@ async function loadTasksIngestFields() {
 
     // 4. Direct Assignee (Designers, Video Editors, Content Creators)
     var assigneeSel = document.getElementById('tasks-ingest-assignee');
+    var coAssigneeSel = document.getElementById('tasks-ingest-co-assignee');
+    var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
     if (assigneeSel) {
-        var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
         assigneeSel.innerHTML = buildTeamAssigneeOptionsHtml(team, assigneeSel.value, '👤 إسناد لاحقاً (Pending AM)');
+    }
+    if (coAssigneeSel) {
+        coAssigneeSel.innerHTML = buildTeamAssigneeOptionsHtml(team, coAssigneeSel.value, '— بدون شريك عمل —');
     }
 
     try {
@@ -4584,8 +4588,15 @@ async function openBulkAssignModal(planName, clientId) {
             '<div>إجمالي مهام الخطة: <b class="text-indigo-700 font-mono">' + matchingTasks.length + ' مهمة</b> (' + pendingTasks.length + ' غير مسندة)</div>' +
         '</div>' +
         '<div>' +
-            '<label class="block text-xs font-bold text-slate-800 mb-1.5">اختر الموظف لإسناد المهام إليه:</label>' +
+            '<label class="block text-xs font-bold text-slate-800 mb-1.5">👤 المنفذ الرئيسي (المسند إليه):</label>' +
             '<select id="bulk-assign-emp-select" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-blue-500 shadow-2xs cursor-pointer">' +
+                optionsHtml +
+            '</select>' +
+        '</div>' +
+        '<div>' +
+            '<label class="block text-xs font-bold text-slate-800 mb-1.5">👥 شريك عمل / منفذ ثانٍ (اختياري - عمل مشترك):</label>' +
+            '<select id="bulk-assign-co-emp-select" class="w-full px-3 py-2 border border-indigo-200 rounded-xl text-xs font-bold bg-indigo-50/50 text-slate-900 focus:outline-indigo-500 shadow-2xs cursor-pointer">' +
+                '<option value="">— بدون شريك عمل (منفذ فردي) —</option>' +
                 optionsHtml +
             '</select>' +
         '</div>' +
@@ -4621,6 +4632,13 @@ async function executeBulkAssignAction(planName, clientId) {
     var opt = sel.options[sel.selectedIndex];
     var empName = opt ? (opt.getAttribute('data-name') || opt.textContent.split('(')[0].trim()) : empId;
 
+    var coSel = document.getElementById('bulk-assign-co-emp-select');
+    var coEmpId = coSel ? coSel.value : '';
+    if (coEmpId && coEmpId === empId) {
+        showToast('لا يمكن اختيار نفس الموظف كشريك عمل لنفسه', 'warning');
+        return;
+    }
+
     var scopeRadio = document.querySelector('input[name="bulk_scope"]:checked');
     var scope = scopeRadio ? scopeRadio.value : 'pending';
 
@@ -4635,12 +4653,14 @@ async function executeBulkAssignAction(planName, clientId) {
                 plan_name: planName,
                 client_id: clientId || '',
                 employee_id: empId,
+                secondary_employee_id: coEmpId || '',
                 scope: scope
             })
         });
         var data = await res.json();
         if (res.ok && data.ok) {
-            showToast('تم إسناد ' + (data.count || 0) + ' مهمة إلى ' + empName + ' بنجاح! 🚀');
+            var succMsg = coEmpId ? ('تم إسناد ' + (data.count || 0) + ' مهمة كعمل مشترك إلى ' + empName + ' وشريكه بنجاح! 🚀') : ('تم إسناد ' + (data.count || 0) + ' مهمة إلى ' + empName + ' بنجاح! 🚀');
+            showToast(succMsg);
             closeBulkAssignModal();
             try {
                 localStorage.removeItem('swr_cache_tasks_board_act');
@@ -5156,6 +5176,22 @@ async function ingestPlanAction(ev) {
             : '';
     }
 
+    // Secondary Assignee resolution (co-assignee)
+    var coAssigneeEl = document.getElementById('tasks-ingest-co-assignee');
+    var coAssignedEid = '';
+    var coAssignedName = '';
+    if (coAssigneeEl && coAssigneeEl.value) {
+        coAssignedEid = coAssigneeEl.value.trim();
+        var coOpt = (coAssigneeEl.selectedIndex >= 0) ? coAssigneeEl.options[coAssigneeEl.selectedIndex] : null;
+        coAssignedName = (coOpt && coOpt.value)
+            ? (coOpt.getAttribute('data-name') || coOpt.text.replace(/\s*\(.*?\)$/, '').replace(/^[^\w\u0600-\u06FF]+/, '').replace(/\s*—.*$/, '').trim())
+            : '';
+        if (coAssignedEid && coAssignedEid === assignedEid) {
+            coAssignedEid = '';
+            coAssignedName = '';
+        }
+    }
+
     var autoPlanName = (typeof getSelectedPlanName === 'function') ? getSelectedPlanName() : '';
 
     if (!txt && !file && !drive) { showToast('ارفع ملف الخطة أو الصق نصها أو حط رابط Drive', 'error'); return; }
@@ -5234,7 +5270,9 @@ async function ingestPlanAction(ev) {
                     content_creator_name: creatorName,
                     creator_name: creatorName,
                     assigned_employee_id: assignedEid,
-                    assignee_name: assignedName
+                    assignee_name: assignedName,
+                    secondary_employee_id: coAssignedEid,
+                    secondary_assignee_name: coAssignedName
                 })
             };
         } else if (file.size < 4 * 1024 * 1024) {
@@ -5258,6 +5296,10 @@ async function ingestPlanAction(ev) {
                 fd.append('assigned_employee_id', assignedEid);
                 if (assignedName) fd.append('assignee_name', assignedName);
             }
+            if (coAssignedEid) {
+                fd.append('secondary_employee_id', coAssignedEid);
+                if (coAssignedName) fd.append('secondary_assignee_name', coAssignedName);
+            }
             opts = { method: 'POST', body: fd };
         } else {
             showToast('حجم الملف كبير جداً (> 4.5MB). يرجى نسخه ولصقه في المربع أو استخدام رابط Google Drive', 'error');
@@ -5279,7 +5321,9 @@ async function ingestPlanAction(ev) {
                 content_creator_name: creatorName,
                 creator_name: creatorName,
                 assigned_employee_id: assignedEid,
-                assignee_name: assignedName
+                assignee_name: assignedName,
+                secondary_employee_id: coAssignedEid,
+                secondary_assignee_name: coAssignedName
             })
         };
     } else {
@@ -5298,7 +5342,9 @@ async function ingestPlanAction(ev) {
                 content_creator_name: creatorName,
                 creator_name: creatorName,
                 assigned_employee_id: assignedEid,
-                assignee_name: assignedName
+                assignee_name: assignedName,
+                secondary_employee_id: coAssignedEid,
+                secondary_assignee_name: coAssignedName
             })
         };
     }
@@ -5318,6 +5364,7 @@ async function ingestPlanAction(ev) {
             if (el) el.value = '';
             if (fileEl) fileEl.value = '';
             if (driveEl) driveEl.value = '';
+            if (coAssigneeEl) coAssigneeEl.value = '';
             var planNameEl = document.getElementById('pb-plan-name');
             if (planNameEl) planNameEl.value = '';
             if (data.client_id) {
@@ -6529,9 +6576,15 @@ function refreshPlanBuilderAssigneeOptions() {
     var rows = document.querySelectorAll('#pb-posts-container .pb-post-row');
     rows.forEach(function(r) {
         var sel = r.querySelector('.pb-assignee');
-        if (!sel) return;
-        var currentVal = sel.value;
-        sel.innerHTML = buildTeamAssigneeOptionsHtml(team, currentVal, '👤 إسناد لمصمم/منفذ (اختياري)...');
+        if (sel) {
+            var currentVal = sel.value;
+            sel.innerHTML = buildTeamAssigneeOptionsHtml(team, currentVal, '👤 إسناد لمصمم/منفذ (اختياري)...');
+        }
+        var coSel = r.querySelector('.pb-co-assignee');
+        if (coSel) {
+            var currentCoVal = coSel.value;
+            coSel.innerHTML = buildTeamAssigneeOptionsHtml(team, currentCoVal, '👥 شريك عمل (اختياري)...');
+        }
     });
 }
 window.refreshPlanBuilderAssigneeOptions = refreshPlanBuilderAssigneeOptions;
@@ -6548,6 +6601,8 @@ window.addPlanBuilderRow = function(postData) {
     var preselectedVal = data.assigned_employee_id || '';
     var assigneeOptions = buildTeamAssigneeOptionsHtml(team, preselectedVal, '👤 إسناد لمصمم/منفذ (اختياري)...');
 
+    var preselectedSecVal = data.secondary_employee_id || '';
+    var coAssigneeOptions = buildTeamAssigneeOptionsHtml(team, preselectedSecVal, '👥 شريك عمل (اختياري)...');
 
     var curPillar = data.content_pillar || data.pillar || 'education';
     var initialRefs = data.reference_links_str || (Array.isArray(data.reference_links) ? data.reference_links.join(', ') : (data.reference_links || ''));
@@ -6576,6 +6631,9 @@ window.addPlanBuilderRow = function(postData) {
                 '</select>' +
                 '<select class="pb-assignee text-xs font-bold bg-blue-50/70 border border-blue-200 rounded-xl px-2.5 py-1 text-blue-900 focus:outline-none focus:border-blue-500" title="إسناد المهمة للمصمم أو المنفذ">' +
                     assigneeOptions +
+                '</select>' +
+                '<select class="pb-co-assignee text-xs font-bold bg-indigo-50/70 border border-indigo-200 rounded-xl px-2.5 py-1 text-indigo-900 focus:outline-none focus:border-indigo-500" title="شريك عمل / منفذ إضافي (اختياري - عمل مشترك)">' +
+                    coAssigneeOptions +
                 '</select>' +
             '</div>' +
             '<div class="flex items-center gap-2">' +
@@ -6766,6 +6824,13 @@ async function submitPlanBuilder() {
             ? (empOpt.getAttribute('data-name') || empOpt.text.replace(/^[^\s]+\s*/, '').replace(/\s*—.*$/, '').trim())
             : '';
 
+        var coEmpSelect = r.querySelector('.pb-co-assignee');
+        var coEmpId = coEmpSelect ? coEmpSelect.value : '';
+        var coEmpOpt = (coEmpSelect && coEmpSelect.selectedIndex > 0) ? coEmpSelect.options[coEmpSelect.selectedIndex] : null;
+        var coEmpName = coEmpOpt
+            ? (coEmpOpt.getAttribute('data-name') || coEmpOpt.text.replace(/^[^\s]+\s*/, '').replace(/\s*—.*$/, '').trim())
+            : '';
+
         var postObj = {
             post_number: idx + 1,
             title: tagline || ('بوست #' + (idx + 1)),
@@ -6783,13 +6848,15 @@ async function submitPlanBuilder() {
             content_creator_name: creatorName,
             assigned_employee_id: empId,
             assignee_name: empName,
+            secondary_employee_id: coEmpId,
+            secondary_assignee_name: coEmpName,
             reference_links: refList,
             media_urls: refList
         };
         structuredPosts.push(postObj);
 
         var block = '---' + '\n' +
-            'بوست #' + (idx + 1) + ' | النوع: ' + type + ' | الهدف: ' + pillar + (pdate ? (' | تاريخ النشر: ' + pdate) : '') + (empId ? (' | المسند: ' + empName) : '') + '\n' +
+            'بوست #' + (idx + 1) + ' | النوع: ' + type + ' | الهدف: ' + pillar + (pdate ? (' | تاريخ النشر: ' + pdate) : '') + (empId ? (' | المسند: ' + empName) : '') + (coEmpId ? (' | شريك العمل: ' + coEmpName) : '') + '\n' +
             'التاج لاين: ' + (tagline || ('بوست #' + (idx + 1))) + '\n' +
             (visual ? ('فكرة الفيجوال: ' + visual + '\n') : '') +
             (refList.length ? ('الريفرانس: ' + refList.join(' , ') + '\n') : '') +

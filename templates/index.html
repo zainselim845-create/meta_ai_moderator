@@ -19,7 +19,7 @@
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
   <script defer src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <link href="/static/css/styles.css?v=1789040828" rel="stylesheet"/>
+  <link href="/static/css/styles.css?v=1789043992" rel="stylesheet"/>
   <style>
    /* Plan editor: each paragraph auto-directions by its own language (Arabic → RTL, English → LTR) */
    #pb-editor .ql-editor { direction: rtl; text-align: right; }
@@ -1793,7 +1793,7 @@
           </div>
           <div id="tasks-ingest-body" class="space-y-4 pt-1">
           <!-- Client & AM & Plan Name Controls -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-200/90">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-200/90">
             <div>
               <div class="flex items-center justify-between mb-1 gap-1">
                 <label class="block text-[11px] font-bold text-slate-800 whitespace-nowrap">🏢 اختيار العميل:</label>
@@ -1830,6 +1830,27 @@
               <label class="block text-[11px] font-bold text-slate-800 mb-1">🎨 إسناد لمنفذ (من فريق العمل بالسيستم):</label>
               <select id="tasks-ingest-assignee" class="w-full px-2.5 py-2 border border-slate-300 rounded-xl text-xs bg-white font-bold text-slate-900 focus:border-blue-500 focus:outline-none shadow-2xs cursor-pointer">
                 <option value="" data-name="" selected>👤 إسناد لاحقاً (Pending AM)</option>
+                <optgroup label="🎨 مصممو الجرافيك (Graphic Designers)">
+                  <option value="EMP-8986-4947" data-name="راما ممدوح سرج">🎨 راما ممدوح سرج — Graphic Designer</option>
+                  <option value="EMP-8142" data-name="ندى أيمن كمال">🎨 ندى أيمن كمال — Graphic Designer</option>
+                  <option value="EMP-7775-2303" data-name="منة جمال">🎨 منة جمال — Graphic Designer</option>
+                </optgroup>
+                <optgroup label="🎬 مونتيرو الفيديو (Video Editors)">
+                  <option value="EMP-8148" data-name="عمر أحمد عبدالرحمن">🎬 عمر أحمد عبدالرحمن — Video Editor</option>
+                  <option value="EMP-8143" data-name="فرح ياسر إبراهيم">🎬 فرح ياسر إبراهيم — Video Editor</option>
+                </optgroup>
+                <optgroup label="✍️ كُتّاب المحتوى (Content Creators)">
+                  <option value="EMP-8069-7345" data-name="ولاء أشرف محمد">✍️ ولاء أشرف محمد — Content Creator</option>
+                  <option value="EMP-2945-2364" data-name="هدير أنور عباس">✍️ هدير أنور عباس — Content Creator</option>
+                  <option value="EMP-7189-7780" data-name="عبدالرحمن محمد عربي">✍️ عبدالرحمن محمد عربي — Content Creator</option>
+                  <option value="EMP-3264-8790" data-name="ليالي أحمد أحمد محمد">✍️ ليالي أحمد — Content Creator</option>
+                </optgroup>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-800 mb-1">👥 شريك عمل (اختياري - عمل مشترك):</label>
+              <select id="tasks-ingest-co-assignee" class="w-full px-2.5 py-2 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 font-bold text-slate-900 focus:border-indigo-500 focus:outline-none shadow-2xs cursor-pointer">
+                <option value="" data-name="" selected>— بدون شريك عمل —</option>
                 <optgroup label="🎨 مصممو الجرافيك (Graphic Designers)">
                   <option value="EMP-8986-4947" data-name="راما ممدوح سرج">🎨 راما ممدوح سرج — Graphic Designer</option>
                   <option value="EMP-8142" data-name="ندى أيمن كمال">🎨 ندى أيمن كمال — Graphic Designer</option>
@@ -2036,15 +2057,15 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.js?v=1789040828">
+  <script defer src="/static/js/app.js?v=1789043992">
   </script>
-  <script defer src="/static/js/inbox.js?v=1789040828">
+  <script defer src="/static/js/inbox.js?v=1789043992">
   </script>
-  <script defer src="/static/js/chatwoot_free.js?v=1789040828">
+  <script defer src="/static/js/chatwoot_free.js?v=1789043992">
   </script>
-  <script defer src="/static/js/views.js?v=1789040828">
+  <script defer src="/static/js/views.js?v=1789043992">
   </script>
-  <script defer src="/static/js/clients.js?v=1789040828">
+  <script defer src="/static/js/clients.js?v=1789043992">
   </script>
  
   <!-- Modal: Add New Connected Account -->

@@ -2863,3 +2863,162 @@ def test_api_tasks_co_assign_endpoint(monkeypatch):
         assert d_clear["secondary_employee_id"] is None
         assert task_rec["secondary_employee_id"] is None
 
+
+def test_monthly_report_dual_credit_for_co_assignee(monkeypatch):
+    """Monthly report credits both primary and secondary assignees for shared tasks."""
+    import api.index as idx
+
+    shared_task = {
+        "task_id": "TASK-REPORT-DUAL-1",
+        "client_id": "cli_dr_ahmed_1788270119",
+        "client_name": "دكتور أحمد حمدي",
+        "title": "بوست اختبار التقرير المشترك",
+        "assigned_employee_id": "EMP-8986-4947",
+        "assignee_name": "راما ممدوح سرج",
+        "secondary_employee_id": "EMP-8148",
+        "secondary_assignee_name": "عمر أحمد عبدالرحمن",
+        "status": "Completed",
+        "publish_date": "2026-09-15",
+        "delivery_deadline": "2026-09-14",
+        "submitted_at": "2026-09-13T10:00:00+00:00",
+        "assigned_at": "2026-09-12T10:00:00+00:00",
+        "kpis": {"is_on_time": True, "turnaround_hours": 24.0}
+    }
+
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [dict(shared_task)])
+    monkeypatch.setattr(idx, "get_client_employees", lambda cid: [
+        {"employee_id": "EMP-8986-4947", "name": "راما ممدوح سرج", "role": "مصمم جرافيك"},
+        {"employee_id": "EMP-8148", "name": "عمر أحمد عبدالرحمن", "role": "مونتير فيديو"}
+    ])
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.get("/api/tasks/monthly-report?month=all")
+        assert res.status_code == 200
+        d = res.get_json()
+        report = d.get("report") or []
+        
+        rama_stats = next((r for r in report if idx._norm_ar_str(r.get("employee")) == idx._norm_ar_str("راما ممدوح سرج")), None)
+        omar_stats = next((r for r in report if idx._norm_ar_str(r.get("employee")) == idx._norm_ar_str("عمر أحمد عبدالرحمن")), None)
+        
+        assert rama_stats is not None, "Primary assignee must have stats in monthly report"
+        assert omar_stats is not None, "Secondary assignee must have stats in monthly report"
+        
+        assert rama_stats["assigned"] == 1
+        assert rama_stats["completed"] == 1
+        assert rama_stats["submitted"] == 1
+        assert rama_stats["on_time_count"] == 1
+        
+        assert omar_stats["assigned"] == 1
+        assert omar_stats["completed"] == 1
+        assert omar_stats["submitted"] == 1
+        assert omar_stats["on_time_count"] == 1
+
+
+def test_api_plans_assign_bulk_with_co_assignee(monkeypatch):
+    """Bulk plan assignment sets both primary and secondary assignees on all target tasks."""
+    import api.index as idx
+
+    tasks_pool = [
+        {
+            "task_id": f"TASK-BULK-{i}",
+            "client_id": "cli_dr_ahmed_1788270119",
+            "plan_name": "خطة دكتور أحمد — سبتمبر 2026",
+            "status": "Pending AM Approval",
+            "assigned_employee_id": "",
+            "assignee_name": ""
+        }
+        for i in range(1, 4)
+    ]
+
+    saved_tasks = []
+    tg_notifications = []
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "invalidate_tasks_cache", lambda: None)
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [dict(t) for t in tasks_pool])
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved_tasks.append(dict(t)))
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+    monkeypatch.setattr(idx, "_sheet_emp", lambda eid: {
+        "EMP-8986-4947": {"name": "راما ممدوح سرج", "telegram_id": "111222"},
+        "EMP-8148": {"name": "عمر أحمد عبدالرحمن", "telegram_id": "333444"}
+    }.get(eid, {}))
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda tg, msg: tg_notifications.append((tg, msg)) or True)
+    monkeypatch.setattr(idx, "send_task_to_employee", lambda *a, **k: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.post("/api/plans/assign-bulk", json={
+            "plan_name": "خطة دكتور أحمد — سبتمبر 2026",
+            "client_id": "cli_dr_ahmed_1788270119",
+            "employee_id": "EMP-8986-4947",
+            "secondary_employee_id": "EMP-8148",
+            "scope": "pending"
+        })
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["ok"] is True
+        assert d["count"] == 3
+        assert d["secondary_employee_id"] == "EMP-8148"
+        assert d["secondary_assignee_name"] == "عمر أحمد عبدالرحمن"
+
+        # Verify all 3 tasks were saved with dual assignees
+        assert len(saved_tasks) == 3
+        for st in saved_tasks:
+            assert st["assigned_employee_id"] == "EMP-8986-4947"
+            assert st["assignee_name"] == "راما ممدوح سرج"
+            assert st["secondary_employee_id"] == "EMP-8148"
+            assert st["secondary_assignee_name"] == "عمر أحمد عبدالرحمن"
+            assert st["status"] == "Assigned"
+
+        # Verify telegram summary was sent to both primary and secondary
+        tgs = [call[0] for call in tg_notifications]
+        assert "111222" in tgs, "Primary assignee should get summary telegram"
+        assert "333444" in tgs, "Secondary assignee should get summary telegram"
+
+
+def test_telegram_bot_co_assignee_authorization_and_action(monkeypatch):
+    """Telegram bot callback allows secondary assignee to start work on a shared task."""
+    import api.index as idx
+
+    task_rec = {
+        "task_id": "TASK-TG-CO-1",
+        "client_id": "cli_dr_ahmed_1788270119",
+        "title": "بوست تليجرام مشترك",
+        "assigned_employee_id": "EMP-8986-4947",
+        "assignee_name": "راما ممدوح سرج",
+        "secondary_employee_id": "EMP-8148",
+        "secondary_assignee_name": "عمر أحمد عبدالرحمن",
+        "status": "Assigned"
+    }
+
+    tg_answers = []
+    saved = []
+    monkeypatch.setattr(idx, "_find_task_any_client", lambda tid: (task_rec, task_rec["client_id"]))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved.append(dict(t)))
+    monkeypatch.setattr(idx, "_emp_chat", lambda eid: "111222" if eid == "EMP-8986-4947" else "333444" if eid == "EMP-8148" else None)
+    monkeypatch.setattr(idx, "_tasks_answer", lambda cb_id, text="": tg_answers.append((cb_id, text)))
+    monkeypatch.setattr(idx, "_tasks_edit", lambda *a, **k: True)
+
+    # Secondary assignee clicks "start"
+    cb = {
+        "id": "cb_test_999",
+        "from": {"id": 333444, "first_name": "Omar"},
+        "message": {"message_id": 12345, "chat": {"id": 333444}},
+        "data": "ts_TASK-TG-CO-1"
+    }
+
+    idx._tasks_handle_callback(cb)
+
+    # Must be allowed (not rejected with 'دي مش مهمتك')
+    assert task_rec["status"] == "In Progress"
+    assert len(tg_answers) == 1
+    assert "بدأت" in tg_answers[0][1]
+
+
