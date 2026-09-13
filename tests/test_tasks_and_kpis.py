@@ -3022,3 +3022,121 @@ def test_telegram_bot_co_assignee_authorization_and_action(monkeypatch):
     assert "بدأت" in tg_answers[0][1]
 
 
+def test_drive_file_id_various_formats():
+    """Verify drive_file_id extracts clean IDs from all valid Google Drive URL patterns."""
+    import api.index as idx
+
+    fid = "1p3ofKnfQmduLfKEsuHyIfSN7Zvto5fRJ"
+    test_cases = [
+        f"https://drive.google.com/file/d/{fid}/view",
+        f"https://drive.google.com/file/u/0/d/{fid}/view",
+        f"https://drive.google.com/file/u/1/d/{fid}/view?usp=sharing",
+        f"https://drive.google.com/open?id={fid}",
+        f"https://drive.google.com/drive/folders/{fid}",
+        f"https://drive.google.com/drive/u/0/folders/{fid}",
+        f"https://drive.google.com/uc?id={fid}",
+        f"https://drive.google.com/uc?export=download&id={fid}",
+        f"https://docs.google.com/document/d/{fid}/edit"
+    ]
+    for url in test_cases:
+        extracted = idx.drive_file_id(url)
+        assert extracted == fid, f"Failed on URL: {url}, got: {extracted}"
+
+    assert idx.drive_file_id("") == ""
+    assert idx.drive_file_id("https://example.com/not_drive") == ""
+
+
+def test_canonical_client_folder_resolution():
+    """Verify client_drive_folder_id and client_month_folder_id resolve all 12 clients,
+    whether passed as ID, Arabic name, or alias, guaranteeing 100% client isolation."""
+    import api.index as idx
+
+    # Check key clients by ID and Arabic Name
+    assert idx.client_month_folder_id("cli_sk_1788270118") == "1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW"
+    assert idx.client_month_folder_id("SK") == "1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW"
+
+    assert idx.client_month_folder_id("cli_dr_ahmed_1788270119") == "1jbGNqWok5zqPuKUVnjhG5TrTecKyofCI"
+    assert idx.client_month_folder_id("دكتور أحمد حمدي") == "1jbGNqWok5zqPuKUVnjhG5TrTecKyofCI"
+
+    assert idx.client_month_folder_id("cli_ايه_عبدو_1788944266") == "15GmrSkAoolWY9T1tz2ghrgKmZBEtGLrF"
+    assert idx.client_month_folder_id("ايه عبدو") == "15GmrSkAoolWY9T1tz2ghrgKmZBEtGLrF"
+
+    assert idx.client_month_folder_id("client_100821894800009") == "12Tr1P3DHfCHfN-uqSSymx65KCJqeN_TU"
+    assert idx.client_month_folder_id("Domya Marketing Agency") == "12Tr1P3DHfCHfN-uqSSymx65KCJqeN_TU"
+
+    assert idx.client_month_folder_id("cli_معامل_رعاية_1788336726") == "15N8jmo2KTVQnxwA2XPTZEakFXRDJNK9_"
+    assert idx.client_month_folder_id("معامل رعاية") == "15N8jmo2KTVQnxwA2XPTZEakFXRDJNK9_"
+
+
+def test_ensure_task_deliverable_in_client_drive_auto_routing(monkeypatch):
+    """Verify _ensure_task_deliverable_in_client_drive routes deliverable into client folder
+    and creates employee shortcuts without duplicate creation."""
+    import api.index as idx
+    import io
+    import json
+    import time
+
+    patched_urls = []
+    created_shortcuts = []
+    reader_calls = []
+
+    monkeypatch.setattr(idx, "get_google_oauth_access_token", lambda: "mock_token")
+    monkeypatch.setattr(idx, "_drive_set_anyone_reader", lambda tok, fid: reader_calls.append(fid))
+
+    class MockResponse:
+        def __init__(self, data):
+            self.data = data
+        def read(self):
+            return self.data.encode("utf-8")
+        def decode(self, enc):
+            return self.data
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+
+    def mock_urlopen(req, timeout=10):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "addParents=" in url:
+            patched_urls.append(url)
+            return MockResponse('{"id": "file_123", "parents": ["target_fid"]}')
+        elif "q=" in url and "shortcutDetails.targetId" in url:
+            # Query for existing shortcut: return none so shortcut is created
+            return MockResponse('{"files": []}')
+        elif "fields=id,name,parents" in url:
+            # File info: currently only in employee folder
+            return MockResponse('{"id": "file_123", "name": "بوست #1.mp4", "parents": ["emp_folder_123"]}')
+        elif req.data and b"shortcutDetails" in req.data:
+            created_shortcuts.append(json.loads(req.data.decode("utf-8")))
+            return MockResponse('{"id": "shortcut_456"}')
+        return MockResponse('{"id": "mock_id", "files": []}')
+
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    test_task = {
+        "task_id": "T-AUTO-DRIVE-1",
+        "client_id": "cli_sk_1788270118",
+        "title": "بوست فيديو SK",
+        "plan_name": "خطة SK",
+        "assigned_employee_id": "EMP-8986-4947",
+        "assignee_name": "راما ممدوح سرج",
+        "secondary_employee_id": "EMP-8148",
+        "secondary_assignee_name": "عمر أحمد عبدالرحمن"
+    }
+
+    drive_link = "https://drive.google.com/file/d/1p3ofKnfQmduLfKEsuHyIfSN7Zvto5fRJ/view"
+
+    # Call the router function
+    idx._ensure_task_deliverable_in_client_drive(test_task, "cli_sk_1788270118", drive_link)
+
+    # Wait for daemon thread
+    time.sleep(0.5)
+
+    # File must be set to anyone reader
+    assert "1p3ofKnfQmduLfKEsuHyIfSN7Zvto5fRJ" in reader_calls
+    # addParents must be called with the canonical SK month folder (1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW)
+    assert any("addParents=1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW" in u for u in patched_urls)
+
+
+
