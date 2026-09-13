@@ -3067,6 +3067,12 @@ def test_canonical_client_folder_resolution():
     assert idx.client_month_folder_id("cli_معامل_رعاية_1788336726") == "15N8jmo2KTVQnxwA2XPTZEakFXRDJNK9_"
     assert idx.client_month_folder_id("معامل رعاية") == "15N8jmo2KTVQnxwA2XPTZEakFXRDJNK9_"
 
+    # Also verify client_drive_folder_id returns the client's canonical main parent folder
+    assert idx.client_drive_folder_id("cli_sk_1788270118") == "1X-UzI2662R1CEH1xnBln1RmVxQ9pY1Sz"
+    assert idx.client_drive_folder_id("SK") == "1X-UzI2662R1CEH1xnBln1RmVxQ9pY1Sz"
+    assert idx.client_drive_folder_id("cli_dr_ahmed_1788270119") == "1t-UAOtaRmRDJuiU_J3hgEzXzlyJkIi8y"
+    assert idx.client_drive_folder_id("client_100821894800009") == "1Yj8BD4uolg6OxjiGtQcLntuANbTie6Uf"
+
 
 def test_ensure_task_deliverable_in_client_drive_auto_routing(monkeypatch):
     """Verify _ensure_task_deliverable_in_client_drive routes deliverable into client folder
