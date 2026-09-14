@@ -1288,13 +1288,13 @@ function renderMyPortalTasks() {
             <div class="flex items-center justify-between text-xs font-bold text-emerald-900">
               <span class="flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-emerald-600 inline-block shrink-0"></span>
-                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '🎬 مخرجات الفيديو المسلّمة:' : '📁 ملف التسليم المسجّل:'}</span>
+                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '🎬 مخرجات الفيديو المسلّمة:' : (t.media_type==='pdf' || /\.pdf(\?|$)/i.test(t.drive_link)) ? '📄 ملف PDF المسلّم:' : '📁 ملف التسليم المسجّل:'}</span>
               </span>
               <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold">محفوظ على Drive ↗</span>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
               <a href="${esc(t.drive_link)}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-xs transition flex items-center gap-1">
-                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '▶️ فتح / تشغيل الفيديو ↗️' : '📁 فتح ملف التسليم ↗️'}</span>
+                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '▶️ فتح / تشغيل الفيديو ↗️' : (t.media_type==='pdf' || /\.pdf(\?|$)/i.test(t.drive_link)) ? '📄 استعراض ملف PDF ↗️' : '📁 فتح ملف التسليم ↗️'}</span>
               </a>
               <button type="button" onclick="copyTaskDriveLink('${esc(t.drive_link)}')" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-lg shadow-2xs transition flex items-center gap-1 cursor-pointer">
                 <span>📋 نسخ الرابط</span>
@@ -1309,7 +1309,7 @@ function renderMyPortalTasks() {
         <div class="flex items-center gap-2 flex-wrap">
           ${canWork(t) ? `
             <button type="button" onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
-              <span>📤 تسليم شغلك (رابط Drive / فيديو)</span>
+              <span>📤 تسليم شغلك (رابط Drive / فيديو / PDF)</span>
             </button>
           ` : ''}
           <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer" title="استرجاع المهمة لقيد التنفيذ لإجراء تعديلات عليها">
@@ -1775,7 +1775,7 @@ async function deleteCompanyEmployee(empId, name) {
 }
 
 // Global Live Upload Progress helpers
-function showUploadProgressModal(filename, totalSize, isVideo) {
+function showUploadProgressModal(filename, totalSize, isVideo, isPdf) {
   const modal = document.getElementById('upload-progress-modal');
   if (!modal) return;
   const title = document.getElementById('upm-title');
@@ -1787,13 +1787,13 @@ function showUploadProgressModal(filename, totalSize, isVideo) {
   const statusTxt = document.getElementById('upm-status-text');
   
   const sizeMB = (totalSize / (1024 * 1024)).toFixed(1);
-  if (title) title.textContent = isVideo ? 'جاري رفع الفيديو...' : 'جاري رفع الملف...';
+  if (title) title.textContent = isVideo ? 'جاري رفع الفيديو...' : (isPdf ? 'جاري رفع ملف PDF...' : 'جاري رفع الملف...');
   if (fn) fn.textContent = filename + ' (' + sizeMB + ' MB)';
-  if (icon) icon.textContent = isVideo ? '' : '';
+  if (icon) icon.textContent = isVideo ? '🎬' : (isPdf ? '📄' : '📁');
   if (bar) { bar.style.width = '0%'; bar.className = 'bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-150 ease-out'; }
   if (percent) percent.textContent = '0%';
   if (stats) stats.textContent = '0 MB / ' + sizeMB + ' MB';
-  if (statusTxt) statusTxt.textContent = ' جاري الرفع المباشر إلى Google Drive...';
+  if (statusTxt) statusTxt.textContent = '⚡ جاري الرفع المباشر إلى Google Drive...';
   
   modal.classList.remove('hidden');
   modal.classList.add('flex');
@@ -1812,7 +1812,7 @@ function updateUploadProgress(loaded, total) {
   if (bar) bar.style.width = pct + '%';
   if (percent) percent.textContent = pct + '%';
   if (stats) stats.textContent = loadedMB + ' MB / ' + totalMB + ' MB';
-  if (statusTxt && pct >= 100) statusTxt.textContent = ' جاري المعالجة وتأكيد الربط بـ Google Drive...';
+  if (statusTxt && pct >= 100) statusTxt.textContent = '⚡ جاري المعالجة وتأكيد الربط بـ Google Drive...';
 }
 
 function finishUploadProgress(success, msg) {
@@ -1822,7 +1822,7 @@ function finishUploadProgress(success, msg) {
     bar.className = 'bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-150';
     bar.style.width = '100%';
   }
-  if (statusTxt) statusTxt.textContent = success ? ' اكتمل الرفع بنجاح!' : (' ' + (msg || 'فشل الرفع'));
+  if (statusTxt) statusTxt.textContent = success ? '✅ اكتمل الرفع بنجاح!' : ('❌ ' + (msg || 'فشل الرفع'));
   setTimeout(() => {
     const modal = document.getElementById('upload-progress-modal');
     if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
@@ -1835,7 +1835,9 @@ window.updateUploadProgress = updateUploadProgress;
 function driveUploadFile(taskId, file) {
   return new Promise(async (resolve, reject) => {
     const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
-    showUploadProgressModal(file.name, file.size, isVideo);
+    const isPdf = (file.type && (file.type === 'application/pdf' || file.type.includes('pdf'))) || /\.pdf$/i.test(file.name);
+    const mimeType = file.type || (isPdf ? 'application/pdf' : (isVideo ? 'video/mp4' : 'application/octet-stream'));
+    showUploadProgressModal(file.name, file.size, isVideo, isPdf);
     
     try {
       let finalLink = null;
@@ -1847,7 +1849,7 @@ function driveUploadFile(taskId, file) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             filename: file.name,
-            mime: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream')
+            mime: mimeType
           })
         });
         
@@ -1855,7 +1857,7 @@ function driveUploadFile(taskId, file) {
           const driveResult = await new Promise((dResolve, dReject) => {
             const xhr = new XMLHttpRequest();
             xhr.open('PUT', sessionRes.upload_url, true);
-            xhr.setRequestHeader('Content-Type', file.type || (isVideo ? 'video/mp4' : 'application/octet-stream'));
+            xhr.setRequestHeader('Content-Type', mimeType);
             
             xhr.upload.onprogress = (e) => {
               if (e.lengthComputable) {
@@ -1894,7 +1896,8 @@ function driveUploadFile(taskId, file) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 file_id: driveResult,
-                mime: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream')
+                filename: file.name,
+                mime: mimeType
               })
             });
             

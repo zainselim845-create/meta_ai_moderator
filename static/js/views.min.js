@@ -2195,11 +2195,12 @@ function renderTaskCard(t, indexInPlan) {
                 var dUrl = df.url || df.drive_link || df;
                 var dName = df.filename || ('سلايد #' + (dfIdx + 1));
                 var isVid = (df.mime && df.mime.startsWith('video')) || /\.(mp4|mov|webm)(\?|$)/i.test(dName);
+                var isPdf = (df.mime && (df.mime === 'application/pdf' || df.mime.includes('pdf'))) || /\.pdf(\?|$)/i.test(dName);
                 deliverablesBox += '<a href="' + esc(dUrl) + '" target="_blank" class="bg-white hover:bg-emerald-100/60 border border-emerald-200 rounded-lg p-1.5 text-right transition flex items-center gap-1.5 shadow-2xs group">' +
-                    '<span class="text-sm shrink-0">' + (isVid ? '🎬' : '🖼️') + '</span>' +
+                    '<span class="text-sm shrink-0">' + (isVid ? '🎬' : (isPdf ? '📄' : '🖼️')) + '</span>' +
                     '<div class="min-w-0 flex-1">' +
                         '<div class="font-bold text-[10px] text-slate-800 truncate group-hover:text-emerald-900">' + esc(dName) + '</div>' +
-                        '<div class="text-[9px] text-emerald-700 font-mono">فتح على Drive ↗</div>' +
+                        '<div class="text-[9px] text-emerald-700 font-mono">' + (isPdf ? 'استعراض PDF على Drive ↗' : 'فتح على Drive ↗') + '</div>' +
                     '</div>' +
                 '</a>';
             });
@@ -2208,15 +2209,18 @@ function renderTaskCard(t, indexInPlan) {
 
         if (driveLink && !delivList.some(function(d){ return (d.url || d) === driveLink; })) {
             var viewUrl = formatGoogleDriveViewLink(driveLink);
-            var isVid = (t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(driveLink) || viewUrl.includes('/file/d/'));
+            var isVid = (t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(driveLink));
+            var isPdf = (t.media_type === 'pdf' || /\.pdf(\?|$)/i.test(driveLink));
+            var label = isVid ? '🎬 فيديو المخرجات على Drive:' : (isPdf ? '📄 ملف PDF المسلّم على Drive:' : '📁 رابط مجلد/ملف التسليم:');
+            var btnText = isVid ? '▶️ تشغيل الفيديو على Google Drive ↗️' : (isPdf ? '📄 فتح واستعراض ملف PDF على Drive ↗️' : '↗️ فتح ملف/مجلد التسليم ↗️');
             deliverablesBox += '<div class="bg-white/90 border border-emerald-200 rounded-xl p-2 space-y-1.5 shadow-2xs">' +
                 '<div class="flex items-center justify-between gap-1 flex-wrap">' +
-                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">' + (isVid ? '🎬 فيديو المخرجات على Drive:' : '📁 رابط مجلد/ملف التسليم:') + '</span>' +
+                    '<span class="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">' + label + '</span>' +
                     '<span class="bg-emerald-200 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">جاهز للمعاينة ↗</span>' +
                 '</div>' +
                 '<div class="flex items-center gap-1.5">' +
                     '<a href="' + esc(viewUrl) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3 rounded-lg transition flex items-center justify-center gap-1.5 shadow-xs">' +
-                        '<span>' + (isVid ? '▶️ تشغيل الفيديو على Google Drive ↗️' : '↗️ فتح ملف/مجلد التسليم ↗️') + '</span>' +
+                        '<span>' + btnText + '</span>' +
                     '</a>' +
                     '<button type="button" onclick="copyTaskDriveLink(\'' + esc(viewUrl) + '\', this)" class="bg-white hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-1.5 px-3 rounded-lg border border-emerald-300 transition flex items-center gap-1 shadow-xs cursor-pointer">' +
                         '<span>📋 نسخ</span>' +

@@ -2255,15 +2255,15 @@
 
          <!-- Option 2: Upload File From Device -->
          <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-2.5">
-           <div class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-             <span> رفع ملف فيديو أو تصميم من الجهاز</span>
-           </div>
-           <label class="w-full cursor-pointer border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 bg-white transition group">
-             <span class="text-2xl group-hover:scale-110 transition"></span>
-             <span class="text-xs font-bold text-slate-700">اضغط لاختيار فيديو أو صور (يدعم اختيار عدة صور للكاروسيل)</span>
-             <span class="text-[10px] text-slate-400">يدعم MP4, MOV, WEBM, PNG, JPG — اختيار ملف أو عدة ملفات معاً</span>
-             <input type="file" id="deliv-file-input" accept="image/*,video/*" multiple class="hidden" onchange="handleModalFileUpload(this)">
-           </label>
+            <div class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+              <span>📁 رفع ملف فيديو أو تصميم أو PDF من الجهاز</span>
+            </div>
+            <label class="w-full cursor-pointer border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 bg-white transition group">
+              <span class="text-2xl group-hover:scale-110 transition">📤</span>
+              <span class="text-xs font-bold text-slate-700">اضغط لاختيار فيديو أو صور أو ملف PDF (يدعم اختيار ملفات متعددة)</span>
+              <span class="text-[10px] text-slate-400">يدعم PDF, MP4, MOV, WEBM, PNG, JPG — اختيار ملف أو عدة ملفات معاً</span>
+              <input type="file" id="deliv-file-input" accept="image/*,video/*,.pdf,application/pdf" multiple class="hidden" onchange="handleModalFileUpload(this)">
+            </label>
          </div>
 
          <div class="flex items-center gap-2 text-[11px] text-slate-400">
@@ -2284,11 +2284,11 @@
    <div id="upload-progress-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
      <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
        <div class="flex items-center gap-3">
-         <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-2xl text-blue-600 shrink-0" id="upm-icon">
-           
-         </div>
-         <div class="min-w-0 flex-1">
-           <h4 class="font-bold text-sm text-slate-900 truncate" id="upm-title">جاري رفع الفيديو...</h4>
+          <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-2xl text-blue-600 shrink-0" id="upm-icon">
+            📤
+          </div>
+          <div class="min-w-0 flex-1">
+            <h4 class="font-bold text-sm text-slate-900 truncate" id="upm-title">جاري رفع الملف...</h4>
            <p class="text-xs text-slate-500 truncate" id="upm-filename">video.mp4</p>
          </div>
        </div>

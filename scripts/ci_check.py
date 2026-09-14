@@ -113,7 +113,7 @@ def main():
         failed_steps.append("Asset Sync")
 
     # Step 5: Automated Pytest Suite
-    print_step(5, total_steps, "Automated Pytest Suite (110 tests)")
+    print_step(5, total_steps, "Automated Pytest Suite (111 tests)")
     try:
         res = subprocess.run([sys.executable, "-m", "pytest", "tests/test_tasks_and_kpis.py", "-q"], capture_output=True, text=True)
         if res.returncode != 0:

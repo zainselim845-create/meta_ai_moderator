@@ -3186,3 +3186,62 @@ def test_verbatim_plan_data_preservation_and_telegram_fidelity():
     # Must contain full sentence without mid-word truncation
     assert "بألطف تعامل مع قلق ومخاوف الأطفال 🤍" in card_text
     assert "طفل قاعد على مكتب المذاكرة" in card_text
+
+
+def test_pdf_deliverable_upload_and_media_type_classification(monkeypatch):
+    """Verify that uploading a PDF deliverable classifies media_type as 'pdf' and creates proper shortcuts."""
+    import io
+    import api.index as idx
+
+    test_task = {
+        "task_id": "TASK-PDF-TEST-001",
+        "client_id": "cli_hayat_dental_center_1788685057",
+        "client_name": "HAYAT DENTAL CENTER",
+        "title": "بروشور الخصم والعروض",
+        "assigned_employee_id": "EMP-8986-4947",
+        "assignee_name": "راما ممدوح سرج",
+        "status": "In Progress",
+        "deliverables": [],
+        "activity_log": []
+    }
+
+    saved = []
+    shortcuts_created = []
+    monkeypatch.setattr(idx, "_find_task_any_client", lambda tid: (test_task, test_task["client_id"]))
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved.append(dict(t)))
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda: None)
+    monkeypatch.setattr(idx, "get_google_oauth_access_token", lambda: "fake_token")
+    monkeypatch.setattr(idx, "drive_upload_bytes", lambda name, data, mime, parent_ids=None: f"https://drive.google.com/file/d/fake_pdf_id/view")
+    monkeypatch.setattr(idx, "_drive_set_anyone_reader", lambda token, fid: None)
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda chat_id, msg: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "rama"
+            sess["role"] = "employee"
+            sess["name"] = "راما ممدوح سرج"
+            sess["employee_id"] = "EMP-8986-4947"
+
+        # 1. Direct /upload with a PDF file
+        data = {
+            "file": (io.BytesIO(b"%PDF-1.4 test content"), "brochure_v1.pdf")
+        }
+        res = client.post("/api/tasks/TASK-PDF-TEST-001/upload", data=data, content_type="multipart/form-data")
+        assert res.status_code == 200
+        d = res.get_json()
+        assert d["ok"] is True
+        assert test_task["media_type"] == "pdf"
+        assert len(test_task["deliverables"]) == 1
+        assert test_task["deliverables"][0]["filename"].endswith(".pdf")
+
+        # 2. Upload complete endpoint with PDF mime
+        res_comp = client.post("/api/tasks/TASK-PDF-TEST-001/upload-complete", json={
+            "file_id": "fake_pdf_fid_123",
+            "filename": "brochure_final.pdf",
+            "mime": "application/pdf"
+        })
+        assert res_comp.status_code == 200
+        assert test_task["media_type"] == "pdf"
+        assert test_task["status"] == "Submitted / In Review"
+        assert test_task["deliverables"][-1]["filename"] == "brochure_final.pdf"
+
