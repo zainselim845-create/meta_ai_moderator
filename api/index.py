@@ -29,6 +29,8 @@ def require_manager(f):
         return f(*a, **k)
     return _w
 
+import io
+import shutil
 import json
 import re
 import unicodedata
@@ -14839,6 +14841,7 @@ def _att_handle_location(emp, chat_id, loc):
     cfg = hr_config()
     today, now_t = _cairo_now_parts()
     tg_id = str((emp or {}).get("telegram_id") or "").strip()
+    emp_id = str((emp or {}).get("employee_id") or "").strip()
     
     # Primary reference is the Company Headquarters
     comp_lat = _parse_coordinate(cfg.get("company_lat"), ATT_DEFAULT_LAT)
@@ -14898,7 +14901,7 @@ def _att_handle_location(emp, chat_id, loc):
             
         _att_send(chat_id, msg_text, keyboard=_att_menu(emp), inline=inline_btn)
         try:
-            log_activity(None, "attendance_rejected", f"محاولة حضور خارج النطاق من {emp.get('name','')}: المسافة {fdist} في {now_t}")
+            print(f"[attendance_rejected] {emp.get('name','')}: {fdist} at {now_t}")
         except Exception:
             pass
         return
@@ -15062,6 +15065,7 @@ def _att_owner_callback(cbq):
     cfg = hr_config()
     data = str(cbq.get("data", ""))
     cb_id = cbq.get("id")
+    presser = str((cbq.get("from") or {}).get("id", "")).strip()
     # 1. Employee action: requesting manager approval for attendance (when GPS had cell-tower drift)
     if data.startswith("req_att_"):
         parts = data.split("_")
