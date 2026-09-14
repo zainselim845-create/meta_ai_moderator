@@ -3145,4 +3145,44 @@ def test_ensure_task_deliverable_in_client_drive_auto_routing(monkeypatch):
     assert any("addParents=1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW" in u for u in patched_urls)
 
 
+# =====================================================================
+# Rule: Verbatim Data Preservation & Zero Truncation in Plan Parsing
+# =====================================================================
 
+def test_verbatim_plan_data_preservation_and_telegram_fidelity():
+    from api.index import _universal_extract_plan_posts, _task_card_text
+
+    raw_copywriter_text = """1)
+ال tov: مش كل كسل دلع ..... اطمني على ابنك
+الديزاين: طفل قاعد على مكتب المذاكرة، وحواليه عناصر بتعبر عن الخمول: كتاب مفتوح، ساعة، شنطة مدرسة. وفي الخلفية شكل مزاد، وكأن كلمة "النشاط" أو "صحته" معروضة للبيع.
+ابنك طول الوقت تعبان، مش مركز، ومش عايز يعمل أي حاجة؟
+قبل ما تقولي عليه كسلان اسألي نفسك الأول: يا ترى جسمه بيحاول يقولك ايه؟ 🫣
+بس خلي بالك الحل مش إننا نفترض السبب الحل إننا نعرفه. فمتستنيش الأعراض تزيد واسألي الدكتور عن التحاليل المناسبة لطفلك
+واحنا هنستناكي عشان نطمنك على صحة طفلك بألطف تعامل مع قلق ومخاوف الأطفال 🤍
+"""
+    posts = _universal_extract_plan_posts(raw_copywriter_text)
+    assert len(posts) >= 1
+    p1 = posts[0]
+
+    # Verify visual idea preserved completely
+    assert "طفل قاعد على مكتب المذاكرة" in p1["visual_idea"]
+    assert "معروضة للبيع" in p1["visual_idea"]
+
+    # Verify caption preserved completely with ending sentence
+    assert "ابنك طول الوقت تعبان" in p1["caption"]
+    assert "بألطف تعامل مع قلق ومخاوف الأطفال 🤍" in p1["caption"]
+
+    # Verify Telegram formatting does NOT chop caption mid-sentence
+    t = {
+        "task_id": "TASK-TEST-VERBATIM",
+        "title": p1["title"],
+        "caption": p1["caption"],
+        "visual_idea": p1["visual_idea"],
+        "assignee_name": "راما ممدوح سرج",
+        "status": "Assigned"
+    }
+    card_text = _task_card_text(t, "cli_معامل_رعاية_1788336726")
+    
+    # Must contain full sentence without mid-word truncation
+    assert "بألطف تعامل مع قلق ومخاوف الأطفال 🤍" in card_text
+    assert "طفل قاعد على مكتب المذاكرة" in card_text
