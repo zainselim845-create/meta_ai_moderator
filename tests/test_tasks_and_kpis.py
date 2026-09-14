@@ -286,6 +286,11 @@ def test_one_tap_attendance_menu_and_geofence_intelligence(monkeypatch):
     menu_completed = _att_menu(emp)
     assert any("تقرير حالتي" in str(btn) for row in menu_completed for btn in row)
 
+    # 4b. Verify both check-in and check-out buttons are permanently fixed in all states
+    for m in [menu_default, menu_unregistered, menu_checked_in, menu_completed]:
+        assert any("حضور" in str(btn) for row in m for btn in row), "Check-in button must be fixed and present"
+        assert any("انصراف" in str(btn) for row in m for btn in row), "Check-out button must be fixed and present"
+
     # 5. Geofence & distance calculation
     # Rama's real indoor coordinates vs HQ (5 meters)
     hq_lat, hq_lon = 30.470035, 31.180207
@@ -301,6 +306,67 @@ def test_one_tap_attendance_menu_and_geofence_intelligence(monkeypatch):
     assert geofence == 50
     assert dist_cell_tower > geofence
     assert dist_cell_tower <= 1500 # Eligible for cell tower guidance & manager approval button
+
+
+def test_att_send_persistent_keyboard(monkeypatch):
+    import json
+    from api.index import _att_send, _att_menu
+    sent_payloads = []
+    class MockResp:
+        def read(self):
+            return json.dumps({"ok": True}).encode("utf-8")
+
+    monkeypatch.setattr("api.index._att_bot_token", lambda: "mock_token")
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=12: MockResp())
+
+    # We patch _urlreq.urlopen as well if imported under that alias
+    import urllib.request as _ur
+    monkeypatch.setattr("api.index._urlreq.urlopen", lambda req, timeout=12: (sent_payloads.append(json.loads(req.data.decode("utf-8"))), MockResp())[1])
+
+    kb = _att_menu()
+    res = _att_send("12345678", "مرحبا", keyboard=kb)
+    assert res is True
+    assert len(sent_payloads) == 1
+    rm = sent_payloads[0].get("reply_markup", {})
+    assert rm.get("is_persistent") is True
+    assert rm.get("resize_keyboard") is True
+
+
+def test_attendance_webhook_text_handlers(monkeypatch):
+    import json
+    from api.index import app
+    client = app.test_client()
+
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test_sec")
+    headers = {"X-Telegram-Bot-Api-Secret-Token": "test_sec"}
+
+    emp = {"employee_id": "EMP-9999", "name": "أحمد", "status": "active", "telegram_id": "123456"}
+    monkeypatch.setattr("api.index._att_emp_by_tg", lambda tg: emp)
+
+    sent_msgs = []
+    def mock_att_send(chat_id, text, keyboard=None, inline=None):
+        sent_msgs.append({"chat": chat_id, "text": text, "kb": keyboard})
+        return True
+    monkeypatch.setattr("api.index._att_send", mock_att_send)
+
+    # 1. Check-out text when user hasn't checked in
+    monkeypatch.setattr("api.index._att_today_records", lambda eid, dt: [])
+    payload = {"message": {"chat": {"id": 123456}, "from": {"id": 123456}, "text": "🚪 تسجيل انصراف"}}
+    r = client.post("/api/telegram/attendance", data=json.dumps(payload), headers=headers)
+    assert r.status_code == 200
+    assert len(sent_msgs) == 1
+    assert "لم تسجّل حضورك اليوم بعد" in sent_msgs[0]["text"]
+
+    # 2. Check-in text when user has already checked in
+    monkeypatch.setattr("api.index._att_today_records", lambda eid, dt: [{"checkin_time": "09:30"}])
+    sent_msgs.clear()
+    payload = {"message": {"chat": {"id": 123456}, "from": {"id": 123456}, "text": "📍 تسجيل حضور"}}
+    r = client.post("/api/telegram/attendance", data=json.dumps(payload), headers=headers)
+    assert r.status_code == 200
+    assert len(sent_msgs) == 1
+    assert "حضورك مسجّل بالفعل اليوم" in sent_msgs[0]["text"]
+
+
 
 
 

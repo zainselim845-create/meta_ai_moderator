@@ -14639,7 +14639,7 @@ def _att_send(chat_id, text, keyboard=None, inline=None):
         return False
     payload = {"chat_id": str(chat_id), "text": text, "parse_mode": "HTML"}
     if keyboard is not None:
-        payload["reply_markup"] = {"keyboard": keyboard, "resize_keyboard": True}
+        payload["reply_markup"] = {"keyboard": keyboard, "resize_keyboard": True, "is_persistent": True}
     if inline is not None:
         payload["reply_markup"] = {"inline_keyboard": inline}
     try:
@@ -14677,7 +14677,10 @@ def _att_delete_message(chat_id, message_id):
         return False
 
 def _att_menu(emp=None):
-    """Dynamic 1-tap Telegram keyboard tailored to the employee's live daily state."""
+    """Fixed, persistent Telegram keyboard where both Check-in and Check-out buttons
+    are permanently available at all times."""
+    has_in = False
+    has_out = False
     if emp and isinstance(emp, dict):
         emp_id = str(emp.get("employee_id", "")).strip()
         if emp_id:
@@ -14687,29 +14690,27 @@ def _att_menu(emp=None):
                 rec = next((r for r in recs if str(r.get("checkin_time", "")).strip() not in ("", "0")), None)
                 has_in = bool(rec)
                 has_out = bool(rec and str(rec.get("checkout_time", "")).strip() not in ("", "0"))
-                
-                if not has_in:
-                    return [
-                        [{"text": "📍 تسجيل الحضور الآن (بضغطة واحدة)", "request_location": True}],
-                        ["📊 حالتي اليوم", "🚫 تسجيل غياب"]
-                    ]
-                elif has_in and not has_out:
-                    return [
-                        [{"text": "🚪 تسجيل الانصراف الآن (بضغطة واحدة)", "request_location": True}],
-                        ["📊 حالتي اليوم"]
-                    ]
-                else:
-                    return [
-                        ["📊 تقرير حالتي اليوم"]
-                    ]
             except Exception as _e:
                 print(f"[att menu dynamic] {_e}")
 
-    # Fallback / generic menu with 1-tap check-in location request
+    # Both buttons are ALWAYS present and fixed!
+    if not has_in:
+        # Check-in is 1-tap GPS location; Check-out is fixed text button
+        btn_in = {"text": "📍 تسجيل الحضور الآن (بضغطة واحدة)", "request_location": True}
+        btn_out = "🚪 تسجيل انصراف"
+    elif has_in and not has_out:
+        # Check-in is fixed text button; Check-out is 1-tap GPS location
+        btn_in = "📍 تسجيل حضور"
+        btn_out = {"text": "🚪 تسجيل الانصراف الآن (بضغطة واحدة)", "request_location": True}
+    else:
+        # Both completed: both remain fixed and accessible
+        btn_in = "📍 تسجيل حضور"
+        btn_out = "🚪 تسجيل انصراف"
+
+    status_lbl = "📊 تقرير حالتي اليوم" if (has_in and has_out) else "📊 حالتي اليوم"
     return [
-        [{"text": "📍 تسجيل الحضور الآن (بضغطة واحدة)", "request_location": True}],
-        ["🚪 تسجيل انصراف", "📊 حالتي اليوم"],
-        ["🚫 تسجيل غياب"]
+        [btn_in, btn_out],
+        [status_lbl, "🚫 تسجيل غياب"]
     ]
 
 # ---- Google Sheets read/write (uses the Drive OAuth token) ----
@@ -15338,17 +15339,35 @@ def telegram_attendance_webhook():
             # 4) Process attendance & wipe message for privacy
             _att_handle_location(emp, chat_id, loc)
             _att_delete_message(chat_id, msg_id)
-        elif text in ("تسجيل حضور", " تسجيل حضور", "📍 تسجيل حضور"):
-            cache[f"att_action_{chat_id}"] = "checkin"
-            _att_send(chat_id, "لتسجيل الحضور، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
-                      keyboard=[[{"text": "📍 تسجيل الحضور الآن (بضغطة واحدة)", "request_location": True}], ["حالتي اليوم", "تسجيل غياب"]])
-        elif text in ("تسجيل انصراف", " تسجيل انصراف", "🚪 تسجيل انصراف"):
-            cache[f"att_action_{chat_id}"] = "checkout"
-            _att_send(chat_id, "لتسجيل الانصراف، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
-                      keyboard=[[{"text": "🚪 تسجيل الانصراف الآن (بضغطة واحدة)", "request_location": True}], ["حالتي اليوم", "تسجيل غياب"]])
-        elif text in ("حالتي اليوم", " حالتي اليوم", "📊 حالتي اليوم", "📊 تقرير حالتي اليوم"):
+        elif any(k in text for k in ("تسجيل حضور", "تسجيل الحضور")) or text.strip() in ("حضور", "📍 حضور", "📍 تسجيل حضور", "📍 تسجيل الحضور"):
+            today, now_t = _cairo_now_parts()
+            emp_id = str((emp or {}).get("employee_id", "")).strip()
+            recs = _att_today_records(emp_id, today) if emp_id else []
+            rec = next((r for r in recs if str(r.get("checkin_time", "")).strip() not in ("", "0")), None)
+            if rec:
+                cin = rec.get("checkin_time") or "-"
+                _att_send(chat_id, f"ℹ️ <b>حضورك مسجّل بالفعل اليوم!</b>\nسجّلت حضورك في تمام الساعة <b>{cin}</b>.\nلتسجيل الانصراف عند انتهاء الدوام، اضغط على زر «🚪 تسجيل الانصراف».", keyboard=_att_menu(emp))
+            else:
+                cache[f"att_action_{chat_id}"] = "checkin"
+                _att_send(chat_id, "📍 لتسجيل الحضور، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
+                          keyboard=_att_menu(emp))
+        elif any(k in text for k in ("تسجيل انصراف", "تسجيل الانصراف")) or text.strip() in ("انصراف", "🚪 انصراف", "🚪 تسجيل انصراف", "🚪 تسجيل الانصراف"):
+            today, now_t = _cairo_now_parts()
+            emp_id = str((emp or {}).get("employee_id", "")).strip()
+            recs = _att_today_records(emp_id, today) if emp_id else []
+            rec = next((r for r in recs if str(r.get("checkin_time", "")).strip() not in ("", "0")), None)
+            if not rec:
+                _att_send(chat_id, "⚠️ <b>لم تسجّل حضورك اليوم بعد!</b>\nيُرجى الضغط أولاً على زر «📍 تسجيل الحضور» لتسجيل حضورك.", keyboard=_att_menu(emp))
+            elif rec and str(rec.get("checkout_time", "")).strip() not in ("", "0"):
+                cout = rec.get("checkout_time") or "-"
+                _att_send(chat_id, f"ℹ️ <b>تم تسجيل انصرافك بالفعل اليوم!</b>\nسجّلت انصرافك في تمام الساعة <b>{cout}</b>.", keyboard=_att_menu(emp))
+            else:
+                cache[f"att_action_{chat_id}"] = "checkout"
+                _att_send(chat_id, "🚪 لتسجيل الانصراف، اضغط على الزر بالأسفل لمشاركة موقعك الحالي المباشر (GPS):",
+                          keyboard=_att_menu(emp))
+        elif any(k in text for k in ("حالتي اليوم", "تقرير حالتي", "حالتي")):
             _att_status(emp, chat_id)
-        elif text in ("تسجيل غياب", " تسجيل غياب", "🚫 تسجيل غياب"):
+        elif any(k in text for k in ("تسجيل غياب", "غياب")):
             _att_absent(emp, chat_id)
         else:
             pending_note = cache.pop(f"att_pending_note_{chat_id}", None)
