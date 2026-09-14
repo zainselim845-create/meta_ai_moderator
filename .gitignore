@@ -15,3 +15,5 @@ scripts/*_token.py
 scripts/send_dm_to_user.py
 scripts/
 !scripts/setup_pgvector.sql
+!scripts/ci_check.py
+!scripts/install_hooks.py

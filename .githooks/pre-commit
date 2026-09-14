@@ -1,0 +1,15 @@
+#!/bin/sh
+# Git Pre-commit Hook for Meta AI Moderator
+# Runs quality gate before allowing commit
+
+echo "Running Pre-commit CI Quality Gate..."
+python scripts/ci_check.py
+RESULT=$?
+
+if [ $RESULT -ne 0 ]; then
+    echo "❌ Pre-commit checks failed! Commit aborted. Please fix errors before committing."
+    exit 1
+fi
+
+echo "✅ Pre-commit quality gate passed!"
+exit 0

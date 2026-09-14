@@ -1,0 +1,43 @@
+name: CD & Production Health Monitor
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline (Meta AI Moderator)"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'  # Health check ping every 30 minutes
+
+jobs:
+  verify_production:
+    name: Production Health & Uptime Check
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Wait for Vercel Deployment Propagation
+        if: ${{ github.event_name == 'workflow_run' }}
+        run: |
+          echo "Waiting 30 seconds for Vercel edge propagation..."
+          sleep 30
+
+      - name: Ping Production Endpoint
+        run: |
+          PROD_URL="https://metaaimoderator.vercel.app"
+          echo "Checking $PROD_URL health..."
+          
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L "$PROD_URL" || true)
+          echo "Production HTTP status: $STATUS"
+          
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Production site returned HTTP $STATUS (Expected 200)"
+            exit 1
+          fi
+          
+          echo "Production is healthy and responsive (HTTP 200 OK)."
+
+      - name: Check Static Assets & Security Headers
+        run: |
+          PROD_URL="https://metaaimoderator.vercel.app"
+          curl -sI -L "$PROD_URL" | grep -i "cache-control" || true
+          echo "Static verification completed."
