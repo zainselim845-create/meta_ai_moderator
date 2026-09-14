@@ -671,6 +671,24 @@ CREATOR_EMPLOYEE_IDS = {
     "emp-8069-7345", "emp-2945-2364", "emp-7189-7780", "emp-3264-8790", "emp-7775-2303"
 }
 
+KNOWN_EMPLOYEE_PASSWORDS = {
+    "emp-8069-7345": "ndeiteaG",
+    "emp-2945-2364": "EHTH-g-q45741",
+    "emp-7189-7780": "domya2026",
+    "emp-3264-8790": "m1Ned1WG",
+    "emp-7775-2303": "vRaAiGd0",
+    "emp-8148": "QhEBR-h_",
+    "emp-8143": "domya2026",
+    "emp-8142": "dNR66Ql_",
+    "emp-8986-4947": "domya2026",
+    "emp-8086-4520": "EHTH-g-q",
+    "am-2072-9827": "sPT9-Fwl",
+    "emp-5887-5256": "1jGzGc17",
+    "emp-5970-2611": "GbzpTq4O",
+    "emp-3555-1067": "RraJudg1",
+    "emp-4481-0404": "domya2026",
+}
+
 USERS_DB = {
     admin_user: {"username": admin_user, "password": hash_password(admin_pass),
                  "password_plain": admin_pass, "role": "admin", "allowed_tabs": list(ALLOWED_TAB_IDS), "assigned_clients": []},
@@ -678,6 +696,7 @@ USERS_DB = {
 
 for _re_key, (_re_id, _re_name) in KNOWN_EMPLOYEE_ROSTER.items():
     _r_info = KNOWN_EMPLOYEE_ROLES.get(_re_key, ("content_creator" if _re_key in CREATOR_EMPLOYEE_IDS else "employee", "Employee", ["myportal"]))
+    _plain_pwd = KNOWN_EMPLOYEE_PASSWORDS.get(_re_key.lower()) or KNOWN_EMPLOYEE_PASSWORDS.get(_re_id.lower()) or "domya2026"
     _user_obj = {
         "username": _re_id,
         "employee_id": _re_id,
@@ -685,7 +704,8 @@ for _re_key, (_re_id, _re_name) in KNOWN_EMPLOYEE_ROSTER.items():
         "role": _r_info[0],
         "job": _r_info[1],
         "allowed_tabs": list(_r_info[2]),
-        "password_plain": "domya2026"
+        "password": hash_password(_plain_pwd),
+        "password_plain": _plain_pwd
     }
     USERS_DB[_re_id] = _user_obj
     USERS_DB[_re_id.lower()] = _user_obj
@@ -847,14 +867,18 @@ def sync_from_supabase(force=False):
                                     _rec["allowed_tabs"] = list(_tabs)
 
                                 # Preserve existing password/hash if not in Supabase record
-                                if _un_str in USERS_DB and not _rec.get("password") and USERS_DB[_un_str].get("password"):
-                                    _rec["password"] = USERS_DB[_un_str]["password"]
-                                if _un_str in USERS_DB and not _rec.get("password_plain") and USERS_DB[_un_str].get("password_plain"):
-                                    _rec["password_plain"] = USERS_DB[_un_str]["password_plain"]
+                                _prev = USERS_DB.get(_un_str) or USERS_DB.get(_eid) or USERS_DB.get(_un_low) or USERS_DB.get(_eid_low) or {}
+                                if not _rec.get("password") and _prev.get("password"):
+                                    _rec["password"] = _prev["password"]
+                                if not _rec.get("password_plain") and _prev.get("password_plain"):
+                                    _rec["password_plain"] = _prev["password_plain"]
 
-                                # Explicit fallback for Hadeer if plain is missing
-                                if ("2945" in _eid or "2945" in _un_str) and not _rec.get("password_plain"):
-                                    _rec["password_plain"] = "EHTH-g-q45741"
+                                # Fallback to known roster individual passwords if still missing
+                                if not _rec.get("password_plain"):
+                                    _roster_pwd = KNOWN_EMPLOYEE_PASSWORDS.get(_eid_low) or KNOWN_EMPLOYEE_PASSWORDS.get(_un_low) or "domya2026"
+                                    _rec["password_plain"] = _roster_pwd
+                                    if not _rec.get("password"):
+                                        _rec["password"] = hash_password(_roster_pwd)
 
                                 USERS_DB[_un_str] = _rec
                                 USERS_DB[_un_low] = _rec
