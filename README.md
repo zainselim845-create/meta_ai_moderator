@@ -1,5 +1,11 @@
 # Domya Meta AI Moderator & Agency Operations Suite
 
+[![CI Pipeline](https://github.com/zainselim845-create/meta_ai_moderator/actions/workflows/ci.yml/badge.svg)](https://github.com/zainselim845-create/meta_ai_moderator/actions/workflows/ci.yml)
+[![CD & Production Health](https://github.com/zainselim845-create/meta_ai_moderator/actions/workflows/cd.yml/badge.svg)](https://github.com/zainselim845-create/meta_ai_moderator/actions/workflows/cd.yml)
+![Tests](https://img.shields.io/badge/tests-110%20passed-brightgreen)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
+![Deployment](https://img.shields.io/badge/deploy-Vercel%20Production-black)
+
 منصة سحابية متكاملة لإدارة المحتوى، تفريغ وبناء الخطط التسويقية، متابعة دورة حياة المهام اليومية، وإدارة حسابات وصفحات Meta (Facebook & Instagram) مع منظومة الحضور الذكي وإدارة الموارد البشرية.
 
 ---
@@ -49,6 +55,28 @@
 python -m pytest tests/ -v
 ```
 - **نسبة النجاح**: 100% عبر كافة سيناريوهات استخراج الخطط، المطابقة العربية، إسناد المهام، والـ Multi-Client Scoping.
+
+---
+
+## 🚀 منظومة التكامل والنشر المستمر (CI/CD Pipeline)
+
+المشروع مزوّد ببيئة تكامل مستمر ونشر مستمر مؤتمتة بالكامل عبر **GitHub Actions**:
+1. **مسار التكامل المستمر (`.github/workflows/ci.yml`)**:
+   - **Syntax Validation**: فحص وترجمة لغة Python و JavaScript لجميع الملفات.
+   - **Asset Integrity**: التأكد من تزامن الملفات المصغرة (`.min.js`) وقوالب العرض المضمنة.
+   - **Automated Tests**: تشغيل 110 اختبارات شاملة على بيئتي Python 3.11 و 3.12 مع منع أي دمج في حال فشل أي اختبار.
+   - **Secret Audit**: فحص أمني دقيق للتأكد من خلو المشروع من أي مفاتيح سرية أو ملفات بيئة محلية مكشوفة.
+2. **مسار النشر والمراقبة المستمرة (`.github/workflows/cd.yml`)**:
+   - التحقق التلقائي من نجاح النشر الحي على Vercel.
+   - فحص صحة واستجابة الموقع الحي (`https://metaaimoderator.vercel.app/`) دورياً كل 30 دقيقة.
+3. **أداة الفحص المحلي السريع للمطورين**:
+   ```bash
+   python scripts/ci_check.py
+   ```
+4. **تفعيل خطافات Git الوقائية (Pre-commit Hook)**:
+   ```bash
+   python scripts/install_hooks.py
+   ```
 
 ---
 
