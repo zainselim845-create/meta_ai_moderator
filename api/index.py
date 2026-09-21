@@ -595,6 +595,21 @@ def _norm_ar_str(s):
     s = re.sub(r'[\s_\-]+', '', s)
     return s
 
+def is_account_manager_job(job_or_role, eid=""):
+    if not job_or_role and not eid:
+        return False
+    eid_str = str(eid or "").strip().upper()
+    if eid_str.startswith("AM-") or eid_str in ("AM-2072-9827", "EMP-5887-5256", "EMP-0652-9532"):
+        return True
+    s = str(job_or_role or "").strip().lower()
+    s_clean = re.sub(r'[\u200b-\u200f\ufeff]', '', s).strip()
+    s_norm = _norm_ar_str(s_clean)
+    if any(k in s_clean for k in ("account", "account manager", "account_manager", "am")):
+        return True
+    if any(k in s_norm for k in ("اكونت", "حسابات", "عملا")):
+        return True
+    return False
+
 KNOWN_EMPLOYEE_ROSTER = {
     # Direct O(1) Employee ID Lookups
     "emp-8069-7345": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
@@ -609,6 +624,7 @@ KNOWN_EMPLOYEE_ROSTER = {
     "emp-8086-4520": ("EMP-8086-4520", "محمد سعيد فوزي"),
     "am-2072-9827": ("AM-2072-9827", "محمود خالد"),
     "emp-5887-5256": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "emp-0652-9532": ("EMP-0652-9532", "حبيبه احمد محمد"),
     "emp-4481-0404": ("EMP-4481-0404", "Sama Ayman"),
     "emp-5970-2611": ("EMP-5970-2611", "روضة عبد الحميد"),
     "emp-3555-1067": ("EMP-3555-1067", "Marwa Saeed"),
@@ -639,6 +655,9 @@ KNOWN_CREATOR_ALIASES = {
     "آيه": ("EMP-5887-5256", "آيه أحمد مجاهد"),
     "اية": ("EMP-5887-5256", "آيه أحمد مجاهد"),
     "aya": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "حبيبه": ("EMP-0652-9532", "حبيبه احمد محمد"),
+    "حبيبة": ("EMP-0652-9532", "حبيبه احمد محمد"),
+    "habiba": ("EMP-0652-9532", "حبيبه احمد محمد"),
     "سعيد": ("EMP-8086-4520", "محمد سعيد فوزي"),
     "محمد سعيد": ("EMP-8086-4520", "محمد سعيد فوزي"),
     "روضة": ("EMP-5970-2611", "روضة عبد الحميد"),
@@ -662,6 +681,7 @@ KNOWN_EMPLOYEE_ROLES = {
     "emp-8086-4520": ("admin", "ادارة", list(ALLOWED_TAB_IDS)),
     "am-2072-9827": ("account_manager", "Account manager", ["dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"]),
     "emp-5887-5256": ("account_manager", "Account manager", ["dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"]),
+    "emp-0652-9532": ("account_manager", "Account manager", ["dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"]),
     "emp-5970-2611": ("admin", "ادارة", list(ALLOWED_TAB_IDS)),
     "emp-3555-1067": ("employee", "Employee", ["myportal"]),
     "emp-4481-0404": ("employee", "Employee", ["myportal"]),
@@ -684,6 +704,7 @@ KNOWN_EMPLOYEE_PASSWORDS = {
     "emp-8086-4520": "EHTH-g-q",
     "am-2072-9827": "sPT9-Fwl",
     "emp-5887-5256": "1jGzGc17",
+    "emp-0652-9532": "8845590652",
     "emp-5970-2611": "GbzpTq4O",
     "emp-3555-1067": "RraJudg1",
     "emp-4481-0404": "domya2026",
@@ -3732,6 +3753,46 @@ def current_user_rec():
             "job": "Content creator",
             "allowed_tabs": ["myportal", "tasks", "plan"],
         }
+    # Dynamic Google Sheet fallback for any registered employee (e.g. Habiba or any new AM/staff)
+    try:
+        cfg = hr_config()
+        u_norm = _norm_ar_str(u_str)
+        for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
+            e_eid = str(e.get("employee_id") or "").strip()
+            e_name = str(e.get("name") or "").strip()
+            e_job = str(e.get("job") or e.get("role") or "").strip()
+            if (e_eid and e_eid.lower() == u_str) or \
+               (_norm_ar_str(e_eid) == u_norm) or \
+               (_norm_ar_str(e_name) == u_norm) or \
+               (u_norm and len(u_norm) >= 3 and u_norm in _norm_ar_str(e_name)):
+                if is_account_manager_job(e_job, e_eid):
+                    role = "account_manager"
+                    allowed_tabs = ["dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"]
+                elif any(w in e_job.lower() for w in ("اداره", "مدير", "admin")) or e_eid.lower() in ("emp-8086-4520", "emp-5970-2611"):
+                    role = "admin"
+                    allowed_tabs = list(ALLOWED_TAB_IDS)
+                elif any(w in e_job.lower() for w in ("content", "creator", "محتوى", "كاتب", "writer")):
+                    role = "content_creator"
+                    allowed_tabs = ["myportal", "tasks", "plan"]
+                elif any(w in e_job.lower() for w in ("design", "graphic", "فيديو", "video")):
+                    role = "designer"
+                    allowed_tabs = ["myportal"]
+                else:
+                    role = "employee"
+                    allowed_tabs = ["myportal"]
+                user_obj = {
+                    "username": e_eid or u,
+                    "employee_id": e_eid or u,
+                    "name": e_name or u,
+                    "role": role,
+                    "job": e_job,
+                    "allowed_tabs": allowed_tabs,
+                }
+                USERS_DB[e_eid] = user_obj
+                USERS_DB[u_str] = user_obj
+                return user_obj
+    except Exception as _e:
+        print(f"[current_user_rec dynamic sheet lookup err] {_e}")
     return {}
 
 def current_role():
@@ -3833,7 +3894,7 @@ def assigned_client_ids():
     """Client ids the current user is allowed to see.
     - Admins: see ALL clients.
     - Content Creators: see ALL clients for content writing.
-    - Account Managers: see ONLY their assigned clients (clients where am_employee_id/am_id matches their ID or name, or where they created/uploaded tasks).
+    - Account Managers: see their assigned clients (or all clients if none assigned yet).
     - Plain Employees: see ONLY their assigned clients.
     """
     if is_admin() or is_content_creator():
@@ -3842,16 +3903,18 @@ def assigned_client_ids():
     user_rec = current_user_rec() or {}
     assigned = [str(x) for x in (user_rec.get("assigned_clients") or [])]
     my_eid = _my_employee_id()
-    my_name = (user_rec.get("name") or current_username() or "").strip().lower()
+    my_name = (user_rec.get("name") or current_username() or "").strip()
+    my_name_norm = _norm_ar_str(my_name)
     
     for c in AGENCY_CLIENTS_STORE:
         cid = str(c.get("id") or c.get("client_id") or "")
         if not cid or cid in assigned:
             continue
         c_am_id = str(c.get("am_id") or c.get("account_manager_id") or c.get("am_employee_id") or "").strip()
-        c_am_name = str(c.get("am_name") or c.get("account_manager") or "").strip().lower()
-        if (my_eid and c_am_id and (c_am_id == my_eid or my_eid in c_am_id)) or \
-           (my_name and c_am_name and (c_am_name == my_name or my_name in c_am_name or c_am_name in my_name)):
+        c_am_name = str(c.get("am_name") or c.get("account_manager") or "").strip()
+        c_am_name_norm = _norm_ar_str(c_am_name)
+        if (my_eid and c_am_id and (c_am_id.lower() == my_eid.lower() or my_eid.lower() in c_am_id.lower())) or \
+           (my_name_norm and c_am_name_norm and (c_am_name_norm == my_name_norm or my_name_norm in c_am_name_norm or c_am_name_norm in my_name_norm)):
             assigned.append(cid)
             
     # Also check task database for any clients where this Account Manager is tagged (unless client has another AM assigned)
@@ -3865,15 +3928,21 @@ def assigned_client_ids():
             client_rec = next((c for c in AGENCY_CLIENTS_STORE if str(c.get("id") or c.get("client_id")) == t_cid), None)
             if client_rec:
                 c_am_id = str(client_rec.get("am_id") or client_rec.get("account_manager_id") or client_rec.get("am_employee_id") or "").strip()
-                c_am_name = str(client_rec.get("am_name") or client_rec.get("account_manager") or "").strip().lower()
-                if (c_am_id and my_eid and c_am_id != my_eid) or (c_am_name and my_name and c_am_name != my_name):
+                c_am_name = str(client_rec.get("am_name") or client_rec.get("account_manager") or "").strip()
+                c_am_name_norm = _norm_ar_str(c_am_name)
+                if (c_am_id and my_eid and c_am_id.lower() != my_eid.lower()) or (c_am_name_norm and my_name_norm and c_am_name_norm != my_name_norm):
                     continue
             t_amid = str(t.get("am_id") or "").strip()
-            t_amname = str(t.get("am_name") or "").strip().lower()
-            if (my_eid and t_amid and (t_amid == my_eid or my_eid in t_amid)) or \
-               (my_name and t_amname and (t_amname == my_name or my_name in t_amname or t_amname in my_name)):
+            t_amname = str(t.get("am_name") or "").strip()
+            t_amname_norm = _norm_ar_str(t_amname)
+            if (my_eid and t_amid and (t_amid.lower() == my_eid.lower() or my_eid.lower() in t_amid.lower())) or \
+               (my_name_norm and t_amname_norm and (t_amname_norm == my_name_norm or my_name_norm in t_amname_norm or t_amname_norm in my_name_norm)):
                 assigned.append(t_cid)
                 
+    # If Account Manager has no specifically assigned clients yet, show all active clients
+    if (is_manager() or current_role() == "account_manager") and not assigned:
+        return [str(c.get("id") or c.get("client_id")) for c in AGENCY_CLIENTS_STORE if (c.get("id") or c.get("client_id"))]
+
     return assigned
 
 def can_see_client(cid):
@@ -3941,6 +4010,8 @@ PUBLIC_PATHS = {
     '/api/data-deletion',
     '/api/health',
     '/api/share/feedback',
+    '/api/account-managers',
+    '/api/managers',
 }
 
 _TAB_API_GUARD = {
@@ -4477,7 +4548,7 @@ def api_login():
                         job_lower = r_job.lower()
                         if any(w in job_lower for w in ("اداره", "مدير", "admin")) or r_eid.lower() in ("emp-8086-4520", "emp-5970-2611"):
                             role = "admin"
-                        elif any(w in job_lower for w in ("account", "أكونت", "حسابات")) or r_eid.lower() in ("am-2072-9827", "emp-5887-5256"):
+                        elif is_account_manager_job(r_job, r_eid):
                             role = "account_manager"
                         elif any(w in job_lower for w in ("content", "creator", "محتوى", "كاتب", "writer", "copywriter")) or r_eid.lower() in CREATOR_EMPLOYEE_IDS:
                             role = "content_creator"
@@ -4518,7 +4589,7 @@ def api_login():
             role = "content_creator"
         elif m_eid_low in ("emp-8086-4520", "admin", "mhmd-saeed", "emp-5970-2611") or matched_user.get("role") == "admin":
             role = "admin"
-        elif m_eid_low in ("am-2072-9827", "emp-5887-5256") or matched_user.get("role") == "account_manager":
+        elif is_account_manager_job(matched_user.get("job"), m_eid_low) or matched_user.get("role") == "account_manager":
             role = "account_manager"
         elif m_eid_low in ("emp-8148", "emp-8143", "emp-8142", "emp-8986-4947") or matched_user.get("role") == "designer":
             role = "designer"
@@ -5007,6 +5078,9 @@ def api_clients_get():
             elif c_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in c_amname or "ايه" in c_amname:
                 c["am_employee_id"] = "EMP-5887-5256"
                 c["am_name"] = "آيه أحمد مجاهد"
+            elif c_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in c_amname or "حبيبة" in c_amname:
+                c["am_employee_id"] = "EMP-0652-9532"
+                c["am_name"] = "حبيبه احمد محمد"
             else:
                 c["am_employee_id"] = c_amid or c_amname
                 c["am_name"] = c_amname or c_amid
@@ -5020,6 +5094,9 @@ def api_clients_get():
                 if c_task_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in c_task_amname or "ايه" in c_task_amname:
                     c["am_employee_id"] = "EMP-5887-5256"
                     c["am_name"] = "آيه أحمد مجاهد"
+                elif c_task_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in c_task_amname or "حبيبة" in c_task_amname:
+                    c["am_employee_id"] = "EMP-0652-9532"
+                    c["am_name"] = "حبيبه احمد محمد"
                 elif c_task_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in c_task_amname:
                     c["am_employee_id"] = "AM-2072-9827"
                     c["am_name"] = "محمود خالد"
@@ -5265,8 +5342,14 @@ def api_clients_update(cid):
         elif raw_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in raw_amname:
             new_am_id = "AM-2072-9827"
             new_am_name = "محمود خالد"
+        elif raw_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in raw_amname or "حبيبة" in raw_amname:
+            new_am_id = "EMP-0652-9532"
+            new_am_name = "حبيبه احمد محمد"
         elif raw_amid:
             new_am_id = raw_amid
+            if not raw_amname:
+                emp = _sheet_emp(raw_amid)
+                raw_amname = emp.get("name") or USERS_DB.get(raw_amid, {}).get("name") or raw_amid
             new_am_name = raw_amname or raw_amid
         elif raw_amname:
             new_am_name = raw_amname
@@ -8418,7 +8501,18 @@ def api_tasks():
         am_id = data.get("am_id") or "AM-2072-9827"
         if am_id in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned", ""]:
             am_id = "AM-2072-9827"
-        am_name = data.get("am_name") or ("محمود خالد" if am_id == "AM-2072-9827" else "آيه أحمد مجاهد")
+        if not data.get("am_name"):
+            if am_id == "AM-2072-9827":
+                am_name = "محمود خالد"
+            elif am_id == "EMP-5887-5256":
+                am_name = "آيه أحمد مجاهد"
+            elif am_id == "EMP-0652-9532":
+                am_name = "حبيبه احمد محمد"
+            else:
+                am_emp = _sheet_emp(am_id)
+                am_name = am_emp.get("name") or am_id
+        else:
+            am_name = data.get("am_name")
         
         emp_id = (data.get("assigned_employee_id") or "").strip()
         emp_name = (data.get("assignee_name") or "").strip()
@@ -10344,7 +10438,7 @@ def api_tasks_ingest_plan():
         my_role = current_role()
         my_eid = _my_employee_id()
         # If caller is an Account Manager, plan stays with him/her ("طالما البلان نزلت للاكونت مانيجر ف هي معاه")
-        if my_role == "account_manager" or my_eid in ("AM-2072-9827", "EMP-5887-5256"):
+        if my_role == "account_manager" or is_account_manager_job("", my_eid):
             am_id = am_id_input or my_eid
         else:
             am_id = am_id_input
@@ -10934,32 +11028,67 @@ def api_task_set_dates(task_id):
 
 
 @app.route("/api/managers", methods=["GET"])
-@auth_guard
+@app.route("/api/account-managers", methods=["GET"])
 def api_managers():
-    """List account managers (from the sheet job column) for the plan builder."""
+    """List account managers (from the sheet job column, USERS_DB, and base fallbacks) dynamically."""
     cfg = hr_config()
     out = []
     seen = set()
+
+    # 1. Base fallbacks to guarantee these always appear
+    base_defaults = [
+        {"employee_id": "AM-2072-9827", "id": "AM-2072-9827", "name": "محمود خالد", "role": "ACCOUNT MANAGER", "job": "Account Manager", "telegram_id": "1205102072"},
+        {"employee_id": "EMP-5887-5256", "id": "EMP-5887-5256", "name": "آيه أحمد مجاهد", "role": "ACCOUNT MANAGER", "job": "Account Manager", "telegram_id": "1199255887"},
+        {"employee_id": "EMP-0652-9532", "id": "EMP-0652-9532", "name": "حبيبه احمد محمد", "role": "ACCOUNT MANAGER", "job": "Account Manager", "telegram_id": "8845590652"},
+    ]
+
     try:
         for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
             eid = str(e.get("employee_id") or "").strip()
-            job = str(e.get("job") or "").lower()
+            job = str(e.get("job") or e.get("role") or "").strip()
             name = str(e.get("name") or "").strip()
+            status = str(e.get("status") or e.get("state") or "active").strip().lower()
+            if status in ("archived", "deleted", "inactive"):
+                continue
             if "روضة" in name or "روضه" in name:
                 continue
-            if eid and eid not in seen and ("account manager" in job or "أكونت" in job or "الحسابات" in job or eid.startswith("AM-") or eid == "EMP-5887-5256"):
-                seen.add(eid)
-                out.append({"employee_id": eid, "name": name or eid, "role": "ACCOUNT MANAGER",
-                            "telegram_id": str(e.get("telegram_id") or "").replace(".0", "").strip()})
+            if eid and eid.upper() not in seen and is_account_manager_job(job, eid):
+                seen.add(eid.upper())
+                out.append({
+                    "employee_id": eid,
+                    "id": eid,
+                    "name": name or eid,
+                    "role": "ACCOUNT MANAGER",
+                    "job": job or "Account Manager",
+                    "telegram_id": str(e.get("telegram_id") or "").replace(".0", "").strip()
+                })
     except Exception as err:
         print(f"[api_managers sheet error] {err}")
 
-    if not out:
-        out = [
-            {"employee_id": "AM-2072-9827", "name": "محمود خالد", "role": "ACCOUNT MANAGER", "telegram_id": "1205102072"},
-            {"employee_id": "EMP-5887-5256", "name": "آيه أحمد مجاهد", "role": "ACCOUNT MANAGER", "telegram_id": "1199255887"}
-        ]
-    return jsonify({"managers": out})
+    # Add USERS_DB account managers if not already included
+    for k, v in list(USERS_DB.items()):
+        if isinstance(v, dict):
+            v_eid = str(v.get("employee_id") or k or "").strip()
+            v_role = v.get("role") or ""
+            v_job = v.get("job") or ""
+            if (v_role == "account_manager" or is_account_manager_job(v_job, v_eid)) and v_eid.upper() not in seen:
+                seen.add(v_eid.upper())
+                out.append({
+                    "employee_id": v_eid,
+                    "id": v_eid,
+                    "name": v.get("name") or v_eid,
+                    "role": "ACCOUNT MANAGER",
+                    "job": v_job or "Account Manager",
+                    "telegram_id": str(v.get("telegram_id") or "")
+                })
+
+    # Ensure base defaults are present if not found in sheet
+    for b in base_defaults:
+        if b["employee_id"].upper() not in seen:
+            seen.add(b["employee_id"].upper())
+            out.append(b)
+
+    return jsonify({"managers": out, "account_managers": out, "ams": out})
 
 
 @app.route("/api/plan/clients", methods=["GET"])
@@ -10973,7 +11102,7 @@ def api_plan_clients():
     for c in AGENCY_CLIENTS_STORE:
         if c.get("is_active", True) and isinstance(c, dict):
             amid = c.get("am_employee_id") or "AM-2072-9827"
-            amnm = c.get("am_name") or ("آيه أحمد مجاهد" if amid in ("EMP-5887-5256", "AM-5887-5256") else "محمود خالد")
+            amnm = c.get("am_name") or ("حبيبه احمد محمد" if amid in ("EMP-0652-9532", "AM-0652-9532") else ("آيه أحمد مجاهد" if amid in ("EMP-5887-5256", "AM-5887-5256") else "محمود خالد"))
             clients.append({
                 "id": c.get("id"),
                 "name": c.get("name") or c.get("company") or c.get("id"),
@@ -11019,7 +11148,7 @@ def api_plan_create():
     am_id = (data.get("am_employee_id") or "").strip()
     my_role = current_role()
     my_eid = _my_employee_id()
-    if not am_id and (my_role == "account_manager" or my_eid in ("AM-2072-9827", "EMP-5887-5256")):
+    if not am_id and (my_role == "account_manager" or is_account_manager_job("", my_eid)):
         am_id = my_eid
     plan_text = (data.get("plan_text") or "").strip()
     plan_title = (data.get("plan_name") or data.get("title") or "").strip()

@@ -1881,7 +1881,8 @@ function creatorOptionsHtml(selectedId, selectedName) {
             { employee_id: 'EMP-7775-2303', name: 'منة جمال', role: 'كاتب' },
             { employee_id: 'EMP-8148', name: 'عمر أحمد عبدالرحمن', role: 'مصمم جرافيك' },
             { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
-            { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' }
+            { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' },
+            { employee_id: 'EMP-0652-9532', name: 'حبيبه احمد محمد', role: 'ACCOUNT MANAGER' }
         ];
     }
     var opts = '<option value="">-- بدون كاتب / اختياري --</option>';
@@ -2732,6 +2733,7 @@ function renderTaskCard(t, indexInPlan) {
                 'emp-8148': 'عمر أحمد عبدالرحمن',
                 'am-2072-9827': 'محمود خالد',
                 'emp-5887-5256': 'آيه أحمد مجاهد',
+                'emp-0652-9532': 'حبيبه احمد محمد',
                 'emp-8986-4947': 'راما ممدوح سرج',
                 'emp-8142': 'ندى أيمن كمال',
                 'emp-8143': 'فرح ياسر إبراهيم'
@@ -2908,15 +2910,26 @@ function renderTasksBoard() {
             var cid = String(t.client_id || '').toLowerCase();
             var cname = String(t.client_name || '').toLowerCase();
             if (amId && amId !== 'EMP-001' && amId !== 'EMP-001-AM' && amId !== 'AM-001' && amId !== 'system' && amId !== 'unassigned') {
-                if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه')) {
+                if (amId === 'EMP-0652-9532' || amName.includes('حبيبه') || amName.includes('حبيبة')) {
+                    t.am_id = 'EMP-0652-9532';
+                    t.am_name = 'حبيبه احمد محمد';
+                } else if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه')) {
                     t.am_id = 'EMP-5887-5256';
                     t.am_name = 'آيه أحمد مجاهد';
                 } else if (amId === 'AM-2072-9827' || amId === 'EMP-2072-9827' || amName.includes('محمود')) {
                     t.am_id = 'AM-2072-9827';
                     t.am_name = 'محمود خالد';
+                } else {
+                    var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === String(amId).toUpperCase(); });
+                    if (foundAm) {
+                        t.am_name = foundAm.name || amName;
+                    }
                 }
             } else if (amName && !amName.includes('EMP-001')) {
-                if (amName.includes('آيه') || amName.includes('ايه')) {
+                if (amName.includes('حبيبه') || amName.includes('حبيبة')) {
+                    t.am_id = 'EMP-0652-9532';
+                    t.am_name = 'حبيبه احمد محمد';
+                } else if (amName.includes('آيه') || amName.includes('ايه')) {
                     t.am_id = 'EMP-5887-5256';
                     t.am_name = 'آيه أحمد مجاهد';
                 } else if (amName.includes('محمود')) {
@@ -3021,17 +3034,28 @@ function renderTasksBoard() {
             var cid = String(t.client_id || '').toLowerCase();
             var cname = String(t.client_name || '').toLowerCase();
             if (amId && amId !== 'EMP-001' && amId !== 'EMP-001-AM' && amId !== 'AM-001' && amId !== 'system' && amId !== 'unassigned') {
-                if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه')) {
+                if (amId === 'EMP-0652-9532' || amName.includes('حبيبه') || amName.includes('حبيبة')) {
+                    amId = 'EMP-0652-9532';
+                    amName = 'حبيبه احمد محمد';
+                } else if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه')) {
                     amId = 'EMP-5887-5256';
                     amName = 'آيه أحمد مجاهد';
                 } else if (amId === 'AM-2072-9827' || amId === 'EMP-2072-9827' || amName.includes('محمود')) {
                     amId = 'AM-2072-9827';
                     amName = 'محمود خالد';
+                } else {
+                    var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === String(amId).toUpperCase(); });
+                    if (foundAm) {
+                        amName = foundAm.name || amName;
+                    }
                 }
                 t.am_id = amId;
                 t.am_name = amName;
             } else if (amName && !amName.includes('EMP-001')) {
-                if (amName.includes('آيه') || amName.includes('ايه')) {
+                if (amName.includes('حبيبه') || amName.includes('حبيبة')) {
+                    amId = 'EMP-0652-9532';
+                    amName = 'حبيبه احمد محمد';
+                } else if (amName.includes('آيه') || amName.includes('ايه')) {
                     amId = 'EMP-5887-5256';
                     amName = 'آيه أحمد مجاهد';
                 } else if (amName.includes('محمود')) {
@@ -4336,6 +4360,7 @@ function _cleanEmployeeArabicName(name, eid) {
             'EMP-3264-8790': 'ليالي أحمد',
             'AM-2072-9827': 'محمود خالد',
             'EMP-5887-5256': 'آيه أحمد مجاهد',
+            'EMP-0652-9532': 'حبيبه احمد محمد',
             'EMP-8086-4520': 'محمد سعيد فوزي',
             'EMP-4481-0404': 'سما أيمن',
             'EMP-5970-2611': 'روضة عبد الحميد',
@@ -4465,7 +4490,8 @@ async function loadTasksIngestFields() {
     // 2. Managers
     var defaultAMs = [
         { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
-        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' }
+        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' },
+        { employee_id: 'EMP-0652-9532', name: 'حبيبه احمد محمد', role: 'ACCOUNT MANAGER' }
     ];
     if (amSel) {
         var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
@@ -6443,7 +6469,8 @@ async function openPlanBuilderModal() {
     // Load real AMs
     var realAMs = [
         { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
-        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' }
+        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' },
+        { employee_id: 'EMP-0652-9532', name: 'حبيبه احمد محمد', role: 'ACCOUNT MANAGER' }
     ];
 
     function fillAMSelect(list) {

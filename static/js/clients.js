@@ -1,15 +1,35 @@
 /* Domya AI Moderator - Clients & Analytics Module (Part 2) */
 
+window.allAccountManagers = window.allAccountManagers || [];
+
 async function loadClients() {
     try {
-        const res = await fetch('/api/clients');
-        const d = await res.json();
+        // Concurrently fetch account managers, team employees, and clients
+        const [amRes, teamRes, clientsRes] = await Promise.allSettled([
+            safeFetchJson('/api/account-managers'),
+            safeFetchJson('/api/tasks/employees'),
+            fetch('/api/clients').then(r => r.json())
+        ]);
+        if (amRes.status === 'fulfilled' && amRes.value && (amRes.value.account_managers || amRes.value.ams || amRes.value.managers)) {
+            window.allAccountManagers = amRes.value.account_managers || amRes.value.ams || amRes.value.managers;
+        }
+        if (teamRes.status === 'fulfilled' && teamRes.value && teamRes.value.employees) {
+            window.allTeamEmployees = teamRes.value.employees;
+            window.employeesList = teamRes.value.employees;
+        }
+        let d = (clientsRes.status === 'fulfilled') ? clientsRes.value : [];
         // /api/clients returns a bare array — support both shapes.
         agencyClients = Array.isArray(d) ? d : (d.clients || []);
         activeClientId = (!Array.isArray(d) && d.active_client_id) || window.activeClientId || activeClientId || (agencyClients[0] && agencyClients[0].id);
         renderClientSelector();
         renderClientsGrid();
         renderActiveClientBar();
+
+        // Update any AM select elements currently in DOM
+        const accAmSelect = document.getElementById('acc-am-id');
+        if (accAmSelect) accAmSelect.innerHTML = renderAmOptions(accAmSelect.value || '');
+        const editAmSelect = document.getElementById('edit-client-amid');
+        if (editAmSelect) editAmSelect.innerHTML = renderAmOptions(editAmSelect.value || '');
     } catch(e) {
         console.error(e);
         renderActiveClientBar();
@@ -250,23 +270,40 @@ async function switchClient(clientId) {
 function renderAmOptions(selectedAmId, selectedAmName) {
     const baseAms = [
         { id: 'AM-2072-9827', name: 'محمود خالد' },
-        { id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد' }
+        { id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد' },
+        { id: 'EMP-0652-9532', name: 'حبيبه احمد محمد' }
     ];
+
+    // Merge dynamically pulled account managers from API
+    const dynamicAms = window.allAccountManagers || [];
+    dynamicAms.forEach(am => {
+        const id = am.id || am.employee_id;
+        const name = am.name || '';
+        if (id && !baseAms.some(b => String(b.id).toUpperCase() === String(id).toUpperCase())) {
+            baseAms.push({ id: id, name: name || id });
+        }
+    });
+
+    // Merge from team employees if any have account manager job/role
     const team = window.allTeamEmployees || window.employeesList || [];
     team.forEach(e => {
-        const r = (e.role || '').toLowerCase();
+        const r = (e.role || e.job || '').toLowerCase();
         const eid = e.employee_id || e.id;
-        if (eid && (/account|أكونت|حسابات/i.test(r) || String(eid).startsWith('AM-'))) {
-            if (!baseAms.some(b => b.id === eid)) {
-                baseAms.push({ id: eid, name: e.name });
+        const name = e.name || '';
+        if (eid && (/account|أكونت|اكونت|حسابات/i.test(r) || String(eid).startsWith('AM-') || /حبيب/i.test(name))) {
+            if (!baseAms.some(b => String(b.id).toUpperCase() === String(eid).toUpperCase())) {
+                baseAms.push({ id: eid, name: name || eid });
             }
         }
     });
-    if (selectedAmId && !baseAms.some(b => b.id === selectedAmId)) {
+
+    if (selectedAmId && !baseAms.some(b => String(b.id).toUpperCase() === String(selectedAmId).toUpperCase())) {
         baseAms.push({ id: selectedAmId, name: selectedAmName || selectedAmId });
     }
+
     return baseAms.map(am => {
-        const isSel = (am.id === selectedAmId) || (!selectedAmId && selectedAmName && am.name.includes(selectedAmName));
+        const isSel = (selectedAmId && String(am.id).toUpperCase() === String(selectedAmId).toUpperCase()) ||
+                      (!selectedAmId && selectedAmName && (am.name.includes(selectedAmName) || selectedAmName.includes(am.name)));
         return `<option value="${esc(am.id)}" ${isSel ? 'selected' : ''}>${esc(am.name)}</option>`;
     }).join('');
 }
@@ -274,11 +311,28 @@ window.renderAmOptions = renderAmOptions;
 
 async function updateClientAM(clientId, amId) {
     const client = agencyClients.find(c => c.id === clientId) || {};
-    let amName = (amId === 'EMP-5887-5256') ? 'آيه أحمد مجاهد' : 'محمود خالد';
-    const team = window.allTeamEmployees || window.employeesList || [];
-    const foundEmp = team.find(e => (e.employee_id || e.id) === amId);
-    if (foundEmp && foundEmp.name) {
-        amName = foundEmp.name;
+    let amName = '';
+
+    // Look up in window.allAccountManagers first
+    const amList = window.allAccountManagers || [];
+    const foundAm = amList.find(a => String(a.id || a.employee_id).toUpperCase() === String(amId).toUpperCase());
+    if (foundAm && foundAm.name) {
+        amName = foundAm.name;
+    }
+    // Look up in team list
+    if (!amName) {
+        const team = window.allTeamEmployees || window.employeesList || [];
+        const foundEmp = team.find(e => String(e.employee_id || e.id).toUpperCase() === String(amId).toUpperCase());
+        if (foundEmp && foundEmp.name) {
+            amName = foundEmp.name;
+        }
+    }
+    // Fallback based on known IDs
+    if (!amName) {
+        if (amId === 'EMP-0652-9532') amName = 'حبيبه احمد محمد';
+        else if (amId === 'EMP-5887-5256') amName = 'آيه أحمد مجاهد';
+        else if (amId === 'AM-2072-9827') amName = 'محمود خالد';
+        else amName = amId;
     }
 
     try {
@@ -327,8 +381,7 @@ function openEditClient(id) {
         if (pkgInput) pkgInput.value = c.package || 'Business VIP';
         if (amidSelect) {
             amidSelect.innerHTML = renderAmOptions(c.am_employee_id, c.am_name);
-            const isAya = (c.am_employee_id === 'EMP-5887-5256' || (c.am_name && (c.am_name.includes('آيه') || c.am_name.includes('ايه') || c.am_name.includes('مجاهد'))));
-            amidSelect.value = c.am_employee_id || (isAya ? 'EMP-5887-5256' : 'AM-2072-9827');
+            amidSelect.value = c.am_employee_id || '';
         }
         editModal.classList.remove('hidden');
         editModal.classList.add('flex');
