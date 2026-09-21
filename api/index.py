@@ -12342,9 +12342,10 @@ def api_tasks_update_status(task_id):
     if not target_task:
         return jsonify({"error": "المهمة غير موجودة"}), 404
         
-    my_eid = _my_employee_id()
-    is_assigned = bool(my_eid and str(target_task.get("assigned_employee_id")) == my_eid)
-    if not (is_manager() or can_see_client(cid) or is_assigned):
+    my_eid = str(_my_employee_id() or "").strip().lower()
+    is_assigned = bool(my_eid and (str(target_task.get("assigned_employee_id") or "").lower() == my_eid or str(target_task.get("secondary_employee_id") or "").lower() == my_eid))
+    is_mgr_for_client = is_manager() and can_see_client(cid)
+    if not (is_admin() or is_mgr_for_client or is_assigned):
         return jsonify({"error": "غير مصرح لك بتعديل هذه المهمة"}), 403
 
     data = request.get_json() or {}
@@ -12387,9 +12388,10 @@ def api_tasks_update_content(task_id):
     if not target_task:
         return jsonify({"error": "المهمة غير موجودة"}), 404
 
-    my_eid = _my_employee_id()
-    is_assigned = bool(my_eid and (str(target_task.get("assigned_employee_id")) == my_eid or str(target_task.get("secondary_employee_id")) == my_eid))
-    can_edit_content = is_admin() or is_manager() or is_content_creator() or is_assigned or can_see_client(cid) or (session.get("role") in ("content_creator", "content", "admin", "account_manager"))
+    my_eid = str(_my_employee_id() or "").strip().lower()
+    is_assigned = bool(my_eid and (str(target_task.get("assigned_employee_id") or "").lower() == my_eid or str(target_task.get("secondary_employee_id") or "").lower() == my_eid))
+    is_mgr_for_client = is_manager() and can_see_client(cid)
+    can_edit_content = is_admin() or is_content_creator() or is_mgr_for_client or is_assigned
     if not can_edit_content:
         return jsonify({"error": "غير مصرح لك بتعديل محتوى ونصوص هذه المهمة"}), 403
 
@@ -12477,6 +12479,13 @@ def api_tasks_update_content(task_id):
 @require_manager
 def api_tasks_delete(task_id):
     all_tasks = _all_tasks_db()
+    target_task = next((x for x in all_tasks if str(x.get("task_id") or x.get("id")) == str(task_id)), None)
+    if not target_task:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+    t_cid = str(target_task.get("client_id") or "")
+    if not is_admin() and not can_see_client(t_cid):
+        return jsonify({"error": "غير مصرح لك بحذف هذه المهمة"}), 403
+
     remaining = [x for x in all_tasks if str(x.get("task_id") or x.get("id")) != str(task_id)]
     cache["tasks"] = remaining
     invalidate_tasks_cache()
@@ -12516,6 +12525,8 @@ def api_plans_delete():
     target_norm = _norm_plan_str(raw_plan_name)
     clean_norm = _norm_plan_str(clean_name) if clean_name else ""
     client_id = str(data.get("client_id") or "").strip()
+    if client_id and not is_admin() and not can_see_client(client_id):
+        return jsonify({"error": "غير مصرح لك بحذف هذه الخطة"}), 403
 
     all_tasks = _all_tasks_db()
     remaining = []
@@ -12524,11 +12535,15 @@ def api_plans_delete():
     for t in all_tasks:
         if not isinstance(t, dict):
             continue
+        t_cid = str(t.get("client_id") or "").strip()
+        if not is_admin() and not can_see_client(t_cid):
+            remaining.append(t)
+            continue
         p = str(t.get("plan_name") or t.get("file_name") or "").strip()
         p_norm = _norm_plan_str(p)
         is_match = (p == raw_plan_name or p_norm == target_norm or (clean_name and p == clean_name) or (clean_norm and p_norm == clean_norm))
         if client_id:
-            is_match = is_match and str(t.get("client_id") or "").strip() == client_id
+            is_match = is_match and t_cid == client_id
             
         if is_match:
             deleted_tasks.append(t)
@@ -12575,6 +12590,8 @@ def api_plans_archive():
     target_norm = _norm_plan_str(raw_plan_name)
     clean_norm = _norm_plan_str(clean_name) if clean_name else ""
     client_id = str(data.get("client_id") or "").strip()
+    if client_id and not is_admin() and not can_see_client(client_id):
+        return jsonify({"error": "غير مصرح لك بأرشفة هذه الخطة"}), 403
 
     all_tasks = _all_tasks_db()
     archived_tasks = []
@@ -12584,11 +12601,15 @@ def api_plans_archive():
     for t in all_tasks:
         if not isinstance(t, dict):
             continue
+        t_cid = str(t.get("client_id") or "").strip()
+        if not is_admin() and not can_see_client(t_cid):
+            updated_all.append(t)
+            continue
         p = str(t.get("plan_name") or t.get("file_name") or "").strip()
         p_norm = _norm_plan_str(p)
         is_match = (p == raw_plan_name or p_norm == target_norm or (clean_name and p == clean_name) or (clean_norm and p_norm == clean_norm))
         if client_id:
-            is_match = is_match and str(t.get("client_id") or "").strip() == client_id
+            is_match = is_match and t_cid == client_id
 
         if is_match:
             t["is_archived"] = True
@@ -12879,6 +12900,8 @@ def api_tasks_clear():
     cache["tasks"] = [t for t in all_tasks if (t.get("client_id") or _cid) != _cid]
     push_setting("meta_ai_tasks", cache["tasks"])
     invalidate_tasks_cache()
+    return jsonify({"success": True, "removed": removed})
+
 def _is_fake_demo_employee(eid="", nm="", role=""):
     s = f"{eid} {nm} {role}".lower()
     fake_exact = [
@@ -12943,6 +12966,9 @@ def api_tasks_monthly_report():
 
     tasks = _all_tasks_db()
     for t in tasks:
+        t_cid = str(t.get("client_id") or "").strip()
+        if not is_admin() and not can_see_client(t_cid):
+            continue
         # If month_str is specified, filter tasks belonging to this month
         if month_str and month_str != "all":
             task_dates = [
@@ -14303,6 +14329,10 @@ def api_get_task_details(task_id):
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
+    my_eid = str(_my_employee_id() or "").strip().lower()
+    is_assigned = bool(my_eid and (str(t.get("assigned_employee_id") or "").lower() == my_eid or str(t.get("secondary_employee_id") or "").lower() == my_eid))
+    if not (is_admin() or is_content_creator() or (is_manager() and can_see_client(cid)) or is_assigned):
+        return jsonify({"error": "غير مصرح لك بالاطلاع على تفاصيل هذه المهمة"}), 403
     client_name = _client_name(cid)
     return jsonify({"ok": True, "task": t, "client_id": cid, "client_name": client_name})
 
