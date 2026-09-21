@@ -3894,7 +3894,7 @@ def assigned_client_ids():
     """Client ids the current user is allowed to see.
     - Admins: see ALL clients.
     - Content Creators: see ALL clients for content writing.
-    - Account Managers: see their assigned clients (or all clients if none assigned yet).
+    - Account Managers: see ONLY their assigned clients.
     - Plain Employees: see ONLY their assigned clients.
     """
     if is_admin() or is_content_creator():
@@ -3902,7 +3902,7 @@ def assigned_client_ids():
     
     user_rec = current_user_rec() or {}
     assigned = [str(x) for x in (user_rec.get("assigned_clients") or [])]
-    my_eid = _my_employee_id()
+    my_eid = str(_my_employee_id() or "").strip()
     my_name = (user_rec.get("name") or current_username() or "").strip()
     my_name_norm = _norm_ar_str(my_name)
     
@@ -3913,8 +3913,8 @@ def assigned_client_ids():
         c_am_id = str(c.get("am_id") or c.get("account_manager_id") or c.get("am_employee_id") or "").strip()
         c_am_name = str(c.get("am_name") or c.get("account_manager") or "").strip()
         c_am_name_norm = _norm_ar_str(c_am_name)
-        if (my_eid and c_am_id and (c_am_id.lower() == my_eid.lower() or my_eid.lower() in c_am_id.lower())) or \
-           (my_name_norm and c_am_name_norm and (c_am_name_norm == my_name_norm or my_name_norm in c_am_name_norm or c_am_name_norm in my_name_norm)):
+        if (my_eid and c_am_id and (c_am_id.lower() == my_eid.lower())) or \
+           (my_name_norm and c_am_name_norm and (c_am_name_norm == my_name_norm)):
             assigned.append(cid)
             
     # Also check task database for any clients where this Account Manager is tagged (unless client has another AM assigned)
@@ -3930,18 +3930,15 @@ def assigned_client_ids():
                 c_am_id = str(client_rec.get("am_id") or client_rec.get("account_manager_id") or client_rec.get("am_employee_id") or "").strip()
                 c_am_name = str(client_rec.get("am_name") or client_rec.get("account_manager") or "").strip()
                 c_am_name_norm = _norm_ar_str(c_am_name)
+                # If client belongs to another AM, do not inherit
                 if (c_am_id and my_eid and c_am_id.lower() != my_eid.lower()) or (c_am_name_norm and my_name_norm and c_am_name_norm != my_name_norm):
                     continue
             t_amid = str(t.get("am_id") or "").strip()
             t_amname = str(t.get("am_name") or "").strip()
             t_amname_norm = _norm_ar_str(t_amname)
-            if (my_eid and t_amid and (t_amid.lower() == my_eid.lower() or my_eid.lower() in t_amid.lower())) or \
-               (my_name_norm and t_amname_norm and (t_amname_norm == my_name_norm or my_name_norm in t_amname_norm or t_amname_norm in my_name_norm)):
+            if (my_eid and t_amid and t_amid.lower() == my_eid.lower()) or \
+               (my_name_norm and t_amname_norm and t_amname_norm == my_name_norm):
                 assigned.append(t_cid)
-                
-    # If Account Manager has no specifically assigned clients yet, show all active clients
-    if (is_manager() or current_role() == "account_manager") and not assigned:
-        return [str(c.get("id") or c.get("client_id")) for c in AGENCY_CLIENTS_STORE if (c.get("id") or c.get("client_id"))]
 
     return assigned
 
@@ -5191,6 +5188,9 @@ def api_clients_add():
     elif raw_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in raw_amname:
         init_amid = "AM-2072-9827"
         init_amname = "محمود خالد"
+    elif raw_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in raw_amname or "حبيبة" in raw_amname:
+        init_amid = "EMP-0652-9532"
+        init_amname = "حبيبه احمد محمد"
     elif raw_amid:
         init_amid = raw_amid
         init_amname = raw_amname or raw_amid
@@ -5201,7 +5201,7 @@ def api_clients_add():
         my_eid = _my_employee_id()
         if my_eid:
             init_amid = my_eid
-            init_amname = current_user_rec().get("name") or "محمود خالد"
+            init_amname = current_user_rec().get("name") or "حبيبه احمد محمد"
 
     new_client = {
         "id": cid,
@@ -5467,6 +5467,8 @@ def api_clients_switch():
     if not client or not client.get("is_active", True):
         return jsonify({"error": "العميل غير موجود أو مؤرشف"}), 404
     actual_cid = str(client.get("id") or cid)
+    if not is_admin() and not can_see_client(actual_cid):
+        return jsonify({"error": "غير مصرح لك بالوصول لهذا العميل"}), 403
     session["active_client_id"] = actual_cid
     session.modified = True
     return jsonify({"ok": True, "active_client_id": actual_cid, "active_client_name": client.get("name")})
@@ -8657,22 +8659,39 @@ def api_tasks():
             raw_tasks = _all_tasks_db()
     elif is_manager():
         if req_cid and req_cid != "all":
-            raw_tasks = get_client_tasks(req_cid)
+            if not is_admin() and not can_see_client(req_cid):
+                raw_tasks = []
+            else:
+                raw_tasks = get_client_tasks(req_cid)
         else:
             all_db = _all_tasks_db()
-            my_cids = assigned_client_ids()
-            my_eid = _my_employee_id()
-            my_name = (current_user_rec().get("name") or current_username()).strip().lower()
-            if my_cids:
-                raw_tasks = [
-                    t for t in all_db
-                    if (t.get("client_id") in my_cids) or
-                       (my_eid and str(t.get("am_id") or "") == my_eid) or
-                       (my_name and str(t.get("am_name") or "").strip().lower() == my_name) or
-                       (my_eid in ("AM-2072-9827", "EMP-2072-9827") and (not t.get("am_id") or t.get("am_id") in ("AM-2072-9827", "EMP-001", "EMP-001-AM", "AM-001", "unassigned")))
-                ]
-            else:
-                raw_tasks = all_db
+            my_cids = set(assigned_client_ids())
+            my_eid = str(_my_employee_id() or "").strip().lower()
+            my_name = (current_user_rec().get("name") or current_username() or "").strip()
+            my_name_norm = _norm_ar_str(my_name)
+
+            raw_tasks = []
+            for t in all_db:
+                if not isinstance(t, dict):
+                    continue
+                t_cid = str(t.get("client_id") or "")
+                t_amid = str(t.get("am_id") or "").strip().lower()
+                t_amname = str(t.get("am_name") or "").strip()
+                t_amname_norm = _norm_ar_str(t_amname)
+
+                # Explicitly prevent showing tasks assigned to another Account Manager
+                if my_eid and t_amid and t_amid != my_eid:
+                    continue
+                if my_name_norm and t_amname_norm and t_amname_norm != my_name_norm:
+                    continue
+
+                if (t_cid and t_cid in my_cids) or \
+                   (my_eid and t_amid == my_eid) or \
+                   (my_name_norm and t_amname_norm == my_name_norm):
+                    raw_tasks.append(t)
+                elif my_eid in ("am-2072-9827", "emp-2072-9827") and t_cid in my_cids:
+                    if not t_amid or t_amid in ("am-2072-9827", "emp-2072-9827", "emp-001", "emp-001-am", "am-001", "unassigned"):
+                        raw_tasks.append(t)
     elif is_content_creator():
         if req_cid and req_cid != "all":
             raw_tasks = get_client_tasks(req_cid)
