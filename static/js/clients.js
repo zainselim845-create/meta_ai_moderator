@@ -102,8 +102,7 @@ function renderClientsGrid() {
                             <i data-lucide="user-check" class="w-3.5 h-3.5 text-indigo-600 inline"></i> الأكونت مانيجر (AM):
                         </strong>
                         <select onchange="updateClientAM('${esc(c.id)}', this.value)" title="تغيير مدير الحسابات المسؤول عن هذا العميل" class="text-xs font-black text-indigo-900 bg-white hover:bg-indigo-100/60 border border-indigo-300 rounded-lg px-2.5 py-1 shadow-2xs focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer transition">
-                            <option value="AM-2072-9827" ${(c.am_employee_id === 'AM-2072-9827' || (!c.am_employee_id && c.am_name === 'محمود خالد')) ? 'selected' : ''}>محمود خالد</option>
-                            <option value="EMP-5887-5256" ${(c.am_employee_id === 'EMP-5887-5256' || (c.am_name && (c.am_name.includes('آيه') || c.am_name.includes('ايه') || c.am_name.includes('مجاهد')))) ? 'selected' : ''}>آيه أحمد مجاهد</option>
+                            ${renderAmOptions(c.am_employee_id, c.am_name)}
                         </select>
                     </div>
                     <div><strong>الباقة:</strong> <span class="font-semibold text-slate-800">${esc(c.package || 'Business Pro')}</span></div>
@@ -248,22 +247,55 @@ async function switchClient(clientId) {
     }
 }
 
+function renderAmOptions(selectedAmId, selectedAmName) {
+    const baseAms = [
+        { id: 'AM-2072-9827', name: 'محمود خالد' },
+        { id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد' }
+    ];
+    const team = window.allTeamEmployees || window.employeesList || [];
+    team.forEach(e => {
+        const r = (e.role || '').toLowerCase();
+        const eid = e.employee_id || e.id;
+        if (eid && (/account|أكونت|حسابات/i.test(r) || String(eid).startsWith('AM-'))) {
+            if (!baseAms.some(b => b.id === eid)) {
+                baseAms.push({ id: eid, name: e.name });
+            }
+        }
+    });
+    if (selectedAmId && !baseAms.some(b => b.id === selectedAmId)) {
+        baseAms.push({ id: selectedAmId, name: selectedAmName || selectedAmId });
+    }
+    return baseAms.map(am => {
+        const isSel = (am.id === selectedAmId) || (!selectedAmId && selectedAmName && am.name.includes(selectedAmName));
+        return `<option value="${esc(am.id)}" ${isSel ? 'selected' : ''}>${esc(am.name)}</option>`;
+    }).join('');
+}
+window.renderAmOptions = renderAmOptions;
+
 async function updateClientAM(clientId, amId) {
-    const amName = (amId === 'EMP-5887-5256') ? 'آيه أحمد مجاهد' : 'محمود خالد';
+    const client = agencyClients.find(c => c.id === clientId) || {};
+    let amName = (amId === 'EMP-5887-5256') ? 'آيه أحمد مجاهد' : 'محمود خالد';
+    const team = window.allTeamEmployees || window.employeesList || [];
+    const foundEmp = team.find(e => (e.employee_id || e.id) === amId);
+    if (foundEmp && foundEmp.name) {
+        amName = foundEmp.name;
+    }
+
     try {
-        const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}`, {
+        const d = await safeFetchJson(`/api/clients/${encodeURIComponent(clientId)}`, {
             method: 'PUT',
-            credentials: 'same-origin',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 id: clientId,
                 client_id: clientId,
+                name: client.name || '',
+                company: client.company || client.name || '',
+                package: client.package || 'Business VIP',
                 am_employee_id: amId,
                 am_name: amName
             })
         });
-        const d = await res.json();
-        if (!res.ok || !d.ok) {
+        if (!d || (!d.ok && d.error)) {
             showToast((d && d.error) || 'فشل تحديث مدير الحسابات', 'error');
             return;
         }
@@ -294,8 +326,9 @@ function openEditClient(id) {
         if (compInput) compInput.value = c.company || '';
         if (pkgInput) pkgInput.value = c.package || 'Business VIP';
         if (amidSelect) {
+            amidSelect.innerHTML = renderAmOptions(c.am_employee_id, c.am_name);
             const isAya = (c.am_employee_id === 'EMP-5887-5256' || (c.am_name && (c.am_name.includes('آيه') || c.am_name.includes('ايه') || c.am_name.includes('مجاهد'))));
-            amidSelect.value = isAya ? 'EMP-5887-5256' : 'AM-2072-9827';
+            amidSelect.value = c.am_employee_id || (isAya ? 'EMP-5887-5256' : 'AM-2072-9827');
         }
         editModal.classList.remove('hidden');
         editModal.classList.add('flex');
@@ -307,11 +340,11 @@ function openEditClient(id) {
     const name = prompt('اسم العميل:', c.name || '');
     if (name === null) return;
     const company = prompt('الشركة / النشاط:', c.company || '') || '';
-    fetch('/api/clients/' + encodeURIComponent(id), {
-        method: 'PUT', credentials: 'same-origin',
+    safeFetchJson('/api/clients/' + encodeURIComponent(id), {
+        method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({id: id, client_id: id, name: (name.trim() || c.name), company})
-    }).then(r => r.json()).then(d => {
+    }).then(d => {
         if (d && d.ok) { showToast('تم تحديث العميل'); loadClients(); }
         else showToast((d && d.error) || 'فشل التحديث', 'error');
     }).catch(() => showToast('خطأ في التحديث', 'error'));
@@ -332,7 +365,12 @@ async function submitClientEdit(e) {
     const company = ((document.getElementById('edit-client-company') || {}).value || '').trim();
     const packageVal = ((document.getElementById('edit-client-package') || {}).value || '').trim();
     const amId = ((document.getElementById('edit-client-amid') || {}).value || '').trim();
-    const amName = (amId === 'EMP-5887-5256') ? 'آيه أحمد مجاهد' : 'محمود خالد';
+    let amName = (amId === 'EMP-5887-5256') ? 'آيه أحمد مجاهد' : 'محمود خالد';
+    const team = window.allTeamEmployees || window.employeesList || [];
+    const foundEmp = team.find(e => (e.employee_id || e.id) === amId);
+    if (foundEmp && foundEmp.name) {
+        amName = foundEmp.name;
+    }
 
     if (!id || !name) {
         showToast('يرجى كتابة اسم العميل', 'error');
@@ -340,9 +378,8 @@ async function submitClientEdit(e) {
     }
 
     try {
-        const res = await fetch(`/api/clients/${encodeURIComponent(id)}`, {
+        const d = await safeFetchJson(`/api/clients/${encodeURIComponent(id)}`, {
             method: 'PUT',
-            credentials: 'same-origin',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 id: id,
@@ -354,8 +391,7 @@ async function submitClientEdit(e) {
                 am_name: amName
             })
         });
-        const d = await res.json();
-        if (!res.ok || !d.ok) {
+        if (!d || (!d.ok && d.error)) {
             showToast((d && d.error) || 'فشل تحديث بيانات العميل', 'error');
             return;
         }

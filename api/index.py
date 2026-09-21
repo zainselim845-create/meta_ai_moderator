@@ -4999,26 +4999,39 @@ def api_clients_get():
             continue
         c_amid = str(c.get("am_employee_id") or c.get("am_id") or "").strip()
         c_amname = str(c.get("am_name") or c.get("account_manager") or "").strip()
-        if "domya" in str(c.get("name","")).lower() or "domya" in str(c.get("id","")).lower():
-            c["am_name"] = "آيه أحمد مجاهد"
-            c["am_employee_id"] = "EMP-5887-5256"
-        elif not c_amname:
-            if c_amid in ("AM-2072-9827", "EMP-2072-9827"):
-                c["am_name"] = "محمود خالد"
+        if c_amid or c_amname:
+            # Respect already assigned AM without overriding
+            if c_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in c_amname:
                 c["am_employee_id"] = "AM-2072-9827"
-            elif c_amid in ("EMP-5887-5256", "AM-5887-5256"):
+                c["am_name"] = "محمود خالد"
+            elif c_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in c_amname or "ايه" in c_amname:
+                c["am_employee_id"] = "EMP-5887-5256"
+                c["am_name"] = "آيه أحمد مجاهد"
+            else:
+                c["am_employee_id"] = c_amid or c_amname
+                c["am_name"] = c_amname or c_amid
+        else:
+            # Fallback ONLY when NO AM is assigned at all
+            cid = str(c.get("id") or "")
+            c_task = next((t for t in all_tasks if str(t.get("client_id") or "") == cid and (t.get("am_name") or t.get("am_id"))), None)
+            if c_task and (c_task.get("am_name") or c_task.get("am_id")):
+                c_task_amid = str(c_task.get("am_id") or "").strip()
+                c_task_amname = str(c_task.get("am_name") or "").strip()
+                if c_task_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in c_task_amname or "ايه" in c_task_amname:
+                    c["am_employee_id"] = "EMP-5887-5256"
+                    c["am_name"] = "آيه أحمد مجاهد"
+                elif c_task_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in c_task_amname:
+                    c["am_employee_id"] = "AM-2072-9827"
+                    c["am_name"] = "محمود خالد"
+                else:
+                    c["am_employee_id"] = c_task_amid or c_task_amname
+                    c["am_name"] = c_task_amname or c_task_amid
+            elif "domya" in str(c.get("name","")).lower() or "domya" in str(c.get("id","")).lower():
                 c["am_name"] = "آيه أحمد مجاهد"
                 c["am_employee_id"] = "EMP-5887-5256"
             else:
-                # Find from tasks if any task exists for this client
-                cid = str(c.get("id") or "")
-                c_task = next((t for t in all_tasks if str(t.get("client_id") or "") == cid and t.get("am_name")), None)
-                if c_task:
-                    c["am_name"] = c_task.get("am_name")
-                    c["am_employee_id"] = c_task.get("am_id") or c_amid or "AM-2072-9827"
-                else:
-                    c["am_name"] = "محمود خالد"
-                    c["am_employee_id"] = c_amid or "AM-2072-9827"
+                c["am_name"] = "محمود خالد"
+                c["am_employee_id"] = "AM-2072-9827"
 
         # Drive folder & Plan file links
         cid = str(c.get("id") or "")
@@ -5101,6 +5114,12 @@ def api_clients_add():
     elif raw_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in raw_amname:
         init_amid = "AM-2072-9827"
         init_amname = "محمود خالد"
+    elif raw_amid:
+        init_amid = raw_amid
+        init_amname = raw_amname or raw_amid
+    elif raw_amname:
+        init_amname = raw_amname
+        init_amid = raw_amid or raw_amname
     elif current_role() == "account_manager":
         my_eid = _my_employee_id()
         if my_eid:
@@ -5249,15 +5268,20 @@ def api_clients_update(cid):
         elif raw_amid:
             new_am_id = raw_amid
             new_am_name = raw_amname or raw_amid
+        elif raw_amname:
+            new_am_name = raw_amname
+            new_am_id = raw_amid or raw_amname
 
-        if new_am_id:
+        if new_am_id or new_am_name:
             old_amid = str(client.get("am_employee_id") or "")
-            if old_amid != new_am_id:
+            old_amname = str(client.get("am_name") or "")
+            if old_amid != new_am_id or old_amname != new_am_name:
                 client["am_employee_id"] = new_am_id
                 client["am_name"] = new_am_name
                 am_changed = True
 
     push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
+    cache["clients"] = AGENCY_CLIENTS_STORE
 
     # If AM changed, update all existing tasks for this client to the new AM
     if am_changed and new_am_id:
@@ -6731,12 +6755,42 @@ def _sanitize_task_record(d):
     cid = str(d.get("client_id") or "").strip()
     am_id = str(d.get("am_id") or "").strip()
     am_name = str(d.get("am_name") or "").strip()
-    if "domya" in cid.lower() or "domya" in str(d.get("client_name","")).lower() or cid == "client_100821894800009":
-        d["am_id"] = "EMP-5887-5256"
-        d["am_name"] = "آيه أحمد مجاهد"
-    elif not am_id or am_id in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned"] or "EMP-001" in am_name:
-        d["am_id"] = "AM-2072-9827"
-        d["am_name"] = "محمود خالد"
+
+    # If task already has a genuine AM assigned, preserve it and normalize
+    if am_id and am_id not in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned"]:
+        if am_id in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in am_name or "ايه" in am_name:
+            d["am_id"] = "EMP-5887-5256"
+            d["am_name"] = "آيه أحمد مجاهد"
+        elif am_id in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in am_name:
+            d["am_id"] = "AM-2072-9827"
+            d["am_name"] = "محمود خالد"
+        else:
+            d["am_id"] = am_id
+            d["am_name"] = am_name or am_id
+    elif am_name and "EMP-001" not in am_name:
+        if "آيه" in am_name or "ايه" in am_name:
+            d["am_id"] = "EMP-5887-5256"
+            d["am_name"] = "آيه أحمد مجاهد"
+        elif "محمود" in am_name:
+            d["am_id"] = "AM-2072-9827"
+            d["am_name"] = "محمود خالد"
+        else:
+            d["am_name"] = am_name
+            d["am_id"] = am_id or am_name
+    else:
+        # Fallback: Inherit from client record if available
+        matched_client = next((c for c in AGENCY_CLIENTS_STORE if isinstance(c, dict) and str(c.get("id") or "") == cid), None)
+        c_amid = str((matched_client or {}).get("am_employee_id") or (matched_client or {}).get("am_id") or "").strip()
+        c_amname = str((matched_client or {}).get("am_name") or "").strip()
+        if c_amid or c_amname:
+            d["am_id"] = c_amid or c_amname
+            d["am_name"] = c_amname or c_amid
+        elif "domya" in cid.lower() or "domya" in str(d.get("client_name","")).lower() or cid == "client_100821894800009":
+            d["am_id"] = "EMP-5887-5256"
+            d["am_name"] = "آيه أحمد مجاهد"
+        else:
+            d["am_id"] = "AM-2072-9827"
+            d["am_name"] = "محمود خالد"
         
     cid = str(d.get("client_id") or "").strip()
     cname = str(d.get("client_name") or "").strip()

@@ -659,6 +659,10 @@ function openAddAccountModal() {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
     }
+    const amSelect = document.getElementById('acc-am-id');
+    if (amSelect && typeof window.renderAmOptions === 'function') {
+        amSelect.innerHTML = window.renderAmOptions(amSelect.value || '');
+    }
 }
 
 // Create the client (from the name field) then start Facebook OAuth to discover ALL pages
@@ -731,14 +735,21 @@ async function saveDirectAccount(e) {
     
     if (!name) { showToast('يرجى إدخال اسم العميل أولاً', 'error'); return; }
     
+    const amSelect = document.getElementById('acc-am-id');
+    const amName = (amSelect && amSelect.selectedOptions && amSelect.selectedOptions[0]) ? amSelect.selectedOptions[0].textContent.replace(/^[^\w\u0600-\u06FF]+/, '').split('—')[0].trim() : '';
+    const userAuthToken = localStorage.getItem('domya_token') || sessionStorage.getItem('domya_token') || '';
+    const authHeaders = userAuthToken ? {'Authorization': 'Bearer ' + userAuthToken, 'X-Domya-Token': userAuthToken} : {};
+
     try {
         const res = await fetch('/api/clients', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', ...authHeaders},
+            credentials: 'same-origin',
             body: JSON.stringify({
                 name: name,
                 company: company.trim() || name,
                 am_employee_id: amId,
+                am_name: amName,
                 page_id: pageId.trim(),
                 ig_id: igId.trim(),
                 access_token: token.trim()
@@ -2890,14 +2901,32 @@ function renderTasksBoard() {
             }
         }
 
-        // Ensure AM is strictly normalized across all loaded tasks
+        // Ensure AM is strictly normalized across all loaded tasks without overriding explicitly assigned AMs
         allTasks.forEach(function(t) {
+            var amId = (t.am_id || '').trim();
+            var amName = (t.am_name || '').trim();
             var cid = String(t.client_id || '').toLowerCase();
             var cname = String(t.client_name || '').toLowerCase();
-            if (cid.includes('domya') || cname.includes('domya') || cid === 'client_100821894800009') {
+            if (amId && amId !== 'EMP-001' && amId !== 'EMP-001-AM' && amId !== 'AM-001' && amId !== 'system' && amId !== 'unassigned') {
+                if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه')) {
+                    t.am_id = 'EMP-5887-5256';
+                    t.am_name = 'آيه أحمد مجاهد';
+                } else if (amId === 'AM-2072-9827' || amId === 'EMP-2072-9827' || amName.includes('محمود')) {
+                    t.am_id = 'AM-2072-9827';
+                    t.am_name = 'محمود خالد';
+                }
+            } else if (amName && !amName.includes('EMP-001')) {
+                if (amName.includes('آيه') || amName.includes('ايه')) {
+                    t.am_id = 'EMP-5887-5256';
+                    t.am_name = 'آيه أحمد مجاهد';
+                } else if (amName.includes('محمود')) {
+                    t.am_id = 'AM-2072-9827';
+                    t.am_name = 'محمود خالد';
+                }
+            } else if (cid.includes('domya') || cname.includes('domya') || cid === 'client_100821894800009') {
                 t.am_id = 'EMP-5887-5256';
                 t.am_name = 'آيه أحمد مجاهد';
-            } else if (!t.am_id || t.am_id === 'EMP-001' || t.am_id === 'EMP-001-AM' || t.am_id === 'AM-001' || t.am_id === 'system' || t.am_id === 'unassigned') {
+            } else {
                 t.am_id = 'AM-2072-9827';
                 t.am_name = 'محمود خالد';
             }
@@ -2991,12 +3020,32 @@ function renderTasksBoard() {
             var amName = (t.am_name || '').trim();
             var cid = String(t.client_id || '').toLowerCase();
             var cname = String(t.client_name || '').toLowerCase();
-            if (cid.includes('domya') || cname.includes('domya') || cid === 'client_100821894800009') {
+            if (amId && amId !== 'EMP-001' && amId !== 'EMP-001-AM' && amId !== 'AM-001' && amId !== 'system' && amId !== 'unassigned') {
+                if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه')) {
+                    amId = 'EMP-5887-5256';
+                    amName = 'آيه أحمد مجاهد';
+                } else if (amId === 'AM-2072-9827' || amId === 'EMP-2072-9827' || amName.includes('محمود')) {
+                    amId = 'AM-2072-9827';
+                    amName = 'محمود خالد';
+                }
+                t.am_id = amId;
+                t.am_name = amName;
+            } else if (amName && !amName.includes('EMP-001')) {
+                if (amName.includes('آيه') || amName.includes('ايه')) {
+                    amId = 'EMP-5887-5256';
+                    amName = 'آيه أحمد مجاهد';
+                } else if (amName.includes('محمود')) {
+                    amId = 'AM-2072-9827';
+                    amName = 'محمود خالد';
+                }
+                t.am_id = amId;
+                t.am_name = amName;
+            } else if (cid.includes('domya') || cname.includes('domya') || cid === 'client_100821894800009') {
                 amId = 'EMP-5887-5256';
                 amName = 'آيه أحمد مجاهد';
                 t.am_id = amId;
                 t.am_name = amName;
-            } else if (!amId || amId === 'EMP-001' || amId === 'EMP-001-AM' || amId === 'AM-001' || amId === 'system' || amId === 'unassigned') {
+            } else {
                 amId = 'AM-2072-9827';
                 amName = 'محمود خالد';
                 t.am_id = amId;
