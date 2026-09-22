@@ -981,7 +981,7 @@ async function renderEmployeesStatus() {
         }
 
         var working = ((inprog[eid] || inprog[enm] || 0) > 0) || activeTasks.some(function(t){ return t.status === 'In Progress'; });
-        var isSelected = (selectedEmployeeFilter === eid || (selectedEmployeeName && selectedEmployeeName === enm));
+        var isSelected = (selectedEmployeeFilter && eid && selectedEmployeeFilter.toLowerCase() === eid.toLowerCase());
         var dot = n === 0 ? 'bg-emerald-500' : (working ? 'bg-amber-500 animate-pulse' : 'bg-blue-500');
         var label = n === 0 ? 'متاح' : (n + ' مهمة' + (working ? ' · شغّال ' : ''));
         var bgClass = isSelected ? 'bg-blue-50/90 border-blue-300 ring-2 ring-blue-500/20 shadow-xs' : 'bg-white hover:bg-slate-50 border-slate-200/80';
@@ -1040,8 +1040,8 @@ async function renderEmployeesStatus() {
 }
 
 function toggleEmployeeFilter(empId, empName) {
-    var key = String(empId || empName || '').trim();
-    if (selectedEmployeeFilter === key || (selectedEmployeeName && selectedEmployeeName === empName && selectedEmployeeFilter)) {
+    var key = String(empId || '').trim();
+    if (selectedEmployeeFilter && selectedEmployeeFilter.toLowerCase() === key.toLowerCase()) {
         selectedEmployeeFilter = null;
         selectedEmployeeName = '';
     } else {
@@ -1056,8 +1056,7 @@ function toggleEmployeeFilter(empId, empName) {
                 var eid = String(t.assigned_employee_id || '').trim().toLowerCase();
                 var secEid = String(t.secondary_employee_id || '').trim().toLowerCase();
                 var target = key.toLowerCase();
-                var matchEmp = (eid === target || secEid === target || (empName && t.assignee_name && String(t.assignee_name).includes(empName)));
-                return matchClient && matchEmp;
+                return matchClient && (eid === target || secEid === target);
             });
             if (!hasInCurClient) {
                 window.activeClientId = 'all';
@@ -2988,11 +2987,7 @@ function renderTasksBoard() {
                     return !eid && !secEid;
                 }
                 // STRICT ID-BASED MATCHING (Separation strictly by employee_id)
-                if (eid || secEid) {
-                    return eid === target || secEid === target;
-                }
-                var aname = String(t.assignee_name || '').trim();
-                return selectedEmployeeName && aname === String(selectedEmployeeName).trim();
+                return eid === target || secEid === target;
             });
         }
 
@@ -3025,30 +3020,59 @@ function renderTasksBoard() {
         // 3. Search Filter
         if (taskSearchQuery) {
             var q = taskSearchQuery.trim().toLowerCase();
-            var isEmpQuery = (q === 'عمر' || q === 'عمر احمد' || q === 'عمر أحمد' || q === 'emp-8148' ||
-                              q === 'فرح' || q === 'ندى' || q === 'راما' || q === 'منة' || q === 'ليالي' ||
-                              q === 'هدير' || q === 'ولاء' || q === 'عبدالرحمن' || q === 'عربي' || q === 'emp-7189-7780');
+            // Map common employee names/queries directly to their canonical employee_id
+            var empQueryMap = {
+                'عمر': 'emp-8148',
+                'عمر احمد': 'emp-8148',
+                'عمر أحمد': 'emp-8148',
+                'عمر احمد عبدالرحمن': 'emp-8148',
+                'عمر أحمد عبدالرحمن': 'emp-8148',
+                'emp-8148': 'emp-8148',
+                'عبدالرحمن': 'emp-7189-7780',
+                'عبد الرحمن': 'emp-7189-7780',
+                'عربي': 'emp-7189-7780',
+                'عبدالرحمن عربي': 'emp-7189-7780',
+                'عبدالرحمن محمد عربي': 'emp-7189-7780',
+                'emp-7189-7780': 'emp-7189-7780',
+                'فرح': 'emp-8143',
+                'farah': 'emp-8143',
+                'emp-8143': 'emp-8143',
+                'ندى': 'emp-8142',
+                'nada': 'emp-8142',
+                'emp-8142': 'emp-8142',
+                'راما': 'emp-8986-4947',
+                'rama': 'emp-8986-4947',
+                'emp-8986-4947': 'emp-8986-4947',
+                'منة': 'emp-7775-2303',
+                'menna': 'emp-7775-2303',
+                'emp-7775-2303': 'emp-7775-2303',
+                'ليالي': 'emp-3264-8790',
+                'layaly': 'emp-3264-8790',
+                'emp-3264-8790': 'emp-3264-8790',
+                'ولاء': 'emp-8069-7345',
+                'emp-8069-7345': 'emp-8069-7345',
+                'هدير': 'emp-2945-2364',
+                'emp-2945-2364': 'emp-2945-2364',
+                'محمود': 'am-2072-9827',
+                'am-2072-9827': 'am-2072-9827',
+                'اية': 'emp-5887-5256',
+                'آيه': 'emp-5887-5256',
+                'emp-5887-5256': 'emp-5887-5256',
+                'حبيبه': 'emp-0652-9532',
+                'حبيبة': 'emp-0652-9532',
+                'emp-0652-9532': 'emp-0652-9532'
+            };
+
+            var targetEid = empQueryMap[q] || (q.indexOf('emp-') === 0 || q.indexOf('am-') === 0 ? q : null);
 
             displayTasks = displayTasks.filter(function(t) {
                 var eid = String(t.assigned_employee_id || '').trim().toLowerCase();
                 var secEid = String(t.secondary_employee_id || '').trim().toLowerCase();
-                var aname = String(t.assignee_name || '').trim().toLowerCase();
-                var secName = String(t.secondary_assignee_name || '').trim().toLowerCase();
-                var crName = String(t.creator_name || t.content_creator_name || '').trim().toLowerCase();
                 var crId = String(t.creator_id || t.content_creator_id || '').trim().toLowerCase();
+                var amId = String(t.am_id || '').trim().toLowerCase();
 
-                if (isEmpQuery) {
-                    if (q === 'عمر' || q === 'عمر احمد' || q === 'عمر أحمد' || q === 'emp-8148') {
-                        return eid === 'emp-8148' || secEid === 'emp-8148' || aname.indexOf('عمر') !== -1 || secName.indexOf('عمر') !== -1;
-                    }
-                    if (q === 'عبدالرحمن' || q === 'عربي' || q === 'emp-7189-7780') {
-                        return eid === 'emp-7189-7780' || secEid === 'emp-7189-7780' || crId === 'emp-7189-7780' ||
-                               (aname.indexOf('عربي') !== -1 && aname.indexOf('عمر') === -1) ||
-                               (crName.indexOf('عربي') !== -1);
-                    }
-                    if (eid === q || secEid === q || crId === q || aname.indexOf(q) !== -1 || secName.indexOf(q) !== -1 || crName.indexOf(q) !== -1) {
-                        return true;
-                    }
+                if (targetEid) {
+                    return eid === targetEid || secEid === targetEid || crId === targetEid || amId === targetEid;
                 }
 
                 var hay = (String(t.task_id || '') + ' ' +
@@ -3196,13 +3220,13 @@ function renderTasksBoard() {
         allTasks.forEach(function(t) {
             var eid   = (t.assigned_employee_id || '').trim();
             var ename = _cleanEmployeeArabicName((t.assignee_name || '').trim(), eid);
-            if (!eid && !ename) {
+            if (!eid) {
                 unassignedCount++;
                 return;
             }
-            var k = eid || ename;
+            var k = eid;
             if (!execMap[k]) {
-                execMap[k] = { id: eid || ename, name: ename || eid, count: 0 };
+                execMap[k] = { id: eid, name: ename || eid, count: 0 };
             }
             execMap[k].count++;
         });
@@ -3226,7 +3250,7 @@ function renderTasksBoard() {
                     'الكل (' + countAll + ')' +
                 '</button>' +
                 executorsList.map(function(emp) {
-                    var isSel = (selectedEmployeeFilter === emp.id || (selectedEmployeeName && (selectedEmployeeName === emp.name || selectedEmployeeName === emp.id)));
+                    var isSel = (selectedEmployeeFilter && selectedEmployeeFilter.toLowerCase() === emp.id.toLowerCase());
                     var icon = '👤';
                     if (emp.name.includes('راما') || emp.name.includes('ندى') || emp.name.includes('منة')) icon = '🎨';
                     else if (emp.name.includes('فرح') || emp.name.includes('عمر')) icon = '🎬';
@@ -3596,11 +3620,7 @@ async function bulkApproveFilteredTasks() {
             var secEid = String(t.secondary_employee_id || '').trim().toLowerCase();
             var target = String(selectedEmployeeFilter).trim().toLowerCase();
             if (target === 'unassigned') return !eid && !secEid;
-            if (eid || secEid) {
-                return eid === target || secEid === target;
-            }
-            var aname = String(t.assignee_name || '').trim();
-            return selectedEmployeeName && aname === String(selectedEmployeeName).trim();
+            return eid === target || secEid === target;
         });
     }
 

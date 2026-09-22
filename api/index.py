@@ -12808,35 +12808,22 @@ def api_employees_workload():
 
         eids_to_record = []
         eid = str(t.get("assigned_employee_id") or "").strip()
-        aname = str(t.get("assignee_name") or "").strip()
-        if not eid and aname and aname in name_to_eid:
-            eid = name_to_eid[aname]
-        elif not eid and aname and aname.lower() in name_to_eid:
-            eid = name_to_eid[aname.lower()]
-        elif not eid and aname:
-            # check partial match
-            for r_name, r_eid in name_to_eid.items():
-                if aname in r_name or r_name in aname:
-                    eid = r_eid
-                    break
-        if not eid and aname:
-            eid = aname
+        if not eid:
+            aname = str(t.get("assignee_name") or "").strip()
+            if aname and aname in name_to_eid:
+                eid = name_to_eid[aname]
+            elif aname and aname.lower() in name_to_eid:
+                eid = name_to_eid[aname.lower()]
         if eid:
             eids_to_record.append(eid)
 
         sec_eid = str(t.get("secondary_employee_id") or "").strip()
-        sec_aname = str(t.get("secondary_assignee_name") or "").strip()
-        if not sec_eid and sec_aname and sec_aname in name_to_eid:
-            sec_eid = name_to_eid[sec_aname]
-        elif not sec_eid and sec_aname and sec_aname.lower() in name_to_eid:
-            sec_eid = name_to_eid[sec_aname.lower()]
-        elif not sec_eid and sec_aname:
-            for r_name, r_eid in name_to_eid.items():
-                if sec_aname in r_name or r_name in sec_aname:
-                    sec_eid = r_eid
-                    break
-        if not sec_eid and sec_aname:
-            sec_eid = sec_aname
+        if not sec_eid:
+            sec_aname = str(t.get("secondary_assignee_name") or "").strip()
+            if sec_aname and sec_aname in name_to_eid:
+                sec_eid = name_to_eid[sec_aname]
+            elif sec_aname and sec_aname.lower() in name_to_eid:
+                sec_eid = name_to_eid[sec_aname.lower()]
         if sec_eid and sec_eid != eid:
             eids_to_record.append(sec_eid)
 
@@ -14362,12 +14349,10 @@ def api_my_task_start(task_id):
     t_sec_name = str(t.get("secondary_assignee_name") or "").strip()
 
     is_allowed = (
-        (eid and t_eid and t_eid == eid) or
-        (eid and t_sec_eid and t_sec_eid == eid) or
-        (emp_name and t_assignee and (emp_name in t_assignee or t_assignee in emp_name)) or
-        (emp_name and t_sec_name and (emp_name in t_sec_name or t_sec_name in emp_name)) or
+        is_admin() or
         (is_manager() and can_see_client(cid)) or
-        is_admin()
+        (eid and t_eid and t_eid.lower() == eid.lower()) or
+        (eid and t_sec_eid and t_sec_eid.lower() == eid.lower())
     )
     if not is_allowed:
         return jsonify({"error": "دي مش مهمتك"}), 403
@@ -14453,19 +14438,16 @@ def api_my_task_submit(task_id):
 
     is_allowed = (
         is_admin() or 
-        is_manager() or 
-        (eid and t_eid and t_eid == eid) or
-        (eid and t_sec_eid and t_sec_eid == eid) or
-        (emp_name and t_assignee and (emp_name in t_assignee or t_assignee in emp_name)) or
-        (emp_name and t_sec_name and (emp_name in t_sec_name or t_sec_name in emp_name)) or
+        (is_manager() and can_see_client(cid)) or 
+        (eid and t_eid and t_eid.lower() == eid.lower()) or
+        (eid and t_sec_eid and t_sec_eid.lower() == eid.lower()) or
         (not t_eid and not t_assignee)
     )
     if not is_allowed:
-        if eid or emp_name:
-            t["assigned_employee_id"] = eid or t.get("assigned_employee_id")
-            t["assignee_name"] = emp_name or t.get("assignee_name")
-        else:
-            return jsonify({"error": "دي مش مهمتك"}), 403
+        return jsonify({"error": "دي مش مهمتك"}), 403
+    if not t_eid and not t_assignee and eid:
+        t["assigned_employee_id"] = eid
+        t["assignee_name"] = emp_name or "الموظف"
 
     # stop timer
     ts = t.get("timer_state") or {}
@@ -14558,12 +14540,10 @@ def api_my_task_request_return(task_id):
 
     is_allowed = (
         is_admin() or 
-        is_manager() or 
+        (is_manager() and can_see_client(cid)) or 
         is_content_creator() or
-        (eid and t_eid and t_eid == eid) or
-        (eid and t_sec_eid and t_sec_eid == eid) or
-        (emp_name and t_assignee and (emp_name in t_assignee or t_assignee in emp_name)) or
-        (emp_name and t_sec_name and (emp_name in t_sec_name or t_sec_name in emp_name)) or
+        (eid and t_eid and t_eid.lower() == eid.lower()) or
+        (eid and t_sec_eid and t_sec_eid.lower() == eid.lower()) or
         can_see_client(cid)
     )
     if not is_allowed:
