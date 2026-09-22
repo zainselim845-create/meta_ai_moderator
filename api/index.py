@@ -10130,17 +10130,35 @@ def _resolve_creator_employee(creator_input):
         '', inp, flags=re.I
     ).strip()
     clean_low = clean_inp.lower()
+    clean_norm = _norm_ar_str(clean_inp)
 
     # 1. Direct Employee ID Lookup (Fastest O(1))
     if clean_low in KNOWN_EMPLOYEE_ROSTER:
         return KNOWN_EMPLOYEE_ROSTER[clean_low]
 
-    # 2. Known Aliases Map (Name and substring matching)
+    # 2. Exact Full Name Match in KNOWN_EMPLOYEE_ROSTER (e.g. عمر احمد عبدالرحمن, عبدالرحمن محمد عربي)
+    for _rk, (_rid, _rname) in KNOWN_EMPLOYEE_ROSTER.items():
+        if _norm_ar_str(_rname) == clean_norm or clean_low == _rname.lower():
+            return (_rid, _rname)
+
+    # 3. Exact Match in KNOWN_CREATOR_ALIASES
     for alias, (alias_id, alias_name) in KNOWN_CREATOR_ALIASES.items():
-        if alias in clean_low or clean_low in alias:
+        if _norm_ar_str(alias) == clean_norm or clean_low == alias.lower():
             return (alias_id, alias_name)
 
-    # 3. Check cached in-memory employee list
+    # 4. Token/Prefix matching against KNOWN_CREATOR_ALIASES (longest alias first)
+    tokens = clean_norm.split()
+    first_token = tokens[0] if tokens else ""
+    first_two = " ".join(tokens[:2]) if len(tokens) >= 2 else ""
+    sorted_aliases = sorted(KNOWN_CREATOR_ALIASES.items(), key=lambda x: len(x[0]), reverse=True)
+    for alias, (alias_id, alias_name) in sorted_aliases:
+        alias_norm = _norm_ar_str(alias)
+        if first_two and alias_norm == first_two:
+            return (alias_id, alias_name)
+        if first_token and alias_norm == first_token:
+            return (alias_id, alias_name)
+
+    # 5. Check cached in-memory employee list
     try:
         cached_emps = cache.get("employees") or []
         for e in cached_emps:
@@ -10152,12 +10170,12 @@ def _resolve_creator_employee(creator_input):
                 continue
             if e_id.lower() == clean_low:
                 return (e_id, e_name or e_id)
-            if e_name and (e_name.lower() == clean_low or clean_low in e_name.lower() or e_name.lower() in clean_low):
+            if e_name and (_norm_ar_str(e_name) == clean_norm or e_name.lower() == clean_low):
                 return (e_id, e_name)
     except Exception as _ce:
         print(f"[_resolve_creator_employee cache check error] {_ce}")
 
-    # 4. If input is formatted as an employee ID (e.g., EMP-1234 or AM-1234), preserve it
+    # 6. If input is formatted as an employee ID (e.g., EMP-1234 or AM-1234), preserve it
     is_emp_id_format = bool(re.match(r'^(?:emp|am)[-_]?\d+', clean_low))
     if is_emp_id_format:
         canonical_id = clean_inp.upper()
@@ -10170,7 +10188,7 @@ def _resolve_creator_employee(creator_input):
             pass
         return (canonical_id, canonical_id)
 
-    # 5. Fallback query to live agency employees sheet
+    # 7. Fallback query to live agency employees sheet (exact match only)
     try:
         cfg = hr_config()
         sheet_emps = _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"])
@@ -10181,12 +10199,12 @@ def _resolve_creator_employee(creator_input):
                 continue
             if e_id.lower() == clean_low:
                 return (e_id, e_name or e_id)
-            if e_name and (e_name.lower() == clean_low or clean_low in e_name.lower() or e_name.lower() in clean_low):
+            if e_name and (_norm_ar_str(e_name) == clean_norm or e_name.lower() == clean_low):
                 return (e_id, e_name)
     except Exception as _gse:
         print(f"[_resolve_creator_employee gsheet error] {_gse}")
 
-    # 6. Genuine new employee / creator
+    # 8. Genuine new employee / creator
     name_clean = (clean_inp or inp).strip()
     if name_clean and name_clean.lower() not in ("none", "null", "auto", "unassigned", "undefined", "اختيار", "تعيين"):
         slug = re.sub(r'[^a-zA-Z0-9]', '', name_clean)
@@ -13688,15 +13706,14 @@ def api_my_tasks():
         all_tasks.sort(key=_natural_task_sort_key)
         return jsonify({"tasks": all_tasks, "employee_id": "all", "is_admin": True})
         
-    # If admin requests a specific employee
+    # If admin requests a specific employee (strict ID separation)
     if is_adm and target_eid and target_eid not in ("all", "me"):
         all_tasks = _all_tasks_db()
+        norm_target = target_eid.strip().lower()
         emp_tasks = [
             t for t in all_tasks 
-            if str(t.get("assigned_employee_id") or "").strip() == target_eid or 
-               str(t.get("secondary_employee_id") or "").strip() == target_eid or
-               target_eid.lower() in str(t.get("assignee_name") or "").lower() or
-               target_eid.lower() in str(t.get("secondary_assignee_name") or "").lower()
+            if str(t.get("assigned_employee_id") or "").strip().lower() == norm_target or 
+               str(t.get("secondary_employee_id") or "").strip().lower() == norm_target
         ]
         emp_tasks.sort(key=_natural_task_sort_key)
         return jsonify({"tasks": emp_tasks, "employee_id": target_eid, "is_admin": True})
@@ -13707,35 +13724,27 @@ def api_my_tasks():
     mine = []
     user_rec = current_user_rec() or {}
     my_name = (user_rec.get("name") or uname or "").strip()
+    norm_eid = str(eid).strip().lower() if eid else ""
     
     for t in all_tasks:
         if not isinstance(t, dict):
             continue
-        t_eid = str(t.get("assigned_employee_id") or "").strip()
-        t_aname = str(t.get("assignee_name") or "").strip()
-        t_sec_eid = str(t.get("secondary_employee_id") or "").strip()
-        t_sec_name = str(t.get("secondary_assignee_name") or "").strip()
+        t_eid = str(t.get("assigned_employee_id") or "").strip().lower()
+        t_sec_eid = str(t.get("secondary_employee_id") or "").strip().lower()
         
-        # Match primary assignee by employee_id (e.g. EMP-8986-4947)
-        if eid and t_eid and t_eid == str(eid).strip():
+        # 1. Strict separation by employee_id (No name heuristics or substring bleeding)
+        if norm_eid:
+            if t_eid == norm_eid or t_sec_eid == norm_eid:
+                mine.append(t)
+            continue
+
+        # 2. Strict fallback ONLY if user record has no employee_id
+        t_aname = str(t.get("assignee_name") or "").strip()
+        t_sec_name = str(t.get("secondary_assignee_name") or "").strip()
+        if my_name and (my_name == t_aname or my_name == t_sec_name):
             mine.append(t)
             continue
-        # Match secondary assignee by employee_id
-        if eid and t_sec_eid and t_sec_eid == str(eid).strip():
-            mine.append(t)
-            continue
-        # Match primary assignee by name or substring (e.g. "راما ممدوح سرج" / "راما")
-        if my_name and t_aname:
-            if my_name == t_aname or my_name in t_aname or t_aname in my_name:
-                mine.append(t)
-                continue
-        # Match secondary assignee by name or substring
-        if my_name and t_sec_name:
-            if my_name == t_sec_name or my_name in t_sec_name or t_sec_name in my_name:
-                mine.append(t)
-                continue
-        # Match by username
-        if uname and (uname in (t_eid, t_aname, t_sec_eid, t_sec_name)):
+        if uname and uname.lower() in (t_eid, t_sec_eid):
             mine.append(t)
             continue
 

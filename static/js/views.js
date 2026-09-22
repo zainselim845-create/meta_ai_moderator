@@ -2964,14 +2964,18 @@ function renderTasksBoard() {
         }
         if (selectedEmployeeFilter) {
             displayTasks = displayTasks.filter(function(t) {
-                var eid = String(t.assigned_employee_id || '').trim();
-                var aname = String(t.assignee_name || '').trim();
-                if (selectedEmployeeFilter === 'unassigned') {
-                    return !eid && !aname;
+                var eid = String(t.assigned_employee_id || '').trim().toLowerCase();
+                var secEid = String(t.secondary_employee_id || '').trim().toLowerCase();
+                var target = String(selectedEmployeeFilter).trim().toLowerCase();
+                if (target === 'unassigned') {
+                    return !eid && !secEid;
                 }
-                return eid === String(selectedEmployeeFilter).trim() ||
-                       (selectedEmployeeName && aname === String(selectedEmployeeName).trim()) ||
-                       (selectedEmployeeName && (aname.indexOf(selectedEmployeeName) !== -1 || selectedEmployeeName.indexOf(aname) !== -1));
+                // STRICT ID-BASED MATCHING (Separation strictly by employee_id)
+                if (eid || secEid) {
+                    return eid === target || secEid === target;
+                }
+                var aname = String(t.assignee_name || '').trim();
+                return selectedEmployeeName && aname === String(selectedEmployeeName).trim();
             });
         }
 
@@ -3153,9 +3157,9 @@ function renderTasksBoard() {
                 unassignedCount++;
                 return;
             }
-            var k = ename || eid;
+            var k = eid || ename;
             if (!execMap[k]) {
-                execMap[k] = { id: eid || k, name: ename || k, count: 0 };
+                execMap[k] = { id: eid || ename, name: ename || eid, count: 0 };
             }
             execMap[k].count++;
         });
@@ -3545,12 +3549,15 @@ async function bulkApproveFilteredTasks() {
 
     if (selectedEmployeeFilter) {
         all = all.filter(function(t) {
-            var eid = String(t.assigned_employee_id || '').trim();
+            var eid = String(t.assigned_employee_id || '').trim().toLowerCase();
+            var secEid = String(t.secondary_employee_id || '').trim().toLowerCase();
+            var target = String(selectedEmployeeFilter).trim().toLowerCase();
+            if (target === 'unassigned') return !eid && !secEid;
+            if (eid || secEid) {
+                return eid === target || secEid === target;
+            }
             var aname = String(t.assignee_name || '').trim();
-            if (selectedEmployeeFilter === 'unassigned') return !eid && !aname;
-            return eid === String(selectedEmployeeFilter).trim() ||
-                   (selectedEmployeeName && aname === String(selectedEmployeeName).trim()) ||
-                   (selectedEmployeeName && (aname.indexOf(selectedEmployeeName) !== -1 || selectedEmployeeName.indexOf(aname) !== -1));
+            return selectedEmployeeName && aname === String(selectedEmployeeName).trim();
         });
     }
 
@@ -4378,8 +4385,8 @@ function _cleanEmployeeArabicName(name, eid) {
     if (low.includes('walaa') || low.includes('ولاء') || low.includes('ashraf')) return 'ولاء أشرف محمد';
     if (low.includes('hadeer') || low.includes('هدير') || low.includes('عباس')) return 'هدير أنور عباس';
     if (low.includes('layali') || low.includes('ليالي') || low.includes('احمد احمد محمد') || low.includes('أحمد أحمد أحمد')) return 'ليالي أحمد';
-    if (low.includes('omar') || low.includes('عمر') || low.includes('عبدالرحمن')) return 'عمر أحمد عبدالرحمن';
-    if (low.includes('arabi') || low.includes('عربي')) return 'عبدالرحمن محمد عربي';
+    if (low.includes('omar') || low.includes('عمر')) return 'عمر أحمد عبدالرحمن';
+    if (low.includes('arabi') || low.includes('عربي') || low.includes('عبدالرحمن')) return 'عبدالرحمن محمد عربي';
     if (low.includes('khaled') || low.includes('محمود خالد')) return 'محمود خالد';
     if (low.includes('megahed') || low.includes('آيه') || low.includes('ايه احمد') || low.includes('آية')) return 'آيه أحمد مجاهد';
     return n.replace(/\s*\([^)]*\)/g, '').trim();
