@@ -4593,7 +4593,7 @@ def api_login():
                             role = "account_manager"
                         elif any(w in job_lower for w in ("content", "creator", "محتوى", "كاتب", "writer", "copywriter")) or r_eid.lower() in CREATOR_EMPLOYEE_IDS:
                             role = "content_creator"
-                        elif any(w in job_lower for w in ("design", "graphic", "فيديو", "video", "مونتير")) or r_eid.lower() in ("emp-8148", "emp-8143", "emp-8142", "emp-8986-4947"):
+                        elif any(w in job_lower for w in ("design", "graphic", "فيديو", "video", "مونتير")) or r_eid.lower() in ("emp-8148", "emp-8143", "emp-8142", "emp-8986-4947", "emp-6600-3645"):
                             role = "designer"
                         else:
                             role = "employee"
@@ -4632,7 +4632,7 @@ def api_login():
             role = "admin"
         elif is_account_manager_job(matched_user.get("job"), m_eid_low) or matched_user.get("role") == "account_manager":
             role = "account_manager"
-        elif m_eid_low in ("emp-8148", "emp-8143", "emp-8142", "emp-8986-4947") or matched_user.get("role") == "designer":
+        elif m_eid_low in ("emp-8148", "emp-8143", "emp-8142", "emp-8986-4947", "emp-6600-3645") or matched_user.get("role") == "designer":
             role = "designer"
         else:
             role = matched_user.get("role") or "employee"
@@ -8561,12 +8561,26 @@ def api_tasks_employees():
             })
     except Exception as _e:
         print(f"[tasks employees from sheet] {_e}")
-    # Merge manually-added employees not present in the sheet — but ONLY real ones
-    # (must have a telegram_id). This drops the old demo/role-name seed rows.
-    seen = {str(x["employee_id"]) for x in emps if x.get("employee_id")}
+    seen = {str(x["employee_id"]).strip().upper() for x in emps if x.get("employee_id")}
     for e in get_client_employees(_cid):
-        if str(e.get("employee_id")) not in seen and str(e.get("telegram_id") or "").strip():
+        eid_clean = str(e.get("employee_id") or "").strip().upper()
+        if eid_clean and eid_clean not in seen and str(e.get("telegram_id") or "").strip():
             emps.append(e)
+            seen.add(eid_clean)
+
+    # Guarantee all agency roster/credential employees are present in employee list
+    for k, (e_id, e_name) in STATIC_CREDENTIALS.items():
+        if e_id.strip().upper() not in seen:
+            role_meta = ROSTER.get(k, ("employee", "موظف", []))
+            emps.append({
+                "employee_id": e_id,
+                "name": e_name,
+                "role": role_meta[1] if isinstance(role_meta, (tuple, list)) and len(role_meta) > 1 else "Employee",
+                "telegram_id": "",
+                "status": "active"
+            })
+            seen.add(e_id.strip().upper())
+
     return jsonify({"success": True, "employees": emps})
 
 
@@ -8803,7 +8817,25 @@ def api_tasks():
 
     emp_map = cache.get("emp_name_map")
     if not emp_map:
-        emp_map = {"AM-2072-9827": "محمود خالد", "EMP-2945-2364": "هدير أنور عباس", "EMP-8148": "عمر أحمد", "EMP-8143": "فرح ياسر", "EMP-8069-7345": "Walaa Ashraf Mohammed", "EMP-7189-7780": "عبدالرحمن محمد عربي", "EMP-3264-8790": "ليالي احمد احمد محمد", "EMP-7775-2303": "Menna gamal"}
+        emp_map = {
+            "AM-2072-9827": "محمود خالد",
+            "EMP-5887-5256": "آيه أحمد مجاهد",
+            "EMP-0652-9532": "حبيبه احمد محمد",
+            "EMP-8086-4520": "محمد سعيد فوزي",
+            "EMP-2945-2364": "هدير أنور عباس",
+            "EMP-8148": "عمر أحمد عبدالرحمن",
+            "EMP-8143": "فرح ياسر إبراهيم",
+            "EMP-8069-7345": "ولاء أشرف محمد",
+            "EMP-7189-7780": "عبدالرحمن محمد عربي",
+            "EMP-3264-8790": "ليالي أحمد",
+            "EMP-7775-2303": "منة جمال",
+            "EMP-8986-4947": "راما ممدوح سرج",
+            "EMP-8142": "ندى أيمن كمال",
+            "EMP-6600-3645": "زهراء قمر",
+            "EMP-4481-0404": "سما أيمن",
+            "EMP-5970-2611": "روضة عبد الحميد",
+            "EMP-3555-1067": "مروة سعيد"
+        }
         try:
             cfg = hr_config()
             for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):

@@ -916,6 +916,25 @@ function setMyPortalStatusFilter(st) {
 
 function setMyPortalClientFilter(cid) {
   myPortalClientFilter = cid;
+  // Dynamically cascade plan filter to show plans belonging to selected client
+  const pFilter = document.getElementById('myportal-plan-filter');
+  if (pFilter) {
+    const tasks = myPortalTasksRaw || [];
+    const pSet = new Set();
+    tasks.forEach(t => {
+      const cName = String(t.client_name || '').trim().toLowerCase();
+      const cId = String(t.client_id || '').trim();
+      if (cid === 'all' || !cid || cId === cid || cName === String(cid).trim().toLowerCase()) {
+        const pn = (t.plan_name || t.file_name || '').trim();
+        if (pn) pSet.add(pn);
+      }
+    });
+    pFilter.innerHTML = '<option value="all">📑 جميع الخطط</option>' + Array.from(pSet).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    if (myPortalPlanFilter && myPortalPlanFilter !== 'all' && !pSet.has(myPortalPlanFilter)) {
+      myPortalPlanFilter = 'all';
+    }
+    pFilter.value = myPortalPlanFilter || 'all';
+  }
   renderMyPortalTasks();
 }
 

@@ -4711,6 +4711,7 @@ function buildTeamAssigneeOptionsHtml(team, selectedVal, placeholder) {
             { employee_id: 'EMP-7775-2303', name: 'منة جمال', role: 'مصمم' },
             { employee_id: 'EMP-8148', name: 'عمر أحمد عبدالرحمن', role: 'فيديو ايديتور' },
             { employee_id: 'EMP-8143', name: 'فرح ياسر إبراهيم', role: 'Video editor' },
+            { employee_id: 'EMP-6600-3645', name: 'زهراء قمر', role: 'فيديو ايديتور / مونتير' },
             { employee_id: 'EMP-8069-7345', name: 'ولاء أشرف محمد', role: 'Content Creator' },
             { employee_id: 'EMP-2945-2364', name: 'هدير أنور عباس', role: 'Content creator' },
             { employee_id: 'EMP-7189-7780', name: 'عبدالرحمن محمد عربي', role: 'Content' },
@@ -4726,7 +4727,8 @@ function buildTeamAssigneeOptionsHtml(team, selectedVal, placeholder) {
     var videoEditors = team.filter(function(e){
         var r = (e.role || e.job || '').toLowerCase();
         var id = String(e.employee_id || '').toLowerCase();
-        return r.includes('فيديو') || r.includes('video') || r.includes('مونت') || r.includes('edit') || id.includes('8148') || id.includes('8143');
+        var name = (e.name || '').toLowerCase();
+        return r.includes('فيديو') || r.includes('video') || r.includes('مونت') || r.includes('edit') || id.includes('8148') || id.includes('8143') || id.includes('6600') || name.includes('زهراء') || name.includes('zahra');
     });
     var writers = team.filter(function(e){
         var r = (e.role || e.job || '').toLowerCase();
