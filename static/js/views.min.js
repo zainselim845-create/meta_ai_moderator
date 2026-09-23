@@ -2110,10 +2110,14 @@ function renderTaskCard(t, indexInPlan) {
             '<span>🏢 ' + esc(t.client_name) + '</span>' +
         '</div>' : '';
 
-    // 1) Reference images (strictly from docx / plan brief - NO SLICING, NO +1)
-    var refs = (t.content_data && t.content_data.reference_images && t.content_data.reference_images.length) ? t.content_data.reference_images :
-               (t.graphic_data && t.graphic_data.reference_images && t.graphic_data.reference_images.length) ? t.graphic_data.reference_images :
-               (t.media_urls && t.media_urls.length) ? t.media_urls : [];
+    // 1) Reference images (strictly actual images from docx / plan brief - NOT drive folders)
+    var rawImgs = (t.content_data && t.content_data.reference_images && t.content_data.reference_images.length) ? t.content_data.reference_images :
+                  (t.graphic_data && t.graphic_data.reference_images && t.graphic_data.reference_images.length) ? t.graphic_data.reference_images :
+                  (t.media_urls && t.media_urls.length) ? t.media_urls : [];
+    var refs = rawImgs.filter(function(u){
+        var s = String(u || '').trim();
+        return s.startsWith('data:image/') || /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(s) || (s.includes('/file/d/') && !s.includes('/folders/'));
+    });
     var refsHtml = refs.length ? '<div class="bg-blue-50/60 border border-blue-200/70 rounded-xl p-2.5 space-y-1.5 shadow-2xs">' +
         '<div class="text-[11px] font-bold text-blue-900 flex items-center justify-between">' +
             '<span>🖼️ صور ومراجع البوست (' + refs.length + ' صور كاملة):</span>' +
@@ -2124,19 +2128,71 @@ function renderTaskCard(t, indexInPlan) {
             return '<a href="' + esc(u) + '" target="_blank" class="block w-16 h-16 rounded-xl border border-blue-200 overflow-hidden bg-white shadow-2xs hover:scale-105 transition" title="مرجع ' + (rIdx + 1) + '"><img src="' + esc(thumbSrc) + '" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.innerHTML=\'🖼️\'"></a>';
         }).join('') + '</div></div>' : '';
 
-    // 2) Reference links (Pinterest, Behance, YouTube, Facebook, Instagram, TikTok, Drive - NO SLICING, NO +1)
-    var refLinks = (t.reference_links && t.reference_links.length) ? t.reference_links :
-                   (t.content_data && t.content_data.reference_links && t.content_data.reference_links.length) ? t.content_data.reference_links :
-                   (t.graphic_data && t.graphic_data.reference_links && t.graphic_data.reference_links.length) ? t.graphic_data.reference_links :
-                   (t.video_data && t.video_data.reference_links && t.video_data.reference_links.length) ? t.video_data.reference_links :
-                   (t.media_urls && t.media_urls.length) ? t.media_urls.filter(function(u){ return String(u).startsWith('http') && !/\.(png|jpg|jpeg|gif|webp)(\?|$)/i.test(u); }) : [];
-                   
-    var links = refLinks.length ?
+    // 2) Reference links & Drive folders (Pinterest, Behance, YouTube, Facebook, Instagram, TikTok, Drive)
+    var allRefCandidates = [];
+    var addRefCandidate = function(u) {
+        if (!u || typeof u !== 'string') return;
+        var cl = u.trim().replace(/[.,;:)\]]+$/, '');
+        if (/^https?:\/\//i.test(cl) && allRefCandidates.indexOf(cl) === -1) allRefCandidates.push(cl);
+    };
+    if (Array.isArray(t.reference_links)) t.reference_links.forEach(addRefCandidate);
+    if (Array.isArray(t.media_urls)) t.media_urls.forEach(addRefCandidate);
+    if (t.content_data) {
+        if (Array.isArray(t.content_data.reference_links)) t.content_data.reference_links.forEach(addRefCandidate);
+        if (Array.isArray(t.content_data.reference_images)) t.content_data.reference_images.forEach(addRefCandidate);
+    }
+    if (t.video_data && Array.isArray(t.video_data.reference_links)) t.video_data.reference_links.forEach(addRefCandidate);
+    if (t.graphic_data) {
+        if (Array.isArray(t.graphic_data.reference_links)) t.graphic_data.reference_links.forEach(addRefCandidate);
+        if (Array.isArray(t.graphic_data.reference_images)) t.graphic_data.reference_images.forEach(addRefCandidate);
+    }
+    var capDescText = [t.caption, t.description, t.visual_idea, t.design_brief].filter(Boolean).join(' ');
+    var matchedInText = capDescText.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+    matchedInText.forEach(addRefCandidate);
+
+    var driveMaterialLinks = [];
+    var otherRefLinks = [];
+
+    allRefCandidates.forEach(function(u) {
+        var uLow = u.toLowerCase();
+        if (/drive\.google\.com|docs\.google\.com/i.test(uLow)) {
+            driveMaterialLinks.push(u);
+        } else if (!refs.includes(u)) {
+            otherRefLinks.push(u);
+        }
+    });
+
+    var driveMaterialsHtml = driveMaterialLinks.length ? (
+        '<div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-400 rounded-xl p-3 space-y-2 shadow-2xs">' +
+            '<div class="flex items-center justify-between font-bold text-xs text-emerald-950 flex-wrap gap-1 border-b border-emerald-200/70 pb-1.5">' +
+                '<span class="flex items-center gap-1.5">' +
+                    '<span class="text-base">📁</span>' +
+                    '<span class="font-extrabold text-xs text-emerald-950">مجلد الماتريال والمحتوى المطلوب (Google Drive):</span>' +
+                '</span>' +
+                '<span class="bg-emerald-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold">المواد الخام ↗</span>' +
+            '</div>' +
+            '<div class="space-y-1.5">' +
+                driveMaterialLinks.map(function(u) {
+                    return '<div class="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-emerald-200 shadow-2xs flex-wrap">' +
+                        '<div class="flex items-center gap-2 min-w-0 flex-1">' +
+                            '<span class="text-base shrink-0">' + (u.includes('/folders/') ? '📂' : '📄') + '</span>' +
+                            '<a href="' + esc(u) + '" target="_blank" dir="ltr" class="text-[11px] text-emerald-700 hover:text-emerald-900 font-mono hover:underline truncate block max-w-xs sm:max-w-md">' + esc(u) + '</a>' +
+                        '</div>' +
+                        '<div class="flex items-center gap-1.5 shrink-0">' +
+                            '<a href="' + esc(u) + '" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-1.5 px-3 rounded-lg shadow-xs transition inline-flex items-center gap-1 cursor-pointer"><span>📁 فتح على Drive ↗</span></a>' +
+                            '<button type="button" onclick="copyTaskDriveLink(\'' + escJs(u) + '\', this)" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-[11px] py-1.5 px-2.5 rounded-lg shadow-2xs transition inline-flex items-center gap-1 cursor-pointer"><span>📋 نسخ</span></button>' +
+                        '</div>' +
+                    '</div>';
+                }).join('') +
+            '</div>' +
+        '</div>'
+    ) : '';
+
+    var links = otherRefLinks.length ?
         '<div class="flex items-center gap-1.5 flex-wrap text-xs pt-0.5">' +
-        refLinks.map(function(u, idx) {
+        otherRefLinks.map(function(u, idx) {
             var uLow = String(u).toLowerCase();
-            var label = uLow.includes('drive.google') ? ('📁 ملف Drive ' + (idx + 1)) :
-                        uLow.includes('pinterest') || uLow.includes('pin.it') ? '📌 Pinterest' :
+            var label = uLow.includes('pinterest') || uLow.includes('pin.it') ? '📌 Pinterest' :
                         uLow.includes('facebook.com') || uLow.includes('fb.watch') ? '📹 فيديو Facebook' :
                         uLow.includes('instagram.com') ? '📸 Instagram Reels' :
                         uLow.includes('tiktok.com') ? '🎵 TikTok' :
@@ -2446,6 +2502,7 @@ function renderTaskCard(t, indexInPlan) {
         captionHtml +
         visHtml +
         modHtml +
+        driveMaterialsHtml +
         refsHtml + links +
         '<div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">' +
             '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer">' +

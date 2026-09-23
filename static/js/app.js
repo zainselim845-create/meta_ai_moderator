@@ -1118,11 +1118,137 @@ function renderMyPortalTasks() {
     const m = u.match(/\/file\/d\/([^/]+)/) || u.match(/[?&]id=([^&]+)/) || u.match(/thumbnail\?id=([^&]+)/);
     return m ? ('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w600') : u;
   };
-  const refThumbs = (t) => {
-    const imgs = (t.media_urls||[]);
-    if (!imgs.length) return '';
-    return `<div class="flex gap-1 flex-wrap mt-1">${imgs.slice(0,4).map(u=>`<a href="${esc(u)}" target="_blank"><img src="${esc(driveThumb(u))}" class="w-11 h-11 rounded-lg object-cover border border-slate-200" onerror="this.style.display='none'"></a>`).join('')}</div>`;
+
+  const renderTaskMaterialsBox = (t) => {
+    const allUrls = [];
+    const addUrl = (u) => {
+      if (!u || typeof u !== 'string') return;
+      const clean = u.trim().replace(/[.,;:)\]]+$/, '');
+      if (/^https?:\/\//i.test(clean) && !allUrls.includes(clean)) {
+        allUrls.push(clean);
+      }
+    };
+
+    if (Array.isArray(t.media_urls)) t.media_urls.forEach(addUrl);
+    if (Array.isArray(t.reference_links)) t.reference_links.forEach(addUrl);
+    if (t.content_data) {
+      if (Array.isArray(t.content_data.reference_links)) t.content_data.reference_links.forEach(addUrl);
+      if (Array.isArray(t.content_data.reference_images)) t.content_data.reference_images.forEach(addUrl);
+    }
+    if (t.video_data && Array.isArray(t.video_data.reference_links)) t.video_data.reference_links.forEach(addUrl);
+    if (t.graphic_data) {
+      if (Array.isArray(t.graphic_data.reference_links)) t.graphic_data.reference_links.forEach(addUrl);
+      if (Array.isArray(t.graphic_data.reference_images)) t.graphic_data.reference_images.forEach(addUrl);
+    }
+
+    const textBlob = [t.caption, t.description, t.visual_idea, t.design_brief].filter(Boolean).join(' ');
+    const matchedUrls = textBlob.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+    matchedUrls.forEach(addUrl);
+
+    if (!allUrls.length) return '';
+
+    const driveLinks = [];
+    const otherLinks = [];
+    const directImages = [];
+
+    allUrls.forEach(u => {
+      const uLow = u.toLowerCase();
+      if (/drive\.google\.com|docs\.google\.com/i.test(uLow)) {
+        driveLinks.push(u);
+      } else if (/\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(uLow) || u.startsWith('data:image/')) {
+        directImages.push(u);
+      } else {
+        otherLinks.push(u);
+      }
+    });
+
+    let html = '';
+
+    // 1) PROMINENT GOOGLE DRIVE MATERIALS BANNER
+    if (driveLinks.length > 0) {
+      html += `
+        <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-400 rounded-2xl p-4 space-y-3 shadow-xs">
+          <div class="flex items-center justify-between font-bold text-xs text-emerald-950 flex-wrap gap-2 border-b border-emerald-200/80 pb-2">
+            <span class="flex items-center gap-2">
+              <span class="text-xl">📁</span>
+              <span class="font-extrabold text-sm sm:text-base text-emerald-950">مجلد الماتريال والمحتوى المطلوب (Google Drive):</span>
+            </span>
+            <span class="bg-emerald-600 text-white text-[11px] px-3 py-0.5 rounded-full font-bold shadow-2xs">المواد الخام وملفات العمل ↗</span>
+          </div>
+          <div class="space-y-2">
+            ${driveLinks.map((u, i) => `
+              <div class="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-emerald-300 shadow-2xs flex-wrap">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span class="text-xl shrink-0">${u.includes('/folders/') ? '📂' : '📄'}</span>
+                  <div class="min-w-0 flex-1">
+                    <div class="font-extrabold text-xs text-emerald-950">${u.includes('/folders/') ? 'مجلد Google Drive للمواد الخام والتسجيلات' : 'ملف / مستند الماتريال على Google Drive'}</div>
+                    <a href="${esc(u)}" target="_blank" dir="ltr" class="text-[11px] text-emerald-700 hover:text-emerald-900 font-mono hover:underline truncate block max-w-sm sm:max-w-lg mt-0.5">${esc(u)}</a>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <a href="${esc(u)}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2 px-4 rounded-xl shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer">
+                    <span>📁 فتح على Google Drive ↗</span>
+                  </a>
+                  <button type="button" onclick="copyTaskDriveLink('${esc(u)}', this)" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs py-2 px-3 rounded-xl shadow-2xs transition inline-flex items-center gap-1 cursor-pointer">
+                    <span>📋 نسخ الرابط</span>
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 2) OTHER REFERENCE LINKS (Pinterest, YouTube, Behance, Social Media)
+    if (otherLinks.length > 0) {
+      html += `
+        <div class="bg-violet-50/70 border border-violet-200 rounded-xl p-3 text-xs space-y-2 shadow-2xs">
+          <div class="font-bold text-[11px] text-violet-900 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-violet-600 inline-block shrink-0"></span>
+            <span>🔗 روابط ومراجع إضافية للبوست:</span>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            ${otherLinks.map((u, idx) => {
+              const uLow = u.toLowerCase();
+              const label = uLow.includes('pinterest') || uLow.includes('pin.it') ? '📌 Pinterest' :
+                            uLow.includes('facebook.com') || uLow.includes('fb.watch') ? '📹 فيديو Facebook' :
+                            uLow.includes('instagram.com') ? '📸 Instagram Reels' :
+                            uLow.includes('tiktok.com') ? '🎵 TikTok' :
+                            uLow.includes('youtube') || uLow.includes('youtu.be') ? '🎬 YouTube' :
+                            uLow.includes('behance') ? '🎨 Behance' : (`🔗 مرجع خارجي #${idx + 1}`);
+              return `
+                <a href="${esc(u)}" target="_blank" class="inline-flex items-center gap-1.5 bg-white hover:bg-violet-100 text-violet-800 text-xs font-bold px-3 py-1.5 rounded-xl border border-violet-300 transition shadow-2xs">
+                  <span>${esc(label)} ↗</span>
+                </a>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 3) DIRECT IMAGE THUMBNAILS (if any)
+    if (directImages.length > 0) {
+      html += `
+        <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-3 space-y-1.5 shadow-2xs">
+          <div class="font-bold text-[11px] text-blue-900 flex items-center gap-1.5">
+            <span>🖼️ صور ومراجع مرفقة (${directImages.length}):</span>
+          </div>
+          <div class="flex gap-2 flex-wrap pt-1">
+            ${directImages.slice(0, 6).map((u, idx) => `
+              <a href="${esc(u)}" target="_blank" class="block w-16 h-16 rounded-xl border border-blue-200 overflow-hidden bg-white shadow-2xs hover:scale-105 transition" title="صورة ${idx + 1}">
+                <img src="${esc(u)}" class="w-full h-full object-cover" loading="lazy" onerror="this.parentNode.style.display='none'">
+              </a>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    return html;
   };
+  const refThumbs = (t) => renderTaskMaterialsBox(t);
   const canWork = (t) => /Assigned|In Progress/i.test(t.status||'');
 
   // Sort tasks by priority: Active work (In Progress -> Assigned) first, then Submitted / In Review, then Completed
@@ -1273,6 +1399,8 @@ function renderMyPortalTasks() {
           </div>
         ` : ''}
 
+        ${renderTaskMaterialsBox(t)}
+
         <div class="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2 flex-wrap">
           <span class="flex items-center gap-1.5 font-bold text-slate-800">
             <span>📅 موعد التسليم:</span>
@@ -1280,8 +1408,6 @@ function renderMyPortalTasks() {
           </span>
           ${t.review_note ? `<span class="text-[11px] text-rose-700 font-bold bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">✍️ ملاحظة المراجعة: ${esc(t.review_note)}</span>` : ''}
         </div>
-
-        ${refThumbs(t)}
 
         ${t.drive_link ? `
           <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2 shadow-2xs">
