@@ -1024,7 +1024,19 @@ function renderMyPortalTasks() {
     if (myPortalDueFilter === 'overdue' && (!dVal || dVal >= todayStr || isDoneOrSubmitted)) return false;
 
     if (myPortalSearchQuery) {
-      const hay = (String(t.title||'') + ' ' + String(t.task_id||'') + ' ' + String(t.caption||'') + ' ' + String(t.client_name||'') + ' ' + String(t.plan_name||'')).toLowerCase();
+      const hay = (
+        String(t.title || '') + ' ' +
+        String(t.task_id || '') + ' ' +
+        String(t.caption || '') + ' ' +
+        String(t.description || '') + ' ' +
+        String(t.visual_idea || '') + ' ' +
+        String(t.design_brief || '') + ' ' +
+        String(t.client_name || '') + ' ' +
+        String(t.plan_name || '') + ' ' +
+        String(t.assignee_name || '') + ' ' +
+        String(t.secondary_assignee_name || '') + ' ' +
+        String(t.assigned_employee_id || '')
+      ).toLowerCase();
       if (!hay.includes(myPortalSearchQuery)) return false;
     }
 
@@ -1130,18 +1142,36 @@ function renderMyPortalTasks() {
     };
 
     if (Array.isArray(t.media_urls)) t.media_urls.forEach(addUrl);
+    else if (typeof t.media_urls === 'string') addUrl(t.media_urls);
     if (Array.isArray(t.reference_links)) t.reference_links.forEach(addUrl);
+    else if (typeof t.reference_links === 'string') addUrl(t.reference_links);
+
+    addUrl(t.reference_link);
+    addUrl(t.materials_url);
+    addUrl(t.materials_link);
+    addUrl(t.plan_drive_link);
+    addUrl(t.drive_plan_url);
+    addUrl(t.drive_link);
+
     if (t.content_data) {
       if (Array.isArray(t.content_data.reference_links)) t.content_data.reference_links.forEach(addUrl);
       if (Array.isArray(t.content_data.reference_images)) t.content_data.reference_images.forEach(addUrl);
+      addUrl(t.content_data.reference_link);
     }
-    if (t.video_data && Array.isArray(t.video_data.reference_links)) t.video_data.reference_links.forEach(addUrl);
+    if (t.video_data) {
+      if (Array.isArray(t.video_data.reference_links)) t.video_data.reference_links.forEach(addUrl);
+      addUrl(t.video_data.reference_link);
+      if (typeof t.video_data.script === 'string') {
+        (t.video_data.script.match(/https?:\/\/[^\s"'<>]+/gi) || []).forEach(addUrl);
+      }
+    }
     if (t.graphic_data) {
       if (Array.isArray(t.graphic_data.reference_links)) t.graphic_data.reference_links.forEach(addUrl);
       if (Array.isArray(t.graphic_data.reference_images)) t.graphic_data.reference_images.forEach(addUrl);
+      addUrl(t.graphic_data.reference_link);
     }
 
-    const textBlob = [t.caption, t.description, t.visual_idea, t.design_brief].filter(Boolean).join(' ');
+    const textBlob = [t.caption, t.description, t.visual_idea, t.design_brief, t.note].filter(Boolean).join(' ');
     const matchedUrls = textBlob.match(/https?:\/\/[^\s"'<>]+/gi) || [];
     matchedUrls.forEach(addUrl);
 

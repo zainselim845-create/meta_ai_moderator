@@ -3900,30 +3900,48 @@ def assigned_client_ids():
     """Client ids the current user is allowed to see.
     - Admins: see ALL clients.
     - Content Creators: see ALL clients for content writing.
-    - Account Managers: see ONLY their assigned clients.
-    - Plain Employees: see ONLY their assigned clients.
+    - Account Managers: see their assigned clients.
+    - Plain Employees: see their assigned clients.
     """
     if is_admin() or is_content_creator():
         return [str(c.get("id") or c.get("client_id")) for c in AGENCY_CLIENTS_STORE if (c.get("id") or c.get("client_id"))]
     
     user_rec = current_user_rec() or {}
     assigned = [str(x) for x in (user_rec.get("assigned_clients") or [])]
-    my_eid = str(_my_employee_id() or "").strip()
+    my_eid = str(_my_employee_id() or "").strip().lower()
     my_name = (user_rec.get("name") or current_username() or "").strip()
     my_name_norm = _norm_ar_str(my_name)
+
+    # Known client assignments for Account Managers
+    AYA_CLIENTS = {
+        "client_100821894800009", "cli_معامل_رعاية_1788336726", "cli_هبه_حافظ_1788431922",
+        "cli_dr_ahmed_fahmy_1788683119", "cli_dr_hadeer_1788684282", "cli_hayat_dental_center_1788685057",
+        "cli_dr_shimaa_atef_1788298157", "cli_dr_shahenda_1788685119"
+    }
+    MAHMOUD_CLIENTS = {
+        "cli_dr_ahmed_1788270119", "cli_sk_1788270118", "cli_انفينيتي_1788270119"
+    }
+    if my_eid in ("emp-5887-5256", "am-5887-5256") or "آيه" in my_name or "ايه" in my_name:
+        for cid in AYA_CLIENTS:
+            if cid not in assigned:
+                assigned.append(cid)
+    elif my_eid in ("am-2072-9827", "emp-2072-9827") or "محمود" in my_name:
+        for cid in MAHMOUD_CLIENTS:
+            if cid not in assigned:
+                assigned.append(cid)
     
     for c in AGENCY_CLIENTS_STORE:
         cid = str(c.get("id") or c.get("client_id") or "")
         if not cid or cid in assigned:
             continue
-        c_am_id = str(c.get("am_id") or c.get("account_manager_id") or c.get("am_employee_id") or "").strip()
+        c_am_ids = [str(c.get(k) or "").strip().lower() for k in ("am_employee_id", "am_id", "account_manager_id") if c.get(k)]
         c_am_name = str(c.get("am_name") or c.get("account_manager") or "").strip()
         c_am_name_norm = _norm_ar_str(c_am_name)
-        if (my_eid and c_am_id and (c_am_id.lower() == my_eid.lower())) or \
-           (my_name_norm and c_am_name_norm and (c_am_name_norm == my_name_norm)):
+        if (my_eid and my_eid in c_am_ids) or \
+           (my_name_norm and c_am_name_norm and (c_am_name_norm == my_name_norm or my_name_norm in c_am_name_norm or c_am_name_norm in my_name_norm)):
             assigned.append(cid)
             
-    # Also check task database for any clients where this Account Manager is tagged (unless client has another AM assigned)
+    # Also check task database for any clients where this Account Manager or Employee is assigned
     if is_manager() or my_eid:
         for t in _all_tasks_db():
             if not isinstance(t, dict):
@@ -3931,18 +3949,14 @@ def assigned_client_ids():
             t_cid = str(t.get("client_id") or "")
             if not t_cid or t_cid in assigned:
                 continue
-            client_rec = next((c for c in AGENCY_CLIENTS_STORE if str(c.get("id") or c.get("client_id")) == t_cid), None)
-            if client_rec:
-                c_am_id = str(client_rec.get("am_id") or client_rec.get("account_manager_id") or client_rec.get("am_employee_id") or "").strip()
-                c_am_name = str(client_rec.get("am_name") or client_rec.get("account_manager") or "").strip()
-                c_am_name_norm = _norm_ar_str(c_am_name)
-                # If client belongs to another AM, do not inherit
-                if (c_am_id and my_eid and c_am_id.lower() != my_eid.lower()) or (c_am_name_norm and my_name_norm and c_am_name_norm != my_name_norm):
-                    continue
-            t_amid = str(t.get("am_id") or "").strip()
+            t_amid = str(t.get("am_id") or "").strip().lower()
             t_amname = str(t.get("am_name") or "").strip()
             t_amname_norm = _norm_ar_str(t_amname)
-            if (my_eid and t_amid and t_amid.lower() == my_eid.lower()) or \
+            t_eid = str(t.get("assigned_employee_id") or "").strip().lower()
+            t_sec_eid = str(t.get("secondary_employee_id") or "").strip().lower()
+            
+            # If user is AM of this task or assigned employee of this task
+            if (my_eid and (t_amid == my_eid or t_eid == my_eid or t_sec_eid == my_eid)) or \
                (my_name_norm and t_amname_norm and t_amname_norm == my_name_norm):
                 assigned.append(t_cid)
 
@@ -6847,8 +6861,19 @@ def _sanitize_task_record(d):
     am_id = str(d.get("am_id") or "").strip()
     am_name = str(d.get("am_name") or "").strip()
 
-    # If task already has a genuine AM assigned, preserve it and normalize
-    if am_id and am_id not in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned"]:
+    # Find client record to check authoritative AM for this client
+    matched_client = next((c for c in AGENCY_CLIENTS_STORE if isinstance(c, dict) and str(c.get("id") or "") == cid), None)
+    c_amid = str((matched_client or {}).get("am_employee_id") or (matched_client or {}).get("am_id") or "").strip()
+    c_amname = str((matched_client or {}).get("am_name") or "").strip()
+
+    # If client has a designated AM, client's AM takes precedence over generic defaults
+    if c_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in c_amname or "ايه" in c_amname or "domya" in cid.lower() or cid == "client_100821894800009":
+        d["am_id"] = "EMP-5887-5256"
+        d["am_name"] = "آيه أحمد مجاهد"
+    elif c_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in c_amname or "حبيبة" in c_amname:
+        d["am_id"] = "EMP-0652-9532"
+        d["am_name"] = "حبيبه احمد محمد"
+    elif am_id and am_id not in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned"]:
         if am_id in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in am_name or "ايه" in am_name:
             d["am_id"] = "EMP-5887-5256"
             d["am_name"] = "آيه أحمد مجاهد"
@@ -6868,20 +6893,12 @@ def _sanitize_task_record(d):
         else:
             d["am_name"] = am_name
             d["am_id"] = am_id or am_name
+    elif c_amid or c_amname:
+        d["am_id"] = c_amid or c_amname
+        d["am_name"] = c_amname or c_amid
     else:
-        # Fallback: Inherit from client record if available
-        matched_client = next((c for c in AGENCY_CLIENTS_STORE if isinstance(c, dict) and str(c.get("id") or "") == cid), None)
-        c_amid = str((matched_client or {}).get("am_employee_id") or (matched_client or {}).get("am_id") or "").strip()
-        c_amname = str((matched_client or {}).get("am_name") or "").strip()
-        if c_amid or c_amname:
-            d["am_id"] = c_amid or c_amname
-            d["am_name"] = c_amname or c_amid
-        elif "domya" in cid.lower() or "domya" in str(d.get("client_name","")).lower() or cid == "client_100821894800009":
-            d["am_id"] = "EMP-5887-5256"
-            d["am_name"] = "آيه أحمد مجاهد"
-        else:
-            d["am_id"] = "AM-2072-9827"
-            d["am_name"] = "محمود خالد"
+        d["am_id"] = "AM-2072-9827"
+        d["am_name"] = "محمود خالد"
         
     cid = str(d.get("client_id") or "").strip()
     cname = str(d.get("client_name") or "").strip()
@@ -6898,6 +6915,53 @@ def _sanitize_task_record(d):
         d["plan_name"] = f"خطة {real_c}"
         if not d.get("file_name"):
             d["file_name"] = d["plan_name"]
+
+    # Bi-directional Self-healing for Assigned Employee ID and Name
+    emp_map = cache.get("emp_name_map") or {}
+    eid = str(d.get("assigned_employee_id") or "").strip()
+    aname = str(d.get("assignee_name") or "").strip()
+    if eid and eid.lower() in KNOWN_EMPLOYEE_ROSTER:
+        can_id, can_nm = KNOWN_EMPLOYEE_ROSTER[eid.lower()]
+        d["assigned_employee_id"] = can_id
+        if not aname or aname == eid:
+            d["assignee_name"] = can_nm
+    elif not eid and aname:
+        a_low = aname.lower().strip()
+        if a_low in KNOWN_EMPLOYEE_ROSTER:
+            d["assigned_employee_id"] = KNOWN_EMPLOYEE_ROSTER[a_low][0]
+            d["assignee_name"] = KNOWN_EMPLOYEE_ROSTER[a_low][1]
+        elif a_low in KNOWN_CREATOR_ALIASES:
+            d["assigned_employee_id"] = KNOWN_CREATOR_ALIASES[a_low][0]
+            d["assignee_name"] = KNOWN_CREATOR_ALIASES[a_low][1]
+        else:
+            for r_key, (r_id, r_name) in KNOWN_EMPLOYEE_ROSTER.items():
+                if aname in r_name or r_name in aname:
+                    d["assigned_employee_id"] = r_id
+                    d["assignee_name"] = r_name
+                    break
+
+    # Same healing for Secondary Assignee
+    sec_eid = str(d.get("secondary_employee_id") or "").strip()
+    sec_aname = str(d.get("secondary_assignee_name") or "").strip()
+    if sec_eid and sec_eid.lower() in KNOWN_EMPLOYEE_ROSTER:
+        can_id, can_nm = KNOWN_EMPLOYEE_ROSTER[sec_eid.lower()]
+        d["secondary_employee_id"] = can_id
+        if not sec_aname or sec_aname == sec_eid:
+            d["secondary_assignee_name"] = can_nm
+    elif not sec_eid and sec_aname:
+        sa_low = sec_aname.lower().strip()
+        if sa_low in KNOWN_EMPLOYEE_ROSTER:
+            d["secondary_employee_id"] = KNOWN_EMPLOYEE_ROSTER[sa_low][0]
+            d["secondary_assignee_name"] = KNOWN_EMPLOYEE_ROSTER[sa_low][1]
+        elif sa_low in KNOWN_CREATOR_ALIASES:
+            d["secondary_employee_id"] = KNOWN_CREATOR_ALIASES[sa_low][0]
+            d["secondary_assignee_name"] = KNOWN_CREATOR_ALIASES[sa_low][1]
+        else:
+            for r_key, (r_id, r_name) in KNOWN_EMPLOYEE_ROSTER.items():
+                if sec_aname in r_name or r_name in sec_aname:
+                    d["secondary_employee_id"] = r_id
+                    d["secondary_assignee_name"] = r_name
+                    break
 
     # Self-healing content creator resolution
     cr_id = str(d.get("creator_id") or d.get("content_creator_id") or "").strip()
@@ -8685,19 +8749,16 @@ def api_tasks():
                 t_amname = str(t.get("am_name") or "").strip()
                 t_amname_norm = _norm_ar_str(t_amname)
 
-                # Explicitly prevent showing tasks assigned to another Account Manager
-                if my_eid and t_amid and t_amid != my_eid:
-                    continue
-                if my_name_norm and t_amname_norm and t_amname_norm != my_name_norm:
+                # 1. Any task belonging to an assigned client of this AM is ALWAYS included
+                if t_cid and t_cid in my_cids:
+                    raw_tasks.append(t)
                     continue
 
-                if (t_cid and t_cid in my_cids) or \
-                   (my_eid and t_amid == my_eid) or \
+                # 2. Or if explicitly tagged with this AM
+                if (my_eid and t_amid == my_eid) or \
                    (my_name_norm and t_amname_norm == my_name_norm):
                     raw_tasks.append(t)
-                elif my_eid in ("am-2072-9827", "emp-2072-9827") and t_cid in my_cids:
-                    if not t_amid or t_amid in ("am-2072-9827", "emp-2072-9827", "emp-001", "emp-001-am", "am-001", "unassigned"):
-                        raw_tasks.append(t)
+                    continue
     elif is_content_creator():
         if req_cid and req_cid != "all":
             raw_tasks = get_client_tasks(req_cid)
@@ -14354,14 +14415,23 @@ def api_my_task_start(task_id):
     t_sec_eid = str(t.get("secondary_employee_id") or "").strip()
     t_sec_name = str(t.get("secondary_assignee_name") or "").strip()
 
+    e_norm = _norm_ar_str(emp_name)
+    ta_norm = _norm_ar_str(t_assignee)
+    tsa_norm = _norm_ar_str(t_sec_name)
+
     is_allowed = (
         is_admin() or
         (is_manager() and can_see_client(cid)) or
-        (eid and t_eid and t_eid.lower() == eid.lower()) or
-        (eid and t_sec_eid and t_sec_eid.lower() == eid.lower())
+        (eid and t_eid and t_eid.lower() == str(eid).lower()) or
+        (eid and t_sec_eid and t_sec_eid.lower() == str(eid).lower()) or
+        (e_norm and ta_norm and (e_norm in ta_norm or ta_norm in e_norm)) or
+        (e_norm and tsa_norm and (e_norm in tsa_norm or tsa_norm in e_norm))
     )
     if not is_allowed:
         return jsonify({"error": "دي مش مهمتك"}), 403
+    if not t_eid and eid:
+        t["assigned_employee_id"] = eid
+        t["assignee_name"] = emp_name or t_assignee or "الموظف"
     t["status"] = "In Progress"
     t["started_at"] = datetime.now(timezone.utc).isoformat()
     ts = t.get("timer_state") or {"is_running": False, "elapsed_seconds": 0, "last_start": None}
@@ -14442,18 +14512,24 @@ def api_my_task_submit(task_id):
     t_sec_eid = str(t.get("secondary_employee_id") or "").strip()
     t_sec_name = str(t.get("secondary_assignee_name") or "").strip()
 
+    e_norm = _norm_ar_str(emp_name)
+    ta_norm = _norm_ar_str(t_assignee)
+    tsa_norm = _norm_ar_str(t_sec_name)
+
     is_allowed = (
         is_admin() or 
         (is_manager() and can_see_client(cid)) or 
-        (eid and t_eid and t_eid.lower() == eid.lower()) or
-        (eid and t_sec_eid and t_sec_eid.lower() == eid.lower()) or
+        (eid and t_eid and t_eid.lower() == str(eid).lower()) or
+        (eid and t_sec_eid and t_sec_eid.lower() == str(eid).lower()) or
+        (e_norm and ta_norm and (e_norm in ta_norm or ta_norm in e_norm)) or
+        (e_norm and tsa_norm and (e_norm in tsa_norm or tsa_norm in e_norm)) or
         (not t_eid and not t_assignee)
     )
     if not is_allowed:
         return jsonify({"error": "دي مش مهمتك"}), 403
-    if not t_eid and not t_assignee and eid:
+    if not t_eid and eid:
         t["assigned_employee_id"] = eid
-        t["assignee_name"] = emp_name or "الموظف"
+        t["assignee_name"] = emp_name or t_assignee or "الموظف"
 
     # stop timer
     ts = t.get("timer_state") or {}
@@ -14544,12 +14620,18 @@ def api_my_task_request_return(task_id):
     t_sec_eid = str(t.get("secondary_employee_id") or "").strip()
     t_sec_name = str(t.get("secondary_assignee_name") or "").strip()
 
+    e_norm = _norm_ar_str(emp_name)
+    ta_norm = _norm_ar_str(t_assignee)
+    tsa_norm = _norm_ar_str(t_sec_name)
+
     is_allowed = (
         is_admin() or 
         (is_manager() and can_see_client(cid)) or 
         is_content_creator() or
-        (eid and t_eid and t_eid.lower() == eid.lower()) or
-        (eid and t_sec_eid and t_sec_eid.lower() == eid.lower()) or
+        (eid and t_eid and t_eid.lower() == str(eid).lower()) or
+        (eid and t_sec_eid and t_sec_eid.lower() == str(eid).lower()) or
+        (e_norm and ta_norm and (e_norm in ta_norm or ta_norm in e_norm)) or
+        (e_norm and tsa_norm and (e_norm in tsa_norm or tsa_norm in e_norm)) or
         can_see_client(cid)
     )
     if not is_allowed:
@@ -14619,7 +14701,21 @@ def api_tasks_set_drive_link(task_id):
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
-    if not (is_admin() or is_manager() or is_content_creator() or can_see_client(cid) or str(t.get("assigned_employee_id")) == str(_my_employee_id()) or str(t.get("secondary_employee_id")) == str(_my_employee_id()) or _my_employee_id()):
+    my_eid = str(_my_employee_id() or "").strip().lower()
+    t_eid = str(t.get("assigned_employee_id") or "").strip().lower()
+    t_sec_eid = str(t.get("secondary_employee_id") or "").strip().lower()
+    emp_rec = current_user_rec() or {}
+    emp_name = str(emp_rec.get("name") or "").strip()
+    t_assignee = str(t.get("assignee_name") or "").strip()
+    e_norm = _norm_ar_str(emp_name)
+    ta_norm = _norm_ar_str(t_assignee)
+    is_allowed = (
+        is_admin() or is_manager() or is_content_creator() or can_see_client(cid) or
+        (my_eid and (t_eid == my_eid or t_sec_eid == my_eid)) or
+        (e_norm and ta_norm and (e_norm in ta_norm or ta_norm in e_norm)) or
+        bool(my_eid)
+    )
+    if not is_allowed:
         return jsonify({"error": "غير مصرح"}), 403
 
     t["drive_link"] = link

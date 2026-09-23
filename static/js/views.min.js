@@ -2136,17 +2136,35 @@ function renderTaskCard(t, indexInPlan) {
         if (/^https?:\/\//i.test(cl) && allRefCandidates.indexOf(cl) === -1) allRefCandidates.push(cl);
     };
     if (Array.isArray(t.reference_links)) t.reference_links.forEach(addRefCandidate);
+    else if (typeof t.reference_links === 'string') addRefCandidate(t.reference_links);
     if (Array.isArray(t.media_urls)) t.media_urls.forEach(addRefCandidate);
+    else if (typeof t.media_urls === 'string') addRefCandidate(t.media_urls);
+
+    addRefCandidate(t.reference_link);
+    addRefCandidate(t.materials_url);
+    addRefCandidate(t.materials_link);
+    addRefCandidate(t.plan_drive_link);
+    addRefCandidate(t.drive_plan_url);
+    addRefCandidate(t.drive_link);
+
     if (t.content_data) {
         if (Array.isArray(t.content_data.reference_links)) t.content_data.reference_links.forEach(addRefCandidate);
         if (Array.isArray(t.content_data.reference_images)) t.content_data.reference_images.forEach(addRefCandidate);
+        addRefCandidate(t.content_data.reference_link);
     }
-    if (t.video_data && Array.isArray(t.video_data.reference_links)) t.video_data.reference_links.forEach(addRefCandidate);
+    if (t.video_data) {
+        if (Array.isArray(t.video_data.reference_links)) t.video_data.reference_links.forEach(addRefCandidate);
+        addRefCandidate(t.video_data.reference_link);
+        if (typeof t.video_data.script === 'string') {
+            (t.video_data.script.match(/https?:\/\/[^\s"'<>]+/gi) || []).forEach(addRefCandidate);
+        }
+    }
     if (t.graphic_data) {
         if (Array.isArray(t.graphic_data.reference_links)) t.graphic_data.reference_links.forEach(addRefCandidate);
         if (Array.isArray(t.graphic_data.reference_images)) t.graphic_data.reference_images.forEach(addRefCandidate);
+        addRefCandidate(t.graphic_data.reference_link);
     }
-    var capDescText = [t.caption, t.description, t.visual_idea, t.design_brief].filter(Boolean).join(' ');
+    var capDescText = [t.caption, t.description, t.visual_idea, t.design_brief, t.note].filter(Boolean).join(' ');
     var matchedInText = capDescText.match(/https?:\/\/[^\s"'<>]+/gi) || [];
     matchedInText.forEach(addRefCandidate);
 
@@ -3077,68 +3095,55 @@ function renderTasksBoard() {
         // 3. Search Filter
         if (taskSearchQuery) {
             var q = taskSearchQuery.trim().toLowerCase();
-            // Map common employee names/queries directly to their canonical employee_id
+            var qNorm = (typeof _norm_ar_str === 'function') ? _norm_ar_str(q) : q;
+            // Map employee names/queries to canonical employee_id
             var empQueryMap = {
-                'عمر': 'emp-8148',
-                'عمر احمد': 'emp-8148',
-                'عمر أحمد': 'emp-8148',
-                'عمر احمد عبدالرحمن': 'emp-8148',
-                'عمر أحمد عبدالرحمن': 'emp-8148',
-                'emp-8148': 'emp-8148',
-                'عبدالرحمن': 'emp-7189-7780',
-                'عبد الرحمن': 'emp-7189-7780',
-                'عربي': 'emp-7189-7780',
-                'عبدالرحمن عربي': 'emp-7189-7780',
-                'عبدالرحمن محمد عربي': 'emp-7189-7780',
-                'emp-7189-7780': 'emp-7189-7780',
-                'فرح': 'emp-8143',
-                'farah': 'emp-8143',
-                'emp-8143': 'emp-8143',
-                'ندى': 'emp-8142',
-                'nada': 'emp-8142',
-                'emp-8142': 'emp-8142',
-                'راما': 'emp-8986-4947',
-                'rama': 'emp-8986-4947',
-                'emp-8986-4947': 'emp-8986-4947',
-                'منة': 'emp-7775-2303',
-                'menna': 'emp-7775-2303',
-                'emp-7775-2303': 'emp-7775-2303',
-                'ليالي': 'emp-3264-8790',
-                'layaly': 'emp-3264-8790',
-                'emp-3264-8790': 'emp-3264-8790',
-                'ولاء': 'emp-8069-7345',
-                'emp-8069-7345': 'emp-8069-7345',
-                'هدير': 'emp-2945-2364',
-                'emp-2945-2364': 'emp-2945-2364',
-                'محمود': 'am-2072-9827',
-                'am-2072-9827': 'am-2072-9827',
-                'اية': 'emp-5887-5256',
-                'آيه': 'emp-5887-5256',
-                'emp-5887-5256': 'emp-5887-5256',
-                'حبيبه': 'emp-0652-9532',
-                'حبيبة': 'emp-0652-9532',
-                'emp-0652-9532': 'emp-0652-9532'
+                'عمر': 'emp-8148', 'عمر احمد': 'emp-8148', 'عمر أحمد': 'emp-8148', 'عمر احمد عبدالرحمن': 'emp-8148', 'عمر أحمد عبدالرحمن': 'emp-8148', 'emp-8148': 'emp-8148', 'omar': 'emp-8148',
+                'عبدالرحمن': 'emp-7189-7780', 'عبد الرحمن': 'emp-7189-7780', 'عربي': 'emp-7189-7780', 'عبدالرحمن عربي': 'emp-7189-7780', 'عبدالرحمن محمد عربي': 'emp-7189-7780', 'emp-7189-7780': 'emp-7189-7780', 'abdelrahman': 'emp-7189-7780',
+                'زهراء': 'emp-6600-3645', 'زهرة': 'emp-6600-3645', 'زهراء قمر': 'emp-6600-3645', 'emp-6600-3645': 'emp-6600-3645', 'zahra': 'emp-6600-3645',
+                'فرح': 'emp-8143', 'فرح ياسر': 'emp-8143', 'farah': 'emp-8143', 'emp-8143': 'emp-8143',
+                'ندى': 'emp-8142', 'ندى أيمن': 'emp-8142', 'ندى ايمن': 'emp-8142', 'nada': 'emp-8142', 'emp-8142': 'emp-8142',
+                'راما': 'emp-8986-4947', 'راما ممدوح': 'emp-8986-4947', 'rama': 'emp-8986-4947', 'emp-8986-4947': 'emp-8986-4947',
+                'منة': 'emp-7775-2303', 'منه': 'emp-7775-2303', 'منة جمال': 'emp-7775-2303', 'menna': 'emp-7775-2303', 'emp-7775-2303': 'emp-7775-2303',
+                'ليالي': 'emp-3264-8790', 'layaly': 'emp-3264-8790', 'emp-3264-8790': 'emp-3264-8790',
+                'ولاء': 'emp-8069-7345', 'walaa': 'emp-8069-7345', 'emp-8069-7345': 'emp-8069-7345',
+                'هدير': 'emp-2945-2364', 'hadeer': 'emp-2945-2364', 'emp-2945-2364': 'emp-2945-2364',
+                'محمود': 'am-2072-9827', 'محمود خالد': 'am-2072-9827', 'mahmoud': 'am-2072-9827', 'am-2072-9827': 'am-2072-9827',
+                'اية': 'emp-5887-5256', 'آيه': 'emp-5887-5256', 'آية': 'emp-5887-5256', 'ايه احمد': 'emp-5887-5256', 'آيه أحمد': 'emp-5887-5256', 'aya': 'emp-5887-5256', 'emp-5887-5256': 'emp-5887-5256',
+                'حبيبه': 'emp-0652-9532', 'حبيبة': 'emp-0652-9532', 'habiba': 'emp-0652-9532', 'emp-0652-9532': 'emp-0652-9532',
+                'سما': 'emp-4481-0404', 'sama': 'emp-4481-0404', 'emp-4481-0404': 'emp-4481-0404',
+                'روضة': 'emp-5970-2611', 'روضه': 'emp-5970-2611', 'rawda': 'emp-5970-2611', 'emp-5970-2611': 'emp-5970-2611',
+                'مروة': 'emp-3555-1067', 'marwa': 'emp-3555-1067', 'emp-3555-1067': 'emp-3555-1067',
+                'سعيد': 'emp-8086-4520', 'محمد سعيد': 'emp-8086-4520', 'emp-8086-4520': 'emp-8086-4520'
             };
 
-            var targetEid = empQueryMap[q] || (q.indexOf('emp-') === 0 || q.indexOf('am-') === 0 ? q : null);
+            var targetEid = empQueryMap[q] || empQueryMap[qNorm] || (q.indexOf('emp-') === 0 || q.indexOf('am-') === 0 ? q : null);
 
             displayTasks = displayTasks.filter(function(t) {
                 var eid = String(t.assigned_employee_id || '').trim().toLowerCase();
                 var secEid = String(t.secondary_employee_id || '').trim().toLowerCase();
-                var crId = String(t.creator_id || t.content_creator_id || '').trim().toLowerCase();
-                var amId = String(t.am_id || '').trim().toLowerCase();
 
+                // If searching for an employee specifically, match their assigned tasks
                 if (targetEid) {
-                    return eid === targetEid || secEid === targetEid || crId === targetEid || amId === targetEid;
+                    if (eid === targetEid || secEid === targetEid) return true;
                 }
 
-                var hay = (String(t.task_id || '') + ' ' +
-                           String(t.title || '') + ' ' +
-                           String(t.caption || '') + ' ' +
-                           String(t.description || '') + ' ' +
-                           String(t.assignee_name || '') + ' ' +
-                           String(t.am_name || '') + ' ' +
-                           String(t.file_name || '')).toLowerCase();
+                var hay = (
+                    String(t.task_id || '') + ' ' +
+                    String(t.title || '') + ' ' +
+                    String(t.caption || '') + ' ' +
+                    String(t.description || '') + ' ' +
+                    String(t.visual_idea || '') + ' ' +
+                    String(t.design_brief || '') + ' ' +
+                    String(t.client_name || '') + ' ' +
+                    String(t.file_name || '') + ' ' +
+                    String(t.plan_name || '') + ' ' +
+                    String(t.assignee_name || '') + ' ' +
+                    String(t.secondary_assignee_name || '') + ' ' +
+                    String(t.am_name || '') + ' ' +
+                    String(t.assigned_employee_id || '')
+                ).toLowerCase();
+
                 return hay.indexOf(q) !== -1;
             });
         }
