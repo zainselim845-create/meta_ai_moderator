@@ -4117,7 +4117,7 @@ async function createPlan() {
     var clientInput = ((document.getElementById('pb-client')||{}).value || '').trim();
     var planName = ((document.getElementById('pb-plan-name-tab') || document.getElementById('pb-plan-name') || {}).value || '').trim();
     if (!planName) {
-        var tabMonth = (document.getElementById('pb-tab-plan-month') || {}).value || '';
+        var tabMonth = (typeof getEffectivePlanMonth === 'function') ? getEffectivePlanMonth('pb-tab-plan-month') : ((document.getElementById('pb-tab-plan-month') || {}).value || '');
         if (tabMonth && clientInput) planName = 'خطة ' + clientInput + ' — ' + tabMonth;
     }
     var am = (document.getElementById('pb-am')||{}).value || '';
@@ -4317,37 +4317,217 @@ function getPlanMonthOptionsHtml(selectedVal) {
     var curMonth = now.getMonth();
     var curYear = now.getFullYear();
     var opts = '';
-    // Show 3 previous months + current + 5 future months
-    for (var offset = -3; offset <= 5; offset++) {
-        var m = curMonth + offset;
-        var y = curYear;
-        if (m < 0) { m += 12; y--; }
-        if (m > 11) { m -= 12; y++; }
-        var val = _PLAN_MONTHS_AR[m] + ' ' + y;
-        var isSel = selectedVal ? (selectedVal === val) : (offset === 0);
-        opts += '<option value="' + val + '"' + (isSel ? ' selected' : '') + '>' + val + '</option>';
+
+    var isCustomSel = (selectedVal === '__custom__');
+    opts += '<option value="__custom__"' + (isCustomSel ? ' selected' : '') + '>✍️ + تحديد شهر / فترة مخصصة (كتابة يدوية)...</option>';
+
+    var matchedSelected = false;
+    var currentDefaultVal = _PLAN_MONTHS_AR[curMonth] + ' ' + curYear;
+    var targetVal = (selectedVal && selectedVal !== '__custom__') ? selectedVal.trim() : currentDefaultVal;
+
+    // Full multi-year span: from (curYear - 2) up to (curYear + 14) [e.g. 2024 to 2040]
+    var startYear = curYear - 2;
+    var endYear = curYear + 14;
+
+    for (var y = startYear; y <= endYear; y++) {
+        var yearTag = (y === curYear) ? ' (العام الحالي)' : (y === curYear + 1 ? ' (العام القادم)' : '');
+        opts += '<optgroup label="📅 سنة ' + y + yearTag + '">';
+        for (var m = 0; m < 12; m++) {
+            var val = _PLAN_MONTHS_AR[m] + ' ' + y;
+            var isSel = (!isCustomSel && targetVal === val);
+            if (isSel) matchedSelected = true;
+            var isCur = (m === curMonth && y === curYear);
+            opts += '<option value="' + val + '"' + (isSel ? ' selected' : '') + '>' + val + (isCur ? ' (الشهر الحالي)' : '') + '</option>';
+        }
+        opts += '</optgroup>';
     }
+
+    if (selectedVal && selectedVal !== '__custom__' && !matchedSelected) {
+        opts = '<option value="' + selectedVal + '" selected>⭐ ' + selectedVal + ' (محدد)</option>' + opts;
+    }
+
     return opts;
 }
 
+function getEffectivePlanMonth(targetId) {
+    var selMap = {
+        'tasks-ingest-plan-month': { selId: 'tasks-ingest-plan-month', inpId: 'tasks-ingest-custom-plan-month' },
+        'pb-plan-month': { selId: 'pb-plan-month', inpId: 'pb-custom-plan-month' },
+        'pb-tab-plan-month': { selId: 'pb-tab-plan-month', inpId: 'pb-tab-custom-plan-month' }
+    };
+    var item = selMap[targetId];
+    if (item) {
+        var inp = document.getElementById(item.inpId);
+        var sel = document.getElementById(item.selId);
+        if (inp && !inp.classList.contains('hidden') && inp.value.trim()) {
+            return inp.value.trim();
+        }
+        if (sel && sel.value && sel.value !== '__custom__') {
+            return sel.value.trim();
+        }
+        if (inp && inp.value.trim()) {
+            return inp.value.trim();
+        }
+        return (sel && sel.value !== '__custom__') ? (sel.value || '').trim() : '';
+    }
+    var el = document.getElementById(targetId);
+    return (el && el.value !== '__custom__') ? (el.value || '').trim() : '';
+}
+
+function toggleTasksIngestCustomMonth(forceCustom) {
+    var sel = document.getElementById('tasks-ingest-plan-month');
+    var inp = document.getElementById('tasks-ingest-custom-plan-month');
+    var btn = document.getElementById('btn-tasks-ingest-custom-month');
+    if (!sel || !inp) return;
+    var showCustom = (forceCustom === true) || inp.classList.contains('hidden');
+    if (showCustom) {
+        inp.classList.remove('hidden');
+        sel.classList.add('hidden');
+        if (btn) btn.textContent = '↩ اختيار من القائمة';
+        if (!inp.value && sel.value && sel.value !== '__custom__') {
+            inp.value = sel.value;
+        }
+        inp.focus();
+    } else {
+        inp.classList.add('hidden');
+        sel.classList.remove('hidden');
+        if (btn) btn.textContent = '+ شهر مخصص';
+        if (inp.value.trim()) {
+            var typed = inp.value.trim();
+            var found = false;
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === typed) {
+                    sel.selectedIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                var newOpt = document.createElement('option');
+                newOpt.value = typed;
+                newOpt.text = '⭐ ' + typed;
+                newOpt.selected = true;
+                sel.insertBefore(newOpt, sel.children[1] || sel.firstChild);
+            }
+        } else if (sel.value === '__custom__') {
+            sel.selectedIndex = 1;
+        }
+    }
+    if (typeof updatePlanNamePreview === 'function') updatePlanNamePreview();
+}
+
+function togglePbCustomMonth(forceCustom) {
+    var sel = document.getElementById('pb-plan-month');
+    var inp = document.getElementById('pb-custom-plan-month');
+    var btn = document.getElementById('btn-pb-custom-month');
+    if (!sel || !inp) return;
+    var showCustom = (forceCustom === true) || inp.classList.contains('hidden');
+    if (showCustom) {
+        inp.classList.remove('hidden');
+        sel.classList.add('hidden');
+        if (btn) btn.textContent = '↩ اختيار من القائمة';
+        if (!inp.value && sel.value && sel.value !== '__custom__') {
+            inp.value = sel.value;
+        }
+        inp.focus();
+    } else {
+        inp.classList.add('hidden');
+        sel.classList.remove('hidden');
+        if (btn) btn.textContent = '+ شهر مخصص';
+        if (inp.value.trim()) {
+            var typed = inp.value.trim();
+            var found = false;
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === typed) {
+                    sel.selectedIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                var newOpt = document.createElement('option');
+                newOpt.value = typed;
+                newOpt.text = '⭐ ' + typed;
+                newOpt.selected = true;
+                sel.insertBefore(newOpt, sel.children[1] || sel.firstChild);
+            }
+        } else if (sel.value === '__custom__') {
+            sel.selectedIndex = 1;
+        }
+    }
+    if (typeof updatePBPlanNameFromMonth === 'function') updatePBPlanNameFromMonth();
+}
+
+function togglePbTabCustomMonth(forceCustom) {
+    var sel = document.getElementById('pb-tab-plan-month');
+    var inp = document.getElementById('pb-tab-custom-plan-month');
+    var btn = document.getElementById('btn-pb-tab-custom-month');
+    if (!sel || !inp) return;
+    var showCustom = (forceCustom === true) || inp.classList.contains('hidden');
+    if (showCustom) {
+        inp.classList.remove('hidden');
+        sel.classList.add('hidden');
+        if (btn) btn.textContent = '↩ اختيار من القائمة';
+        if (!inp.value && sel.value && sel.value !== '__custom__') {
+            inp.value = sel.value;
+        }
+        inp.focus();
+    } else {
+        inp.classList.add('hidden');
+        sel.classList.remove('hidden');
+        if (btn) btn.textContent = '+ شهر مخصص';
+        if (inp.value.trim()) {
+            var typed = inp.value.trim();
+            var found = false;
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === typed) {
+                    sel.selectedIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                var newOpt = document.createElement('option');
+                newOpt.value = typed;
+                newOpt.text = '⭐ ' + typed;
+                newOpt.selected = true;
+                sel.insertBefore(newOpt, sel.children[1] || sel.firstChild);
+            }
+        } else if (sel.value === '__custom__') {
+            sel.selectedIndex = 1;
+        }
+    }
+    if (typeof updatePBTabPlanNameFromMonth === 'function') updatePBTabPlanNameFromMonth();
+}
+
 function populatePlanMonthDropdown() {
-    var targets = ['tasks-ingest-plan-month', 'pb-plan-month', 'pb-tab-plan-month'];
-    targets.forEach(function(id) {
-        var el = document.getElementById(id);
+    var targets = [
+        { selId: 'tasks-ingest-plan-month', inpId: 'tasks-ingest-custom-plan-month' },
+        { selId: 'pb-plan-month', inpId: 'pb-custom-plan-month' },
+        { selId: 'pb-tab-plan-month', inpId: 'pb-tab-custom-plan-month' }
+    ];
+    targets.forEach(function(item) {
+        var el = document.getElementById(item.selId);
+        var inp = document.getElementById(item.inpId);
         if (el) {
-            var cur = el.value;
+            var cur = (inp && !inp.classList.contains('hidden') && inp.value.trim())
+                ? inp.value.trim()
+                : (el.value || '');
+            if (cur === '__custom__') cur = (inp && inp.value.trim()) || '';
             el.innerHTML = getPlanMonthOptionsHtml(cur);
+            if (cur && cur !== '__custom__') {
+                try { el.value = cur; } catch(e){}
+            }
         }
     });
 }
 
 function updatePBPlanNameFromMonth() {
-    var mSel = document.getElementById('pb-plan-month');
     var pInp = document.getElementById('pb-plan-name');
     var cSel = document.getElementById('pb-client-select');
     var cInp = document.getElementById('pb-client-name');
     if (!pInp) return;
-    var monthVal = (mSel && mSel.value) ? mSel.value : '';
+    var monthVal = getEffectivePlanMonth('pb-plan-month');
     var clientName = '';
     if (cInp && !cInp.classList.contains('hidden') && cInp.value.trim()) {
         clientName = cInp.value.trim();
@@ -4371,12 +4551,11 @@ function updatePBPlanNameFromMonth() {
 }
 
 function updatePBTabPlanNameFromMonth() {
-    var mSel = document.getElementById('pb-tab-plan-month');
     var pInp = document.getElementById('pb-plan-name-tab') || document.getElementById('pb-plan-name');
     var cInp = document.getElementById('pb-client');
     if (!pInp) return;
     var clientName = (cInp ? cInp.value.trim() : '') || 'العميل';
-    var monthVal = (mSel && mSel.value) ? mSel.value : '';
+    var monthVal = getEffectivePlanMonth('pb-tab-plan-month');
     pInp.value = 'خطة ' + clientName + (monthVal ? (' — ' + monthVal) : '');
 }
 
@@ -4419,8 +4598,7 @@ function updatePlanNamePreview() {
 
 function getSelectedPlanName() {
     var clientName = getSelectedClientNameForPlan();
-    var monthSel = document.getElementById('tasks-ingest-plan-month');
-    var monthVal = monthSel ? monthSel.value : '';
+    var monthVal = (typeof getEffectivePlanMonth === 'function') ? getEffectivePlanMonth('tasks-ingest-plan-month') : ((document.getElementById('tasks-ingest-plan-month') || {}).value || '');
     var subInp = document.getElementById('tasks-ingest-plan-subtitle');
     var subVal = subInp ? subInp.value.trim() : '';
 
@@ -4441,6 +4619,10 @@ window.updatePlanNamePreview = updatePlanNamePreview;
 window.getSelectedPlanName = getSelectedPlanName;
 window.updatePBPlanNameFromMonth = updatePBPlanNameFromMonth;
 window.updatePBTabPlanNameFromMonth = updatePBTabPlanNameFromMonth;
+window.toggleTasksIngestCustomMonth = toggleTasksIngestCustomMonth;
+window.togglePbCustomMonth = togglePbCustomMonth;
+window.togglePbTabCustomMonth = togglePbTabCustomMonth;
+window.getEffectivePlanMonth = getEffectivePlanMonth;
 
 function onTasksIngestClientSelectChange(val) {
     if (!val) return;
@@ -4496,7 +4678,8 @@ function _cleanEmployeeArabicName(name, eid) {
             'EMP-8086-4520': 'محمد سعيد فوزي',
             'EMP-4481-0404': 'سما أيمن',
             'EMP-5970-2611': 'روضة عبد الحميد',
-            'EMP-3555-1067': 'مروة سعيد'
+            'EMP-3555-1067': 'مروة سعيد',
+            'EMP-6600-3645': 'زهراء قمر'
         };
         if (eidToName[eidClean]) return eidToName[eidClean];
     }
@@ -4514,6 +4697,7 @@ function _cleanEmployeeArabicName(name, eid) {
     if (low.includes('arabi') || low.includes('عربي') || low.includes('عبدالرحمن')) return 'عبدالرحمن محمد عربي';
     if (low.includes('khaled') || low.includes('محمود خالد')) return 'محمود خالد';
     if (low.includes('megahed') || low.includes('آيه') || low.includes('ايه احمد') || low.includes('آية')) return 'آيه أحمد مجاهد';
+    if (low.includes('زهراء') || low.includes('زهرة') || low.includes('zahra')) return 'زهراء قمر';
     return n.replace(/\s*\([^)]*\)/g, '').trim();
 }
 
@@ -6997,7 +7181,7 @@ async function submitPlanBuilder() {
 
     var planSubName = ((document.getElementById('pb-plan-name') || {}).value || '').trim();
     if (!planSubName) {
-        var pbMonth = ((document.getElementById('pb-plan-month') || {}).value || '').trim();
+        var pbMonth = (typeof getEffectivePlanMonth === 'function') ? getEffectivePlanMonth('pb-plan-month') : (((document.getElementById('pb-plan-month') || {}).value || '').trim());
         if (pbMonth) planSubName = 'خطة ' + resolvedCname + ' — ' + pbMonth;
     }
     var planName = planSubName || ('خطة ' + resolvedCname);
