@@ -1170,7 +1170,11 @@ function renderMyPortalTasks() {
     addUrl(t.materials_link);
     addUrl(t.plan_drive_link);
     addUrl(t.drive_plan_url);
-    addUrl(t.drive_link);
+    if (!t.deliverables || !t.deliverables.length) {
+      if (!/Submitted|Awaiting|Review|Completed/i.test(t.status || '')) {
+        addUrl(t.drive_link);
+      }
+    }
 
     if (t.content_data) {
       if (Array.isArray(t.content_data.reference_links)) t.content_data.reference_links.forEach(addUrl);
@@ -1458,25 +1462,68 @@ function renderMyPortalTasks() {
           ${t.review_note ? `<span class="text-[11px] text-rose-700 font-bold bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">✍️ ملاحظة المراجعة: ${esc(t.review_note)}</span>` : ''}
         </div>
 
-        ${t.drive_link ? `
-          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2 shadow-2xs">
-            <div class="flex items-center justify-between text-xs font-bold text-emerald-900">
-              <span class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-600 inline-block shrink-0"></span>
-                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '🎬 مخرجات الفيديو المسلّمة:' : (t.media_type==='pdf' || /\.pdf(\?|$)/i.test(t.drive_link)) ? '📄 ملف PDF المسلّم:' : '📁 ملف التسليم المسجّل:'}</span>
-              </span>
-              <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold">محفوظ على Drive ↗</span>
-            </div>
-            <div class="flex items-center gap-2 flex-wrap">
-              <a href="${esc(t.drive_link)}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-xs transition flex items-center gap-1">
-                <span>${(t.media_type==='video' || /\.(mp4|mov|webm)(\?|$)/i.test(t.drive_link)) ? '▶️ فتح / تشغيل الفيديو ↗️' : (t.media_type==='pdf' || /\.pdf(\?|$)/i.test(t.drive_link)) ? '📄 استعراض ملف PDF ↗️' : '📁 فتح ملف التسليم ↗️'}</span>
-              </a>
-              <button type="button" onclick="copyTaskDriveLink('${esc(t.drive_link)}')" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-lg shadow-2xs transition flex items-center gap-1 cursor-pointer">
-                <span>📋 نسخ الرابط</span>
-              </button>
-            </div>
-          </div>
-        ` : ''}
+        ${(() => {
+          const dList = Array.isArray(t.deliverables) ? t.deliverables : [];
+          const dLink = (t.drive_link || '').trim();
+          const dNotes = (t.delivery_notes || t.deliverables_notes || t.notes || '').trim();
+          if (!dList.length && !dLink && !dNotes) return '';
+
+          let dBox = '<div class="bg-gradient-to-br from-emerald-50/90 to-teal-50/90 border border-emerald-300 rounded-2xl p-3.5 space-y-2.5 shadow-2xs">';
+          dBox += '<div class="flex items-center justify-between font-bold text-xs text-emerald-950 border-b border-emerald-200/80 pb-1.5">';
+          dBox += '<span class="flex items-center gap-1.5">📦 <span>مخرجات وتسليمات العمل (Google Drive):</span></span>';
+          dBox += '<span class="bg-emerald-600 text-white text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full shadow-2xs">جاهز للاستعراض ↗</span>';
+          dBox += '</div>';
+
+          if (dList.length > 0) {
+            dBox += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">';
+            dList.forEach((df, idx) => {
+              const u = df.url || df.drive_link || df;
+              const name = df.filename || `ملف تسليم #${idx+1}`;
+              const isVid = (df.mime && df.mime.startsWith('video')) || /\.(mp4|mov|webm)(\?|$)/i.test(name);
+              const isPdf = (df.mime && df.mime.includes('pdf')) || /\.pdf(\?|$)/i.test(name);
+              dBox += `<a href="${esc(u)}" target="_blank" class="bg-white hover:bg-emerald-100/60 border border-emerald-200 rounded-xl p-2 text-right transition flex items-center gap-2 shadow-2xs group">
+                <span class="text-base shrink-0">${isVid ? '🎬' : (isPdf ? '📄' : '🖼️')}</span>
+                <div class="min-w-0 flex-1">
+                  <div class="font-bold text-xs text-slate-800 truncate group-hover:text-emerald-900">${esc(name)}</div>
+                  <div class="text-[10px] text-emerald-700 font-mono">${isVid ? '▶️ تشغيل الفيديو على Drive ↗' : (isPdf ? 'استعراض PDF على Drive ↗' : 'فتح على Drive ↗')}</div>
+                </div>
+              </a>`;
+            });
+            dBox += '</div>';
+          }
+
+          if (dLink && !dList.some(d => (d.url || d) === dLink)) {
+            const isVid = t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(dLink);
+            const isPdf = t.media_type === 'pdf' || /\.pdf(\?|$)/i.test(dLink);
+            dBox += `<div class="bg-white p-2.5 rounded-xl border border-emerald-200 flex items-center justify-between gap-2 flex-wrap shadow-2xs">
+              <div class="flex items-center gap-2 min-w-0 flex-1">
+                <span class="text-base shrink-0">${isVid ? '🎬' : (isPdf ? '📄' : '📁')}</span>
+                <div class="min-w-0 flex-1">
+                  <div class="font-bold text-xs text-slate-900">${isVid ? 'فيديو المخرجات المسلّم' : (isPdf ? 'ملف PDF المسلّم' : 'رابط التسليم المسجّل')}</div>
+                  <div class="text-[10px] font-mono text-emerald-700 truncate">${esc(dLink)}</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <a href="${esc(dLink)}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xs transition flex items-center gap-1">
+                  <span>${isVid ? '▶️ تشغيل ↗' : 'فتح على Drive ↗'}</span>
+                </a>
+                <button type="button" onclick="copyTaskDriveLink('${esc(dLink)}')" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-lg shadow-2xs transition">
+                  <span>📋</span>
+                </button>
+              </div>
+            </div>`;
+          }
+
+          if (dNotes) {
+            dBox += `<div class="bg-white/90 p-2.5 rounded-xl border border-emerald-100 text-slate-800 text-xs space-y-0.5">
+              <div class="font-bold text-[10px] text-emerald-900">📝 ملاحظات التسليم:</div>
+              <div class="whitespace-pre-wrap leading-relaxed">${esc(dNotes)}</div>
+            </div>`;
+          }
+
+          dBox += '</div>';
+          return dBox;
+        })()}
       </div>
 
       <!-- Card Action Footer Strip -->
@@ -2155,7 +2202,25 @@ async function loadTeam() {
 async function renderMembers() {
   const list = document.getElementById('members-list');
   if (!list) return;
-  let users = [], empNames = {};
+  let users = [], empNames = {
+    'EMP-7775-2303': 'منة جمال',
+    'EMP-8986-4947': 'راما ممدوح سرج',
+    'EMP-8142': 'ندى أيمن كمال',
+    'EMP-8148': 'عمر أحمد عبدالرحمن',
+    'EMP-8143': 'فرح ياسر إبراهيم',
+    'EMP-8069-7345': 'ولاء أشرف محمد',
+    'EMP-2945-2364': 'هدير أنور عباس',
+    'EMP-7189-7780': 'عبدالرحمن محمد عربي',
+    'EMP-3264-8790': 'ليالي أحمد',
+    'AM-2072-9827': 'محمود خالد',
+    'EMP-5887-5256': 'آيه أحمد مجاهد',
+    'EMP-0652-9532': 'حبيبه أحمد محمد',
+    'EMP-8086-4520': 'محمد سعيد فوزي',
+    'EMP-4481-0404': 'سما أيمن',
+    'EMP-5970-2611': 'روضة عبد الحميد',
+    'EMP-3555-1067': 'مروة سعيد',
+    'EMP-6600-3645': 'زهراء قمر'
+  };
   try { const d = await safeFetchJson('/api/users'); users = (d && d.users) ? d.users : []; } catch(e){}
   try { const d = await safeFetchJson('/api/tasks/employees'); ((d && d.employees) ? d.employees : []).forEach(e => { if (e.employee_id) empNames[e.employee_id] = e.name; }); } catch(e){}
   const clients = window._teamClients || [];

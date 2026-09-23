@@ -1867,21 +1867,49 @@ function copyTaskCaption(taskId, btn) {
 }
 window.copyTaskCaption = copyTaskCaption;
 
+var DEFAULT_AGENCY_TEAM = [
+    { employee_id: 'EMP-8986-4947', name: 'راما ممدوح سرج', role: 'Graphic Designer' },
+    { employee_id: 'EMP-8142', name: 'ندى أيمن كمال', role: 'Graphic Designer' },
+    { employee_id: 'EMP-7775-2303', name: 'منة جمال', role: 'Graphic Designer' },
+    { employee_id: 'EMP-8148', name: 'عمر أحمد عبدالرحمن', role: 'Video Editor' },
+    { employee_id: 'EMP-8143', name: 'فرح ياسر إبراهيم', role: 'Video Editor' },
+    { employee_id: 'EMP-6600-3645', name: 'زهراء قمر', role: 'مونتير' },
+    { employee_id: 'EMP-8069-7345', name: 'ولاء أشرف محمد', role: 'Content Creator' },
+    { employee_id: 'EMP-2945-2364', name: 'هدير أنور عباس', role: 'Content Creator' },
+    { employee_id: 'EMP-7189-7780', name: 'عبدالرحمن محمد عربي', role: 'Content Creator' },
+    { employee_id: 'EMP-3264-8790', name: 'ليالي أحمد', role: 'Content Creator' },
+    { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'Account Manager' },
+    { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'Account Manager' },
+    { employee_id: 'EMP-0652-9532', name: 'حبيبه احمد محمد', role: 'Account Manager' },
+    { employee_id: 'EMP-8086-4520', name: 'محمد سعيد فوزي', role: 'ادارة' },
+    { employee_id: 'EMP-5970-2611', name: 'روضة عبد الحميد', role: 'ادارة' },
+    { employee_id: 'EMP-4481-0404', name: 'سما أيمن', role: 'Employee' },
+    { employee_id: 'EMP-3555-1067', name: 'مروة سعيد', role: 'Employee' }
+];
+
+function getAgencyTeam() {
+    if (window.allTeamEmployees && window.allTeamEmployees.length) return window.allTeamEmployees;
+    if (typeof employeesList !== 'undefined' && employeesList && employeesList.length) return employeesList;
+    return DEFAULT_AGENCY_TEAM;
+}
+
 function empOptionsHtml(selectedId) {
-    var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+    var team = getAgencyTeam();
     return team.map(function(e) {
         var sel = (String(e.employee_id) === String(selectedId)) ? ' selected' : '';
-        return '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(e.name) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
+        var cleanName = _cleanEmployeeArabicName(e.name || e.employee_id, e.employee_id);
+        return '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(cleanName) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
     }).join('');
 }
 
 function coEmpOptionsHtml(selectedId, primaryId) {
-    var team = (window.allTeamEmployees && window.allTeamEmployees.length) ? window.allTeamEmployees : (employeesList || []);
+    var team = getAgencyTeam();
     var opts = '<option value="">-- بدون شريك (منفذ واحد فقط) --</option>';
     team.forEach(function(e) {
         if (primaryId && String(e.employee_id) === String(primaryId)) return;
         var sel = (selectedId && String(e.employee_id) === String(selectedId)) ? ' selected' : '';
-        opts += '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(e.name) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
+        var cleanName = _cleanEmployeeArabicName(e.name || e.employee_id, e.employee_id);
+        opts += '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(cleanName) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
     });
     return opts;
 }
@@ -2074,12 +2102,17 @@ function renderTaskCard(t, indexInPlan) {
                   isSubmitted ? 'تم التسليم / بانتظار مراجعتك ' : st === 'Assigned' ? 'مُسندة ' : 'بانتظار الإسناد ';
 
     var cleanAM = (t.am_name || '').trim();
-    if (!cleanAM || cleanAM === 'EMP-001' || cleanAM === 'EMP-001-AM' || t.am_id === 'EMP-001' || t.am_id === 'EMP-001-AM') {
-        if (String(t.client_id).toLowerCase().indexOf('domya') !== -1 || String(t.client_name).toLowerCase().indexOf('domya') !== -1) {
-            cleanAM = 'آيه أحمد مجاهد';
-        } else {
-            cleanAM = 'محمود خالد';
-        }
+    var tAmid = (t.am_id || '').trim().toUpperCase();
+    if (tAmid === 'EMP-0652-9532' || tAmid === 'AM-0652-9532' || cleanAM.indexOf('حبيبه') !== -1 || cleanAM.indexOf('حبيبة') !== -1) {
+        cleanAM = 'حبيبه أحمد محمد';
+    } else if (tAmid === 'EMP-5887-5256' || tAmid === 'AM-5887-5256' || cleanAM.indexOf('آيه') !== -1 || cleanAM.indexOf('ايه') !== -1 || String(t.client_id).toLowerCase().indexOf('domya') !== -1) {
+        cleanAM = 'آيه أحمد مجاهد';
+    } else if (tAmid === 'AM-2072-9827' || tAmid === 'EMP-2072-9827' || cleanAM.indexOf('محمود') !== -1) {
+        cleanAM = 'محمود خالد';
+    } else if (!cleanAM || cleanAM === 'EMP-001' || cleanAM === 'EMP-001-AM' || t.am_id === 'EMP-001' || t.am_id === 'EMP-001-AM') {
+        cleanAM = _cleanEmployeeArabicName(cleanAM, t.am_id) || 'محمود خالد';
+    } else {
+        cleanAM = _cleanEmployeeArabicName(cleanAM, t.am_id) || cleanAM;
     }
     var amTag = '<div class="flex items-center gap-1.5 text-[11px] text-indigo-900 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-xl font-bold">' +
         '<span>👤 مدير الحساب (AM):</span> <span>' + esc(cleanAM) + '</span>' +
@@ -2091,8 +2124,8 @@ function renderTaskCard(t, indexInPlan) {
             '<span>✍️ كاتب المحتوى:</span> <span>' + esc(creatorName) + '</span>' +
         '</div>') : '';
 
-    var assigneeName = _cleanEmployeeArabicName((t.assignee_name || '').trim());
-    var secAssigneeName = _cleanEmployeeArabicName((t.secondary_assignee_name || '').trim());
+    var assigneeName = _cleanEmployeeArabicName((t.assignee_name || '').trim(), t.assigned_employee_id);
+    var secAssigneeName = _cleanEmployeeArabicName((t.secondary_assignee_name || '').trim(), t.secondary_employee_id);
     var assigneeTag = (assigneeName && secAssigneeName) ?
         ('<div class="flex items-center gap-1.5 text-[11px] text-purple-900 bg-purple-50 border border-purple-200/80 px-2.5 py-1 rounded-xl font-bold" title="عمل مشترك بين شخصين">' +
             '<span>👥 المنفذين (عمل مشترك):</span> <span>' + esc(assigneeName) + ' + ' + esc(secAssigneeName) + '</span>' +
@@ -2694,29 +2727,50 @@ function renderTaskCard(t, indexInPlan) {
             '<div id="' + esc(logId) + '" class="hidden mt-1.5 space-y-2 bg-slate-50/90 border border-slate-200 rounded-xl p-2.5 max-h-56 overflow-y-auto text-xs">';
             
         logEntries.slice().reverse().forEach(function(l) {
-            var icon = l.action === 'created' ? '' :
-                       l.action === 'assigned' ? '' :
-                       l.action === 'started' ? '️' :
-                       l.action === 'submitted' ? '' :
+            var icon = l.action === 'created' ? '✨' :
+                       l.action === 'assigned' ? '👤' :
+                       l.action === 'co_assigned' ? '👥' :
+                       l.action === 'creator_assigned' ? '✍️' :
+                       l.action === 'creator_cleared' ? '❌' :
+                       l.action === 'co_assignee_cleared' ? '❌' :
+                       l.action === 'started' ? '▶️' :
+                       l.action === 'submitted' ? '📤' :
                        l.action === 'reviewed_reject' ? '↩️' :
-                       l.action === 'reviewed_forward' ? '️' :
-                       l.action === 'reviewed_approved' ? '' :
-                       l.action === 'recalled' ? '️' :
-                       l.action === 'dates_updated' ? '' :
-                       l.action === 'reference_added' ? '' :
-                       l.action === 'asset_uploaded' ? '' : '';
+                       l.action === 'reviewed_forward' ? '➡️' :
+                       l.action === 'reviewed_approved' ? '✅' :
+                       l.action === 'recalled' ? '🔄' :
+                       l.action === 'recalled_by_employee' ? '↩️' :
+                       l.action === 'dates_updated' ? '📅' :
+                       l.action === 'reference_added' ? '🔗' :
+                       l.action === 'asset_uploaded' ? '📁' :
+                       l.action === 'content_updated' ? '📝' :
+                       l.action === 'client_feedback' ? '💬' :
+                       l.action === 'archived' ? '📦' :
+                       l.action === 'unarchived' ? '📂' : '⚡';
             
-            var actionTitle = l.action === 'created' ? 'إنشاء المهمة' :
+            var actionTitle = l.action === 'created' ? 'إنشاء وتفريغ المهمة' :
                               l.action === 'assigned' ? ('إسناد إلى ' + (l.target_employee_name || 'موظف')) :
-                              l.action === 'started' ? 'بدء العمل' :
-                              l.action === 'submitted' ? 'تسليم المخرجات' :
-                              l.action === 'reviewed_reject' ? 'طلب تعديل' :
+                              l.action === 'co_assigned' ? ('إسناد شريك عمل إلى ' + (l.target_employee_name || 'موظف')) :
+                              l.action === 'creator_assigned' ? ('تحديد كاتب المحتوى: ' + (l.target_employee_name || 'كاتب المحتوى')) :
+                              l.action === 'creator_cleared' ? 'إلغاء كاتب المحتوى' :
+                              l.action === 'co_assignee_cleared' ? 'إلغاء شريك العمل' :
+                              l.action === 'started' ? 'بدء العمل وتشغيل المؤقت' :
+                              l.action === 'submitted' ? 'تسليم مخرجات العمل' :
+                              l.action === 'reviewed_reject' ? 'طلب تعديل من الموظف' :
                               l.action === 'reviewed_forward' ? ('تمرير إلى ' + (l.target_employee_name || 'موظف آخر')) :
                               l.action === 'reviewed_approved' ? 'اعتماد نهائي وجدولة' :
-                              l.action === 'recalled' ? 'سحب المهمة' :
-                              l.action === 'dates_updated' ? 'تعديل المواعيد' :
-                              l.action === 'reference_added' ? 'إضافة ريفرنس' :
-                              l.action === 'asset_uploaded' ? 'رفع ملف على Drive' : (l.note || l.action);
+                              l.action === 'recalled' ? 'سحب المهمة من الموظف' :
+                              l.action === 'recalled_by_employee' ? 'استرجاع المهمة للتعديل بواسطة الموظف' :
+                              l.action === 'dates_updated' ? 'تعديل وتحديد المواعيد' :
+                              l.action === 'reference_added' ? 'إضافة ريفرنس ومراجع' :
+                              l.action === 'asset_uploaded' ? 'رفع مخرجات / فيديو على Drive' :
+                              l.action === 'content_updated' ? 'تعديل نصوص وكابشن البوست' :
+                              l.action === 'client_feedback' ? 'ملاحظات وتعديلات العميل' :
+                              l.action === 'archived' ? 'أرشفة المهمة' :
+                              l.action === 'unarchived' ? 'إلغاء أرشفة المهمة' : (l.note || l.action || 'عملية');
+
+            var dLink = (l.details && l.details.drive_link) ? l.details.drive_link : '';
+            var dLinkHtml = dLink ? (' · <a href="' + esc(dLink) + '" target="_blank" class="text-emerald-700 hover:text-emerald-900 underline font-bold">↗️ فتح الملف المسلّم</a>') : '';
 
             timelineLogHtml += '<div class="flex items-start gap-2 text-[11px] border-b border-slate-200/60 pb-1.5 last:border-0 last:pb-0">' +
                 '<span class="text-sm shrink-0">' + icon + '</span>' +
@@ -2728,6 +2782,7 @@ function renderTaskCard(t, indexInPlan) {
                     '<div class="text-[10px] text-slate-500 mt-0.5">' +
                         'بواسطة: <b class="text-slate-700">' + esc(l.actor_name || l.actor_type || '—') + '</b>' +
                         (l.note && l.note !== actionTitle ? (' · ' + esc(l.note)) : '') +
+                        dLinkHtml +
                     '</div>' +
                 '</div>' +
             '</div>';
@@ -2760,10 +2815,11 @@ function renderTaskCard(t, indexInPlan) {
 
         subHistory.slice().reverse().forEach(function(s, idx) {
             var subNum = subHistory.length - idx;
-            var subDrive = (s.drive_link || '').trim();
+            var subDrive = (s.drive_link || (Array.isArray(s.deliverables) && s.deliverables[0] && (s.deliverables[0].url || s.deliverables[0])) || (Array.isArray(s.media_urls) && s.media_urls[0]) || '').trim();
             var subNotes = (s.notes || '').trim();
             var subTime = s.submitted_at ? fmtCairoTime(s.submitted_at) : '—';
             var subBy = s.submitted_by || 'الموظف';
+            var subDelivs = Array.isArray(s.deliverables) ? s.deliverables : [];
 
             historyArchiveHtml += '<div class="bg-white border border-emerald-100 rounded-lg p-2 space-y-1.5 shadow-2xs">' +
                 '<div class="flex items-center justify-between text-[10px] border-b border-slate-100 pb-1">' +
@@ -2775,7 +2831,15 @@ function renderTaskCard(t, indexInPlan) {
                 historyArchiveHtml += '<div class="text-[11px] text-slate-700 bg-slate-50 p-1.5 rounded border border-slate-100 whitespace-pre-wrap leading-relaxed">' + esc(subNotes) + '</div>';
             }
 
-            if (subDrive) {
+            if (subDelivs.length > 1) {
+                historyArchiveHtml += '<div class="grid grid-cols-2 gap-1 pt-0.5">';
+                subDelivs.forEach(function(df, dIdx) {
+                    var du = df.url || df.drive_link || df;
+                    var dnm = df.filename || ('ملف #' + (dIdx + 1));
+                    historyArchiveHtml += '<a href="' + esc(du) + '" target="_blank" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-[10px] font-bold p-1 rounded border border-emerald-200 truncate block text-center">📁 ' + esc(dnm) + ' ↗</a>';
+                });
+                historyArchiveHtml += '</div>';
+            } else if (subDrive) {
                 historyArchiveHtml += '<div class="flex items-center gap-1.5 pt-0.5">' +
                     '<a href="' + esc(subDrive) + '" target="_blank" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] py-1 px-2 rounded transition flex items-center justify-center gap-1">' +
                         '<span>↗️ فتح في Google Drive</span>' +
@@ -4660,31 +4724,38 @@ function onTasksIngestClientChange(val) {
 }
 
 function _cleanEmployeeArabicName(name, eid) {
+    var eidToName = {
+        'EMP-7775-2303': 'منة جمال',
+        'EMP-8986-4947': 'راما ممدوح سرج',
+        'EMP-8142': 'ندى أيمن كمال',
+        'EMP-8148': 'عمر أحمد عبدالرحمن',
+        'EMP-8143': 'فرح ياسر إبراهيم',
+        'EMP-8069-7345': 'ولاء أشرف محمد',
+        'EMP-2945-2364': 'هدير أنور عباس',
+        'EMP-7189-7780': 'عبدالرحمن محمد عربي',
+        'EMP-3264-8790': 'ليالي أحمد',
+        'AM-2072-9827': 'محمود خالد',
+        'EMP-2072-9827': 'محمود خالد',
+        'EMP-5887-5256': 'آيه أحمد مجاهد',
+        'AM-5887-5256': 'آيه أحمد مجاهد',
+        'EMP-0652-9532': 'حبيبه أحمد محمد',
+        'AM-0652-9532': 'حبيبه أحمد محمد',
+        'EMP-8086-4520': 'محمد سعيد فوزي',
+        'EMP-4481-0404': 'سما أيمن',
+        'EMP-5970-2611': 'روضة عبد الحميد',
+        'EMP-3555-1067': 'مروة سعيد',
+        'EMP-6600-3645': 'زهراء قمر'
+    };
+
     if (eid) {
         var eidClean = String(eid).trim().toUpperCase();
-        var eidToName = {
-            'EMP-7775-2303': 'منة جمال',
-            'EMP-8986-4947': 'راما ممدوح سرج',
-            'EMP-8142': 'ندى أيمن كمال',
-            'EMP-8148': 'عمر أحمد عبدالرحمن',
-            'EMP-8143': 'فرح ياسر إبراهيم',
-            'EMP-8069-7345': 'ولاء أشرف محمد',
-            'EMP-2945-2364': 'هدير أنور عباس',
-            'EMP-7189-7780': 'عبدالرحمن محمد عربي',
-            'EMP-3264-8790': 'ليالي أحمد',
-            'AM-2072-9827': 'محمود خالد',
-            'EMP-5887-5256': 'آيه أحمد مجاهد',
-            'EMP-0652-9532': 'حبيبه احمد محمد',
-            'EMP-8086-4520': 'محمد سعيد فوزي',
-            'EMP-4481-0404': 'سما أيمن',
-            'EMP-5970-2611': 'روضة عبد الحميد',
-            'EMP-3555-1067': 'مروة سعيد',
-            'EMP-6600-3645': 'زهراء قمر'
-        };
         if (eidToName[eidClean]) return eidToName[eidClean];
     }
     if (!name) return '';
     var n = String(name).trim();
+    var nUp = n.toUpperCase();
+    if (eidToName[nUp]) return eidToName[nUp];
+
     var low = n.toLowerCase();
     if (low.includes('menna') || low.includes('منة') || low.includes('gamal')) return 'منة جمال';
     if (low.includes('rama') || low.includes('سرج') || low.includes('راما')) return 'راما ممدوح سرج';
@@ -4695,8 +4766,13 @@ function _cleanEmployeeArabicName(name, eid) {
     if (low.includes('layali') || low.includes('ليالي') || low.includes('احمد احمد محمد') || low.includes('أحمد أحمد أحمد')) return 'ليالي أحمد';
     if (low.includes('omar') || low.includes('عمر')) return 'عمر أحمد عبدالرحمن';
     if (low.includes('arabi') || low.includes('عربي') || low.includes('عبدالرحمن')) return 'عبدالرحمن محمد عربي';
-    if (low.includes('khaled') || low.includes('محمود خالد')) return 'محمود خالد';
+    if (low.includes('khaled') || low.includes('محمود خالد') || low.includes('محمود')) return 'محمود خالد';
     if (low.includes('megahed') || low.includes('آيه') || low.includes('ايه احمد') || low.includes('آية')) return 'آيه أحمد مجاهد';
+    if (low.includes('habiba') || low.includes('حبيبه') || low.includes('حبيبة')) return 'حبيبه أحمد محمد';
+    if (low.includes('سعيد') || low.includes('محمد سعيد') || low.includes('فوزي')) return 'محمد سعيد فوزي';
+    if (low.includes('روضة') || low.includes('روضه') || low.includes('rawda')) return 'روضة عبد الحميد';
+    if (low.includes('سما') || low.includes('sama')) return 'سما أيمن';
+    if (low.includes('مروة') || low.includes('مروه') || low.includes('marwa')) return 'مروة سعيد';
     if (low.includes('زهراء') || low.includes('زهرة') || low.includes('zahra')) return 'زهراء قمر';
     return n.replace(/\s*\([^)]*\)/g, '').trim();
 }
@@ -6191,29 +6267,47 @@ async function openTaskDetailsModal(taskId) {
             '</div>' +
             '<div class="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">';
         logs.slice().reverse().forEach(function(l) {
-            var icon = l.action === 'created' ? '' :
-                       l.action === 'assigned' ? '' :
-                       l.action === 'started' ? '️' :
-                       l.action === 'submitted' ? '' :
+            var icon = l.action === 'created' ? '✨' :
+                       l.action === 'assigned' ? '👤' :
+                       l.action === 'co_assigned' ? '👥' :
+                       l.action === 'creator_assigned' ? '✍️' :
+                       l.action === 'creator_cleared' ? '❌' :
+                       l.action === 'co_assignee_cleared' ? '❌' :
+                       l.action === 'started' ? '▶️' :
+                       l.action === 'submitted' ? '📤' :
                        l.action === 'reviewed_reject' ? '↩️' :
-                       l.action === 'reviewed_forward' ? '️' :
-                       l.action === 'reviewed_approved' ? '' :
-                       l.action === 'recalled' ? '️' :
-                       l.action === 'dates_updated' ? '' :
-                       l.action === 'reference_added' ? '' :
-                       l.action === 'asset_uploaded' ? '' : '';
+                       l.action === 'reviewed_forward' ? '➡️' :
+                       l.action === 'reviewed_approved' ? '✅' :
+                       l.action === 'recalled' ? '🔄' :
+                       l.action === 'recalled_by_employee' ? '↩️' :
+                       l.action === 'dates_updated' ? '📅' :
+                       l.action === 'reference_added' ? '🔗' :
+                       l.action === 'asset_uploaded' ? '📁' :
+                       l.action === 'content_updated' ? '📝' :
+                       l.action === 'client_feedback' ? '💬' :
+                       l.action === 'archived' ? '📦' :
+                       l.action === 'unarchived' ? '📂' : '⚡';
 
             var actionTitle = l.action === 'created' ? 'إنشاء وتفريغ المهمة' :
                               l.action === 'assigned' ? ('إسناد إلى ' + (l.target_employee_name || 'موظف')) :
+                              l.action === 'co_assigned' ? ('إسناد شريك عمل إلى ' + (l.target_employee_name || 'موظف')) :
+                              l.action === 'creator_assigned' ? ('تحديد كاتب المحتوى: ' + (l.target_employee_name || 'كاتب المحتوى')) :
+                              l.action === 'creator_cleared' ? 'إلغاء كاتب المحتوى' :
+                              l.action === 'co_assignee_cleared' ? 'إلغاء شريك العمل' :
                               l.action === 'started' ? 'بدء العمل وتشغيل المؤقت' :
                               l.action === 'submitted' ? 'تسليم مخرجات العمل' :
                               l.action === 'reviewed_reject' ? 'طلب تعديل من الموظف' :
                               l.action === 'reviewed_forward' ? ('تمرير إلى ' + (l.target_employee_name || 'موظف آخر')) :
                               l.action === 'reviewed_approved' ? 'اعتماد نهائي وجدولة' :
                               l.action === 'recalled' ? 'سحب المهمة من الموظف' :
+                              l.action === 'recalled_by_employee' ? 'استرجاع المهمة للتعديل بواسطة الموظف' :
                               l.action === 'dates_updated' ? 'تعديل وتحديد المواعيد' :
                               l.action === 'reference_added' ? 'إضافة ريفرنس ومراجع' :
-                              l.action === 'asset_uploaded' ? 'رفع ملف على Drive' : (l.note || l.action || 'عملية');
+                              l.action === 'asset_uploaded' ? 'رفع مخرجات / فيديو على Drive' :
+                              l.action === 'content_updated' ? 'تعديل نصوص وكابشن البوست' :
+                              l.action === 'client_feedback' ? 'ملاحظات وتعديلات العميل' :
+                              l.action === 'archived' ? 'أرشفة المهمة' :
+                              l.action === 'unarchived' ? 'إلغاء أرشفة المهمة' : (l.note || l.action || 'عملية');
 
             var timeStr = l.time_cairo || l.timestamp || l.at || l.time || '—';
             if (timeStr && timeStr.indexOf('T') !== -1) {
@@ -7686,7 +7780,7 @@ window.loadAccountsList = typeof loadAccounts === 'function' ? loadAccounts : fu
                     }
                 }).catch(function(){});
         } else if (isPortalActive && typeof loadMyPortal === 'function') {
-            fetch('/api/my-tasks?t=' + Date.now())
+            fetch('/api/me/tasks?t=' + Date.now())
                 .then(function(r){ return r.json(); })
                 .then(function(d){
                     if (d && d.tasks) {
