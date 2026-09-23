@@ -628,6 +628,7 @@ KNOWN_EMPLOYEE_ROSTER = {
     "emp-4481-0404": ("EMP-4481-0404", "Sama Ayman"),
     "emp-5970-2611": ("EMP-5970-2611", "روضة عبد الحميد"),
     "emp-3555-1067": ("EMP-3555-1067", "Marwa Saeed"),
+    "emp-6600-3645": ("EMP-6600-3645", "zahra qamar"),
 }
 
 KNOWN_CREATOR_ALIASES = {
@@ -666,6 +667,9 @@ KNOWN_CREATOR_ALIASES = {
     "marwa": ("EMP-3555-1067", "Marwa Saeed"),
     "سما": ("EMP-4481-0404", "Sama Ayman"),
     "sama": ("EMP-4481-0404", "Sama Ayman"),
+    "زهراء": ("EMP-6600-3645", "zahra qamar"),
+    "زهرة": ("EMP-6600-3645", "zahra qamar"),
+    "zahra": ("EMP-6600-3645", "zahra qamar"),
 }
 
 KNOWN_EMPLOYEE_ROLES = {
@@ -685,6 +689,7 @@ KNOWN_EMPLOYEE_ROLES = {
     "emp-5970-2611": ("admin", "ادارة", list(ALLOWED_TAB_IDS)),
     "emp-3555-1067": ("employee", "Employee", ["myportal"]),
     "emp-4481-0404": ("employee", "Employee", ["myportal"]),
+    "emp-6600-3645": ("designer", "مونتير", ["myportal"]),
 }
 
 CREATOR_EMPLOYEE_IDS = {
@@ -708,6 +713,7 @@ KNOWN_EMPLOYEE_PASSWORDS = {
     "emp-5970-2611": "GbzpTq4O",
     "emp-3555-1067": "RraJudg1",
     "emp-4481-0404": "domya2026",
+    "emp-6600-3645": "domya2026",
 }
 
 USERS_DB = {
