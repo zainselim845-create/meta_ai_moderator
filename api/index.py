@@ -151,8 +151,8 @@ CANONICAL_DEFAULT_CLIENTS = [
         "name": "دكتور أحمد حمدي",
         "company": "دكتور أحمد حمدي",
         "package": "Business VIP",
-        "am_employee_id": "AM-2072-9827",
-        "am_name": "محمود خالد",
+        "am_employee_id": "EMP-0652-9532",
+        "am_name": "حبيبه احمد محمد",
         "status": "active",
         "is_active": True,
         "fb_connected": False,
@@ -163,8 +163,8 @@ CANONICAL_DEFAULT_CLIENTS = [
         "name": "SK",
         "company": "SK",
         "package": "Business VIP",
-        "am_employee_id": "AM-2072-9827",
-        "am_name": "محمود خالد",
+        "am_employee_id": "EMP-0652-9532",
+        "am_name": "حبيبه احمد محمد",
         "status": "active",
         "is_active": True,
         "fb_connected": False,
@@ -175,8 +175,8 @@ CANONICAL_DEFAULT_CLIENTS = [
         "name": "انفينيتي",
         "company": "انفينيتي",
         "package": "Business VIP",
-        "am_employee_id": "AM-2072-9827",
-        "am_name": "محمود خالد",
+        "am_employee_id": "EMP-0652-9532",
+        "am_name": "حبيبه احمد محمد",
         "status": "active",
         "is_active": True,
         "fb_connected": False,
@@ -348,7 +348,7 @@ CANONICAL_CLIENT_ALIASES = {
     ]
 }
 
-MAHMOUD_CLIENTS = {
+HABIBA_CLIENTS = {
     "cli_dr_ahmed_1788270119",  # دكتور أحمد حمدي
     "cli_sk_1788270118",        # SK
     "cli_انفينيتي_1788270119"    # انفينيتي
@@ -364,6 +364,8 @@ AYA_CLIENTS = {
     "cli_dr_shimaa_atef_1788298157",    # Dr Shimaa Atef
     "cli_dr_shahenda_1788685119"        # دكتورة شاهندة مختار
 }
+
+MAHMOUD_CLIENTS = set()
 
 AGENCY_CLIENTS_STORE = [dict(c) for c in CANONICAL_DEFAULT_CLIENTS]
 ACCOUNTS_STORE = []
@@ -3930,7 +3932,11 @@ def assigned_client_ids():
     is_mahmoud = (my_eid in ("am-2072-9827", "emp-2072-9827") or "محمود" in my_name)
     is_habiba = (my_eid in ("emp-0652-9532", "am-0652-9532") or "حبيبه" in my_name or "حبيبة" in my_name or "habiba" in my_name.lower())
 
-    if is_aya:
+    if is_habiba:
+        for cid in HABIBA_CLIENTS:
+            if cid not in assigned:
+                assigned.append(cid)
+    elif is_aya:
         for cid in AYA_CLIENTS:
             if cid not in assigned:
                 assigned.append(cid)
@@ -3943,10 +3949,12 @@ def assigned_client_ids():
         cid = str(c.get("id") or c.get("client_id") or "")
         if not cid or cid in assigned:
             continue
-        # Guard: never assign Mahmoud's clients to anyone else, or Aya's clients to anyone else
-        if cid in MAHMOUD_CLIENTS and not is_mahmoud:
+        # Guard: never assign Habiba's clients to anyone else, or Aya's clients to anyone else
+        if cid in HABIBA_CLIENTS and not is_habiba:
             continue
         if cid in AYA_CLIENTS and not is_aya:
+            continue
+        if cid in MAHMOUD_CLIENTS and not is_mahmoud:
             continue
 
         c_am_ids = [str(c.get(k) or "").strip().lower() for k in ("am_employee_id", "am_id", "account_manager_id") if c.get(k)]
@@ -3971,11 +3979,17 @@ def assigned_client_ids():
 
     # FINAL STRICT ISOLATION FILTER:
     if is_habiba:
-        assigned = [cid for cid in assigned if cid not in MAHMOUD_CLIENTS and cid not in AYA_CLIENTS]
-    elif is_mahmoud:
-        assigned = [cid for cid in assigned if cid not in AYA_CLIENTS]
+        assigned = [cid for cid in assigned if cid not in AYA_CLIENTS and cid not in MAHMOUD_CLIENTS]
+        for cid in HABIBA_CLIENTS:
+            if cid not in assigned:
+                assigned.append(cid)
     elif is_aya:
-        assigned = [cid for cid in assigned if cid not in MAHMOUD_CLIENTS]
+        assigned = [cid for cid in assigned if cid not in HABIBA_CLIENTS and cid not in MAHMOUD_CLIENTS]
+        for cid in AYA_CLIENTS:
+            if cid not in assigned:
+                assigned.append(cid)
+    elif is_mahmoud:
+        assigned = [cid for cid in assigned if cid not in HABIBA_CLIENTS and cid not in AYA_CLIENTS]
 
     return assigned
 
@@ -6908,15 +6922,15 @@ def _sanitize_task_record(d):
     c_amname = str((matched_client or {}).get("am_name") or "").strip()
 
     # 1. Authoritative AM assignment by Client Ownership
-    if cid in MAHMOUD_CLIENTS or c_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in c_amname:
-        d["am_id"] = "AM-2072-9827"
-        d["am_name"] = "محمود خالد"
+    if cid in HABIBA_CLIENTS or c_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in c_amname or "حبيبة" in c_amname:
+        d["am_id"] = "EMP-0652-9532"
+        d["am_name"] = "حبيبه احمد محمد"
     elif cid in AYA_CLIENTS or c_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in c_amname or "ايه" in c_amname or "domya" in cid.lower() or cid == "client_100821894800009":
         d["am_id"] = "EMP-5887-5256"
         d["am_name"] = "آيه أحمد مجاهد"
-    elif c_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in c_amname or "حبيبة" in c_amname:
-        d["am_id"] = "EMP-0652-9532"
-        d["am_name"] = "حبيبه احمد محمد"
+    elif cid in MAHMOUD_CLIENTS or c_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in c_amname:
+        d["am_id"] = "AM-2072-9827"
+        d["am_name"] = "محمود خالد"
     elif am_id and am_id not in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned"]:
         if am_id in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in am_name or "ايه" in am_name:
             d["am_id"] = "EMP-5887-5256"
@@ -7314,7 +7328,7 @@ def _gsheet_tasks_save_all(tasks_list):
 
 _tasks_cache_data = None
 _tasks_cache_time = 0.0
-TASKS_CACHE_TTL = 15.0  # 15s in-memory server cache for sub-millisecond response time
+TASKS_CACHE_TTL = 120.0  # 120s in-memory server cache for sub-millisecond response time
 
 def invalidate_tasks_cache():
     global _tasks_cache_data, _tasks_cache_time
@@ -7323,7 +7337,7 @@ def invalidate_tasks_cache():
 
 def _all_tasks_db(force=False):
     """ALL tasks across every client — Supabase (authoritative, ultra-fast sub-50ms SQL)
-    cached in memory with 15s TTL for lightning-fast reads."""
+    cached in memory with 120s TTL for lightning-fast reads."""
     global _tasks_cache_data, _tasks_cache_time
     now = time.time()
     if not force and _tasks_cache_data is not None and (now - _tasks_cache_time) < TASKS_CACHE_TTL:
@@ -8718,27 +8732,8 @@ def api_tasks_employees():
     # across all clients — same source the attendance/payroll bot uses. This is what makes
     # task assignment use the real people (عمر/فرح/ندى…) exactly like the n8n workflow.
     emps = []
-    try:
-        cfg = hr_config()
-        for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
-            st = (e.get("status", "") or e.get("state", "")).lower()
-            emps.append({
-                "employee_id": e.get("employee_id", ""),
-                "name": e.get("name", ""),
-                "role": e.get("job", "") or "Employee",
-                "telegram_id": e.get("telegram_id", ""),
-                "status": "active" if st in ("active", "approved") else (st or "active"),
-            })
-    except Exception as _e:
-        print(f"[tasks employees from sheet] {_e}")
-    seen = {str(x["employee_id"]).strip().upper() for x in emps if x.get("employee_id")}
-    for e in get_client_employees(_cid):
-        eid_clean = str(e.get("employee_id") or "").strip().upper()
-        if eid_clean and eid_clean not in seen and str(e.get("telegram_id") or "").strip():
-            emps.append(e)
-            seen.add(eid_clean)
-
-    # Guarantee all agency roster/credential employees are present in employee list
+    seen = set()
+    # 1. Guarantee all agency roster employees are immediately present (instant sub-millisecond return)
     for k, (e_id, e_name) in KNOWN_EMPLOYEE_ROSTER.items():
         eid_up = e_id.strip().upper()
         if eid_up not in seen:
@@ -8752,6 +8747,27 @@ def api_tasks_employees():
                 "status": "active"
             })
             seen.add(eid_up)
+
+    # 2. Fast non-blocking check: if HR sheet is already cached in memory, merge extra telegram_ids
+    try:
+        cfg = hr_config()
+        cache_key = f"{cfg.get('sheet_id')}:{cfg.get('employees_gid')}"
+        if cache_key in _GSHEET_CACHE:
+            cached_rows = _GSHEET_CACHE[cache_key][1]
+            for e in (cached_rows or []):
+                e_eid = str(e.get("employee_id") or "").strip().upper()
+                if e_eid:
+                    match = next((x for x in emps if str(x.get("employee_id")).strip().upper() == e_eid), None)
+                    if match and e.get("telegram_id"):
+                        match["telegram_id"] = e.get("telegram_id")
+    except Exception:
+        pass
+
+    for e in get_client_employees(_cid):
+        eid_clean = str(e.get("employee_id") or "").strip().upper()
+        if eid_clean and eid_clean not in seen and str(e.get("telegram_id") or "").strip():
+            emps.append(e)
+            seen.add(eid_clean)
 
     return jsonify({"success": True, "employees": emps})
 
@@ -8959,12 +8975,12 @@ def api_tasks():
                     continue
                 t_cid = str(t.get("client_id") or "")
 
-                # Absolute client boundary guard: Habiba never sees Mahmoud's or Aya's clients
-                if is_habiba and (t_cid in MAHMOUD_CLIENTS or t_cid in AYA_CLIENTS):
+                # Absolute client boundary guard:
+                if is_habiba and (t_cid in AYA_CLIENTS or t_cid in MAHMOUD_CLIENTS):
                     continue
-                if is_mahmoud and (t_cid in AYA_CLIENTS):
+                if is_mahmoud and (t_cid in HABIBA_CLIENTS or t_cid in AYA_CLIENTS):
                     continue
-                if is_aya and (t_cid in MAHMOUD_CLIENTS):
+                if is_aya and (t_cid in HABIBA_CLIENTS or t_cid in MAHMOUD_CLIENTS):
                     continue
 
                 t_amid = str(t.get("am_id") or "").strip().upper()
@@ -9020,26 +9036,23 @@ def api_tasks():
             "EMP-5970-2611": "روضة عبد الحميد",
             "EMP-3555-1067": "مروة سعيد"
         }
-        try:
-            cfg = hr_config()
-            for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
-                eid = str(e.get("employee_id") or "").strip()
-                nm = (e.get("name") or "").strip()
-                if eid and nm: emp_map[eid] = nm
-            cache["emp_name_map"] = emp_map
-        except Exception:
-            pass
+        for k, (e_id, e_name) in KNOWN_EMPLOYEE_ROSTER.items():
+            emp_map[e_id.upper()] = e_name
+        cache["emp_name_map"] = emp_map
 
     tasks.sort(key=_natural_task_sort_key)
 
     for t in tasks:
         t_cid = str(t.get("client_id") or "")
-        if t_cid in MAHMOUD_CLIENTS:
-            t["am_id"] = "AM-2072-9827"
-            t["am_name"] = "محمود خالد"
+        if t_cid in HABIBA_CLIENTS:
+            t["am_id"] = "EMP-0652-9532"
+            t["am_name"] = "حبيبه احمد محمد"
         elif t_cid in AYA_CLIENTS:
             t["am_id"] = "EMP-5887-5256"
             t["am_name"] = "آيه أحمد مجاهد"
+        elif t_cid in MAHMOUD_CLIENTS:
+            t["am_id"] = "AM-2072-9827"
+            t["am_name"] = "محمود خالد"
         else:
             am_id = str(t.get("am_id") or "").strip().upper()
             if am_id:
