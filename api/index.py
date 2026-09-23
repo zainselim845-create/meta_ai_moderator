@@ -4026,6 +4026,8 @@ PUBLIC_PATHS = {
     '/api/oauth/start',
     '/api/data-deletion',
     '/api/health',
+    '/api/health/live',
+    '/api/health/ready',
     '/api/share/feedback',
     '/api/account-managers',
     '/api/managers',
@@ -4158,6 +4160,28 @@ def api_health():
         "security": "AES-256-GCM + PKCE S256",
         "timestamp": datetime.now(timezone.utc).isoformat()
     }), 200
+
+@app.route("/api/health/live", methods=["GET"])
+def api_health_live():
+    return jsonify({
+        "status": "alive",
+        "service": "meta_ai_moderator",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }), 200
+
+@app.route("/api/health/ready", methods=["GET"])
+def api_health_ready():
+    db_ok = bool(SUPABASE_URL and SUPABASE_KEY)
+    cache_ok = isinstance(cache, dict)
+    is_ready = db_ok and cache_ok
+    status_code = 200 if is_ready else 503
+    return jsonify({
+        "status": "ready" if is_ready else "degraded",
+        "database": "connected" if db_ok else "unconfigured",
+        "cache": "ready" if cache_ok else "unavailable",
+        "service": "meta_ai_moderator",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }), status_code
 
 @app.route("/api/meta/diagnose", methods=["GET"])
 def api_meta_diagnose():
