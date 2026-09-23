@@ -815,9 +815,12 @@ async function applyRoleUI() {
     const btnReport = document.getElementById('btn-tasks-monthly-report');
     const btnClearTasks = document.getElementById('btn-tasks-clear-all');
     if (teamWorkloadBox) teamWorkloadBox.classList.remove('hidden');
-    if (tasksIngestBox) tasksIngestBox.className = tasksIngestBox.className.replace('lg:col-span-12', 'lg:col-span-8');
     if (btnReport) btnReport.classList.remove('hidden');
     if (btnClearTasks) btnClearTasks.classList.remove('hidden');
+    ['tab-tasks-board', 'tab-tasks-team', 'tab-tasks-ingest', 'tab-tasks-reports'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    });
     return;
   }
 
@@ -847,17 +850,17 @@ async function applyRoleUI() {
 
     // Content Creator / Regular Employee: HIDE Account Manager workload cards and managerial buttons
     const teamWorkloadBox = document.getElementById('team-workload-widget-box');
-    const tasksIngestBox = document.getElementById('tasks-ingest-container');
     const btnReport = document.getElementById('btn-tasks-monthly-report');
     const btnClearTasks = document.getElementById('btn-tasks-clear-all');
     if (teamWorkloadBox) teamWorkloadBox.classList.add('hidden');
-    if (tasksIngestBox) {
-      if (tasksIngestBox.className.indexOf('lg:col-span-12') === -1) {
-        tasksIngestBox.className = tasksIngestBox.className.replace('lg:col-span-8', 'lg:col-span-12');
-      }
-    }
     if (btnReport) btnReport.classList.add('hidden');
     if (btnClearTasks) btnClearTasks.classList.add('hidden');
+    const tabIngest = document.getElementById('tab-tasks-ingest');
+    if (tabIngest) tabIngest.classList.add('hidden');
+    const tabReports = document.getElementById('tab-tasks-reports');
+    if (tabReports) tabReports.classList.add('hidden');
+    const tabTeam = document.getElementById('tab-tasks-team');
+    if (tabTeam) tabTeam.classList.toggle('hidden', !allow.has('team'));
 
     const curHash = (window.location.hash || '').replace('#', '').replace('v-', '');
     if (!curHash || !allow.has(curHash)) {
@@ -891,13 +894,15 @@ async function applyRoleUI() {
 
     // Account Manager sees team workload widget and reports
     const teamWorkloadBox = document.getElementById('team-workload-widget-box');
-    const tasksIngestBox = document.getElementById('tasks-ingest-container');
     const btnReport = document.getElementById('btn-tasks-monthly-report');
     const btnClearTasks = document.getElementById('btn-tasks-clear-all');
     if (teamWorkloadBox) teamWorkloadBox.classList.remove('hidden');
-    if (tasksIngestBox) tasksIngestBox.className = tasksIngestBox.className.replace('lg:col-span-12', 'lg:col-span-8');
     if (btnReport) btnReport.classList.remove('hidden');
     if (btnClearTasks) btnClearTasks.classList.remove('hidden');
+    ['tab-tasks-board', 'tab-tasks-team', 'tab-tasks-ingest', 'tab-tasks-reports'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    });
     return;
   }
 }

@@ -905,6 +905,41 @@ function setEmployeesDeptFilter(dept) {
     renderEmployeesStatus();
 }
 
+function switchTasksSection(secName) {
+    var valid = ['board', 'team', 'ingest', 'reports'];
+    var target = valid.indexOf(secName) !== -1 ? secName : 'board';
+
+    valid.forEach(function(s) {
+        var btn = document.getElementById('tab-tasks-' + s);
+        var sec = document.getElementById('tasks-section-' + s);
+        if (btn) {
+            if (s === target) {
+                btn.className = 'tasks-sec-tab px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition bg-blue-600 text-white shadow-xs cursor-pointer';
+            } else {
+                btn.className = 'tasks-sec-tab px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer';
+            }
+        }
+        if (sec) {
+            if (s === target) {
+                sec.classList.remove('hidden');
+            } else {
+                sec.classList.add('hidden');
+            }
+        }
+    });
+
+    try { localStorage.setItem('tasks_active_section', target); } catch(e){}
+
+    if (target === 'team') {
+        renderEmployeesStatus();
+    } else if (target === 'reports') {
+        if (typeof loadTaskMonthlyReport === 'function') loadTaskMonthlyReport();
+    } else if (target === 'board') {
+        renderTasksBoard();
+    }
+}
+window.switchTasksSection = switchTasksSection;
+
 async function renderEmployeesStatus() {
     var box = document.getElementById('employees-status-list');
     if (!box) return;
@@ -934,7 +969,7 @@ async function renderEmployeesStatus() {
 
     var emps = (employeesList || []).slice();
     if (!emps.length) {
-        box.innerHTML = '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون متاحون حالياً</div>';
+        box.innerHTML = '<div class="py-8 text-slate-400 text-center text-xs">لا يوجد موظفون متاحون حالياً</div>';
         return;
     }
 
@@ -947,19 +982,33 @@ async function renderEmployeesStatus() {
         return 'other';
     }
 
-    function getRoleIcon(roleType) {
-        if (roleType === 'video') return '';
-        if (roleType === 'graphic') return '';
-        if (roleType === 'content') return '️';
-        if (roleType === 'am') return '';
-        return '';
+    function getEmployeeArabicRole(roleStr) {
+        var r = (roleStr || '').toLowerCase();
+        if (/فيديو|video|edit|مونت/i.test(r)) return '🎬 مونتير فيديو';
+        if (/جرافيك|graphic|design|ديزاين/i.test(r)) return '🎨 مصمم جرافيك';
+        if (/content|writer|كاتب|محتوى|script/i.test(r)) return '✍️ كاتب محتوى';
+        if (/account|أكونت|حسابات/i.test(r)) return '👤 مدير حسابات';
+        return '💼 عضو فريق';
     }
 
-    var deptTabsHtml = '<div class="flex items-center gap-1 overflow-x-auto pb-1.5 mb-2 border-b border-slate-100 text-[11px] font-bold">' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'all\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '"> الكل (' + emps.length + ')</button>' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'video\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'video' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '"> فيديو</button>' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'graphic\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'graphic' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '"> جرافيك</button>' +
-        '<button type="button" onclick="setEmployeesDeptFilter(\'content\')" class="px-2 py-0.5 rounded-lg transition ' + (currentEmployeesDeptFilter === 'content' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200') + '">️ كونتنت</button>' +
+    function getRoleBadgeStyle(rType) {
+        if (rType === 'video') return 'bg-blue-50 text-blue-700 border border-blue-200';
+        if (rType === 'graphic') return 'bg-purple-50 text-purple-700 border border-purple-200';
+        if (rType === 'content') return 'bg-amber-50 text-amber-800 border border-amber-200';
+        if (rType === 'am') return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+        return 'bg-slate-50 text-slate-700 border border-slate-200';
+    }
+
+    var countVideo = emps.filter(function(e){ return getEmployeeRoleType(e.role) === 'video'; }).length;
+    var countGraphic = emps.filter(function(e){ return getEmployeeRoleType(e.role) === 'graphic'; }).length;
+    var countContent = emps.filter(function(e){ return getEmployeeRoleType(e.role) === 'content'; }).length;
+
+    // Full-width segmented tabs bar with 0 scrollbar and 0 dead space
+    var deptTabsHtml = '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-slate-100/90 rounded-2xl mb-4 text-xs font-bold w-full">' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'all\')" class="w-full py-2 px-3 rounded-xl transition text-center cursor-pointer ' + (currentEmployeesDeptFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-white hover:text-slate-900') + '">👥 الكل (' + emps.length + ')</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'video\')" class="w-full py-2 px-3 rounded-xl transition text-center cursor-pointer ' + (currentEmployeesDeptFilter === 'video' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-white hover:text-blue-700') + '">🎬 فيديو (' + countVideo + ')</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'graphic\')" class="w-full py-2 px-3 rounded-xl transition text-center cursor-pointer ' + (currentEmployeesDeptFilter === 'graphic' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:bg-white hover:text-purple-700') + '">🎨 جرافيك (' + countGraphic + ')</button>' +
+        '<button type="button" onclick="setEmployeesDeptFilter(\'content\')" class="w-full py-2 px-3 rounded-xl transition text-center cursor-pointer ' + (currentEmployeesDeptFilter === 'content' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-white hover:text-amber-700') + '">✍️ كونتنت (' + countContent + ')</button>' +
     '</div>';
 
     var filteredEmps = emps.filter(function(e) {
@@ -967,11 +1016,25 @@ async function renderEmployeesStatus() {
         return getEmployeeRoleType(e.role) === currentEmployeesDeptFilter;
     });
 
+    var arabicStatusMap = {
+        'Assigned': '📋 مسندة',
+        'In Progress': '⚡ قيد التنفيذ',
+        'Review Required': '🔍 بانتظار المراجعة',
+        'Awaiting AM Review': '🔍 مراجعة AM',
+        'Pending Revision': '↩️ طلب تعديل',
+        'Submitted': '🚀 تم التسليم',
+        'Submitted / In Review': '🚀 تم التسليم',
+        'Delivered to Client': '📦 مسلّمة للعميل',
+        'Completed': '✅ مكتملة'
+    };
+
     var itemsHtml = filteredEmps.map(function(e){
         var eid = String(e.employee_id || '').trim();
         var enm = String(e.name || '').trim();
+        var cleanName = (typeof _cleanEmployeeArabicName === 'function') ? _cleanEmployeeArabicName(enm, eid) : (enm || eid);
         var rType = getEmployeeRoleType(e.role);
-        var rIcon = getRoleIcon(rType);
+        var arabicRole = getEmployeeArabicRole(e.role);
+        var roleBadgeStyle = getRoleBadgeStyle(rType);
         
         var empTasks = (tasksByEmp[eid] || tasksByEmp[enm] || []).slice();
         var activeTasks = empTasks.filter(function(t){ return t.status !== 'Completed'; });
@@ -983,56 +1046,92 @@ async function renderEmployeesStatus() {
         var working = ((inprog[eid] || inprog[enm] || 0) > 0) || activeTasks.some(function(t){ return t.status === 'In Progress'; });
         var isSelected = (selectedEmployeeFilter && eid && selectedEmployeeFilter.toLowerCase() === eid.toLowerCase());
         var dot = n === 0 ? 'bg-emerald-500' : (working ? 'bg-amber-500 animate-pulse' : 'bg-blue-500');
-        var label = n === 0 ? 'متاح' : (n + ' مهمة' + (working ? ' · شغّال ' : ''));
-        var bgClass = isSelected ? 'bg-blue-50/90 border-blue-300 ring-2 ring-blue-500/20 shadow-xs' : 'bg-white hover:bg-slate-50 border-slate-200/80';
+        var loadPercent = Math.min(100, Math.round((n / 5) * 100));
+        var loadBarColor = n === 0 ? 'bg-emerald-500' : (working ? 'bg-amber-500' : 'bg-blue-500');
+
+        var statusPill = '';
+        if (n === 0) {
+            statusPill = '<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 shadow-2xs"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> متاح لاستلام مهام</span>';
+        } else if (working) {
+            statusPill = '<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0 shadow-2xs"><span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> شغّال الآن (' + n + ' مهمة)</span>';
+        } else {
+            statusPill = '<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0 shadow-2xs"><span class="w-2 h-2 rounded-full bg-blue-500"></span> ' + n + ' مهمة مسندة</span>';
+        }
+
+        var bgClass = isSelected ? 'bg-blue-50/90 border-blue-400 ring-2 ring-blue-500/20 shadow-md' : 'bg-white hover:bg-slate-50/70 border-slate-200/90 shadow-2xs';
 
         var headlinesHtml = '';
         if (activeTasks.length > 0) {
-            headlinesHtml = '<div class="mt-2 pt-2 border-t border-slate-100 space-y-1.5 text-[10px]">' +
-                '<div class="font-bold text-[10px] text-slate-500 flex items-center justify-between">' +
-                    '<span> عناوين المهام الحالية (' + activeTasks.length + '):</span>' +
+            headlinesHtml = '<div class="mt-3 pt-3 border-t border-slate-100 space-y-2 text-xs">' +
+                '<div class="font-bold text-xs text-slate-500 flex items-center justify-between">' +
+                    '<span>عناوين المهام الحالية (' + activeTasks.length + '):</span>' +
+                    '<button type="button" onclick="event.stopPropagation(); toggleEmployeeFilter(\'' + escJs(eid) + '\', \'' + escJs(cleanName) + '\')" class="text-[11px] text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer">فلترة على البورد ←</button>' +
                 '</div>' +
                 activeTasks.map(function(t){
                     var pType = (t.post_type || '').toLowerCase();
-                    var pTypeIcon = pType === 'carousel' ? '' : (pType === 'reel' ? '' : (pType === 'story' ? '' : '️'));
-                    var stClass = t.status === 'In Progress' ? 'bg-amber-100 text-amber-800' :
-                                  t.status === 'Review Required' || t.status === 'Awaiting AM Review' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
-                    var cNameBadge = t.client_name ? '<span class="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium border border-slate-200"> ' + esc(t.client_name) + '</span>' : '';
+                    var pTypeIcon = pType === 'carousel' ? '📑' : (pType === 'reel' ? '🎬' : (pType === 'story' ? '📱' : '🖼️'));
+                    var rawSt = t.status || 'Assigned';
+                    var arabicSt = arabicStatusMap[rawSt] || rawSt;
+                    var stClass = rawSt === 'In Progress' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                                  (rawSt.indexOf('Review') !== -1 ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                                  (rawSt === 'Completed' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-blue-100 text-blue-800 border-blue-200'));
+                    var cNameBadge = t.client_name ? '<span class="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold border border-slate-200 shrink-0 flex items-center gap-1">🏢 ' + esc(t.client_name) + '</span>' : '';
+                    var deadlineBadge = t.delivery_deadline ? '<span class="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-mono shrink-0">📅 ' + esc(t.delivery_deadline) + '</span>' : '';
                     var titleText = esc(t.title || t.tagline || 'مهمة بدون عنوان');
                     
-                    return '<div onclick="event.stopPropagation(); highlightTaskCard(\'' + esc(t.task_id) + '\')" ' +
-                        'title="اضغط للانتقال إلى المهمة" class="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-slate-50/90 hover:bg-blue-50 hover:border-blue-200 border border-slate-200/60 transition group cursor-pointer text-right">' +
-                        '<div class="flex items-center gap-1.5 min-w-0 flex-1">' +
-                            '<span class="flex-shrink-0 text-xs">' + pTypeIcon + '</span>' +
-                            '<span class="font-bold text-slate-800 truncate group-hover:text-blue-700 leading-tight">' + titleText + '</span>' +
-                            cNameBadge +
+                    return '<div onclick="event.stopPropagation(); highlightTaskCard(\'' + escJs(t.task_id) + '\')" ' +
+                        'title="اضغط للانتقال إلى المهمة على اللوحة" class="flex items-center justify-between gap-3 p-2 rounded-xl bg-slate-50/90 hover:bg-blue-50/90 hover:border-blue-300 border border-slate-200/80 transition group cursor-pointer text-right">' +
+                        '<div class="flex items-center gap-2 flex-1 min-w-0">' +
+                            '<span class="flex-shrink-0 text-sm">' + pTypeIcon + '</span>' +
+                            '<span class="font-bold text-xs text-slate-800 group-hover:text-blue-700 leading-snug flex-1 min-w-0 break-words">' + titleText + '</span>' +
                         '</div>' +
-                        '<span class="text-[9px] px-1.5 py-0.5 rounded-md font-bold flex-shrink-0 ' + stClass + '">' + esc(t.status) + '</span>' +
+                        '<div class="flex items-center gap-1.5 shrink-0">' +
+                            cNameBadge +
+                            deadlineBadge +
+                            '<span class="text-[10px] px-2 py-0.5 rounded-md font-bold border ' + stClass + '">' + arabicSt + '</span>' +
+                        '</div>' +
                     '</div>';
                 }).join('') +
             '</div>';
+        } else {
+            headlinesHtml = '<div class="mt-3 pt-3 border-t border-slate-100 text-slate-400 text-xs text-center flex items-center justify-center gap-1.5 py-1">' +
+                '<span>✨ لا توجد مهام نشطة حالياً — جاهز لاستلام عمل جديد</span>' +
+            '</div>';
         }
 
-        return '<div class="rounded-xl border p-2.5 transition text-slate-700 ' + bgClass + '">' +
-            '<div onclick="toggleEmployeeFilter(\'' + esc(eid) + '\', \'' + esc(enm || eid) + '\')" class="flex items-center justify-between cursor-pointer">' +
-                '<span class="flex items-center gap-2 min-w-0">' +
-                    '<span class="w-2 h-2 rounded-full flex-shrink-0 ' + dot + '"></span>' +
-                    '<span class="text-xs">' + rIcon + '</span>' +
-                    '<span class="font-bold text-xs truncate">' + esc(enm || eid) + '</span>' +
-                    '<span class="text-[10px] text-slate-400 truncate">(' + esc(e.role||'موظف') + ')</span>' +
-                '</span>' +
-                '<span class="bg-slate-100 px-2 py-0.5 rounded-md text-[11px] font-mono flex-shrink-0 ' + (n===0?'text-emerald-700 font-bold':(working?'text-amber-700 font-bold':'text-blue-700')) + '">' + label + '</span>' +
+        var initialChar = cleanName.charAt(0) || '👤';
+
+        return '<div class="rounded-2xl border p-4 transition-all text-slate-800 ' + bgClass + ' hover:shadow-sm flex flex-col justify-between space-y-3">' +
+            '<div onclick="toggleEmployeeFilter(\'' + escJs(eid) + '\', \'' + escJs(cleanName) + '\')" class="cursor-pointer space-y-2.5">' +
+                '<div class="flex items-start justify-between gap-2">' +
+                    '<div class="flex items-center gap-2.5 min-w-0 flex-1">' +
+                        '<div class="relative shrink-0">' +
+                            '<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-300 flex items-center justify-center font-bold text-slate-700 text-sm shadow-2xs">' +
+                                initialChar +
+                            '</div>' +
+                            '<span class="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full border-2 border-white ' + dot + '"></span>' +
+                        '</div>' +
+                        '<div class="min-w-0 flex-1">' +
+                            '<h4 class="font-bold text-sm text-slate-900 truncate leading-snug">' + esc(cleanName) + '</h4>' +
+                            '<span class="inline-flex items-center gap-1 text-[11px] font-bold ' + roleBadgeStyle + ' px-2 py-0.5 rounded-md mt-0.5">' + arabicRole + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    statusPill +
+                '</div>' +
+                '<div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">' +
+                    '<div class="h-full rounded-full transition-all ' + loadBarColor + '" style="width: ' + loadPercent + '%"></div>' +
+                '</div>' +
             '</div>' +
             headlinesHtml +
         '</div>';
     }).join('');
 
-    var html = deptTabsHtml + '<div class="space-y-2">' + (itemsHtml || '<div class="pt-2 text-slate-400 text-center">لا يوجد موظفون في هذا القسم</div>') + '</div>';
+    var html = deptTabsHtml + '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">' + (itemsHtml || '<div class="col-span-full py-8 text-slate-400 text-center text-xs">لا يوجد موظفون في هذا القسم</div>') + '</div>';
 
     if (selectedEmployeeFilter) {
-        html = '<div class="pb-2 flex items-center justify-between border-b border-blue-100 mb-1">' +
-            '<span class="text-[11px] text-blue-700 font-bold flex items-center gap-1"> فلترة: <b>' + esc(selectedEmployeeName) + '</b></span>' +
-            '<button type="button" onclick="clearEmployeeFilter()" class="text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-0.5 rounded-md font-bold transition">إلغاء </button>' +
+        html = '<div class="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between mb-4 shadow-2xs">' +
+            '<span class="text-xs text-blue-800 font-bold flex items-center gap-1.5"><span>🎯 فلترة المهام المفعلة للموظف:</span> <b>' + esc(selectedEmployeeName) + '</b></span>' +
+            '<button type="button" onclick="clearEmployeeFilter()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg font-bold transition shadow-xs cursor-pointer">إلغاء الفلترة ✕</button>' +
         '</div>' + html;
     }
 
@@ -1062,6 +1161,10 @@ function toggleEmployeeFilter(empId, empName) {
                 window.activeClientId = 'all';
                 try { localStorage.setItem('active_client_id', 'all'); } catch(e){}
             }
+        }
+        // Switch to the board sub-feature so user immediately sees this employee's tasks on the board!
+        if (typeof switchTasksSection === 'function') {
+            switchTasksSection('board');
         }
     }
     // Always reset status filter to 'all' so the employee's tasks are immediately visible without conflicting status restrictions
@@ -1508,6 +1611,15 @@ async function loadTasksEngine(forceRefresh) {
         renderClientTabs();
         renderTasksBoard();
         renderEmployeesStatus();
+
+        var countBadge = document.getElementById('tab-badge-tasks-count');
+        if (countBadge) countBadge.textContent = tasksList.length;
+
+        var activeSec = localStorage.getItem('tasks_active_section') || 'board';
+        if (typeof switchTasksSection === 'function') {
+            switchTasksSection(activeSec);
+        }
+
         if (!isCached) {
             setTimeout(function(){ loadTaskMonthlyReport(); }, 50);
         }
@@ -1517,6 +1629,8 @@ async function loadTasksEngine(forceRefresh) {
         if (!dataEmps) return;
         employeesList = (dataEmps && dataEmps.employees) ? dataEmps.employees : (Array.isArray(dataEmps) ? dataEmps : []);
         window.allTeamEmployees = employeesList;
+        var teamCountBadge = document.getElementById('tab-badge-team-count');
+        if (teamCountBadge && employeesList.length) teamCountBadge.textContent = employeesList.length;
         renderEmployeesStatus();
     };
 
@@ -7536,6 +7650,7 @@ document.addEventListener('keydown', function(evt) {
 function highlightTaskCard(taskId) {
     if (!taskId) return;
     if (typeof go === 'function') go('tasks');
+    if (typeof switchTasksSection === 'function') switchTasksSection('board');
     setTimeout(function(){
         var card = document.getElementById('task-card-' + taskId) || document.querySelector('[data-task-id="' + taskId + '"]');
         if (card) {

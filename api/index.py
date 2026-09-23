@@ -13119,10 +13119,9 @@ def api_employees_workload():
     name_to_eid = {}
     eid_to_name = {}
     try:
-        cfg = hr_config()
-        for e in _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"]):
-            _id = str(e.get("employee_id") or "").strip()
-            _nm = (e.get("name") or "").strip()
+        for k, (e_id, e_name) in (KNOWN_EMPLOYEE_ROSTER or {}).items():
+            _id = str(e_id or "").strip()
+            _nm = str(e_name or "").strip()
             if _id and _nm:
                 name_to_eid[_nm] = _id
                 name_to_eid[_nm.lower()] = _id
