@@ -44,7 +44,7 @@ function renderClientSelector() {
         const amTag = c.am_name ? ` — [AM: ${esc(c.am_name)}]` : '';
         return `
         <option value="${esc(c.id)}" ${c.id === activeClientId ? 'selected' : ''}>
-            ${esc(c.name)} (${esc(c.company || 'شركة')})${amTag}
+            [${esc(c.id)}] ${esc(c.name)} (${esc(c.company || 'شركة')})${amTag}
         </option>
         `;
     }).join('');
@@ -111,7 +111,7 @@ function renderClientsGrid() {
                         ${esc((c.name || 'C')[0])}
                     </div>
                     <div>
-                        <h3 class="font-bold text-sm text-slate-900">${esc(c.name)}</h3>
+                        <h3 class="font-bold text-sm text-slate-900"><span class="font-mono text-xs text-slate-500 font-normal">[${esc(c.id)}]</span> ${esc(c.name)}</h3>
                         <span class="text-xs text-slate-500">${esc(c.company || 'شركة مسجلة')}</span>
                     </div>
                 </div>
@@ -304,7 +304,7 @@ function renderAmOptions(selectedAmId, selectedAmName) {
     return baseAms.map(am => {
         const isSel = (selectedAmId && String(am.id).toUpperCase() === String(selectedAmId).toUpperCase()) ||
                       (!selectedAmId && selectedAmName && (am.name.includes(selectedAmName) || selectedAmName.includes(am.name)));
-        return `<option value="${esc(am.id)}" ${isSel ? 'selected' : ''}>${esc(am.name)}</option>`;
+        return `<option value="${esc(am.id)}" ${isSel ? 'selected' : ''}>[${esc(am.id)}] ${esc(am.name)}</option>`;
     }).join('');
 }
 window.renderAmOptions = renderAmOptions;

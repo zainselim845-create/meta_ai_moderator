@@ -451,6 +451,13 @@ async function handleLogout() {
     localStorage.removeItem('domya_auth');
     localStorage.removeItem('domya_token');
     localStorage.removeItem('domya_username');
+    localStorage.removeItem('active_client_id');
+    localStorage.removeItem('active_tab');
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('swr_cache_') || k.startsWith('tasks_') || k.startsWith('myportal_')) {
+        localStorage.removeItem(k);
+      }
+    });
     document.cookie = 'domya_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
     var authHide = document.getElementById('auth-instant-hide');
     if (authHide) authHide.remove();
@@ -1372,11 +1379,14 @@ function renderMyPortalTasks() {
   };
 
   box.innerHTML = filtered.map(t => {
+    const rawCid = (t.client_id || '').trim();
     const rawCName = (t.client_name && t.client_name !== 'None' && t.client_name !== 'null' && t.client_name !== 'عميل عام') ? t.client_name :
-                     ((t.client_id && t.client_id !== 'cli_general') ? t.client_id.replace(/^cli_/, '').replace(/_\d+$/, '').replace(/_/g, ' ') : 'العميل');
-    const cName = esc(rawCName);
+                     ((rawCid && rawCid !== 'cli_general') ? rawCid.replace(/^cli_/, '').replace(/_\d+$/, '').replace(/_/g, ' ') : 'العميل');
+    const cDisplay = (rawCid && rawCName && rawCid !== rawCName) ? (`[${esc(rawCid)}] ${esc(rawCName)}`) : esc(rawCName);
     const pName = esc(t.plan_name || t.file_name || ('خطة ' + rawCName));
-    const amName = esc(t.am_name || 'محمود خالد');
+    const rawAmId = (t.am_id || '').trim();
+    const rawAmName = (t.am_name || 'حبيبه أحمد محمد').trim();
+    const amDisplay = rawAmId ? (`[${esc(rawAmId)}] ${esc(rawAmName)}`) : esc(rawAmName);
     const rawCap = (t.caption || (t.content_data && t.content_data.caption) || t.description || '').trim();
     const cleanCap = rawCap.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();
     const visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || (t.video_data && t.video_data.idea) || t.design_brief || '').trim();
@@ -1391,12 +1401,12 @@ function renderMyPortalTasks() {
         <div class="flex items-center gap-1.5 flex-wrap">
           <span class="bg-blue-600 text-white font-bold font-mono text-xs px-2.5 py-1 rounded-lg shadow-2xs">#${esc(t.post_number_in_plan || t.post_number || 1)}</span>
           <span class="font-mono font-bold text-xs bg-slate-900 text-white px-2.5 py-1 rounded-lg">${esc(t.task_id||'')}</span>
-          <span class="bg-white text-slate-800 border border-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs">🏢 ${cName}</span>
+          <span class="bg-white text-slate-800 border border-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs">🏢 ${cDisplay}</span>
           <span class="bg-white text-slate-800 border border-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs">📑 ${pName}</span>
-          <span class="bg-indigo-50 text-indigo-900 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-lg">👤 AM: ${amName}</span>
+          <span class="bg-indigo-50 text-indigo-900 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-lg">👤 AM: ${amDisplay}</span>
           ${(t.secondary_assignee_name || t.secondary_employee_id) ? `
             <span class="bg-purple-100 text-purple-900 border border-purple-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs" title="هذه المهمة عمل مشترك بين شخصين">
-              👥 عمل مشترك: ${esc(t.assignee_name || 'المنفذ الأول')} + ${esc(t.secondary_assignee_name || 'شريك العمل')}
+              👥 عمل مشترك: ${t.assigned_employee_id ? `[${esc(t.assigned_employee_id)}] ` : ''}${esc(t.assignee_name || 'المنفذ الأول')} + ${t.secondary_employee_id ? `[${esc(t.secondary_employee_id)}] ` : ''}${esc(t.secondary_assignee_name || 'شريك العمل')}
             </span>
           ` : ''}
           ${t.submitted_by ? `
@@ -1625,7 +1635,7 @@ async function loadMyPortal() {
           const emps = (empsRes && empsRes.employees) ? empsRes.employees : [];
           empSelect.innerHTML = '<option value="me">👤 مهامي الشخصية فقط</option>' +
             '<option value="all">👥 جميع مهام الفريق (عرض الإدارة الكامل)</option>' +
-            emps.map(e => `<option value="${esc(e.employee_id || e.name)}"${myPortalTargetEid === (e.employee_id || e.name) ? ' selected' : ''}>👤 ${esc(e.name)} (${esc(e.role || 'موظف')})</option>`).join('');
+            emps.map(e => `<option value="${esc(e.employee_id || e.name)}"${myPortalTargetEid === (e.employee_id || e.name) ? ' selected' : ''}>👤 [${esc(e.employee_id)}] ${esc(e.name)} (${esc(e.role || 'موظف')})</option>`).join('');
           empSelect.value = myPortalTargetEid || 'me';
         } catch(e) {}
       }
@@ -1656,10 +1666,18 @@ async function loadMyPortal() {
       const cFilter = document.getElementById('myportal-client-filter');
       const pFilter = document.getElementById('myportal-plan-filter');
       if (cFilter) {
-        const cSet = new Set();
-        tasks.forEach(t => { if (t.client_name) cSet.add(t.client_name); });
-        cFilter.innerHTML = '<option value="all">🏢 جميع العملاء</option>' + Array.from(cSet).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-        if (myPortalClientFilter && cSet.has(myPortalClientFilter)) cFilter.value = myPortalClientFilter;
+        const cMap = {};
+        tasks.forEach(t => {
+          const cid = (t.client_id || '').trim();
+          const cname = (t.client_name || '').trim();
+          if (cid || cname) {
+            const key = cid || cname;
+            const text = (cid && cname && cid !== cname) ? `[${cid}] ${cname}` : (cname || cid);
+            cMap[key] = { id: key, name: cname || key, text: text };
+          }
+        });
+        cFilter.innerHTML = '<option value="all">🏢 جميع العملاء</option>' + Object.values(cMap).map(c => `<option value="${esc(c.id)}">🏢 ${esc(c.text)}</option>`).join('');
+        if (myPortalClientFilter && cMap[myPortalClientFilter]) cFilter.value = myPortalClientFilter;
       }
       if (pFilter) {
         const pSet = new Set();
@@ -2788,7 +2806,8 @@ function restoreActiveTab() {
     const me = window._me;
     const isEmp = me && me.role === 'employee';
     const isCreator = me && (me.role === 'content_creator' || me.role === 'content');
-    let defaultTab = isEmp ? 'myportal' : (isCreator ? 'tasks' : 'inbox');
+    const isMgr = me && (me.role === 'account_manager' || me.is_manager);
+    let defaultTab = isEmp ? 'myportal' : ((isCreator || isMgr) ? 'tasks' : 'inbox');
     const hash = (window.location.hash || '').replace('#', '').trim();
     let saved = hash || localStorage.getItem('active_tab') || defaultTab;
     
@@ -2796,7 +2815,7 @@ function restoreActiveTab() {
       const allowed = new Set((me.allowed_tabs && me.allowed_tabs.length) ? me.allowed_tabs : (me.role === 'account_manager' ? ['dash','crm','inbox','rules','kb','mode','settings','logs','scheduler','tasks','plan','accounts','analytics','myportal'] : (isCreator ? ['myportal', 'tasks', 'plan', 'dash'] : ['myportal'])));
       allowed.add('myportal');
       if (!allowed.has(saved)) {
-        saved = isEmp ? 'myportal' : (isCreator ? 'tasks' : 'dash');
+        saved = isEmp ? 'myportal' : ((isCreator || isMgr) ? 'tasks' : 'dash');
       }
     }
     if (saved) {
@@ -2822,7 +2841,7 @@ setInterval(function() {
     fetch('/api/me').then(r => r.json()).then(me => {
       if (me && me.logged_in) {
         window._me = me;
-        applyRoleNavVisibility(me);
+        if (typeof applyRoleUI === 'function') applyRoleUI();
       }
     }).catch(()=>{});
   }

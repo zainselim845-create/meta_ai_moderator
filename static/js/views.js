@@ -1075,7 +1075,10 @@ async function renderEmployeesStatus() {
                     var stClass = rawSt === 'In Progress' ? 'bg-amber-100 text-amber-800 border-amber-200' :
                                   (rawSt.indexOf('Review') !== -1 ? 'bg-purple-100 text-purple-800 border-purple-200' :
                                   (rawSt === 'Completed' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-blue-100 text-blue-800 border-blue-200'));
-                    var cNameBadge = t.client_name ? '<span class="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold border border-slate-200 shrink-0 flex items-center gap-1">🏢 ' + esc(t.client_name) + '</span>' : '';
+                    var cid = (t.client_id || '').trim();
+                    var cname = (t.client_name || '').trim();
+                    var cBadgeText = (cid && cname && cid !== cname) ? ('<span class="font-mono text-[9px]">[' + esc(cid) + ']</span> ' + esc(cname)) : esc(cname || cid);
+                    var cNameBadge = cBadgeText ? '<span class="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold border border-slate-200 shrink-0 flex items-center gap-1">🏢 ' + cBadgeText + '</span>' : '';
                     var deadlineBadge = t.delivery_deadline ? '<span class="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-mono shrink-0">📅 ' + esc(t.delivery_deadline) + '</span>' : '';
                     var titleText = esc(t.title || t.tagline || 'مهمة بدون عنوان');
                     
@@ -1112,7 +1115,7 @@ async function renderEmployeesStatus() {
                             '<span class="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full border-2 border-white ' + dot + '"></span>' +
                         '</div>' +
                         '<div class="min-w-0 flex-1">' +
-                            '<h4 class="font-bold text-sm text-slate-900 truncate leading-snug">' + esc(cleanName) + '</h4>' +
+                            '<h4 class="font-bold text-sm text-slate-900 truncate leading-snug"><span class="font-mono text-xs text-slate-500 font-normal">[' + esc(eid) + ']</span> ' + esc(cleanName) + '</h4>' +
                             '<span class="inline-flex items-center gap-1 text-[11px] font-bold ' + roleBadgeStyle + ' px-2 py-0.5 rounded-md mt-0.5">' + arabicRole + '</span>' +
                         '</div>' +
                     '</div>' +
@@ -1130,7 +1133,7 @@ async function renderEmployeesStatus() {
 
     if (selectedEmployeeFilter) {
         html = '<div class="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between mb-4 shadow-2xs">' +
-            '<span class="text-xs text-blue-800 font-bold flex items-center gap-1.5"><span>🎯 فلترة المهام المفعلة للموظف:</span> <b>' + esc(selectedEmployeeName) + '</b></span>' +
+            '<span class="text-xs text-blue-800 font-bold flex items-center gap-1.5"><span>🎯 فلترة المهام المفعلة للموظف:</span> <b>' + (selectedEmployeeFilter ? '<span class="font-mono text-xs font-normal">[' + esc(selectedEmployeeFilter) + ']</span> ' : '') + esc(selectedEmployeeName) + '</b></span>' +
             '<button type="button" onclick="clearEmployeeFilter()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg font-bold transition shadow-xs cursor-pointer">إلغاء الفلترة ✕</button>' +
         '</div>' + html;
     }
@@ -1255,12 +1258,25 @@ function selectTaskClientFilter(clientId, clientName) {
     selectedPlanFilter = null;
     currentTaskStatusFilter = 'all';
 
-    if (typeof switchActiveClient === 'function') {
-        switchActiveClient(targetCid || '__all__');
-    } else {
-        renderClientTabs();
-        renderTasksBoard();
+    var cNameEl = document.getElementById('tasks-client-name');
+    if (cNameEl) {
+        if (targetCid) {
+            cNameEl.textContent = '— [' + targetCid + '] ' + (clientName || targetCid);
+        } else {
+            cNameEl.textContent = '— جميع العملاء';
+        }
     }
+
+    try {
+        fetch('/api/settings/active-client', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ client_id: targetCid || '__all__' })
+        }).catch(function(){});
+    } catch(e){}
+
+    renderClientTabs();
+    renderTasksBoard();
 }
 window.selectTaskClientFilter = selectTaskClientFilter;
 
@@ -1282,9 +1298,33 @@ function renderClientTabs() {
 
     var allTasks = tasksList || [];
 
-    // Extract all distinct months available in tasksList
-    var monthsMap = {};
+    // Extract all distinct clients available in tasksList
+    var clientsMap = {};
     allTasks.forEach(function(t) {
+        var cid = String(t.client_id || '').trim();
+        var cname = String(t.client_name || '').trim();
+        if (cid) {
+            if (!clientsMap[cid]) clientsMap[cid] = { id: cid, name: cname || cid, count: 0 };
+            clientsMap[cid].count++;
+        }
+    });
+    var clientIds = Object.keys(clientsMap);
+
+    // Auto-fallback: if activeClientId is selected but has 0 tasks in current tasksList, reset to 'all'
+    if (window.activeClientId && window.activeClientId !== 'all' && window.activeClientId !== '__all__' && !clientsMap[window.activeClientId]) {
+        window.activeClientId = null;
+        try { localStorage.removeItem('active_client_id'); } catch(e){}
+    }
+
+    var curActiveCid = window.activeClientId;
+    var isClientScoped = (curActiveCid && curActiveCid !== 'all' && curActiveCid !== '__all__');
+    var scopedTasksForTabs = isClientScoped ? allTasks.filter(function(t) {
+        return String(t.client_id || '').toLowerCase() === String(curActiveCid).toLowerCase();
+    }) : allTasks;
+
+    // Extract distinct months available for this client scope
+    var monthsMap = {};
+    scopedTasksForTabs.forEach(function(t) {
         var mKey = getTaskMonthKey(t);
         if (mKey) {
             if (!monthsMap[mKey]) monthsMap[mKey] = 0;
@@ -1293,15 +1333,15 @@ function renderClientTabs() {
     });
     var availableMonthKeys = Object.keys(monthsMap).sort().reverse();
 
-    // Auto-fallback: if selectedMonthFilter has no tasks, default to 'all' so board is never empty
+    // Auto-fallback: if selectedMonthFilter has no tasks in this scope, default to 'all'
     if (selectedMonthFilter && selectedMonthFilter !== 'all' && (!monthsMap[selectedMonthFilter] || monthsMap[selectedMonthFilter] === 0)) {
         selectedMonthFilter = 'all';
     }
 
-    // If selectedMonthFilter is not 'all', filter tasks for plan pills
-    var filteredTasksForPlans = allTasks;
+    // Filter tasks for plan pills
+    var filteredTasksForPlans = scopedTasksForTabs;
     if (selectedMonthFilter && selectedMonthFilter !== 'all') {
-        filteredTasksForPlans = allTasks.filter(function(t) {
+        filteredTasksForPlans = scopedTasksForTabs.filter(function(t) {
             return getTaskMonthKey(t) === selectedMonthFilter;
         });
     }
@@ -1309,13 +1349,47 @@ function renderClientTabs() {
     var plans = {};
     filteredTasksForPlans.forEach(function(t) {
         var p = (t.plan_name || t.file_name || 'خطة عامة').trim();
-        if (!plans[p]) plans[p] = { name: p, total: 0, completed: 0, clientName: t.client_name || '' };
+        if (!plans[p]) plans[p] = { name: p, total: 0, completed: 0, clientName: t.client_name || '', clientId: t.client_id || '' };
         plans[p].total++;
         if (t.status === 'Completed') plans[p].completed++;
     });
     var planNames = Object.keys(plans);
 
     var html = '<div class="w-full space-y-2.5 pb-2 pt-1">';
+
+    // Row 0: Client Filter Bar (شريط فلترة العملاء بالكود والاسم)
+    if (clientIds.length > 0) {
+        var isAllClients = !isClientScoped;
+        html += '<div class="flex items-center justify-between gap-2 overflow-x-auto pb-1 flex-wrap sm:flex-nowrap bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 shadow-2xs">';
+        html += '<div class="flex items-center gap-1.5 overflow-x-auto flex-nowrap shrink-0">';
+        html += '<span class="text-xs font-bold text-slate-800 flex items-center gap-1 shrink-0">🏢 فلترة العميل:</span>';
+
+        // All Clients Button
+        html += '<button type="button" onclick="selectTaskClientFilter(null)" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer ' +
+            (isAllClients ? 'bg-slate-900 text-white shadow-xs font-extrabold ring-2 ring-slate-400' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200') + '">' +
+            '<span>جميع العملاء</span>' +
+            '<span dir="ltr" class="text-[10px] font-mono ' + (isAllClients ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-700') + ' px-1.5 py-0.2 rounded-full font-bold">' + allTasks.length + '</span>' +
+        '</button>';
+
+        // Client Pills with [Code] Name (Count)
+        clientIds.forEach(function(cid) {
+            var cInfo = clientsMap[cid];
+            var isSel = (curActiveCid === cid);
+            var escapedCid = escJs(cid);
+            var escapedCname = escJs(cInfo.name);
+            html += '<button type="button" onclick="selectTaskClientFilter(\'' + escapedCid + '\', \'' + escapedCname + '\')" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer ' +
+                (isSel ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-300 font-extrabold' : 'bg-white hover:bg-blue-50 text-slate-800 border border-slate-200 hover:border-blue-300') + '">' +
+                '<span>🏢 <span class="font-mono text-[11px]">[' + esc(cInfo.id) + ']</span> ' + esc(cInfo.name) + '</span>' +
+                '<span dir="ltr" class="text-[10px] font-mono ' + (isSel ? 'bg-white text-blue-900' : 'bg-blue-100 text-blue-900') + ' px-1.5 py-0.2 rounded-full font-bold">' + cInfo.count + '</span>' +
+            '</button>';
+        });
+
+        html += '</div>';
+        if (isClientScoped) {
+            html += '<button type="button" onclick="selectTaskClientFilter(null)" class="text-[11px] text-blue-600 hover:text-blue-800 font-bold hover:underline shrink-0 mr-auto cursor-pointer">عرض جميع العملاء ✕</button>';
+        }
+        html += '</div>'; // End Row 0
+    }
 
     // Row 1: Month Filter Bar & Archive Switcher
     html += '<div class="flex items-center justify-between gap-2 overflow-x-auto pb-1 flex-wrap sm:flex-nowrap bg-white border border-slate-200/90 rounded-2xl p-2.5 shadow-2xs">';
@@ -1336,7 +1410,7 @@ function renderClientTabs() {
     html += '<button type="button" onclick="setTaskMonthFilter(\'all\')" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer ' +
         (isAllMonths ? 'bg-indigo-600 text-white shadow-xs font-extrabold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200') + '">' +
         '<span>جميع الشهور</span>' +
-        '<span dir="ltr" class="text-[10px] font-mono ' + (isAllMonths ? 'bg-indigo-800 text-white' : 'bg-slate-200 text-slate-700') + ' px-1.5 py-0.2 rounded-full font-bold">' + allTasks.length + '</span>' +
+        '<span dir="ltr" class="text-[10px] font-mono ' + (isAllMonths ? 'bg-indigo-800 text-white' : 'bg-slate-200 text-slate-700') + ' px-1.5 py-0.2 rounded-full font-bold">' + scopedTasksForTabs.length + '</span>' +
     '</button>';
 
     // Month Pills
@@ -2012,7 +2086,8 @@ function empOptionsHtml(selectedId) {
     return team.map(function(e) {
         var sel = (String(e.employee_id) === String(selectedId)) ? ' selected' : '';
         var cleanName = _cleanEmployeeArabicName(e.name || e.employee_id, e.employee_id);
-        return '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(cleanName) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
+        var label = '[' + esc(e.employee_id) + '] ' + esc(cleanName) + (e.role ? ' — ' + esc(e.role) : '');
+        return '<option value="' + esc(e.employee_id) + '"' + sel + '>' + label + '</option>';
     }).join('');
 }
 
@@ -2023,7 +2098,8 @@ function coEmpOptionsHtml(selectedId, primaryId) {
         if (primaryId && String(e.employee_id) === String(primaryId)) return;
         var sel = (selectedId && String(e.employee_id) === String(selectedId)) ? ' selected' : '';
         var cleanName = _cleanEmployeeArabicName(e.name || e.employee_id, e.employee_id);
-        opts += '<option value="' + esc(e.employee_id) + '"' + sel + '>' + esc(cleanName) + (e.role ? ' — ' + esc(e.role) : '') + '</option>';
+        var label = '[' + esc(e.employee_id) + '] ' + esc(cleanName) + (e.role ? ' — ' + esc(e.role) : '');
+        opts += '<option value="' + esc(e.employee_id) + '"' + sel + '>' + label + '</option>';
     });
     return opts;
 }
@@ -2063,7 +2139,8 @@ function creatorOptionsHtml(selectedId, selectedName) {
                     (normSelName && (eName === normSelName || eName.includes(normSelName) || normSelName.includes(eName)));
         if (isSel) matchedAny = true;
         var cleanName = _cleanEmployeeArabicName(e.name || e.employee_id);
-        opts += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(cleanName) + '</option>';
+        var label = '[' + esc(e.employee_id) + '] ' + esc(cleanName);
+        opts += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + label + '</option>';
     });
     
     var others = team.filter(function(e) { return creators.indexOf(e) === -1; });
@@ -2076,7 +2153,8 @@ function creatorOptionsHtml(selectedId, selectedName) {
                         (normSelName && (eName === normSelName || eName.includes(normSelName) || normSelName.includes(eName))));
             if (isSel) matchedAny = true;
             var cleanName = _cleanEmployeeArabicName(e.name || e.employee_id);
-            opts += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + esc(cleanName) + '</option>';
+            var label = '[' + esc(e.employee_id) + '] ' + esc(cleanName);
+            opts += '<option value="' + esc(e.employee_id) + '"' + (isSel ? ' selected' : '') + '>' + label + '</option>';
         });
         opts += '</optgroup>';
     }
@@ -2221,40 +2299,54 @@ function renderTaskCard(t, indexInPlan) {
     var habibaClientIds = ['cli_dr_ahmed_1788270119', 'cli_sk_1788270118', 'cli_انفينيتي_1788270119'];
     if (habibaClientIds.indexOf(tCid) !== -1 || tAmid === 'EMP-0652-9532' || tAmid === 'AM-0652-9532' || cleanAM.indexOf('حبيبه') !== -1 || cleanAM.indexOf('حبيبة') !== -1) {
         cleanAM = 'حبيبه أحمد محمد';
+        tAmid = 'EMP-0652-9532';
     } else if (tAmid === 'EMP-5887-5256' || tAmid === 'AM-5887-5256' || cleanAM.indexOf('آيه') !== -1 || cleanAM.indexOf('ايه') !== -1 || tCid.indexOf('domya') !== -1) {
         cleanAM = 'آيه أحمد مجاهد';
+        tAmid = 'EMP-5887-5256';
     } else if (tAmid === 'AM-2072-9827' || tAmid === 'EMP-2072-9827' || cleanAM.indexOf('محمود') !== -1) {
         cleanAM = 'محمود خالد';
+        tAmid = 'AM-2072-9827';
     } else {
         cleanAM = _cleanEmployeeArabicName(cleanAM, t.am_id) || 'حبيبه أحمد محمد';
+        if (!tAmid) tAmid = 'EMP-0652-9532';
     }
+    var amDisplay = tAmid ? ('<span class="font-mono text-[10px]">[' + esc(tAmid) + ']</span> ' + esc(cleanAM)) : esc(cleanAM);
     var amTag = '<div class="flex items-center gap-1.5 text-[11px] text-indigo-900 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-xl font-bold">' +
-        '<span>👤 مدير الحساب (AM):</span> <span>' + esc(cleanAM) + '</span>' +
+        '<span>👤 AM:</span> <span>' + amDisplay + '</span>' +
     '</div>';
 
     var creatorName = (t.creator_name || t.content_creator_name || t.writer_name || '').trim();
+    var creatorId = (t.creator_employee_id || t.writer_employee_id || '').trim();
+    var creatorDisplay = creatorId ? ('<span class="font-mono text-[10px]">[' + esc(creatorId) + ']</span> ' + esc(creatorName)) : esc(creatorName);
     var creatorTag = creatorName ?
         ('<div class="flex items-center gap-1.5 text-[11px] text-purple-900 bg-purple-50 border border-purple-200/80 px-2.5 py-1 rounded-xl font-bold">' +
-            '<span>✍️ كاتب المحتوى:</span> <span>' + esc(creatorName) + '</span>' +
+            '<span>✍️ كاتب المحتوى:</span> <span>' + creatorDisplay + '</span>' +
         '</div>') : '';
 
-    var assigneeName = _cleanEmployeeArabicName((t.assignee_name || '').trim(), t.assigned_employee_id);
-    var secAssigneeName = _cleanEmployeeArabicName((t.secondary_assignee_name || '').trim(), t.secondary_employee_id);
+    var eid = (t.assigned_employee_id || '').trim();
+    var secEid = (t.secondary_employee_id || '').trim();
+    var assigneeName = _cleanEmployeeArabicName((t.assignee_name || '').trim(), eid);
+    var secAssigneeName = _cleanEmployeeArabicName((t.secondary_assignee_name || '').trim(), secEid);
+    var assigneeDisplay = eid ? ('<span class="font-mono text-[10px]">[' + esc(eid) + ']</span> ' + esc(assigneeName)) : esc(assigneeName);
+    var secAssigneeDisplay = secEid ? ('<span class="font-mono text-[10px]">[' + esc(secEid) + ']</span> ' + esc(secAssigneeName)) : esc(secAssigneeName);
     var assigneeTag = (assigneeName && secAssigneeName) ?
         ('<div class="flex items-center gap-1.5 text-[11px] text-purple-900 bg-purple-50 border border-purple-200/80 px-2.5 py-1 rounded-xl font-bold" title="عمل مشترك بين شخصين">' +
-            '<span>👥 المنفذين (عمل مشترك):</span> <span>' + esc(assigneeName) + ' + ' + esc(secAssigneeName) + '</span>' +
+            '<span>👥 المنفذين (عمل مشترك):</span> <span>' + assigneeDisplay + ' + ' + secAssigneeDisplay + '</span>' +
         '</div>') :
         assigneeName ?
         ('<div class="flex items-center gap-1.5 text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-xl font-bold">' +
-            '<span>🎨 المنفذ:</span> <span>' + esc(assigneeName) + '</span>' +
+            '<span>🎨 المنفذ:</span> <span>' + assigneeDisplay + '</span>' +
         '</div>') :
         ('<div class="flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-xl font-bold">' +
             '<span>🎨 المنفذ:</span> <span>بانتظار الإسناد للمصمم</span>' +
         '</div>');
 
-    var clientTag = (t.client_name && t.client_name !== 'None' && t.client_name !== 'null' && t.client_name !== 'عميل عام') ?
+    var cid = (t.client_id || '').trim();
+    var cname = (t.client_name || '').trim();
+    var clientDisplay = (cid && cname && cid !== cname) ? ('<span class="font-mono text-[10px]">[' + esc(cid) + ']</span> ' + esc(cname)) : esc(cname || cid);
+    var clientTag = (cname && cname !== 'None' && cname !== 'null' && cname !== 'عميل عام') ?
         '<div class="text-[11px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-lg inline-flex items-center gap-1">' +
-            '<span>🏢 ' + esc(t.client_name) + '</span>' +
+            '<span>🏢 ' + clientDisplay + '</span>' +
         '</div>' : '';
 
     // 1) Reference images (strictly actual images from docx / plan brief - NOT drive folders)
@@ -3421,7 +3513,7 @@ function renderTasksBoard() {
                     var isSel = (selectedAMFilter === am.id || (selectedAMName && selectedAMName === am.name));
                     return '<button type="button" onclick="toggleAMFilter(\'' + esc(am.id) + '\', \'' + esc(am.name) + '\')" class="text-[11px] px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ' +
                         (isSel ? 'bg-emerald-700 text-white shadow-xs ring-2 ring-emerald-300 font-extrabold' : 'bg-white text-emerald-900 hover:bg-emerald-100/70 border border-emerald-200') + '">' +
-                        '🧑‍💼 ' + esc(am.name) + ' <span class="text-[10px] font-mono ' + (isSel ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-900') + ' px-1.5 py-0.2 rounded-full font-bold">(' + am.count + ')</span>' +
+                        '🧑‍💼 <span class="font-mono text-[10px]">[' + esc(am.id) + ']</span> ' + esc(am.name) + ' <span class="text-[10px] font-mono ' + (isSel ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-900') + ' px-1.5 py-0.2 rounded-full font-bold">(' + am.count + ')</span>' +
                     '</button>';
                 }).join('') +
                 (selectedAMFilter ? '<button type="button" onclick="clearAMFilter()" class="text-[11px] text-emerald-800 font-bold hover:underline mr-auto">إلغاء فلترة AM ✕</button>' : '') +
@@ -3471,7 +3563,7 @@ function renderTasksBoard() {
                     else if (emp.name.includes('ولاء') || emp.name.includes('هدير') || emp.name.includes('ليالي') || emp.name.includes('عربي')) icon = '✍️';
                     return '<button type="button" onclick="toggleEmployeeFilter(\'' + esc(emp.id) + '\', \'' + esc(emp.name) + '\')" class="text-xs px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ' +
                         (isSel ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-300 font-extrabold' : 'bg-white text-slate-800 hover:bg-indigo-50 border border-slate-200') + '">' +
-                        icon + ' ' + esc(emp.name) + ' <span class="text-[10px] font-mono ' + (isSel ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-700') + ' px-1.5 py-0.5 rounded-full font-bold">(' + emp.count + ')</span>' +
+                        icon + ' <span class="font-mono text-[10px]">[' + esc(emp.id) + ']</span> ' + esc(emp.name) + ' <span class="text-[10px] font-mono ' + (isSel ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-700') + ' px-1.5 py-0.5 rounded-full font-bold">(' + emp.count + ')</span>' +
                     '</button>';
                 }).join('') +
                 unassignedBtn +
@@ -4905,7 +4997,7 @@ function buildTeamAssigneeOptionsHtml(team, selectedVal, placeholder) {
         designers.forEach(function(e){
             var isSel = (curVal && (curVal === String(e.employee_id).toLowerCase() || curVal === String(e.name).toLowerCase()));
             var cleanName = _cleanEmployeeArabicName(e.name || e.employee_id);
-            opts += '<option value="' + esc(e.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>🎨 ' + esc(cleanName) + ' — Graphic Designer</option>';
+            opts += '<option value="' + esc(e.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>🎨 [' + esc(e.employee_id) + '] ' + esc(cleanName) + ' — Graphic Designer</option>';
         });
         opts += '</optgroup>';
     }
@@ -4914,7 +5006,7 @@ function buildTeamAssigneeOptionsHtml(team, selectedVal, placeholder) {
         videoEditors.forEach(function(e){
             var isSel = (curVal && (curVal === String(e.employee_id).toLowerCase() || curVal === String(e.name).toLowerCase()));
             var cleanName = _cleanEmployeeArabicName(e.name || e.employee_id);
-            opts += '<option value="' + esc(e.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>🎬 ' + esc(cleanName) + ' — Video Editor</option>';
+            opts += '<option value="' + esc(e.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>🎬 [' + esc(e.employee_id) + '] ' + esc(cleanName) + ' — Video Editor</option>';
         });
         opts += '</optgroup>';
     }
@@ -4923,7 +5015,7 @@ function buildTeamAssigneeOptionsHtml(team, selectedVal, placeholder) {
         writers.forEach(function(e){
             var isSel = (curVal && (curVal === String(e.employee_id).toLowerCase() || curVal === String(e.name).toLowerCase()));
             var cleanName = _cleanEmployeeArabicName(e.name || e.employee_id);
-            opts += '<option value="' + esc(e.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>✍️ ' + esc(cleanName) + ' — Content Creator</option>';
+            opts += '<option value="' + esc(e.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>✍️ [' + esc(e.employee_id) + '] ' + esc(cleanName) + ' — Content Creator</option>';
         });
         opts += '</optgroup>';
     }
@@ -4953,7 +5045,7 @@ async function loadTasksIngestFields() {
             var opts = '<option value="">-- اختر العميل من القائمة --</option>' +
                 clients.map(function(c) {
                     var amPart = c.am_name ? (' (AM: ' + c.am_name + ')') : '';
-                    return '<option value="' + esc(c.id) + '" data-name="' + esc(c.name) + '">' + esc(c.name) + amPart + '</option>';
+                    return '<option value="' + esc(c.id) + '" data-name="' + esc(c.name) + '">[' + esc(c.id) + '] ' + esc(c.name) + amPart + '</option>';
                 }).join('');
             cSel.innerHTML = opts;
             
@@ -4971,16 +5063,16 @@ async function loadTasksIngestFields() {
     
     // 2. Managers
     var defaultAMs = [
+        { employee_id: 'EMP-0652-9532', name: 'حبيبه احمد محمد', role: 'ACCOUNT MANAGER' },
         { employee_id: 'AM-2072-9827', name: 'محمود خالد', role: 'ACCOUNT MANAGER' },
-        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' },
-        { employee_id: 'EMP-0652-9532', name: 'حبيبه احمد محمد', role: 'ACCOUNT MANAGER' }
+        { employee_id: 'EMP-5887-5256', name: 'آيه أحمد مجاهد', role: 'ACCOUNT MANAGER' }
     ];
     if (amSel) {
         var myEmpId = (window.currentUserData && window.currentUserData.employee_id) || '';
         var optHtml = '';
         defaultAMs.forEach(function(m) {
             var isMe = myEmpId && String(m.employee_id) === String(myEmpId);
-            optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '> ' + esc(m.name) + ' — ' + esc(m.role) + (isMe ? ' (أنا ‍️)' : '') + '</option>';
+            optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '>👤 [' + esc(m.employee_id) + '] ' + esc(m.name) + ' — ' + esc(m.role) + (isMe ? ' (أنا 🙋‍♂️)' : '') + '</option>';
         });
         amSel.innerHTML = optHtml;
     }
@@ -4994,7 +5086,7 @@ async function loadTasksIngestFields() {
             var optHtml = '';
             ms.forEach(function(m) {
                 var isMe = myEmpId && String(m.employee_id) === String(myEmpId);
-                optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '> ' + esc(m.name) + ' — ' + esc(m.role || 'Account Manager') + (isMe ? ' (أنا ‍️)' : '') + '</option>';
+                optHtml += '<option value="' + esc(m.employee_id) + '"' + (isMe ? ' selected' : '') + '>👤 [' + esc(m.employee_id) + '] ' + esc(m.name) + ' — ' + esc(m.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '') + '</option>';
             });
             amSel.innerHTML = optHtml;
         }
@@ -5026,7 +5118,7 @@ async function loadTasksIngestFields() {
             var isMe = myEmpId && cEid === String(myEmpId).trim().toLowerCase();
             var isSel = (curVal && curVal === cEid) || (!curVal && isMe);
             var cleanName = _cleanEmployeeArabicName(c.name || c.employee_id);
-            cOpts += '<option value="' + esc(c.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>✍️ ' + esc(cleanName) + ' — ' + esc(c.role || 'Content Creator') + (isMe ? ' (أنا ✍️)' : '') + '</option>';
+            cOpts += '<option value="' + esc(c.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>✍️ [' + esc(c.employee_id) + '] ' + esc(cleanName) + ' — ' + esc(c.role || 'Content Creator') + (isMe ? ' (أنا ✍️)' : '') + '</option>';
         });
         cOpts += '<option value="auto" data-name="">✨ كشف تلقائي من الخطة</option>';
         creatorSel.innerHTML = cOpts;
@@ -6981,8 +7073,8 @@ async function openPlanBuilderModal() {
             var opt = document.createElement('option');
             opt.value = a.employee_id || a.id;
             var isMe = myEmpId && String(opt.value) === String(myEmpId);
-            opt.textContent = '👤 ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '');
-            if (isMe || opt.value === 'AM-2072-9827') opt.selected = true;
+            opt.textContent = '👤 [' + (a.employee_id || a.id) + '] ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '');
+            if (isMe || opt.value === 'EMP-0652-9532') opt.selected = true;
             amSelect.appendChild(opt);
         });
     }
@@ -7017,7 +7109,7 @@ async function openPlanBuilderModal() {
             var isMe = myEmpId && cEid === String(myEmpId).trim().toLowerCase();
             var isSel = (curVal && curVal === cEid) || (!curVal && isMe);
             var cleanName = _cleanEmployeeArabicName(c.name || c.employee_id);
-            opts += '<option value="' + esc(c.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>✍️ ' + esc(cleanName) + (isMe ? ' (أنا ✍️)' : '') + '</option>';
+            opts += '<option value="' + esc(c.employee_id) + '" data-name="' + esc(cleanName) + '"' + (isSel ? ' selected' : '') + '>✍️ [' + esc(c.employee_id) + '] ' + esc(cleanName) + (isMe ? ' (أنا ✍️)' : '') + '</option>';
         });
         opts += '<option value="auto" data-name="">✨ كشف تلقائي / الحساب الحالي</option>';
         pbCreatorSelect.innerHTML = opts;
