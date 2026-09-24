@@ -4380,7 +4380,9 @@ def api_system_diagnostics():
     # 1. Supabase Health Check
     if SUPABASE_URL and SUPABASE_KEY:
         try:
-            r = requests.get(f"{SUPABASE_URL}/rest/v1/settings?select=key&limit=1", headers=supa_headers(), timeout=5)
+            r = requests.get(f"{SUPABASE_URL}/rest/v1/app_settings?select=key&limit=1", headers=supa_headers(), timeout=5)
+            if r.status_code == 404:
+                r = requests.get(f"{SUPABASE_URL}/rest/v1/settings?select=key&limit=1", headers=supa_headers(), timeout=5)
             report["services"]["supabase"] = {
                 "ok": r.status_code == 200,
                 "status_code": r.status_code,
