@@ -2917,7 +2917,20 @@ function renderTaskCard(t, indexInPlan) {
                     (t.assigned_at ? '<div>📅 تاريخ الإسناد: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.assigned_at)) + '</span></div>' : '')
                 ) +
                 (t.submitted_at ? '<div>🚀 تاريخ التسليم: <span class="font-mono text-[10px] block text-slate-600">' + esc(fmtCairoTime(t.submitted_at)) + '</span></div>' : '') +
+                (t.completed_at ? '<div>✅ تاريخ اعتماد AM: <span class="font-mono text-[10px] block text-emerald-700 font-bold">' + esc(fmtCairoTime(t.completed_at)) + '</span></div>' : '') +
                 (turnaroundText ? '<div class="col-span-2 text-indigo-900 font-bold bg-white/80 px-2 py-1 rounded-lg border border-indigo-100 flex items-center justify-between mt-1"><span>' + (isModTask ? '⏱️ مدة إنجاز التعديل:' : '⏱️ مدة إنجاز الموظف:') + '</span><span class="font-mono text-xs text-indigo-700">' + turnaroundText + '</span></div>' : '') +
+                ((function(){
+                    var ath = (kpis && kpis.am_review_hours !== undefined) ? kpis.am_review_hours : null;
+                    if (ath === null && t.submitted_at && t.completed_at) {
+                        var dMs = new Date(t.completed_at) - new Date(t.submitted_at);
+                        if (dMs > 0) ath = +(dMs / 3600000).toFixed(1);
+                    }
+                    if (ath !== null && ath >= 0) {
+                        var athText = ath < 1 ? (Math.round(ath * 60) + ' دقيقة') : (ath + ' ساعة');
+                        return '<div class="col-span-2 text-purple-900 font-bold bg-purple-50/80 px-2 py-1 rounded-lg border border-purple-200 flex items-center justify-between mt-1"><span>⏱️ سرعة مراجعة واعتماد AM:</span><span class="font-mono text-xs text-purple-700 font-bold">' + athText + '</span></div>';
+                    }
+                    return '';
+                })()) +
             '</div>' +
         '</div>';
     }
@@ -6107,20 +6120,25 @@ async function loadTaskMonthlyReport() {
             var inProg = (r.in_progress !== undefined) ? r.in_progress : 0;
             var deliv = (r.submitted !== undefined) ? r.submitted : r.completed;
 
-            return '<tr class="hover:bg-slate-50/60 transition-colors">' +
+            var empCode = r.employee_id ? ('<span class="font-mono text-[10px] text-slate-500 font-normal">[' + esc(r.employee_id) + ']</span> ') : '';
+            var roleBadge = r.is_am ? 
+                '<span class="text-[10px] bg-purple-100 text-purple-900 border border-purple-200 px-2 py-0.5 rounded-md font-bold">👤 مدير حسابات (مراجعة وإغلاق)</span>' :
+                ('<span class="text-[10px] text-slate-500 font-normal">(' + esc(r.role) + ')</span>');
+
+            return '<tr class="hover:bg-slate-50/60 transition-colors ' + (r.is_am ? 'bg-purple-50/20' : '') + '">' +
                 '<td class="p-3 font-bold text-slate-900 align-middle">' +
                     '<div class="flex items-center gap-2">' +
-                        '<span class="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 border border-slate-200">👤</span>' +
-                        '<div>' + esc(r.employee) + ' <div class="text-[10px] font-normal text-slate-500">(' + esc(r.role) + ')</div></div>' +
+                        '<span class="w-6 h-6 rounded-full ' + (r.is_am ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200') + ' flex items-center justify-center font-bold text-[10px] shrink-0 border">' + (r.is_am ? '💼' : '👤') + '</span>' +
+                        '<div>' + empCode + esc(r.employee) + ' <div class="mt-0.5">' + roleBadge + '</div></div>' +
                     '</div>' +
                 '</td>' +
-                '<td class="p-3 font-mono font-bold text-slate-800 text-center align-middle">' + r.assigned + '</td>' +
-                '<td class="p-3 font-mono text-amber-600 font-bold text-center align-middle">' + inProg + '</td>' +
-                '<td class="p-3 font-mono font-bold text-emerald-600 text-center align-middle">' + deliv + '</td>' +
+                '<td class="p-3 font-mono font-bold text-slate-800 text-center align-middle" title="' + (r.is_am ? 'إجمالي مهام العملاء تحت الإشراف' : 'إجمالي المهام المسندة للتنفيذ') + '">' + r.assigned + (r.is_am ? ' <span class="text-[9px] text-purple-600 block font-normal">إشراف</span>' : '') + '</td>' +
+                '<td class="p-3 font-mono text-amber-600 font-bold text-center align-middle" title="' + (r.is_am ? 'مهام بانتظار مراجعة واعتماد AM' : 'مهام قيد العمل من المنفذ') + '">' + inProg + (r.is_am ? ' <span class="text-[9px] text-amber-600 block font-normal">بانتظار AM</span>' : '') + '</td>' +
+                '<td class="p-3 font-mono font-bold text-emerald-600 text-center align-middle" title="' + (r.is_am ? 'مهام راجعها واعتمدها AM' : 'مهام تم تسليمها من المنفذ') + '">' + deliv + (r.is_am ? ' <span class="text-[9px] text-emerald-600 block font-normal">معتمدة ومغلقة</span>' : '') + '</td>' +
                 '<td class="p-3 text-center align-middle">' + rateBadge + '</td>' +
                 '<td class="p-3 font-mono align-middle">' + onTimeBadge + '</td>' +
-                '<td class="p-3 font-mono text-indigo-900 font-bold align-middle">' + esc(r.avg_turnaround || '-') + '</td>' +
-                '<td class="p-3 font-mono text-slate-700 font-bold align-middle">' + esc(r.avg_duration || '-') + '</td>' +
+                '<td class="p-3 font-mono text-indigo-900 font-bold align-middle" title="' + (r.is_am ? 'متوسط سرعة مراجعة واعتماد المهام' : 'متوسط مدة تنفيذ المهمة') + '">' + esc(r.avg_turnaround || '-') + (r.is_am ? ' <span class="text-[9px] text-indigo-600 block font-normal">سرعة المراجعة</span>' : '') + '</td>' +
+                '<td class="p-3 font-mono text-slate-700 font-bold align-middle">' + (r.is_am ? '<span class="text-slate-400 font-normal text-[11px]">—</span>' : esc(r.avg_duration || '-')) + '</td>' +
                 '<td class="p-3 text-xs text-slate-700 min-w-[240px] max-w-sm align-middle">' + notesHtml + '</td>' +
             '</tr>';
         }).join('');

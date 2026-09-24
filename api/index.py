@@ -7609,6 +7609,23 @@ def _append_task_log(t, action, actor_name=None, actor_id=None, **kwargs):
             except Exception:
                 pass
             
+    completed_at = t.get("completed_at")
+    if completed_at and submitted_at:
+        try:
+            dt_sub = datetime.fromisoformat(str(submitted_at).replace("Z", "+00:00"))
+            dt_comp = datetime.fromisoformat(str(completed_at).replace("Z", "+00:00"))
+            am_rev_secs = max(0, (dt_comp - dt_sub).total_seconds())
+            kpis["am_review_hours"] = round(am_rev_secs / 3600, 2)
+            kpis["am_review_minutes"] = round(am_rev_secs / 60, 1)
+            if effective_deadline:
+                dl_str = str(effective_deadline)[:10]
+                comp_cairo = (dt_comp + timedelta(hours=_tz_offset())).strftime("%Y-%m-%d")
+                kpis["am_on_time"] = bool(comp_cairo <= dl_str or am_rev_secs <= 86400)
+            else:
+                kpis["am_on_time"] = bool(am_rev_secs <= 86400)
+        except Exception:
+            pass
+
     timer_secs = (t.get("timer_state") or {}).get("elapsed_seconds", 0)
     if timer_secs:
         kpis["timer_minutes"] = round(timer_secs / 60, 1)
@@ -13301,11 +13318,20 @@ def api_tasks_monthly_report():
                 roster[eid] = {"name": nm, "role": role}
             name_to_eid[nm] = eid
 
+    # Also ensure all entries in KNOWN_EMPLOYEE_ROSTER are in roster
+    for k, (e_code, e_name) in (KNOWN_EMPLOYEE_ROSTER or {}).items():
+        if e_code not in roster:
+            roster[e_code] = {"name": e_name, "role": "Account Manager" if is_account_manager_job("", e_code) else "فريق العمل"}
+        if e_name not in name_to_eid:
+            name_to_eid[e_name] = e_code
+
     stats = {}
     for eid, r in roster.items():
+        is_am = is_account_manager_job(r.get("role"), eid) or is_account_manager_job("", r.get("name"))
         stats[eid] = {
             "name": r["name"],
-            "role": r["role"],
+            "role": "Account Manager" if is_am else r["role"],
+            "is_am": is_am,
             "assigned": 0,
             "in_progress": 0,
             "submitted": 0,
@@ -13331,13 +13357,79 @@ def api_tasks_monthly_report():
                 str(t.get("created_at") or "").strip(),
                 str(t.get("assigned_at") or "").strip(),
                 str(t.get("submitted_at") or "").strip(),
+                str(t.get("completed_at") or "").strip(),
             ]
             valid_dates = [d for d in task_dates if d]
             if valid_dates and not any(_matches_month(d, month_str) for d in valid_dates):
                 continue
 
-        keys_to_credit = set()
+        st = str(t.get("status") or "").strip()
+        t_am_id = str(t.get("am_id") or "").strip()
+        t_am_nm = str(t.get("am_name") or "").strip()
 
+        # ----------------------------------------------------
+        # 1. Account Manager KPIs: STRICTLY Reviewing & Closing Tasks
+        # ----------------------------------------------------
+        am_key = None
+        if t_am_id in stats and stats[t_am_id]["is_am"]:
+            am_key = t_am_id
+        elif t_cid in HABIBA_CLIENTS or "حبيبه" in t_am_nm or "habiba" in t_am_nm.lower():
+            am_key = "EMP-0652-9532"
+        elif t_cid in AYA_CLIENTS or "آيه" in t_am_nm or "aya" in t_am_nm.lower():
+            am_key = "EMP-5887-5256"
+        elif "محمود" in t_am_nm or "mahmoud" in t_am_nm.lower() or t_am_id == "AM-2072-9827":
+            am_key = "AM-2072-9827"
+
+        if am_key and am_key in stats:
+            s_am = stats[am_key]
+            s_am["assigned"] += 1
+            if st in ("Awaiting AM Review", "Submitted / In Review", "Review Required"):
+                s_am["in_progress"] += 1
+                s_am["submitted"] += 1
+            elif st in ("Completed", "Approved / Scheduled", "Done"):
+                s_am["submitted"] += 1
+                s_am["completed"] += 1
+                comp_at = t.get("completed_at")
+                sub_at = t.get("submitted_at") or t.get("assigned_at")
+                if comp_at and sub_at:
+                    try:
+                        dt_c = datetime.fromisoformat(str(comp_at).replace("Z", "+00:00"))
+                        dt_s = datetime.fromisoformat(str(sub_at).replace("Z", "+00:00"))
+                        th = max(0, (dt_c - dt_s).total_seconds()) / 3600
+                        s_am["turnaround_hours"].append(th)
+                    except Exception:
+                        pass
+                effective_dl = t.get("modification_deadline") or t.get("delivery_deadline") or t.get("publish_date")
+                if effective_dl and comp_at:
+                    dl_str = str(effective_dl)[:10]
+                    comp_d = str(comp_at)[:10]
+                    if comp_d <= dl_str:
+                        s_am["on_time"] += 1
+                    else:
+                        s_am["late"] += 1
+                else:
+                    s_am["on_time"] += 1
+                
+                c_name = str(t.get("client_name") or "").strip()
+                if not c_name or c_name in ("None", "null", "عميل عام"):
+                    c_name = _client_name(t.get("client_id"))
+                tid = str(t.get("task_id", "")).strip()
+                title_str = str(t.get("title") or "").strip()
+                if not any(n.get("task_id") == tid for n in s_am["notes"]):
+                    s_am["notes"].append({
+                        "task_id": tid,
+                        "title": title_str or "مهمة معتمدة",
+                        "client_name": c_name,
+                        "drive_link": (t.get("drive_link") or "").strip(),
+                        "note": t.get("review_note") or "تمت المراجعة والاعتماد",
+                        "status": st
+                    })
+
+        # ----------------------------------------------------
+        # 2. Executor KPIs: Designers, Video Editors, Content Creators
+        # (Exclude AMs so AMs are ONLY judged on review & close)
+        # ----------------------------------------------------
+        keys_to_credit = set()
         eid = str(t.get("assigned_employee_id") or "").strip()
         nm = str(t.get("assignee_name") or "").strip()
         
@@ -13351,6 +13443,7 @@ def api_tasks_monthly_report():
             stats[target_key] = {
                 "name": nm or eid,
                 "role": "فريق العمل",
+                "is_am": False,
                 "assigned": 0,
                 "in_progress": 0,
                 "submitted": 0,
@@ -13366,6 +13459,7 @@ def api_tasks_monthly_report():
             stats[target_key] = {
                 "name": nm,
                 "role": "فريق العمل",
+                "is_am": False,
                 "assigned": 0,
                 "in_progress": 0,
                 "submitted": 0,
@@ -13376,7 +13470,7 @@ def api_tasks_monthly_report():
                 "durations": [],
                 "notes": []
             }
-        if target_key:
+        if target_key and not stats[target_key].get("is_am"):
             keys_to_credit.add(target_key)
 
         # Co-assignee / Secondary Employee
@@ -13392,6 +13486,7 @@ def api_tasks_monthly_report():
             stats[sec_target_key] = {
                 "name": sec_nm or sec_eid,
                 "role": "فريق العمل",
+                "is_am": False,
                 "assigned": 0,
                 "in_progress": 0,
                 "submitted": 0,
@@ -13407,6 +13502,7 @@ def api_tasks_monthly_report():
             stats[sec_target_key] = {
                 "name": sec_nm,
                 "role": "فريق العمل",
+                "is_am": False,
                 "assigned": 0,
                 "in_progress": 0,
                 "submitted": 0,
@@ -13417,7 +13513,7 @@ def api_tasks_monthly_report():
                 "durations": [],
                 "notes": []
             }
-        if sec_target_key:
+        if sec_target_key and not stats[sec_target_key].get("is_am"):
             keys_to_credit.add(sec_target_key)
 
         if not keys_to_credit:
@@ -13509,7 +13605,10 @@ def api_tasks_monthly_report():
             else:
                 avg_dur = "-"
                 
-            rate = f"{int((s['submitted'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
+            if s["is_am"]:
+                rate = f"{int((s['completed'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
+            else:
+                rate = f"{int((s['submitted'] / s['assigned']) * 100)}%" if s["assigned"] > 0 else "-"
             
             on_time_total = s["on_time"] + s["late"]
             on_time_rate = f"{int((s['on_time'] / on_time_total) * 100)}%" if on_time_total > 0 else "-"
@@ -13521,9 +13620,12 @@ def api_tasks_monthly_report():
             else:
                 avg_turnaround = "-"
 
+            role_title = "مدير حسابات (مراجعة وإغلاق)" if s["is_am"] else s["role"]
             report_data.append({
+                "employee_id": k,
                 "employee": s["name"],
-                "role": s["role"],
+                "role": role_title,
+                "is_am": s["is_am"],
                 "assigned": s["assigned"],
                 "in_progress": s["in_progress"],
                 "started": s["in_progress"] + s["submitted"],
