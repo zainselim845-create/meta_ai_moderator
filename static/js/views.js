@@ -2246,9 +2246,13 @@ function setTaskSort(sortKey) {
     renderTasksBoard();
 }
 
-function matchTaskStatus(taskStatus, filterKey) {
+function matchTaskStatus(taskStatus, filterKey, taskObj) {
     if (!filterKey || filterKey === 'all') return true;
-    var st = String(taskStatus || '').trim().toLowerCase();
+    var t = (typeof taskStatus === 'object' && taskStatus !== null) ? taskStatus : (taskObj || {});
+    var st = String((typeof taskStatus === 'string' ? taskStatus : (t.status || ''))).trim().toLowerCase();
+    if (filterKey === 'revisions') {
+        return !!(t.is_subtask || (t.task_id && String(t.task_id).indexOf('-REV') !== -1) || st.indexOf('revision') !== -1 || st.indexOf('تعديل') !== -1);
+    }
     if (filterKey === 'review') {
         return st === 'awaiting am review' || st === 'submitted / in review' || st === 'submitted' || st === 'in review' || st === 'review' || st.indexOf('review') !== -1 || st.indexOf('submitted') !== -1 || st.indexOf('مراجعة') !== -1 || st.indexOf('تسليم') !== -1;
     }
@@ -2323,15 +2327,28 @@ function getTaskSequenceNum(t) {
 }
 
 function renderTaskCard(t, indexInPlan) {
+    var isSub = Boolean(t.is_subtask);
     var st = t.status || 'Pending AM Approval';
     var isSubmitted = (st === 'Awaiting AM Review' || st === 'Submitted / In Review' || st === 'Submitted' || st === 'Review Required');
     var isCompleted = (st === 'Completed' || st === 'Approved / Scheduled' || st === 'Done');
-    var statusBadgeClass = isCompleted ? 'bg-emerald-100 text-emerald-800' :
-                           st === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                           isSubmitted ? 'bg-purple-100 text-purple-800 font-bold animate-pulse' :
-                           st === 'Assigned' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800';
-    var stLabel = isCompleted ? 'مكتملة ومعتمدة ' : st === 'In Progress' ? 'جاري العمل ' :
-                  isSubmitted ? 'تم التسليم / بانتظار مراجعتك ' : st === 'Assigned' ? 'مُسندة ' : 'بانتظار الإسناد ';
+    var statusBadgeClass = isSub ? (
+                               isCompleted ? 'bg-emerald-100 text-emerald-800' :
+                               isSubmitted ? 'bg-purple-100 text-purple-800 font-bold animate-pulse' :
+                               'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
+                           ) : (
+                               isCompleted ? 'bg-emerald-100 text-emerald-800' :
+                               st === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                               isSubmitted ? 'bg-purple-100 text-purple-800 font-bold animate-pulse' :
+                               st === 'Assigned' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'
+                           );
+    var stLabel = isSub ? (
+                      isCompleted ? '✅ تم اعتماد التعديل' :
+                      isSubmitted ? '🔍 التعديل قيد مراجعة AM' :
+                      '🔄 مهمة تعديل قيد التنفيذ'
+                  ) : (
+                      isCompleted ? 'مكتملة ومعتمدة ' : st === 'In Progress' ? 'جاري العمل ' :
+                      isSubmitted ? 'تم التسليم / بانتظار مراجعتك ' : st === 'Assigned' ? 'مُسندة ' : 'بانتظار الإسناد '
+                  );
 
     var cleanAM = (t.am_name || '').trim();
     var tAmid = (t.am_id || '').trim().toUpperCase();
@@ -2637,7 +2654,8 @@ function renderTaskCard(t, indexInPlan) {
     }
     // If displayTitle is an exact match to the entire caption, show a neat post heading
     var isTitleExactCaption = Boolean(cleanCaption) && (displayTitle.trim() === cleanCaption.trim());
-    var cardHeading = isTitleExactCaption ? ('منشور #' + postSeq + (t.client_name ? (' — ' + t.client_name) : '')) : displayTitle;
+    var cardHeading = isSub ? (t.title || ('مهمة تعديل فرعية #' + (t.revision_number || 1))) :
+        (isTitleExactCaption ? ('منشور #' + postSeq + (t.client_name ? (' — ' + t.client_name) : '')) : displayTitle);
 
     var captionHtml = '';
     if (cleanCaption) {
@@ -2782,11 +2800,50 @@ function renderTaskCard(t, indexInPlan) {
         '</span>') :
         ('<span class="text-[11px] font-bold px-2 py-0.5 rounded-lg border bg-slate-100 text-slate-500 border-slate-200">📅 التسليم: غير محدد</span>');
 
-    var html = '<div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner">' +
+    var cardWrapperClass = isSub ?
+        'bg-amber-50/15 border-2 border-amber-400 border-r-[6px] border-r-amber-500 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner' :
+        'bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner';
+
+    var headerBadgesHtml = isSub ? (
+        '<span class="bg-amber-600 text-white font-extrabold font-mono text-xs px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1"><span>🔄</span> <span>تعديل فرعي #' + (t.revision_number || 1) + '</span></span>' +
+        '<span class="font-mono font-bold text-xs bg-amber-950 text-amber-100 px-2 py-0.5 rounded-lg border border-amber-800">' + esc(t.task_id) + '</span>' +
+        '<span class="bg-white text-amber-950 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1 shadow-2xs">🔗 تابعة للمهمة: [' + esc(t.parent_task_id || '') + ']</span>'
+    ) : (
+        postBadge +
+        '<span class="font-mono font-bold text-xs bg-slate-900 text-white px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>'
+    );
+
+    var subtaskReasonBanner = isSub ? (
+        '<div class="bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 border-2 border-rose-400 rounded-2xl p-3.5 space-y-2 shadow-xs">' +
+            '<div class="flex items-center justify-between font-black text-xs text-rose-950 border-b border-rose-200/80 pb-1.5 flex-wrap gap-1">' +
+                '<span class="flex items-center gap-2">' +
+                    '<span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block animate-ping"></span>' +
+                    '<span class="text-xs sm:text-sm font-black text-rose-950">⚠️ سبب وملاحظات التعديل المطلوب من مدير الحساب (AM):</span>' +
+                '</span>' +
+                '<span class="bg-rose-600 text-white text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-xl font-mono font-bold shadow-2xs">' +
+                    '📅 موعد تسليم التعديل: ' + esc(t.delivery_deadline || t.modification_deadline || 'غداً') +
+                '</span>' +
+            '</div>' +
+            '<div class="text-xs sm:text-sm text-slate-950 font-bold bg-white p-3 rounded-xl border border-rose-200 whitespace-pre-wrap leading-relaxed shadow-2xs select-all">' +
+                esc(t.revision_reason || t.review_note || t.notes || 'يرجى مراجعة التعديلات المطلوبة وتحديث المطلوب') +
+            '</div>' +
+        '</div>'
+    ) : '';
+
+    var parentActiveSubtaskNotice = (!isSub && t.active_subtask_id && !isCompleted) ? (
+        '<div class="bg-amber-50 border border-amber-300 rounded-xl p-2.5 flex items-center justify-between gap-2 flex-wrap">' +
+            '<div class="flex items-center gap-1.5 text-xs font-bold text-amber-950">' +
+                '<span class="text-base">🔄</span>' +
+                '<span>هذه المهمة قيد التعديل حالياً عبر المهمة الفرعية: <b class="font-mono bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded">' + esc(t.active_subtask_id) + '</b></span>' +
+            '</div>' +
+            '<button type="button" onclick="setTaskStatusFilter(\'revisions\')" class="text-[10px] bg-amber-600 hover:bg-amber-700 text-white font-bold px-2 py-0.5 rounded-lg shadow-2xs transition cursor-pointer">عرض مهام التعديل ↗</button>' +
+        '</div>'
+    ) : '';
+
+    var html = '<div class="' + cardWrapperClass + '">' +
         '<div class="flex items-center justify-between gap-1 flex-wrap">' +
             '<div class="flex items-center gap-1.5 flex-wrap">' +
-                postBadge +
-                '<span class="font-mono font-bold text-xs bg-slate-900 text-white px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>' +
+                headerBadgesHtml +
                 '<span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full ' + statusBadgeClass + '">' + stLabel + '</span>' +
                 clientTag +
                 headerDeadlineHtml +
@@ -2794,6 +2851,8 @@ function renderTaskCard(t, indexInPlan) {
             '<button onclick="deleteTaskAction(\'' + escJs(t.task_id) + '\')" title="حذف المهمة" class="text-slate-400 hover:text-red-600 transition p-1 cursor-pointer flex items-center justify-center">' + ICONS.trash + '</button>' +
         '</div>' +
         teamHtml +
+        subtaskReasonBanner +
+        parentActiveSubtaskNotice +
         '<div class="flex items-start justify-between gap-2">' +
             '<h4 class="font-bold text-sm text-slate-900 leading-snug break-words flex-1">' + esc(cardHeading) + '</h4>' +
             (displayTitle ? ('<button type="button" onclick="copyTextToClipboard(\'' + escJs(displayTitle) + '\', \'عنوان البوست\', this)" class="shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 shadow-2xs transition flex items-center gap-1 cursor-pointer" title="نسخ العنوان / التاج لاين"><span>📋 نسخ العنوان</span></button>') : '') +
@@ -2860,7 +2919,7 @@ function renderTaskCard(t, indexInPlan) {
     '</div>';
 
     // Revision Sub-tasks (مهام التعديل الفرعية)
-    if (t.subtasks && t.subtasks.length) {
+    if (!isSub && t.subtasks && t.subtasks.length) {
         var revs = t.subtasks.filter(function(st){ return st && (st.type === 'revision' || st.is_subtask); });
         if (revs.length) {
             html += '<div class="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-2.5 space-y-1.5 mt-2">' +
@@ -3423,7 +3482,7 @@ function renderTasksBoard() {
 
         // 2. Status Filter: if current status yields 0 results but scopedTasks has items, auto-reset to 'all' to avoid false empty screen
         if (currentTaskStatusFilter && currentTaskStatusFilter !== 'all') {
-            var matchingStatusCount = scopedTasks.filter(function(t){ return matchTaskStatus(t.status, currentTaskStatusFilter); }).length;
+            var matchingStatusCount = scopedTasks.filter(function(t){ return matchTaskStatus(t.status, currentTaskStatusFilter, t); }).length;
             if (matchingStatusCount === 0 && scopedTasks.length > 0) {
                 currentTaskStatusFilter = 'all';
             }
@@ -3431,7 +3490,7 @@ function renderTasksBoard() {
 
         if (currentTaskStatusFilter && currentTaskStatusFilter !== 'all') {
             displayTasks = displayTasks.filter(function(t) {
-                return matchTaskStatus(t.status, currentTaskStatusFilter);
+                return matchTaskStatus(t.status, currentTaskStatusFilter, t);
             });
         }
 
@@ -3577,11 +3636,12 @@ function renderTasksBoard() {
         // Status filter counts scoped to active employee/plan to prevent showing false non-zero counts
         var statusBaseTasks = scopedTasks || allTasks;
         var countAll = statusBaseTasks.length;
-        var countReview = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'review'); }).length;
-        var countInProgress = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'in_progress'); }).length;
-        var countAssigned = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'assigned'); }).length;
-        var countPending = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'pending'); }).length;
-        var countCompleted = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'completed'); }).length;
+        var countRevisions = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'revisions', t); }).length;
+        var countReview = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'review', t); }).length;
+        var countInProgress = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'in_progress', t); }).length;
+        var countAssigned = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'assigned', t); }).length;
+        var countPending = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'pending', t); }).length;
+        var countCompleted = statusBaseTasks.filter(function(t){ return matchTaskStatus(t.status, 'completed', t); }).length;
 
         // 1. Account Managers (Strict dedicated row)
         var amRowHtml = '';
@@ -3684,6 +3744,7 @@ function renderTasksBoard() {
             '<div class="flex items-center gap-1.5 flex-wrap border-t border-slate-200/60 pt-2">' +
                 '<span class="text-[11px] font-bold text-slate-500">تصفية الحالة:</span>' +
                 '<button type="button" onclick="setTaskStatusFilter(\'all\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'all' ? 'bg-slate-800 text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100') + '">الكل (' + countAll + ')</button>' +
+                '<button type="button" onclick="setTaskStatusFilter(\'revisions\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'revisions' ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-300' : 'bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100') + '">🔄 مهام التعديل (' + countRevisions + ')</button>' +
                 '<button type="button" onclick="setTaskStatusFilter(\'in_progress\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'in_progress' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50') + '">⏱️ جاري العمل (' + countInProgress + ')</button>' +
                 '<button type="button" onclick="setTaskStatusFilter(\'review\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'review' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white text-purple-700 border border-purple-200 hover:bg-purple-50') + '">📤 تم التسليم / قيد المراجعة (' + countReview + ')</button>' +
                 '<button type="button" onclick="setTaskStatusFilter(\'assigned\')" class="text-[11px] px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer ' + (currentTaskStatusFilter === 'assigned' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50') + '">📌 مُسندة (' + countAssigned + ')</button>' +

@@ -987,36 +987,42 @@ function renderMyPortalTasks() {
   const tomorrowStr = dTom.toISOString().slice(0, 10);
 
   // Update Status Button Counters
-  const countAssigned = allTasks.filter(t => (t.status||'') === 'Assigned').length;
-  const countProgress = allTasks.filter(t => (t.status||'') === 'In Progress').length;
+  const countAssigned = allTasks.filter(t => (t.status||'') === 'Assigned' && !t.is_subtask).length;
+  const countProgress = allTasks.filter(t => (t.status||'') === 'In Progress' && !t.is_subtask).length;
+  const countRevisions = allTasks.filter(t => t.is_subtask || t.type === 'revision' || (t.subtasks && t.subtasks.some(st => (st.type === 'revision' || st.is_subtask) && !st.completed_at))).length;
   const countReview = allTasks.filter(t => /Awaiting|Submitted|Review/i.test(t.status||'')).length;
   const countCompleted = allTasks.filter(t => /Completed|مكتمل|Approved/i.test(t.status||'')).length;
 
   const btnAll = document.getElementById('mp-stat-all');
   const btnAssigned = document.getElementById('mp-stat-assigned');
   const btnProgress = document.getElementById('mp-stat-progress');
+  const btnRevisions = document.getElementById('mp-stat-revisions');
   const btnReview = document.getElementById('mp-stat-review');
   const btnCompleted = document.getElementById('mp-stat-completed');
 
   if (btnAll) {
     btnAll.textContent = `الكل (${allTasks.length})`;
-    btnAll.className = `text-xs px-3 py-1 rounded-xl font-bold transition ${myPortalStatusFilter === 'all' ? 'bg-slate-900 text-white shadow-2xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'}`;
+    btnAll.className = `text-xs px-3 py-1 rounded-xl font-bold transition cursor-pointer ${myPortalStatusFilter === 'all' ? 'bg-slate-900 text-white shadow-2xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'}`;
   }
   if (btnAssigned) {
     btnAssigned.textContent = `⏳ بانتظار البدء (${countAssigned})`;
-    btnAssigned.className = `text-xs px-3 py-1 rounded-xl font-bold transition ${myPortalStatusFilter === 'Assigned' ? 'bg-slate-800 text-white shadow-2xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'}`;
+    btnAssigned.className = `text-xs px-3 py-1 rounded-xl font-bold transition cursor-pointer ${myPortalStatusFilter === 'Assigned' ? 'bg-slate-800 text-white shadow-2xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'}`;
   }
   if (btnProgress) {
     btnProgress.textContent = `⏱️ جاري العمل (${countProgress})`;
-    btnProgress.className = `text-xs px-3 py-1 rounded-xl font-bold transition ${myPortalStatusFilter === 'In Progress' ? 'bg-blue-600 text-white shadow-2xs' : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'}`;
+    btnProgress.className = `text-xs px-3 py-1 rounded-xl font-bold transition cursor-pointer ${myPortalStatusFilter === 'In Progress' ? 'bg-blue-600 text-white shadow-2xs' : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'}`;
+  }
+  if (btnRevisions) {
+    btnRevisions.textContent = `🔄 مهام التعديل (${countRevisions})`;
+    btnRevisions.className = `text-xs px-3 py-1 rounded-xl font-bold transition cursor-pointer ${myPortalStatusFilter === 'revisions' ? 'bg-amber-600 text-white shadow-2xs font-extrabold ring-2 ring-amber-300' : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-100'}`;
   }
   if (btnReview) {
     btnReview.textContent = `🔍 قيد المراجعة (${countReview})`;
-    btnReview.className = `text-xs px-3 py-1 rounded-xl font-bold transition ${myPortalStatusFilter === 'Awaiting AM Review' ? 'bg-purple-600 text-white shadow-2xs' : 'bg-white text-purple-700 border border-purple-200 hover:bg-purple-50'}`;
+    btnReview.className = `text-xs px-3 py-1 rounded-xl font-bold transition cursor-pointer ${myPortalStatusFilter === 'Awaiting AM Review' ? 'bg-purple-600 text-white shadow-2xs' : 'bg-white text-purple-700 border border-purple-200 hover:bg-purple-50'}`;
   }
   if (btnCompleted) {
     btnCompleted.textContent = `✅ مكتملة (${countCompleted})`;
-    btnCompleted.className = `text-xs px-3 py-1 rounded-xl font-bold transition ${myPortalStatusFilter === 'Completed' ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'}`;
+    btnCompleted.className = `text-xs px-3 py-1 rounded-xl font-bold transition cursor-pointer ${myPortalStatusFilter === 'Completed' ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'}`;
   }
 
   // Update Due Filter Buttons styling
@@ -1034,10 +1040,18 @@ function renderMyPortalTasks() {
   // Filter Tasks
   let filtered = allTasks.filter(t => {
     if (myPortalStatusFilter !== 'all') {
-      if (myPortalStatusFilter === 'Awaiting AM Review' && !/Awaiting|Submitted|Review/i.test(t.status||'')) return false;
-      if (myPortalStatusFilter === 'Completed' && !/Completed|مكتمل|Approved/i.test(t.status||'')) return false;
-      if (myPortalStatusFilter === 'Assigned' && (t.status||'') !== 'Assigned') return false;
-      if (myPortalStatusFilter === 'In Progress' && (t.status||'') !== 'In Progress') return false;
+      if (myPortalStatusFilter === 'revisions') {
+        const isRev = t.is_subtask || t.type === 'revision' || (t.subtasks && t.subtasks.some(st => (st.type === 'revision' || st.is_subtask) && !st.completed_at));
+        if (!isRev) return false;
+      } else if (myPortalStatusFilter === 'Awaiting AM Review') {
+        if (!/Awaiting|Submitted|Review/i.test(t.status||'')) return false;
+      } else if (myPortalStatusFilter === 'Completed') {
+        if (!/Completed|مكتمل|Approved/i.test(t.status||'')) return false;
+      } else if (myPortalStatusFilter === 'Assigned') {
+        if ((t.status||'') !== 'Assigned' || t.is_subtask) return false;
+      } else if (myPortalStatusFilter === 'In Progress') {
+        if ((t.status||'') !== 'In Progress' || t.is_subtask) return false;
+      }
     }
     if (myPortalClientFilter !== 'all') {
       const cName = String(t.client_name || '').trim().toLowerCase();
@@ -1075,6 +1089,11 @@ function renderMyPortalTasks() {
   });
 
   const statusBadge = (t) => {
+    if (t.is_subtask) {
+      if (/Completed|مكتمل/i.test(t.status||'')) return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">✅ تم اعتماد التعديل</span>';
+      if (/Awaiting|Submitted|Review/i.test(t.status||'')) return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold animate-pulse flex items-center gap-1">🔍 التعديل قيد مراجعة AM</span>';
+      return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">🔄 مهمة تعديل قيد التنفيذ</span>';
+    }
     const s = (t.status || 'Pending AM Approval').trim();
     if (/Completed|مكتمل|Approved/i.test(s)) return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">✅ معتمدة ومكتملة</span>';
     if (/In Progress/i.test(s)) return '<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 flex items-center gap-1">⏱️ جاري العمل</span>';
@@ -1370,6 +1389,7 @@ function renderMyPortalTasks() {
   }
 
   const getStatusBorderClass = (t) => {
+    if (t.is_subtask) return 'border-r-[6px] border-r-amber-500 bg-amber-50/20 border-amber-300';
     const s = (t.status || '').trim();
     if (/Completed|مكتمل|Approved/i.test(s)) return 'border-r-[6px] border-r-emerald-500';
     if (/In Progress/i.test(s)) return 'border-r-[6px] border-r-blue-600';
@@ -1380,6 +1400,7 @@ function renderMyPortalTasks() {
   };
 
   box.innerHTML = filtered.map(t => {
+    const isSub = Boolean(t.is_subtask);
     const rawCid = (t.client_id || '').trim();
     const rawCName = (t.client_name && t.client_name !== 'None' && t.client_name !== 'null' && t.client_name !== 'عميل عام') ? t.client_name :
                      ((rawCid && rawCid !== 'cli_general') ? rawCid.replace(/^cli_/, '').replace(/_\d+$/, '').replace(/_/g, ' ') : 'العميل');
@@ -1393,15 +1414,22 @@ function renderMyPortalTasks() {
     const visIdea = (t.visual_idea || (t.content_data && t.content_data.visual_idea) || (t.graphic_data && t.graphic_data.idea) || (t.video_data && t.video_data.idea) || t.design_brief || '').trim();
 
     const isTitleExactCap = Boolean(cleanCap) && (String(t.title||'').trim() === cleanCap.trim());
-    const portalHeading = isTitleExactCap ? ('منشور #' + (t.post_number_in_plan || t.post_number || 1) + (rawCName ? (' — ' + rawCName) : '')) : (t.title || 'منشور #' + (t.post_number_in_plan || t.post_number || 1));
+    const portalHeading = isSub ? (t.title || `تعديل فرعي #${t.revision_number || 1}`) :
+      (isTitleExactCap ? ('منشور #' + (t.post_number_in_plan || t.post_number || 1) + (rawCName ? (' — ' + rawCName) : '')) : (t.title || 'منشور #' + (t.post_number_in_plan || t.post_number || 1)));
 
     return `
-    <div class="portal-task-card border-2 border-slate-300 hover:border-blue-400 bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden mb-5 box-border ${getStatusBorderClass(t)}">
+    <div class="portal-task-card border-2 ${isSub ? 'border-amber-400 bg-amber-50/10' : 'border-slate-300'} hover:border-blue-400 bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden mb-5 box-border ${getStatusBorderClass(t)}">
       <!-- Card Header Strip -->
-      <div class="bg-slate-50/95 border-b border-slate-200 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+      <div class="${isSub ? 'bg-amber-100/70 border-amber-200' : 'bg-slate-50/95 border-slate-200'} border-b px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
         <div class="flex items-center gap-1.5 flex-wrap">
-          <span class="bg-blue-600 text-white font-bold font-mono text-xs px-2.5 py-1 rounded-lg shadow-2xs">#${esc(t.post_number_in_plan || t.post_number || 1)}</span>
-          <span class="font-mono font-bold text-xs bg-slate-900 text-white px-2.5 py-1 rounded-lg">${esc(t.task_id||'')}</span>
+          ${isSub ? `
+            <span class="bg-amber-600 text-white font-extrabold font-mono text-xs px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1"><span>🔄</span> <span>تعديل فرعي #${t.revision_number || 1}</span></span>
+            <span class="font-mono font-bold text-xs bg-amber-950 text-amber-100 px-2.5 py-1 rounded-lg border border-amber-800">${esc(t.task_id||'')}</span>
+            <span class="bg-white text-amber-950 border border-amber-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs">🔗 تابعة للمهمة: [${esc(t.parent_task_id || '')}]</span>
+          ` : `
+            <span class="bg-blue-600 text-white font-bold font-mono text-xs px-2.5 py-1 rounded-lg shadow-2xs">#${esc(t.post_number_in_plan || t.post_number || 1)}</span>
+            <span class="font-mono font-bold text-xs bg-slate-900 text-white px-2.5 py-1 rounded-lg">${esc(t.task_id||'')}</span>
+          `}
           <span class="bg-white text-slate-800 border border-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs">🏢 ${cDisplay}</span>
           <span class="bg-white text-slate-800 border border-slate-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs">📑 ${pName}</span>
           <span class="bg-indigo-50 text-indigo-900 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-lg">👤 AM: ${amDisplay}</span>
@@ -1428,7 +1456,22 @@ function renderMyPortalTasks() {
 
       <!-- Card Body Content -->
       <div class="p-4 sm:p-5 space-y-3.5 bg-white">
-        ${(t.review_note || t.modification_request) && !/Completed|مكتمل|Approved/i.test(t.status||'') ? `
+        ${isSub ? `
+          <div class="bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 border-2 border-rose-400 rounded-2xl p-4 space-y-2.5 shadow-xs">
+            <div class="flex items-center justify-between font-black text-xs text-rose-950 border-b border-rose-200/80 pb-2 flex-wrap gap-2">
+              <span class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block animate-ping"></span>
+                <span class="text-sm font-black text-rose-950">⚠️ سبب وملاحظات التعديل المطلوب من مدير الحساب (AM):</span>
+              </span>
+              <span class="bg-rose-600 text-white text-[11px] px-3 py-1 rounded-xl font-mono font-bold shadow-2xs">
+                📅 موعد تسليم التعديل: ${esc(t.delivery_deadline || t.modification_deadline || 'غداً')}
+              </span>
+            </div>
+            <div class="text-xs sm:text-sm text-slate-950 font-bold bg-white p-3.5 rounded-xl border border-rose-200 whitespace-pre-wrap leading-relaxed shadow-2xs select-all">
+              ${esc(t.revision_reason || t.review_note || t.notes || 'يرجى مراجعة التعديلات المطلوبة وتحديث المطلوب')}
+            </div>
+          </div>
+        ` : (t.review_note || t.modification_request) && !/Completed|مكتمل|Approved/i.test(t.status||'') ? `
           <div class="bg-rose-50 border-2 border-rose-400 rounded-xl p-3.5 text-xs text-rose-950 space-y-2 shadow-xs">
             <div class="flex items-center justify-between font-bold text-xs text-rose-900 border-b border-rose-200 pb-1.5 flex-wrap gap-1">
               <span class="flex items-center gap-1.5">
@@ -1440,6 +1483,16 @@ function renderMyPortalTasks() {
             <div class="text-xs text-rose-950 font-bold bg-white p-3 rounded-lg border border-rose-200 whitespace-pre-wrap leading-relaxed shadow-2xs select-all">
               ${esc(t.review_note || t.modification_request)}
             </div>
+          </div>
+        ` : ''}
+
+        ${(!isSub && t.active_subtask_id && !/Completed|مكتمل|Approved/i.test(t.status||'')) ? `
+          <div class="bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap">
+            <div class="flex items-center gap-2 text-xs font-bold text-amber-950">
+              <span class="text-base">🔄</span>
+              <span>هذه المهمة قيد التعديل حالياً عبر المهمة الفرعية: <b class="font-mono bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded">${esc(t.active_subtask_id)}</b></span>
+            </div>
+            <button type="button" onclick="setMyPortalStatusFilter('revisions')" class="text-[11px] bg-amber-600 hover:bg-amber-700 text-white font-bold px-2.5 py-1 rounded-lg shadow-2xs transition cursor-pointer">عرض التعديل ↗</button>
           </div>
         ` : ''}
 

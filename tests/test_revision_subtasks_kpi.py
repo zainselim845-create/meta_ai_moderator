@@ -248,3 +248,111 @@ def test_subtasks_included_in_kpi_database_and_monthly_report(monkeypatch):
         subtask_note = next((n for n in notes if n.get("task_id") == "TASK-PARENT-100-REV1"), None)
         assert subtask_note is not None
         assert "مهمة تعديل فرعية #1" in subtask_note.get("note", "")
+
+
+def test_subtask_standalone_cards_api_and_direct_subtask_id_submit(monkeypatch):
+    """Verify that:
+    1. api_tasks returns parent task AND standalone synthesized revision subtask card with reason and links.
+    2. api_my_tasks returns the revision subtask for the assigned employee.
+    3. Direct submission via subtask_id (/api/me/tasks/TASK-PARENT-200-REV1/submit) resolves correctly.
+    """
+    saved_tasks = []
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "save_one_task", lambda t, cid: saved_tasks.append((t, cid)))
+    monkeypatch.setattr(idx, "_notify_client_am", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: None)
+
+    parent_task = {
+        "task_id": "TASK-PARENT-200",
+        "client_id": "cli_test_101",
+        "client_name": "عيادة الصفوة",
+        "title": "بوست فيسبوك رئيسي",
+        "caption": "نص البوست الأصلي",
+        "status": "Assigned",
+        "assigned_employee_id": "EMP-3305-5555",
+        "assignee_name": "راما المصممة",
+        "assigned_at": "2026-09-20T10:00:00+00:00",
+        "delivery_deadline": "2026-09-22",
+        "modification_deadline": "2026-09-29",
+        "active_subtask_id": "TASK-PARENT-200-REV1",
+        "subtasks": [
+            {
+                "subtask_id": "TASK-PARENT-200-REV1",
+                "task_id": "TASK-PARENT-200-REV1",
+                "parent_task_id": "TASK-PARENT-200",
+                "type": "revision",
+                "is_subtask": True,
+                "revision_number": 1,
+                "title": "تعديل #1: تغيير ألوان الخلفية وكتابة السعر",
+                "notes": "يرجى تغيير خلفية التصميم إلى الأبيض وإبراز السعر بخط واضح",
+                "assigned_employee_id": "EMP-3305-5555",
+                "assignee_name": "راما المصممة",
+                "status": "In Progress",
+                "assigned_at": "2026-09-28T09:00:00+00:00",
+                "delivery_deadline": "2026-09-29",
+                "submitted_at": None,
+                "completed_at": None
+            }
+        ]
+    }
+
+    # Verify _find_task_any_client finds parent when passed subtask_id
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [parent_task])
+    found_t, found_cid = idx._find_task_any_client("TASK-PARENT-200-REV1")
+    assert found_t is not None
+    assert found_t["task_id"] == "TASK-PARENT-200"
+    assert found_cid == "cli_test_101"
+
+    # Verify api_tasks returns both parent and standalone subtask
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+    monkeypatch.setattr(idx, "current_client_id", lambda: "cli_test_101")
+    monkeypatch.setattr(idx, "is_admin", lambda: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.get("/api/tasks")
+        assert res.status_code == 200
+        data = res.get_json()
+        tasks = data.get("tasks") or []
+        tids = [t["task_id"] for t in tasks]
+        assert "TASK-PARENT-200" in tids
+        assert "TASK-PARENT-200-REV1" in tids
+        
+        # Check synthesized subtask entity properties
+        subtask_card = next(t for t in tasks if t["task_id"] == "TASK-PARENT-200-REV1")
+        assert subtask_card["is_subtask"] is True
+        assert subtask_card["parent_task_id"] == "TASK-PARENT-200"
+        assert "تغيير خلفية التصميم" in subtask_card["revision_reason"]
+        assert subtask_card["assigned_employee_id"] == "EMP-3305-5555"
+
+    # Verify api_my_tasks returns the subtask for Rama
+    monkeypatch.setattr(idx, "_my_employee_id", lambda: "EMP-3305-5555")
+    monkeypatch.setattr(idx, "current_user_rec", lambda: {"name": "راما المصممة", "employee_id": "EMP-3305-5555", "role": "designer"})
+    monkeypatch.setattr(idx, "is_admin", lambda: False)
+    monkeypatch.setattr(idx, "is_manager", lambda: False)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "rama_designer"
+            sess["role"] = "designer"
+
+        res = client.get("/api/me/tasks")
+        assert res.status_code == 200
+        my_tasks = res.get_json().get("tasks") or []
+        my_tids = [t["task_id"] for t in my_tasks]
+        assert "TASK-PARENT-200-REV1" in my_tids
+
+        # Submit DIRECTLY using the subtask ID
+        sub_res = client.post("/api/me/tasks/TASK-PARENT-200-REV1/submit", json={"notes": "تم تعديل الخلفية والسعر بنجاح"})
+        assert sub_res.status_code == 200
+        assert sub_res.get_json().get("ok") is True
+
+        # Check that parent task's subtask was marked submitted
+        st = parent_task["subtasks"][0]
+        assert st["submitted_at"] is not None
+        assert st["status"] == "Submitted / In Review"
+        assert st["kpis"]["is_on_time"] is True
+
