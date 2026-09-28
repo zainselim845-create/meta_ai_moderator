@@ -975,6 +975,37 @@ window.setMyPortalPlanFilter = setMyPortalPlanFilter;
 window.setMyPortalDueFilter = setMyPortalDueFilter;
 window.onMyPortalSearchInput = onMyPortalSearchInput;
 
+let currentPortalCardViewMode = (function() {
+  try { return localStorage.getItem('portal_card_view_mode') || 'compact'; } catch(e) { return 'compact'; }
+})();
+
+function setPortalCardViewMode(mode) {
+  currentPortalCardViewMode = mode;
+  try { localStorage.setItem('portal_card_view_mode', mode); } catch(e){}
+  renderMyPortalTasks();
+}
+
+function togglePortalCardDetails(taskId) {
+  const el = document.getElementById('portal-task-details-' + taskId);
+  const btn = document.getElementById('btn-portal-details-' + taskId);
+  if (!el) return;
+  const isCollapsed = el.classList.contains('collapsed') || el.style.display === 'none';
+  if (isCollapsed) {
+    el.classList.remove('collapsed');
+    el.classList.add('expanded');
+    el.style.display = 'block';
+    if (btn) btn.innerHTML = '<span>👁️ إخفاء التفاصيل والماتريال ▲</span>';
+  } else {
+    el.classList.remove('expanded');
+    el.classList.add('collapsed');
+    el.style.display = 'none';
+    if (btn) btn.innerHTML = '<span>👁️ كامل التفاصيل والماتريال ▼</span>';
+  }
+}
+
+window.setPortalCardViewMode = setPortalCardViewMode;
+window.togglePortalCardDetails = togglePortalCardDetails;
+
 function renderMyPortalTasks() {
   const box = document.getElementById('my-tasks-list');
   if (!box) return;
@@ -1417,6 +1448,70 @@ function renderMyPortalTasks() {
     const portalHeading = isSub ? (t.title || `تعديل فرعي #${t.revision_number || 1}`) :
       (isTitleExactCap ? ('منشور #' + (t.post_number_in_plan || t.post_number || 1) + (rawCName ? (' — ' + rawCName) : '')) : (t.title || 'منشور #' + (t.post_number_in_plan || t.post_number || 1)));
 
+    const isDetailed = (currentPortalCardViewMode === 'detailed');
+
+    const portalDriveLinks = [];
+    const chkDrive = (u) => {
+      if (typeof u === 'string' && /drive\.google\.com/i.test(u)) {
+        const clean = u.trim().replace(/[.,;:)\]]+$/, '');
+        if (!portalDriveLinks.includes(clean)) portalDriveLinks.push(clean);
+      }
+    };
+    chkDrive(t.drive_link);
+    if (Array.isArray(t.deliverables)) t.deliverables.forEach(d => chkDrive(d.url || d.drive_link || d));
+    if (Array.isArray(t.media_urls)) t.media_urls.forEach(chkDrive);
+    if (Array.isArray(t.reference_links)) t.reference_links.forEach(chkDrive);
+    chkDrive(t.reference_link);
+
+    const capSnippetHtml = cleanCap ? `
+      <div class="text-[12px] text-slate-600 line-clamp-2 leading-relaxed bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/70 select-text" title="مقتطف من الكابشن">
+        ${esc(cleanCap.slice(0, 160))}${cleanCap.length > 160 ? '...' : ''}
+      </div>
+    ` : (visIdea ? `
+      <div class="text-[12px] text-purple-900 line-clamp-2 leading-relaxed bg-purple-50/50 p-2.5 rounded-xl border border-purple-200/60 select-text" title="فكرة التصميم">
+        💡 ${esc(visIdea.slice(0, 160))}${visIdea.length > 160 ? '...' : ''}
+      </div>
+    ` : '');
+
+    const quickChipsHtml = `
+      <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+        ${portalDriveLinks.length ? `
+          <a href="${esc(portalDriveLinks[0])}" target="_blank" class="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 transition shadow-2xs">
+            <span>📁 Drive ↗</span>
+          </a>
+        ` : ''}
+        ${cleanCap ? `
+          <button type="button" onclick="copyTaskCaption('${esc(t.task_id)}', this)" class="text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 shadow-2xs transition cursor-pointer">
+            <span>📋 نسخ الكابشن</span>
+          </button>
+        ` : ''}
+        ${(Array.isArray(t.reference_links) && t.reference_links.length) ? `
+          <span class="text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg">🔗 ${t.reference_links.length} مراجع</span>
+        ` : ''}
+      </div>
+    `;
+
+    const fastActionRowHtml = `
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        ${canWork(t) ? `
+          <button type="button" onclick="submitMyTask('${esc(t.task_id)}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>✅ سلّمت وخلصت</span>
+          </button>
+        ` : (t.status === 'Assigned' ? `
+          <button type="button" onclick="startMyTask('${esc(t.task_id)}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2.5 px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>⏱️ بدأت العمل</span>
+          </button>
+        ` : `
+          <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2.5 px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer" title="استرجاع المهمة للتعديل">
+            <span>↩️ طلب استرجاع</span>
+          </button>
+        `)}
+        <button type="button" id="btn-portal-details-${esc(t.task_id)}" onclick="togglePortalCardDetails('${esc(t.task_id)}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold py-2.5 px-3 rounded-xl border border-slate-300 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs">
+          <span>${isDetailed ? '👁️ إخفاء التفاصيل والماتريال ▲' : '👁️ كامل التفاصيل والماتريال ▼'}</span>
+        </button>
+      </div>
+    `;
+
     return `
     <div class="portal-task-card border-2 ${isSub ? 'border-amber-400 bg-amber-50/10' : 'border-slate-300'} hover:border-blue-400 bg-white rounded-2xl shadow-sm hover:shadow-md transition overflow-hidden mb-5 box-border ${getStatusBorderClass(t)}">
       <!-- Card Header Strip -->
@@ -1498,153 +1593,165 @@ function renderMyPortalTasks() {
 
         <h4 class="font-bold text-sm sm:text-base text-slate-900 leading-snug">${esc(portalHeading)}</h4>
 
-        ${cleanCap ? `
-          <div class="bg-blue-50/60 border border-blue-200/90 rounded-xl p-3 text-xs space-y-2 shadow-2xs">
-            <div class="flex items-center justify-between font-bold text-[11px] text-blue-950 border-b border-blue-200/60 pb-1.5">
-              <span class="flex items-center gap-1.5 text-blue-900 font-bold">
-                <span class="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0"></span>
-                <span>📝 الكابشن النهائي (Final Caption):</span>
-              </span>
-              <button type="button" onclick="copyTaskCaption('${esc(t.task_id)}', this)" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-1 px-2.5 rounded border border-blue-200 shadow-2xs transition cursor-pointer">📋 نسخ الكابشن</button>
+        ${capSnippetHtml}
+        ${quickChipsHtml}
+        ${fastActionRowHtml}
+
+        <!-- Collapsible Details Accordion -->
+        <div id="portal-task-details-${esc(t.task_id)}" class="card-details-panel ${isDetailed ? 'expanded' : 'collapsed'} space-y-3.5 pt-3 border-t border-slate-200/80" ${isDetailed ? '' : 'style="display:none;"'}>
+          ${cleanCap ? `
+            <div class="bg-blue-50/60 border border-blue-200/90 rounded-xl p-3 text-xs space-y-2 shadow-2xs">
+              <div class="flex items-center justify-between font-bold text-[11px] text-blue-950 border-b border-blue-200/60 pb-1.5">
+                <span class="flex items-center gap-1.5 text-blue-900 font-bold">
+                  <span class="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0"></span>
+                  <span>📝 الكابشن النهائي (Final Caption):</span>
+                </span>
+                <button type="button" onclick="copyTaskCaption('${esc(t.task_id)}', this)" class="bg-white hover:bg-blue-100 text-blue-800 text-[10px] font-bold py-1 px-2.5 rounded border border-blue-200 shadow-2xs transition cursor-pointer">📋 نسخ الكابشن</button>
+              </div>
+              <div class="text-xs text-slate-900 whitespace-pre-wrap max-h-44 overflow-y-auto leading-relaxed bg-white p-2.5 rounded-lg border border-blue-100 select-all">${esc(cleanCap)}</div>
             </div>
-            <div class="text-xs text-slate-900 whitespace-pre-wrap max-h-44 overflow-y-auto leading-relaxed bg-white p-2.5 rounded-lg border border-blue-100 select-all">${esc(cleanCap)}</div>
-          </div>
-        ` : ''}
+          ` : ''}
 
-        ${(visIdea && visIdea !== t.title && visIdea !== cleanCap) ? `
-          <div class="bg-purple-50/70 border border-purple-200/90 rounded-xl p-3 text-xs text-purple-950 space-y-1.5 shadow-2xs">
-            <div class="font-bold text-[11px] text-purple-900 flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-purple-600 inline-block shrink-0"></span>
-              <span>💡 فكرة وتوجيهات التصميم / الإسكربت (Creative Brief):</span>
+          ${(visIdea && visIdea !== t.title && visIdea !== cleanCap) ? `
+            <div class="bg-purple-50/70 border border-purple-200/90 rounded-xl p-3 text-xs text-purple-950 space-y-1.5 shadow-2xs">
+              <div class="font-bold text-[11px] text-purple-900 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-purple-600 inline-block shrink-0"></span>
+                <span>💡 فكرة وتوجيهات التصميم / الإسكربت (Creative Brief):</span>
+              </div>
+              <div class="leading-relaxed text-[11px] whitespace-pre-wrap font-medium text-slate-800">${esc(visIdea)}</div>
             </div>
-            <div class="leading-relaxed text-[11px] whitespace-pre-wrap font-medium text-slate-800">${esc(visIdea)}</div>
+          ` : ''}
+
+          ${renderTaskMaterialsBox(t)}
+
+          <div class="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+            <span class="flex items-center gap-1.5 font-bold text-slate-800">
+              <span>📅 موعد التسليم:</span>
+              ${formatDeadline(t)}
+            </span>
+            ${t.review_note ? `<span class="text-[11px] text-rose-700 font-bold bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">✍️ ملاحظة المراجعة: ${esc(t.review_note)}</span>` : ''}
           </div>
-        ` : ''}
 
-        ${renderTaskMaterialsBox(t)}
+          ${(() => {
+            const dList = Array.isArray(t.deliverables) ? t.deliverables : [];
+            const dLink = (t.drive_link || '').trim();
+            const dNotes = (t.delivery_notes || t.deliverables_notes || t.notes || '').trim();
+            if (!dList.length && !dLink && !dNotes) return '';
 
-        <div class="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2 flex-wrap">
-          <span class="flex items-center gap-1.5 font-bold text-slate-800">
-            <span>📅 موعد التسليم:</span>
-            ${formatDeadline(t)}
-          </span>
-          ${t.review_note ? `<span class="text-[11px] text-rose-700 font-bold bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">✍️ ملاحظة المراجعة: ${esc(t.review_note)}</span>` : ''}
-        </div>
-
-        ${(() => {
-          const dList = Array.isArray(t.deliverables) ? t.deliverables : [];
-          const dLink = (t.drive_link || '').trim();
-          const dNotes = (t.delivery_notes || t.deliverables_notes || t.notes || '').trim();
-          if (!dList.length && !dLink && !dNotes) return '';
-
-          let dBox = '<div class="bg-gradient-to-br from-emerald-50/90 to-teal-50/90 border border-emerald-300 rounded-2xl p-3.5 space-y-2.5 shadow-2xs">';
-          dBox += '<div class="flex items-center justify-between font-bold text-xs text-emerald-950 border-b border-emerald-200/80 pb-1.5">';
-          dBox += '<span class="flex items-center gap-1.5">📦 <span>مخرجات وتسليمات العمل (Google Drive):</span></span>';
-          dBox += '<span class="bg-emerald-600 text-white text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full shadow-2xs">جاهز للاستعراض ↗</span>';
-          dBox += '</div>';
-
-          if (dList.length > 0) {
-            dBox += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">';
-            dList.forEach((df, idx) => {
-              const u = df.url || df.drive_link || df;
-              const name = df.filename || `ملف تسليم #${idx+1}`;
-              const isVid = (df.mime && df.mime.startsWith('video')) || /\.(mp4|mov|webm)(\?|$)/i.test(name);
-              const isPdf = (df.mime && df.mime.includes('pdf')) || /\.pdf(\?|$)/i.test(name);
-              dBox += `<a href="${esc(u)}" target="_blank" class="bg-white hover:bg-emerald-100/60 border border-emerald-200 rounded-xl p-2 text-right transition flex items-center gap-2 shadow-2xs group">
-                <span class="text-base shrink-0">${isVid ? '🎬' : (isPdf ? '📄' : '🖼️')}</span>
-                <div class="min-w-0 flex-1">
-                  <div class="font-bold text-xs text-slate-800 truncate group-hover:text-emerald-900">${esc(name)}</div>
-                  <div class="text-[10px] text-emerald-700 font-mono">${isVid ? '▶️ تشغيل الفيديو على Drive ↗' : (isPdf ? 'استعراض PDF على Drive ↗' : 'فتح على Drive ↗')}</div>
-                </div>
-              </a>`;
-            });
+            let dBox = '<div class="bg-gradient-to-br from-emerald-50/90 to-teal-50/90 border border-emerald-300 rounded-2xl p-3.5 space-y-2.5 shadow-2xs">';
+            dBox += '<div class="flex items-center justify-between font-bold text-xs text-emerald-950 border-b border-emerald-200/80 pb-1.5">';
+            dBox += '<span class="flex items-center gap-1.5">📦 <span>مخرجات وتسليمات العمل (Google Drive):</span></span>';
+            dBox += '<span class="bg-emerald-600 text-white text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full shadow-2xs">جاهز للاستعراض ↗</span>';
             dBox += '</div>';
-          }
 
-          if (dLink && !dList.some(d => (d.url || d) === dLink)) {
-            const isVid = t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(dLink);
-            const isPdf = t.media_type === 'pdf' || /\.pdf(\?|$)/i.test(dLink);
-            dBox += `<div class="bg-white p-2.5 rounded-xl border border-emerald-200 flex items-center justify-between gap-2 flex-wrap shadow-2xs">
-              <div class="flex items-center gap-2 min-w-0 flex-1">
-                <span class="text-base shrink-0">${isVid ? '🎬' : (isPdf ? '📄' : '📁')}</span>
-                <div class="min-w-0 flex-1">
-                  <div class="font-bold text-xs text-slate-900">${isVid ? 'فيديو المخرجات المسلّم' : (isPdf ? 'ملف PDF المسلّم' : 'رابط التسليم المسجّل')}</div>
-                  <div class="text-[10px] font-mono text-emerald-700 truncate">${esc(dLink)}</div>
+            if (dList.length > 0) {
+              dBox += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">';
+              dList.forEach((df, idx) => {
+                const u = df.url || df.drive_link || df;
+                const name = df.filename || `ملف تسليم #${idx+1}`;
+                const isVid = (df.mime && df.mime.startsWith('video')) || /\.(mp4|mov|webm)(\?|$)/i.test(name);
+                const isPdf = (df.mime && df.mime.includes('pdf')) || /\.pdf(\?|$)/i.test(name);
+                dBox += `<a href="${esc(u)}" target="_blank" class="bg-white hover:bg-emerald-100/60 border border-emerald-200 rounded-xl p-2 text-right transition flex items-center gap-2 shadow-2xs group">
+                  <span class="text-base shrink-0">${isVid ? '🎬' : (isPdf ? '📄' : '🖼️')}</span>
+                  <div class="min-w-0 flex-1">
+                    <div class="font-bold text-xs text-slate-800 truncate group-hover:text-emerald-900">${esc(name)}</div>
+                    <div class="text-[10px] text-emerald-700 font-mono">${isVid ? '▶️ تشغيل الفيديو على Drive ↗' : (isPdf ? 'استعراض PDF على Drive ↗' : 'فتح على Drive ↗')}</div>
+                  </div>
+                </a>`;
+              });
+              dBox += '</div>';
+            }
+
+            if (dLink && !dList.some(d => (d.url || d) === dLink)) {
+              const isVid = t.media_type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(dLink);
+              const isPdf = t.media_type === 'pdf' || /\.pdf(\?|$)/i.test(dLink);
+              dBox += `<div class="bg-white p-2.5 rounded-xl border border-emerald-200 flex items-center justify-between gap-2 flex-wrap shadow-2xs">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                  <span class="text-base shrink-0">${isVid ? '🎬' : (isPdf ? '📄' : '📁')}</span>
+                  <div class="min-w-0 flex-1">
+                    <div class="font-bold text-xs text-slate-900">${isVid ? 'فيديو المخرجات المسلّم' : (isPdf ? 'ملف PDF المسلّم' : 'رابط التسليم المسجّل')}</div>
+                    <div class="text-[10px] font-mono text-emerald-700 truncate">${esc(dLink)}</div>
+                  </div>
                 </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <a href="${esc(dLink)}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xs transition flex items-center gap-1">
+                    <span>${isVid ? '▶️ تشغيل ↗' : 'فتح على Drive ↗'}</span>
+                  </a>
+                  <button type="button" onclick="copyTaskDriveLink('${esc(dLink)}')" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-lg shadow-2xs transition">
+                    <span>📋</span>
+                  </button>
+                </div>
+              </div>`;
+            }
+
+            if (dNotes) {
+              dBox += `<div class="bg-white/90 p-2.5 rounded-xl border border-emerald-100 text-slate-800 text-xs space-y-0.5">
+                <div class="font-bold text-[10px] text-emerald-900">📝 ملاحظات التسليم:</div>
+                <div class="whitespace-pre-wrap leading-relaxed">${esc(dNotes)}</div>
+              </div>`;
+            }
+
+            dBox += '</div>';
+            return dBox;
+          })()}
+
+          ${(() => {
+            const revs = (t.subtasks || []).filter(st => st && (st.type === 'revision' || st.is_subtask));
+            if (!revs.length) return '';
+            return `<div class="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3 space-y-2 mt-2">
+              <div class="flex items-center justify-between text-xs font-bold text-amber-900">
+                <span class="flex items-center gap-1.5"><span>🔄</span> مهام التعديل الفرعية (${revs.length})</span>
+                <span class="bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-md font-mono border border-amber-300">ديدلاين التعديل: ${esc(t.modification_deadline || revs[revs.length-1].delivery_deadline || 'غداً')}</span>
               </div>
-              <div class="flex items-center gap-1.5 shrink-0">
-                <a href="${esc(dLink)}" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xs transition flex items-center gap-1">
-                  <span>${isVid ? '▶️ تشغيل ↗' : 'فتح على Drive ↗'}</span>
-                </a>
-                <button type="button" onclick="copyTaskDriveLink('${esc(dLink)}')" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-lg shadow-2xs transition">
-                  <span>📋</span>
-                </button>
-              </div>
-            </div>`;
-          }
-
-          if (dNotes) {
-            dBox += `<div class="bg-white/90 p-2.5 rounded-xl border border-emerald-100 text-slate-800 text-xs space-y-0.5">
-              <div class="font-bold text-[10px] text-emerald-900">📝 ملاحظات التسليم:</div>
-              <div class="whitespace-pre-wrap leading-relaxed">${esc(dNotes)}</div>
-            </div>`;
-          }
-
-          dBox += '</div>';
-          return dBox;
-        })()}
-
-        ${(() => {
-          const revs = (t.subtasks || []).filter(st => st && (st.type === 'revision' || st.is_subtask));
-          if (!revs.length) return '';
-          return `<div class="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3 space-y-2 mt-2">
-            <div class="flex items-center justify-between text-xs font-bold text-amber-900">
-              <span class="flex items-center gap-1.5"><span>🔄</span> مهام التعديل الفرعية (${revs.length})</span>
-              <span class="bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-md font-mono border border-amber-300">ديدلاين التعديل: ${esc(t.modification_deadline || revs[revs.length-1].delivery_deadline || 'غداً')}</span>
-            </div>
-            <div class="space-y-1.5">
-              ${revs.map((st, idx) => `
-                <div class="bg-white/95 p-2 rounded-xl border border-amber-100 text-xs flex items-center justify-between gap-2">
-                  <div class="space-y-0.5 min-w-0">
-                    <div class="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
-                      <span class="bg-amber-100 text-amber-900 font-mono text-[10px] px-1.5 py-0.2 rounded font-bold">${esc(st.subtask_id || `تعديل #${idx+1}`)}</span>
-                      <span class="truncate">${esc(st.title || st.notes || 'طلب تعديل')}</span>
+              <div class="space-y-1.5">
+                ${revs.map((st, idx) => `
+                  <div class="bg-white/95 p-2 rounded-xl border border-amber-100 text-xs flex items-center justify-between gap-2">
+                    <div class="space-y-0.5 min-w-0">
+                      <div class="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
+                        <span class="bg-amber-100 text-amber-900 font-mono text-[10px] px-1.5 py-0.2 rounded font-bold">${esc(st.subtask_id || `تعديل #${idx+1}`)}</span>
+                        <span class="truncate">${esc(st.title || st.notes || 'طلب تعديل')}</span>
+                      </div>
+                      ${st.delivery_deadline ? `<div class="text-[10px] text-slate-500 font-mono">📅 موعد التسليم: ${esc(st.delivery_deadline)}</div>` : ''}
                     </div>
-                    ${st.delivery_deadline ? `<div class="text-[10px] text-slate-500 font-mono">📅 موعد التسليم: ${esc(st.delivery_deadline)}</div>` : ''}
+                    <div class="shrink-0 text-[10px] font-bold">
+                      ${st.status === 'Completed' ? '<span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">✅ مكتمل</span>' :
+                        st.submitted_at ? '<span class="text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">📤 تم تسليمه</span>' :
+                        '<span class="text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">⏱️ قيد التعديل</span>'}
+                    </div>
                   </div>
-                  <div class="shrink-0 text-[10px] font-bold">
-                    ${st.status === 'Completed' ? '<span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">✅ مكتمل</span>' :
-                      st.submitted_at ? '<span class="text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">📤 تم تسليمه</span>' :
-                      '<span class="text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">⏱️ قيد التعديل</span>'}
-                  </div>
-                </div>
-              `).join('')}
+                `).join('')}
+              </div>
+            </div>`;
+          })()}
+
+          <!-- Secondary Actions and Accordion Collapse -->
+          <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 flex-wrap">
+            <div class="flex items-center gap-2 flex-wrap">
+              <button type="button" onclick="openTaskContentEditorModal('${esc(t.task_id)}')" class="bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold py-2 px-3.5 rounded-xl border border-amber-300 shadow-2xs transition flex items-center gap-1.5 cursor-pointer">
+                <span>✍️ تعديل نصوص وكابشن البوست</span>
+              </button>
+              <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer" title="استرجاع المهمة لقيد التنفيذ لإجراء تعديلات عليها">
+                <span>↩️ طلب استرجاع للتعديل</span>
+              </button>
             </div>
-          </div>`;
-        })()}
+            <button type="button" onclick="togglePortalCardDetails('${esc(t.task_id)}')" class="text-xs font-bold text-slate-500 hover:text-slate-800 py-1.5 px-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition cursor-pointer">
+              ▲ طي وإخفاء التفاصيل
+            </button>
+          </div>
+        </div>
       </div>
 
-      <!-- Card Action Footer Strip -->
-      <div class="bg-slate-50/90 border-t border-slate-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2.5">
-        <div class="flex items-center gap-2 flex-wrap">
-          ${canWork(t) ? `
-            <button type="button" onclick="submitMyTask('${esc(t.task_id)}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
-              <span>✅ سلّمت وخلصت</span>
-            </button>
-          ` : ''}
-          <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer" title="استرجاع المهمة لقيد التنفيذ لإجراء تعديلات عليها">
-            <span>↩️ طلب استرجاع للتعديل</span>
-          </button>
-          <button type="button" onclick="openTaskContentEditorModal('${esc(t.task_id)}')" class="bg-white hover:bg-amber-50 text-amber-900 text-xs font-bold py-2 px-3.5 rounded-xl border border-amber-300 shadow-2xs transition flex items-center gap-1.5 cursor-pointer">
-            <span>✍️ تعديل نصوص وكابشن البوست</span>
-          </button>
-        </div>
-        <div class="text-[11px] font-bold text-slate-500">
-          ${/Completed|مكتمل/i.test(t.status||'') ? '✅ تم إنجاز المهمة واعتمادها' :
+      <!-- Card Status Footer Strip -->
+      <div class="bg-slate-50/80 border-t border-slate-200/80 px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 text-[11px] font-bold text-slate-500">
+        <span class="flex items-center gap-1.5">
+          ${/Completed|مكتمل/i.test(t.status||'') ? '✅ تم إنجاز المهمة واعتمادها بنجاح' :
             /Awaiting|Submitted|Review/i.test(t.status||'') ? '📤 تم تسليم العمل — بانتظار مراجعة وقرار مدير الحسابات (AM)' :
             /In Progress/i.test(t.status||'') ? '⏱️ قيد العمل الحالي — سلّم العمل عند الانتهاء' :
             '📌 مهمة جديدة مسندة إليك'}
-        </div>
+        </span>
+        <button type="button" onclick="togglePortalCardDetails('${esc(t.task_id)}')" class="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">
+          ${isDetailed ? 'إخفاء التفاصيل والماتريال ▲' : 'استعراض كامل التفاصيل والماتريال ▼'}
+        </button>
       </div>
     </div>`;
   }).join('');

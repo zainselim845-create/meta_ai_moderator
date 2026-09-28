@@ -2285,10 +2285,40 @@ function onTaskSearchInput(query) {
     }, 120);
 }
 
+var currentBoardCardViewMode = (function() {
+    try { return localStorage.getItem('board_card_view_mode') || 'compact'; } catch(e) { return 'compact'; }
+})();
+
+function setBoardCardViewMode(mode) {
+    currentBoardCardViewMode = mode;
+    try { localStorage.setItem('board_card_view_mode', mode); } catch(e){}
+    renderTasksBoard();
+}
+
+function toggleTaskCardDetails(taskId) {
+    var el = document.getElementById('task-details-' + taskId);
+    var btn = document.getElementById('btn-toggle-details-' + taskId);
+    if (!el) return;
+    var isCollapsed = el.classList.contains('collapsed') || el.style.display === 'none';
+    if (isCollapsed) {
+        el.classList.remove('collapsed');
+        el.classList.add('expanded');
+        el.style.display = 'block';
+        if (btn) btn.innerHTML = '<span>👁️ إخفاء التفاصيل والماتريال ▲</span>';
+    } else {
+        el.classList.remove('expanded');
+        el.classList.add('collapsed');
+        el.style.display = 'none';
+        if (btn) btn.innerHTML = '<span>👁️ استعراض كامل التفاصيل والماتريال ▼</span>';
+    }
+}
+
 window.matchTaskStatus = matchTaskStatus;
 window.setTaskStatusFilter = setTaskStatusFilter;
 window.setTaskSort = setTaskSort;
 window.onTaskSearchInput = onTaskSearchInput;
+window.setBoardCardViewMode = setBoardCardViewMode;
+window.toggleTaskCardDetails = toggleTaskCardDetails;
 
 function getTaskSequenceNum(t) {
     if (!t) return 999999;
@@ -2840,6 +2870,39 @@ function renderTaskCard(t, indexInPlan) {
         '</div>'
     ) : '';
 
+    var isDetailed = (currentBoardCardViewMode === 'detailed');
+
+    var captionSnippetHtml = cleanCaption ? (
+        '<div class="text-[12px] text-slate-600 line-clamp-2 leading-relaxed bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/70 select-text" title="مقتطف من الكابشن">' +
+            esc(cleanCaption.slice(0, 160)) + (cleanCaption.length > 160 ? '...' : '') +
+        '</div>'
+    ) : (visIdea ? (
+        '<div class="text-[12px] text-purple-900 line-clamp-2 leading-relaxed bg-purple-50/50 p-2.5 rounded-xl border border-purple-200/60 select-text" title="فكرة التصميم">' +
+            '💡 ' + esc(visIdea.slice(0, 160)) + (visIdea.length > 160 ? '...' : '') +
+        '</div>'
+    ) : '');
+
+    var quickChipsHtml = '<div class="flex items-center gap-1.5 flex-wrap pt-0.5">' +
+        (driveMaterialLinks.length ? (
+            '<a href="' + esc(driveMaterialLinks[0]) + '" target="_blank" class="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 transition shadow-2xs"><span>📁 Drive ↗</span></a>'
+        ) : '') +
+        (refs.length ? (
+            '<span class="text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg">🖼️ ' + refs.length + ' صور</span>'
+        ) : '') +
+        (cleanCaption ? (
+            '<button type="button" onclick="copyTaskCaption(\'' + escJs(t.task_id) + '\', this)" class="text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 px-2 py-1 rounded-lg inline-flex items-center gap-1 shadow-2xs transition cursor-pointer"><span>📋 نسخ الكابشن</span></button>'
+        ) : '') +
+    '</div>';
+
+    var fastActionRowHtml = '<div class="grid grid-cols-2 gap-2 pt-1">' +
+        '<button type="button" onclick="submitMyTask(\'' + escJs(t.task_id) + '\')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
+            '<span>✅ سلّمت وخلصت</span>' +
+        '</button>' +
+        '<button type="button" id="btn-toggle-details-' + esc(t.task_id) + '" onclick="toggleTaskCardDetails(\'' + escJs(t.task_id) + '\')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold py-2 px-3 rounded-xl border border-slate-300 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs">' +
+            '<span>' + (isDetailed ? '👁️ إخفاء التفاصيل والماتريال ▲' : '👁️ كامل التفاصيل والماتريال ▼') + '</span>' +
+        '</button>' +
+    '</div>';
+
     var html = '<div class="' + cardWrapperClass + '">' +
         '<div class="flex items-center justify-between gap-1 flex-wrap">' +
             '<div class="flex items-center gap-1.5 flex-wrap">' +
@@ -2857,6 +2920,10 @@ function renderTaskCard(t, indexInPlan) {
             '<h4 class="font-bold text-sm text-slate-900 leading-snug break-words flex-1">' + esc(cardHeading) + '</h4>' +
             (displayTitle ? ('<button type="button" onclick="copyTextToClipboard(\'' + escJs(displayTitle) + '\', \'عنوان البوست\', this)" class="shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[10px] font-bold py-1 px-2 rounded-lg border border-slate-200 shadow-2xs transition flex items-center gap-1 cursor-pointer" title="نسخ العنوان / التاج لاين"><span>📋 نسخ العنوان</span></button>') : '') +
         '</div>' +
+        captionSnippetHtml +
+        quickChipsHtml +
+        fastActionRowHtml +
+        '<div id="task-details-' + esc(t.task_id) + '" class="card-details-panel ' + (isDetailed ? 'expanded' : 'collapsed') + ' space-y-3 pt-2 border-t border-slate-200/80" ' + (isDetailed ? '' : 'style="display:none;"') + '>' +
         captionHtml +
         visHtml +
         modHtml +
@@ -3335,7 +3402,9 @@ function renderTaskCard(t, indexInPlan) {
             '<button type="button" onclick="requestReturnMyTask(\'' + escJs(t.task_id) + '\')" class="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-[11px] font-bold px-3 py-1 rounded-lg transition shadow-2xs cursor-pointer flex items-center gap-1" title="إعادة فتح واسترجاع المهمة لإجراء تعديلات"><span>↩️ إعادة فتح للتعديل</span></button>' +
         '</div>';
     }
-    html += '</div></div>';
+    html += '</div>'; // close AM controls container
+    html += '<button type="button" onclick="toggleTaskCardDetails(\'' + escJs(t.task_id) + '\')" class="w-full text-center text-xs font-bold text-slate-500 hover:text-slate-800 py-2 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition cursor-pointer mt-3 shadow-2xs">▲ إخفاء وطي التفاصيل</button>';
+    html += '</div></div>'; // close details panel and card outer wrapper
     return html;
 }
 
@@ -3735,7 +3804,15 @@ function renderTasksBoard() {
                     '</button>' +
                 '</div>' +
                 '<div class="flex items-center gap-2 w-full sm:w-auto">' +
-                    '<div class="relative w-full">' +
+                    '<div class="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">' +
+                        '<button type="button" onclick="setBoardCardViewMode(\'compact\')" class="text-xs px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ' + (currentBoardCardViewMode === 'compact' ? 'bg-slate-900 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100') + '" title="عرض مدمج ومختصر">' +
+                            '<span>⊞ مدمج</span>' +
+                        '</button>' +
+                        '<button type="button" onclick="setBoardCardViewMode(\'detailed\')" class="text-xs px-2.5 py-1 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ' + (currentBoardCardViewMode === 'detailed' ? 'bg-slate-900 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100') + '" title="عرض مفصل بكامل الماتريال">' +
+                            '<span>⊟ مفصل</span>' +
+                        '</button>' +
+                    '</div>' +
+                    '<div class="relative w-full sm:w-64">' +
                         '<input type="text" value="' + esc(taskSearchQuery) + '" oninput="onTaskSearchInput(this.value)" placeholder="🔍 بحث في عنوان أو كابشن أو كود المهمة..." class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-blue-500 shadow-2xs">' +
                         (taskSearchQuery ? '<button type="button" onclick="onTaskSearchInput(\'\')" class="absolute left-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-700">✕</button>' : '') +
                     '</div>' +
