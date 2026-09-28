@@ -69,6 +69,9 @@ function renderMonthlyReportTable() {
             notesHtml = '<div class="max-h-36 overflow-y-auto space-y-1 pr-1 custom-scrollbar">' +
                 r.notes.map(function(n) {
                     if (typeof n === 'object' && n && n.task_id) {
+                        var subtaskBadge = n.is_subtask ?
+                            '<span class="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-bold shrink-0 border border-amber-300">تعديل #' + (n.revision_number || '1') + '</span>' : '';
+
                         var isDelBadge = n.is_deleted ? 
                             '<span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-bold shrink-0 border border-amber-300" title="تم حذف الخطة/المهمة ولكن تم احتسابها ومكافأة الموظف عليها لعدم ضياع مجهوده">محتسبة (محذوفة)</span>' : '';
 
@@ -85,6 +88,7 @@ function renderMonthlyReportTable() {
                             '<div class="flex items-center gap-1 min-w-0 overflow-hidden">' +
                                 '<span class="font-mono font-bold text-[10px] bg-slate-900 text-white px-1.5 py-0.2 rounded group-hover:bg-blue-600 transition shrink-0">' + esc(n.task_id) + '</span>' +
                                 clientBadge +
+                                subtaskBadge +
                                 isDelBadge +
                                 stBadge +
                                 '<span class="text-slate-700 text-[11px] font-semibold truncate max-w-[140px]">: ' + esc(n.note || n.title || 'مكتملة') + '</span>' +
