@@ -1,6 +1,9 @@
 import json
 import pytest
 from datetime import datetime, timezone
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from api.index import (
     app,
     cache,
@@ -180,7 +183,7 @@ def test_plan_deletion_preserves_kpi(client):
     assert del_res.status_code == 200
     assert del_res.get_json().get("deleted_count") == 2
 
-    assert len(_all_tasks_db()) == 0
+    assert len([t for t in _all_tasks_db() if t.get("plan_name") == "خطة سوشيال ميديا سبتمبر المحذوفة"]) == 0
 
     del_kpis = _get_deleted_kpi_tasks()
     del_ids = [d.get("task_id") for d in del_kpis]

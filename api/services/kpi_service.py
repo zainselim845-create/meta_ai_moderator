@@ -141,6 +141,11 @@ def calculate_task_kpis(t, action_name=None, tz_offset_hours=2):
             except Exception:
                 pass
                 
+    if t.get("type") == "revision" or t.get("is_subtask"):
+        kpis["is_subtask"] = True
+        kpis["is_revision"] = True
+        kpis["revision_number"] = t.get("revision_number", 1)
+
     completed_at = t.get("completed_at")
     if completed_at and submitted_at:
         try:

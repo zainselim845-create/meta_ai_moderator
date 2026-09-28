@@ -7513,7 +7513,7 @@ def _record_deleted_tasks_for_kpi(tasks_to_record):
 
 
 def _all_tasks_for_kpi_db():
-    """Retrieve all tasks for KPI calculation: active tasks + deleted tasks with employee effort.
+    """Retrieve all tasks for KPI calculation: active tasks + deleted tasks with employee effort + revision subtasks.
     Active tasks take precedence if any task_id collides."""
     active_tasks = _all_tasks_db()
     deleted_tasks = _get_deleted_kpi_tasks()
@@ -7521,19 +7521,36 @@ def _all_tasks_for_kpi_db():
     seen_ids = set()
     combined = []
     
-    for t in active_tasks:
-        if isinstance(t, dict):
-            tid = str(t.get("task_id") or t.get("id") or "")
-            if tid:
-                seen_ids.add(tid)
+    def _collect_task_item(t):
+        if not isinstance(t, dict):
+            return
+        tid = str(t.get("task_id") or t.get("id") or "")
+        if tid and tid not in seen_ids:
+            seen_ids.add(tid)
             combined.append(t)
             
+        # Also extract any revision subtasks linked to this task
+        for st in (t.get("subtasks") or []):
+            if isinstance(st, dict) and (st.get("type") == "revision" or st.get("is_subtask")):
+                stid = str(st.get("subtask_id") or st.get("task_id") or "")
+                if stid and stid not in seen_ids:
+                    seen_ids.add(stid)
+                    # Inherit missing parent client and assignment fields
+                    if not st.get("client_id"): st["client_id"] = t.get("client_id")
+                    if not st.get("client_name"): st["client_name"] = t.get("client_name")
+                    if not st.get("assigned_employee_id"): st["assigned_employee_id"] = t.get("assigned_employee_id")
+                    if not st.get("assignee_name"): st["assignee_name"] = t.get("assignee_name")
+                    if not st.get("secondary_employee_id"): st["secondary_employee_id"] = t.get("secondary_employee_id")
+                    if not st.get("secondary_assignee_name"): st["secondary_assignee_name"] = t.get("secondary_assignee_name")
+                    if not st.get("am_id"): st["am_id"] = t.get("am_id")
+                    if not st.get("am_name"): st["am_name"] = t.get("am_name")
+                    combined.append(st)
+
+    for t in active_tasks:
+        _collect_task_item(t)
+            
     for dt in deleted_tasks:
-        if isinstance(dt, dict):
-            tid = str(dt.get("task_id") or dt.get("id") or "")
-            if tid and tid not in seen_ids:
-                seen_ids.add(tid)
-                combined.append(dt)
+        _collect_task_item(dt)
                 
     return combined
 
@@ -13807,6 +13824,11 @@ def api_tasks_monthly_report():
                 tid = str(t.get("task_id", "")).strip()
                 title_str = str(t.get("title") or "").strip()
                 display_note = custom_note or title_str or "مهمة منجزة"
+                if t.get("type") == "revision" or t.get("is_subtask"):
+                    rev_n = t.get("revision_number", 1)
+                    mod_dl_s = str(t.get("delivery_deadline") or t.get("modification_deadline") or "")
+                    dl_part = f" — موعد التسليم الجديد: {mod_dl_s}" if mod_dl_s else ""
+                    display_note = f"[مهمة تعديل فرعية #{rev_n}] {custom_note or title_str}{dl_part}"
                 
                 c_name = str(t.get("client_name") or "").strip()
                 if not c_name or c_name in ("None", "null", "عميل عام"):
@@ -13821,6 +13843,10 @@ def api_tasks_monthly_report():
                         "note": display_note,
                         "status": st
                     }
+                    if t.get("type") == "revision" or t.get("is_subtask"):
+                        note_entry["is_subtask"] = True
+                        note_entry["revision_number"] = t.get("revision_number", 1)
+                        note_entry["delivery_deadline"] = t.get("delivery_deadline") or t.get("modification_deadline")
                     if is_del:
                         note_entry["is_deleted"] = True
                         note_entry["deleted_at"] = t.get("deleted_at")
@@ -15367,6 +15393,15 @@ def api_my_task_submit(task_id):
 
     mins = round((ts.get("elapsed_seconds") or 0) / 60, 1)
     
+    # Update active revision subtask(s) with submission timestamp and recalculate their KPIs
+    for st in (t.get("subtasks") or []):
+        if isinstance(st, dict) and (st.get("type") == "revision" or st.get("is_subtask")):
+            if not st.get("submitted_at"):
+                st["submitted_at"] = t["submitted_at"]
+                st["status"] = "Submitted / In Review"
+                calculate_task_kpis(st, tz_offset_hours=_tz_offset())
+    calculate_task_kpis(t, tz_offset_hours=_tz_offset())
+
     # Save into permanent submissions history & deliverables archive
     sub_entry = {
         "id": f"sub-{int(time.time()*1000)}",
@@ -15450,10 +15485,49 @@ def api_my_task_request_return(task_id):
     t["modification_requested_at"] = now_iso
     cairo_now = datetime.now(timezone.utc) + timedelta(hours=_tz_offset())
     orig_dl = str(t.get("delivery_deadline") or "")[:10]
-    if not orig_dl or orig_dl < cairo_now.strftime("%Y-%m-%d"):
-        t["modification_deadline"] = (cairo_now + timedelta(days=1)).strftime("%Y-%m-%d")
+    custom_mod_dl = (data.get("modification_deadline") or data.get("deadline") or "").strip()
+    if custom_mod_dl:
+        mod_dl = custom_mod_dl[:10]
+    elif not orig_dl or orig_dl < cairo_now.strftime("%Y-%m-%d"):
+        mod_dl = (cairo_now + timedelta(days=1)).strftime("%Y-%m-%d")
     else:
-        t["modification_deadline"] = orig_dl
+        mod_dl = orig_dl
+    t["modification_deadline"] = mod_dl
+    
+    # Create / record formal revision sub-task with its own new deadline & KPI tracking
+    rev_count = len([st for st in t.get("subtasks", []) if isinstance(st, dict) and (st.get("type") == "revision" or st.get("is_subtask"))]) + 1
+    subtask_id = f"{t.get('task_id')}-REV{rev_count}"
+    subtask = {
+        "subtask_id": subtask_id,
+        "task_id": subtask_id,
+        "parent_task_id": t.get("task_id"),
+        "type": "revision",
+        "is_subtask": True,
+        "revision_number": rev_count,
+        "title": f"تعديل #{rev_count}: {reason or 'طلب استرجاع للتعديل'}",
+        "caption": t.get("caption") or "",
+        "client_id": cid,
+        "client_name": _client_name(cid),
+        "assigned_employee_id": t.get("assigned_employee_id"),
+        "assignee_name": t.get("assignee_name"),
+        "secondary_employee_id": t.get("secondary_employee_id"),
+        "secondary_assignee_name": t.get("secondary_assignee_name"),
+        "am_id": t.get("am_id"),
+        "am_name": t.get("am_name"),
+        "status": "In Progress",
+        "created_at": now_iso,
+        "assigned_at": now_iso,
+        "modification_requested_at": now_iso,
+        "delivery_deadline": mod_dl,
+        "modification_deadline": mod_dl,
+        "notes": reason or f"تعديل #{rev_count}",
+        "review_note": reason or "",
+        "submitted_at": None,
+        "completed_at": None,
+        "kpis": {}
+    }
+    t.setdefault("subtasks", []).append(subtask)
+    t["active_subtask_id"] = subtask_id
     
     # Ensure timer state allows continued work
     ts = t.get("timer_state") or {"is_running": False, "elapsed_seconds": 0, "last_start": None}
@@ -15623,24 +15697,61 @@ def api_task_review(task_id):
         orig_dl = str(t.get("delivery_deadline") or "")[:10]
         custom_mod_dl = (data.get("modification_deadline") or data.get("deadline") or "").strip()
         if custom_mod_dl:
-            t["modification_deadline"] = custom_mod_dl
+            mod_dl = custom_mod_dl[:10]
         elif not orig_dl or orig_dl < cairo_now.strftime("%Y-%m-%d"):
-            t["modification_deadline"] = (cairo_now + timedelta(days=1)).strftime("%Y-%m-%d")
+            mod_dl = (cairo_now + timedelta(days=1)).strftime("%Y-%m-%d")
         else:
-            t["modification_deadline"] = orig_dl
+            mod_dl = orig_dl
+        t["modification_deadline"] = mod_dl
+
+        # Create / record formal revision sub-task with its own new deadline & KPI tracking
+        rev_count = len([st for st in t.get("subtasks", []) if isinstance(st, dict) and (st.get("type") == "revision" or st.get("is_subtask"))]) + 1
+        subtask_id = f"{t.get('task_id')}-REV{rev_count}"
+        subtask = {
+            "subtask_id": subtask_id,
+            "task_id": subtask_id,
+            "parent_task_id": t.get("task_id"),
+            "type": "revision",
+            "is_subtask": True,
+            "revision_number": rev_count,
+            "title": f"تعديل #{rev_count}: {review_note or 'طلب تعديل من مدير الحساب'}",
+            "caption": t.get("caption") or "",
+            "client_id": cid,
+            "client_name": _client_name(cid),
+            "assigned_employee_id": t.get("assigned_employee_id"),
+            "assignee_name": t.get("assignee_name"),
+            "secondary_employee_id": t.get("secondary_employee_id"),
+            "secondary_assignee_name": t.get("secondary_assignee_name"),
+            "am_id": t.get("am_id"),
+            "am_name": t.get("am_name"),
+            "status": "In Progress",
+            "created_at": now_iso,
+            "assigned_at": now_iso,
+            "modification_requested_at": now_iso,
+            "delivery_deadline": mod_dl,
+            "modification_deadline": mod_dl,
+            "notes": review_note or f"تعديل #{rev_count}",
+            "review_note": review_note or "",
+            "submitted_at": None,
+            "completed_at": None,
+            "kpis": {}
+        }
+        t.setdefault("subtasks", []).append(subtask)
+        t["active_subtask_id"] = subtask_id
+
         _append_task_log(t, "reviewed_reject",
                          actor_name=current_user_rec().get("name") or current_username(),
                          actor_type="account_manager",
                          target_emp_id=t.get("assigned_employee_id"),
                          target_emp_name=t.get("assignee_name"),
                          note=review_note or "إعادة المهمة للموظف للتعديل",
-                         details={"review_note": review_note, "modification_requested_at": now_iso, "modification_deadline": t.get("modification_deadline")})
+                         details={"review_note": review_note, "modification_requested_at": now_iso, "modification_deadline": t.get("modification_deadline"), "subtask_id": subtask_id})
         if cur_tg:
             send_telegram_bot_notification(cur_tg,
-                f"✍️ <b>محتاج تعديل</b>\n📌 {t.get('title','')}\n🏢 {_client_name(cid)}\n📝 {review_note or 'راجع الملاحظات'}")
+                f"✍️ <b>محتاج تعديل (مهمة فرعية #{rev_count})</b>\n📌 {t.get('title','')}\n🏢 {_client_name(cid)}\n📅 موعد التسليم الجديد: {mod_dl}\n📝 {review_note or 'راجع الملاحظات'}")
         if sec_tg and sec_tg != cur_tg:
             send_telegram_bot_notification(sec_tg,
-                f"✍️ <b>محتاج تعديل (عمل مشترك)</b>\n📌 {t.get('title','')}\n🏢 {_client_name(cid)}\n📝 {review_note or 'راجع الملاحظات'}")
+                f"✍️ <b>محتاج تعديل (عمل مشترك - مهمة فرعية #{rev_count})</b>\n📌 {t.get('title','')}\n🏢 {_client_name(cid)}\n📅 موعد التسليم الجديد: {mod_dl}\n📝 {review_note or 'راجع الملاحظات'}")
     elif next_emp_id:
         # Forward to the next person in the chain.
         nxt = _sheet_emp(next_emp_id)
@@ -15664,6 +15775,15 @@ def api_task_review(task_id):
         t["status"] = "Completed"
         t["completed_at"] = datetime.now(timezone.utc).isoformat()
         _stop_task_timer_if_running(t)
+        for st in (t.get("subtasks") or []):
+            if isinstance(st, dict) and (st.get("type") == "revision" or st.get("is_subtask")):
+                if not st.get("submitted_at"):
+                    st["submitted_at"] = t.get("submitted_at") or t["completed_at"]
+                if not st.get("completed_at"):
+                    st["completed_at"] = t["completed_at"]
+                st["status"] = "Completed"
+                calculate_task_kpis(st, tz_offset_hours=_tz_offset())
+        calculate_task_kpis(t, tz_offset_hours=_tz_offset())
         _append_task_log(t, "reviewed_approved",
                          actor_name=current_user_rec().get("name") or current_username(),
                          actor_type="account_manager",
@@ -15711,6 +15831,15 @@ def api_tasks_bulk_review():
             t["status"] = "Completed"
             t["completed_at"] = now_iso
             _stop_task_timer_if_running(t)
+            for st in (t.get("subtasks") or []):
+                if isinstance(st, dict) and (st.get("type") == "revision" or st.get("is_subtask")):
+                    if not st.get("submitted_at"):
+                        st["submitted_at"] = t.get("submitted_at") or now_iso
+                    if not st.get("completed_at"):
+                        st["completed_at"] = now_iso
+                    st["status"] = "Completed"
+                    calculate_task_kpis(st, tz_offset_hours=_tz_offset())
+            calculate_task_kpis(t, tz_offset_hours=_tz_offset())
             t["review_note"] = review_note
 
             _append_task_log(t, "reviewed_approved",

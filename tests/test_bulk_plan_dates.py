@@ -8,7 +8,7 @@ Test the new bulk date update endpoint for plans:
 import sys, os, unittest, json
 
 # Ensure project root is in sys.path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from api.index import app, _all_tasks_db, save_one_task
 

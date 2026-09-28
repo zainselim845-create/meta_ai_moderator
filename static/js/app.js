@@ -1149,8 +1149,9 @@ function renderMyPortalTasks() {
 
   const actionBtns = (t) => {
     const s = t.status || '';
+    const hasActiveRev = (t.subtasks && t.subtasks.some(st => st && (st.type === 'revision' || st.is_subtask) && !st.submitted_at)) || Boolean(t.modification_requested_at && !t.submitted_at);
+    if (/In Progress|Revision|Changes/i.test(s) || hasActiveRev) return `<button onclick="submitMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>✅ سلّمت وخلصت</span></button>`;
     if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>⏱️ بدأت العمل</span></button>`;
-    if (/In Progress/i.test(s)) return `<button onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>📤 تسليم المهمة</span></button>`;
     if (/Awaiting|Submitted|Review/i.test(s)) return `<button onclick="requestReturnMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition shadow-xs cursor-pointer flex items-center gap-1" title="استرجاع المهمة للتعديل"><span>↩️ استرجاع للتعديل</span></button>`;
     if (/Completed|مكتمل/i.test(s)) return `<button onclick="requestReturnMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition shadow-2xs cursor-pointer flex items-center gap-1" title="طلب إعادة فتح واسترجاع المهمة للتعديل"><span>↩️ طلب تعديل</span></button>`;
     return '';
@@ -1539,14 +1540,43 @@ function renderMyPortalTasks() {
           dBox += '</div>';
           return dBox;
         })()}
+
+        ${(() => {
+          const revs = (t.subtasks || []).filter(st => st && (st.type === 'revision' || st.is_subtask));
+          if (!revs.length) return '';
+          return `<div class="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3 space-y-2 mt-2">
+            <div class="flex items-center justify-between text-xs font-bold text-amber-900">
+              <span class="flex items-center gap-1.5"><span>🔄</span> مهام التعديل الفرعية (${revs.length})</span>
+              <span class="bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-md font-mono border border-amber-300">ديدلاين التعديل: ${esc(t.modification_deadline || revs[revs.length-1].delivery_deadline || 'غداً')}</span>
+            </div>
+            <div class="space-y-1.5">
+              ${revs.map((st, idx) => `
+                <div class="bg-white/95 p-2 rounded-xl border border-amber-100 text-xs flex items-center justify-between gap-2">
+                  <div class="space-y-0.5 min-w-0">
+                    <div class="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
+                      <span class="bg-amber-100 text-amber-900 font-mono text-[10px] px-1.5 py-0.2 rounded font-bold">${esc(st.subtask_id || `تعديل #${idx+1}`)}</span>
+                      <span class="truncate">${esc(st.title || st.notes || 'طلب تعديل')}</span>
+                    </div>
+                    ${st.delivery_deadline ? `<div class="text-[10px] text-slate-500 font-mono">📅 موعد التسليم: ${esc(st.delivery_deadline)}</div>` : ''}
+                  </div>
+                  <div class="shrink-0 text-[10px] font-bold">
+                    ${st.status === 'Completed' ? '<span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">✅ مكتمل</span>' :
+                      st.submitted_at ? '<span class="text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">📤 تم تسليمه</span>' :
+                      '<span class="text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">⏱️ قيد التعديل</span>'}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>`;
+        })()}
       </div>
 
       <!-- Card Action Footer Strip -->
       <div class="bg-slate-50/90 border-t border-slate-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2.5">
         <div class="flex items-center gap-2 flex-wrap">
           ${canWork(t) ? `
-            <button type="button" onclick="openDeliverableModal('${esc(t.task_id)}', '${esc(t.drive_link||'')}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
-              <span>📤 تسليم شغلك (رابط Drive / فيديو / PDF)</span>
+            <button type="button" onclick="submitMyTask('${esc(t.task_id)}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+              <span>✅ سلّمت وخلصت</span>
             </button>
           ` : ''}
           <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer" title="استرجاع المهمة لقيد التنفيذ لإجراء تعديلات عليها">
@@ -1775,21 +1805,21 @@ async function startMyTask(id) {
   } catch(e) { showToast('خطأ', 'error'); }
 }
 async function submitMyTask(id) {
-  const notes = prompt('اكتب ملاحظات التسليم ورابط Google Drive للملف (مثال: https://drive.google.com/...):') || '';
-  if (notes === null) return;
+  showToast('جاري تسليم المهمة لمدير الحساب... ⏳');
   try {
     const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/submit`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({notes: notes.trim()})
+      body: JSON.stringify({notes: 'تم الإنجاز والتسليم'})
     });
     const d = await r.json();
     if (!r.ok) { showToast(d.error||'تعذّر التسليم', 'error'); return; }
-    showToast('تم التسليم للمراجعة بنجاح ');
-    loadMyPortal();
+    showToast('🎉 عاش! تم تسليم المهمة لمدير الحساب بنجاح ✅', 'success');
+    if (typeof loadMyPortal === 'function') loadMyPortal();
     if (typeof loadTasksEngine === 'function') loadTasksEngine();
-  } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+  } catch(e) { showToast('خطأ في الاتصال بالسيرفر', 'error'); }
 }
+window.submitMyTask = submitMyTask;
 
 async function requestReturnMyTask(id) {
   const reason = prompt('اكتب سبب أو تفاصيل التعديل الذي ترغب في إجرائه (اختياري، اضغط موافق للاسترجاع):');

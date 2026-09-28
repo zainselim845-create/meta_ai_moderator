@@ -2842,9 +2842,8 @@ function renderTaskCard(t, indexInPlan) {
     // Upload & Reference from device & link
     html += '<div class="space-y-1.5 pt-1">' +
         '<div class="grid grid-cols-2 gap-1.5">' +
-            '<button type="button" onclick="openDeliverableModal(\'' + escJs(t.task_id) + '\', \'' + escJs(driveLink||'') + '\')" class="text-center bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-sky-200 shadow-xs flex items-center justify-center gap-1 transition cursor-pointer">' +
-                ICONS.upload +
-                '<span>تسليم العمل / Drive</span>' +
+            '<button type="button" onclick="submitMyTask(\'' + escJs(t.task_id) + '\')" class="text-center bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-1.5 px-2 rounded-xl shadow-xs flex items-center justify-center gap-1 transition cursor-pointer">' +
+                '<span>✅ سلّمت وخلصت</span>' +
             '</button>' +
             '<label class="text-center cursor-pointer bg-violet-50 hover:bg-violet-100 text-violet-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-violet-200 shadow-xs flex items-center justify-center gap-1 transition">' +
                 ICONS.plus +
@@ -2859,6 +2858,35 @@ function renderTaskCard(t, indexInPlan) {
             '</button>' +
         '</div>' +
     '</div>';
+
+    // Revision Sub-tasks (مهام التعديل الفرعية)
+    if (t.subtasks && t.subtasks.length) {
+        var revs = t.subtasks.filter(function(st){ return st && (st.type === 'revision' || st.is_subtask); });
+        if (revs.length) {
+            html += '<div class="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-2.5 space-y-1.5 mt-2">' +
+                '<div class="flex items-center justify-between text-[11px] font-bold text-amber-900">' +
+                    '<span class="flex items-center gap-1"><span>🔄</span> مهام التعديل الفرعية (' + revs.length + ')</span>' +
+                    '<span class="bg-amber-100 text-amber-900 text-[9px] px-2 py-0.5 rounded-md font-mono border border-amber-300">ديدلاين: ' + esc(t.modification_deadline || revs[revs.length-1].delivery_deadline || 'غداً') + '</span>' +
+                '</div>' +
+                '<div class="space-y-1">';
+            revs.forEach(function(st, idx) {
+                var stStatusBadge = (st.status === 'Completed') ? '<span class="text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold border border-emerald-200">✅ مكتمل</span>' :
+                    (st.submitted_at) ? '<span class="text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded font-bold border border-purple-200">📤 تم تسليمه</span>' :
+                    '<span class="text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded font-bold border border-amber-200">⏱️ قيد التعديل</span>';
+                html += '<div class="bg-white/95 p-1.5 rounded-xl border border-amber-100 text-[11px] flex items-center justify-between gap-1.5">' +
+                    '<div class="min-w-0">' +
+                        '<div class="font-bold text-slate-800 truncate flex items-center gap-1">' +
+                            '<span class="bg-amber-100 text-amber-900 font-mono text-[9px] px-1 rounded font-bold">' + esc(st.subtask_id || ('تعديل #' + (idx+1))) + '</span>' +
+                            '<span class="truncate">' + esc(st.title || st.notes || 'طلب تعديل') + '</span>' +
+                        '</div>' +
+                        (st.delivery_deadline ? '<div class="text-[9px] text-slate-500 font-mono">📅 موعد التسليم: ' + esc(st.delivery_deadline) + '</div>' : '') +
+                    '</div>' +
+                    '<div class="shrink-0 text-[9px]">' + stStatusBadge + '</div>' +
+                '</div>';
+            });
+            html += '</div></div>';
+        }
+    }
 
     if (t.review_note) {
         html += '<div class="bg-purple-50 p-2 rounded-xl text-[11px] text-purple-700 border border-purple-100"> ملاحظة المراجعة السابقة: ' + esc(t.review_note) + '</div>';
@@ -3940,6 +3968,15 @@ async function reviewTaskDecision(taskId, action) {
         var note = prompt('اكتب سبب الإرجاع / التعديل المطلوب:');
         if (note === null) return;
         body.note = note;
+        var tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        var defDl = tomorrow.toISOString().split('T')[0];
+        var customDl = prompt('الموعد النهائي الجديد للتعديل (ديدلاين بصيغة YYYY-MM-DD):', defDl);
+        if (customDl !== null && customDl.trim()) {
+            body.modification_deadline = customDl.trim();
+        } else {
+            body.modification_deadline = defDl;
+        }
     }
     if (action === 'finalize') {
         var n2 = prompt('ملاحظة اعتماد واكتمال المهمة (اختياري):', '');
@@ -7281,6 +7318,31 @@ window.closeDeliverableModal = closeDeliverableModal;
 window.submitDriveLinkDeliverable = submitDriveLinkDeliverable;
 window.handleModalFileUpload = handleModalFileUpload;
 window.submitTaskDirectlyNoFile = submitTaskDirectlyNoFile;
+
+async function submitMyTaskDirect(taskId) {
+    if (!taskId) return;
+    showToast('جاري تسليم المهمة لمدير الحساب... ⏳');
+    try {
+        var res = await fetch('/api/me/tasks/' + encodeURIComponent(taskId) + '/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: 'تم الإنجاز والتسليم' })
+        });
+        var data = await res.json();
+        if (res.ok) {
+            showToast('🎉 عاش! تم تسليم المهمة لمدير الحساب بنجاح ✅', 'success');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            if (typeof loadMyPortal === 'function') loadMyPortal();
+        } else {
+            showToast(data.error || 'تعذّر التسليم', 'error');
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالسيرفر', 'error');
+    }
+}
+if (typeof window.submitMyTask !== 'function') {
+    window.submitMyTask = submitMyTaskDirect;
+}
 
 /* =========================================================================
    PLAN BUILDER TEMPLATE (منشئ وقالب كتابة الخطة التفاعلي)
