@@ -914,12 +914,12 @@ async function applyRoleUI() {
   }
 }
 
-let myPortalTasksRaw = [];
-let myPortalStatusFilter = 'all';
-let myPortalClientFilter = 'all';
-let myPortalPlanFilter = 'all';
-let myPortalDueFilter = 'all';
-let myPortalSearchQuery = '';
+var myPortalTasksRaw = window.myPortalTasksRaw || [];
+var myPortalStatusFilter = window.myPortalStatusFilter || 'all';
+var myPortalClientFilter = window.myPortalClientFilter || 'all';
+var myPortalPlanFilter = window.myPortalPlanFilter || 'all';
+var myPortalDueFilter = window.myPortalDueFilter || 'all';
+var myPortalSearchQuery = window.myPortalSearchQuery || '';
 
 function setMyPortalStatusFilter(st) {
   myPortalStatusFilter = st;
@@ -960,7 +960,7 @@ function setMyPortalDueFilter(due) {
   renderMyPortalTasks();
 }
 
-let _myPortalSearchTimer = null;
+var _myPortalSearchTimer = window._myPortalSearchTimer || null;
 function onMyPortalSearchInput(q) {
   clearTimeout(_myPortalSearchTimer);
   _myPortalSearchTimer = setTimeout(() => {
@@ -975,7 +975,7 @@ window.setMyPortalPlanFilter = setMyPortalPlanFilter;
 window.setMyPortalDueFilter = setMyPortalDueFilter;
 window.onMyPortalSearchInput = onMyPortalSearchInput;
 
-let currentPortalCardViewMode = (function() {
+var currentPortalCardViewMode = (function() {
   try { return localStorage.getItem('portal_card_view_mode') || 'compact'; } catch(e) { return 'compact'; }
 })();
 
@@ -1474,39 +1474,39 @@ function renderMyPortalTasks() {
     ` : '');
 
     const quickChipsHtml = `
-      <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+      <div class="flex items-center gap-2 flex-wrap pt-0.5">
         ${portalDriveLinks.length ? `
-          <a href="${esc(portalDriveLinks[0])}" target="_blank" class="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 transition shadow-2xs">
+          <a href="${esc(portalDriveLinks[0])}" target="_blank" class="h-7 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold inline-flex items-center gap-1 transition shadow-2xs">
             <span>📁 Drive ↗</span>
           </a>
         ` : ''}
         ${cleanCap ? `
-          <button type="button" onclick="copyTaskCaption('${esc(t.task_id)}', this)" class="text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 shadow-2xs transition cursor-pointer">
+          <button type="button" onclick="copyTaskCaption('${esc(t.task_id)}', this)" class="h-7 px-2.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer">
             <span>📋 نسخ الكابشن</span>
           </button>
         ` : ''}
         ${(Array.isArray(t.reference_links) && t.reference_links.length) ? `
-          <span class="text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg">🔗 ${t.reference_links.length} مراجع</span>
+          <span class="h-7 px-2.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-bold inline-flex items-center gap-1">🔗 ${t.reference_links.length} مراجع</span>
         ` : ''}
       </div>
     `;
 
     const fastActionRowHtml = `
-      <div class="grid grid-cols-2 gap-2 pt-1">
+      <div class="grid grid-cols-2 gap-2 pt-1.5">
         ${canWork(t) ? `
-          <button type="button" onclick="submitMyTask('${esc(t.task_id)}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+          <button type="button" onclick="submitMyTask('${esc(t.task_id)}')" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
             <span>✅ سلّمت وخلصت</span>
           </button>
         ` : (t.status === 'Assigned' ? `
-          <button type="button" onclick="startMyTask('${esc(t.task_id)}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2.5 px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+          <button type="button" onclick="startMyTask('${esc(t.task_id)}')" class="h-10 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
             <span>⏱️ بدأت العمل</span>
           </button>
         ` : `
-          <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2.5 px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer" title="استرجاع المهمة للتعديل">
+          <button type="button" onclick="requestReturnMyTask('${esc(t.task_id)}')" class="h-10 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer" title="استرجاع المهمة للتعديل">
             <span>↩️ طلب استرجاع</span>
           </button>
         `)}
-        <button type="button" id="btn-portal-details-${esc(t.task_id)}" onclick="togglePortalCardDetails('${esc(t.task_id)}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold py-2.5 px-3 rounded-xl border border-slate-300 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs">
+        <button type="button" id="btn-portal-details-${esc(t.task_id)}" onclick="togglePortalCardDetails('${esc(t.task_id)}')" class="h-10 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-3 rounded-xl border border-slate-300 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs">
           <span>${isDetailed ? '👁️ إخفاء التفاصيل والماتريال ▲' : '👁️ كامل التفاصيل والماتريال ▼'}</span>
         </button>
       </div>
@@ -1757,7 +1757,7 @@ function renderMyPortalTasks() {
   }).join('');
 }
 
-let myPortalTargetEid = 'me';
+var myPortalTargetEid = 'me';
 
 async function switchMyPortalEmployee(eid) {
   myPortalTargetEid = eid;

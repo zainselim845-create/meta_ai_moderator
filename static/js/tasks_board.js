@@ -618,11 +618,11 @@ function renderTaskCard(t, indexInPlan) {
         ) : '') +
     '</div>';
 
-    var fastActionRowHtml = '<div class="grid grid-cols-2 gap-2 pt-1">' +
-        '<button type="button" onclick="submitMyTask(\'' + escJs(t.task_id) + '\')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
+    var fastActionRowHtml = '<div class="grid grid-cols-2 gap-2 pt-1.5">' +
+        '<button type="button" onclick="submitMyTask(\'' + escJs(t.task_id) + '\')" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
             '<span>✅ سلّمت وخلصت</span>' +
         '</button>' +
-        '<button type="button" id="btn-toggle-details-' + esc(t.task_id) + '" onclick="toggleTaskCardDetails(\'' + escJs(t.task_id) + '\')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold py-2 px-3 rounded-xl border border-slate-300 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs">' +
+        '<button type="button" id="btn-toggle-details-' + esc(t.task_id) + '" onclick="toggleTaskCardDetails(\'' + escJs(t.task_id) + '\')" class="h-10 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-3 rounded-xl border border-slate-300 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs">' +
             '<span>' + (isDetailed ? '👁️ إخفاء التفاصيل والماتريال ▲' : '👁️ كامل التفاصيل والماتريال ▼') + '</span>' +
         '</button>' +
     '</div>';
@@ -1041,7 +1041,7 @@ function renderTaskCard(t, indexInPlan) {
             (curCreatorName ? ('<span class="text-[10px] text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md font-bold truncate max-w-[160px]" title="' + esc(curCreatorName) + '">✓ ' + esc(curCreatorName) + '</span>') : ('<span class="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">لم يُحدد</span>')) +
         '</div>' +
         '<div class="flex items-center gap-1.5 w-full">' +
-            '<select id="creator-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-purple-300 bg-white rounded-xl font-bold text-slate-900 truncate focus:ring-2 focus:ring-purple-500 shadow-2xs cursor-pointer">' +
+            '<select id="creator-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 h-9 text-xs px-2.5 border border-purple-300 bg-white rounded-xl font-bold text-slate-900 truncate focus:ring-2 focus:ring-purple-500 shadow-2xs cursor-pointer flex items-center">' +
                 creatorOptionsHtml(curCreatorId, curCreatorName) +
             '</select>' +
             '<button onclick="assignCreatorFromBoard(\'' + esc(t.task_id) + '\')" class="bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0 flex items-center gap-1" title="حفظ كاتب المحتوى">' +
@@ -1058,7 +1058,7 @@ function renderTaskCard(t, indexInPlan) {
             (curSecEmpName ? ('<span class="text-[10px] text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-md font-bold truncate max-w-[160px]" title="' + esc(curSecEmpName) + '">✓ ' + esc(curSecEmpName) + '</span>') : ('<span class="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">بدون شريك</span>')) +
         '</div>' +
         '<div class="flex items-center gap-1.5 w-full">' +
-            '<select id="co-emp-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-indigo-300 bg-white rounded-xl font-bold text-slate-900 truncate focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer">' +
+            '<select id="co-emp-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 h-9 text-xs px-2.5 border border-indigo-300 bg-white rounded-xl font-bold text-slate-900 truncate focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer flex items-center">' +
                 coEmpOptionsHtml(curSecEmpId, t.assigned_employee_id) +
             '</select>' +
             '<button onclick="coAssignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0 flex items-center gap-1" title="تعيين شريك عمل للتعاون على هذه المهمة">' +
@@ -1074,7 +1074,7 @@ function renderTaskCard(t, indexInPlan) {
                 '<span class="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md font-bold">⏳ بانتظار الإسناد</span>' +
             '</div>' +
             '<div class="flex items-center gap-1.5 w-full">' +
-                '<select id="emp-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-blue-300 bg-white rounded-xl font-bold text-slate-900 truncate focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer">' +
+                '<select id="emp-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 h-9 text-xs px-2.5 border border-blue-300 bg-white rounded-xl font-bold text-slate-900 truncate focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer flex items-center">' +
                     empOptionsHtml(t.assigned_employee_id) +
                 '</select>' +
                 '<button onclick="assignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0 flex items-center gap-1">' +
@@ -1087,14 +1087,14 @@ function renderTaskCard(t, indexInPlan) {
 
         html += '<div class="space-y-2 w-full">' +
             '<div class="grid grid-cols-2 gap-1.5">' +
-                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs py-1.5 px-2 rounded-xl shadow-2xs flex items-center justify-center gap-1 transition cursor-pointer">↩️ سحب المهمة</button>' +
-                '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="w-full bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-[11px] py-1.5 px-2 rounded-xl shadow-2xs flex items-center justify-center gap-1 transition cursor-pointer">✈️ تليجرام</button>' +
+                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full h-9 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-1 transition cursor-pointer">↩️ سحب المهمة</button>' +
+                '<button onclick="resendTaskCard(\'' + esc(t.task_id) + '\')" class="w-full h-9 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-1 transition cursor-pointer">✈️ تليجرام</button>' +
             '</div>' +
             '<div class="flex items-center gap-1.5 w-full">' +
-                '<select id="reassign-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-slate-200 rounded-xl truncate bg-white text-slate-800 focus:outline-blue-500 shadow-2xs cursor-pointer">' +
+                '<select id="reassign-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 h-9 text-xs px-2.5 border border-slate-300 rounded-xl truncate bg-white text-slate-800 focus:outline-blue-500 shadow-2xs cursor-pointer flex items-center">' +
                     '<option value="">تحويل لموظف آخر...</option>' + empOptionsHtml(t.assigned_employee_id) +
                 '</select>' +
-                '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0">' +
+                '<button onclick="reassignTaskFromBoard(\'' + esc(t.task_id) + '\')" class="h-9 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-3.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0 flex items-center justify-center">' +
                     'تحويل' +
                 '</button>' +
             '</div>' +
@@ -1103,20 +1103,20 @@ function renderTaskCard(t, indexInPlan) {
     if (isSubmitted) {
         html += '<div class="space-y-2 w-full">' +
             '<div class="grid grid-cols-2 gap-1.5">' +
-                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs py-2 rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer">↩️ طلب تعديل</button>' +
-                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">✅ اعتماد واكتمال</button>' +
+                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="w-full h-9 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer">↩️ طلب تعديل</button>' +
+                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">✅ اعتماد واكتمال</button>' +
             '</div>' +
             '<div class="flex items-center gap-1.5 w-full">' +
-                '<select id="fwd-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 text-xs px-2.5 py-1.5 border border-slate-200 rounded-xl truncate bg-white text-slate-800 focus:outline-blue-500 shadow-2xs cursor-pointer">' +
+                '<select id="fwd-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 h-9 text-xs px-2.5 border border-slate-300 rounded-xl truncate bg-white text-slate-800 focus:outline-blue-500 shadow-2xs cursor-pointer flex items-center">' +
                     '<option value="">مرّرها للموظف التالي...</option>' + empOptionsHtml('') +
                 '</select>' +
-                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0">' +
+                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'forward\')" class="h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 rounded-xl whitespace-nowrap shadow-xs transition cursor-pointer shrink-0 flex items-center justify-center">' +
                     'تمرير ➡️' +
                 '</button>' +
             '</div>' +
             '<div class="grid grid-cols-2 gap-1.5">' +
-                '<button onclick="requestReturnMyTask(\'' + esc(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 rounded-xl shadow-2xs transition cursor-pointer flex items-center justify-center gap-1" title="إرجاع المهمة للموظف نفسه كـ قيد التنفيذ لإجراء تعديلات">↩️ استرجاع للتعديل</button>' +
-                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-bold text-xs py-2 rounded-xl shadow-2xs transition cursor-pointer flex items-center justify-center gap-1" title="سحب المهمة وإلغاء الإسناد">↩️ إلغاء الإسناد</button>' +
+                '<button onclick="requestReturnMyTask(\'' + esc(t.task_id) + '\')" class="w-full h-9 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-2xs transition cursor-pointer flex items-center justify-center gap-1" title="إرجاع المهمة للموظف نفسه كـ قيد التنفيذ لإجراء تعديلات">↩️ استرجاع للتعديل</button>' +
+                '<button onclick="recallTaskAction(\'' + esc(t.task_id) + '\')" class="w-full h-9 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-bold text-xs rounded-xl shadow-2xs transition cursor-pointer flex items-center justify-center gap-1" title="سحب المهمة وإلغاء الإسناد">↩️ إلغاء الإسناد</button>' +
             '</div>' +
         '</div>';
     }
@@ -1728,19 +1728,19 @@ function renderTasksBoard() {
                                 '<span dir="ltr" class="text-slate-600 font-mono text-[11px] font-bold bg-slate-100 px-2 py-0.5 rounded-md">' + completedCount + ' / ' + fTasks.length + ' منجز</span>' +
                             '</div>' +
                             '<div class="flex items-center gap-1.5 flex-wrap">' +
-                                '<button type="button" onclick="openAddPlanTaskModal(\'' + escJs(grp.fileName) + '\', \'' + escJs(grp.clientName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="إضافة بوست أو تاسك جديد لهذه الخطة مباشرة">' +
+                                '<button type="button" onclick="openAddPlanTaskModal(\'' + escJs(grp.fileName) + '\', \'' + escJs(grp.clientName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer" title="إضافة بوست أو تاسك جديد لهذه الخطة مباشرة">' +
                                     '<span>➕ تاسك</span>' +
                                 '</button>' +
-                                '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="إسناد جماعي لمهام الخطة">' +
+                                '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer" title="إسناد جماعي لمهام الخطة">' +
                                     '<span>👥 إسناد</span>' +
                                 '</button>' +
-                                '<button type="button" onclick="openBulkPlanDatesModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="تعديل وتحديد تاريخ مهام الخطة بالكامل دفعة واحدة">' +
+                                '<button type="button" onclick="openBulkPlanDatesModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer" title="تعديل وتحديد تاريخ مهام الخطة">' +
                                     '<span>📅 التاريخ</span>' +
                                 '</button>' +
-                                '<button type="button" onclick="sharePlanWithClient(\'' + escJs(grp.clientName) + '\', \'' + escJs(grp.fileName) + '\')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="نسخ رابط مشاركة الخطة للعميل">' +
+                                '<button type="button" onclick="sharePlanWithClient(\'' + escJs(grp.clientName) + '\', \'' + escJs(grp.fileName) + '\')" class="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer" title="نسخ رابط مشاركة الخطة للعميل">' +
                                     '<span>🔗 مشاركة</span>' +
                                 '</button>' +
-                                '<button type="button" onclick="deleteWholePlanAction(\'' + escJs(grp.fileName) + '\')" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer" title="حذف الخطة">' +
+                                '<button type="button" onclick="deleteWholePlanAction(\'' + escJs(grp.fileName) + '\')" class="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition flex items-center justify-center cursor-pointer" title="حذف الخطة">' +
                                     ICONS.trash +
                                 '</button>' +
                             '</div>' +
