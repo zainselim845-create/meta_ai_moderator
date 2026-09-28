@@ -11402,34 +11402,68 @@ def api_tasks_ingest_plan():
 
 
 @app.route("/api/tasks/<task_id>/dates", methods=["POST", "PUT"])
-@require_manager
+@auth_guard
 def api_task_set_dates(task_id):
-    """AM sets a task's start date (البدء), publish date (النزول) and internal deadline."""
+    """Sets a task's start date (البدء), publish date (النزول), delivery deadline, and modification deadline."""
     sync_from_supabase()
     t, cid = _find_task_any_client(task_id)
     if not t:
         return jsonify({"error": "المهمة غير موجودة"}), 404
-    if not can_see_client(cid):
-        return jsonify({"error": "غير مصرح"}), 403
-    data = request.get_json() or {}
-    if "scheduled_start_date" in data:
-        t["scheduled_start_date"] = (data.get("scheduled_start_date") or "").strip()
+
+    my_eid = str(_my_employee_id() or "").strip().lower()
+    is_assigned = bool(my_eid and (str(t.get("assigned_employee_id") or "").lower() == my_eid or
+                                  str(t.get("secondary_employee_id") or "").lower() == my_eid or
+                                  str(t.get("creator_id") or "").lower() == my_eid or
+                                  str(t.get("content_creator_id") or "").lower() == my_eid))
+    is_mgr_or_admin = is_admin() or is_manager()
+    is_allowed = is_mgr_or_admin or can_see_client(cid) or is_assigned
+    if not is_allowed:
+        return jsonify({"error": "صلاحيات غير كافية لتعديل موعد المهمة"}), 403
+
+    data = request.get_json(silent=True) or {}
+    d_dl = (data.get("delivery_deadline") or "").strip()
+    p_dt = (data.get("publish_date") or "").strip()
+    s_dt = (data.get("scheduled_start_date") or "").strip()
+    m_dl = (data.get("modification_deadline") or "").strip()
+
+    if "delivery_deadline" in data:
+        t["delivery_deadline"] = d_dl
     if "publish_date" in data:
-        t["publish_date"] = (data.get("publish_date") or "").strip()
+        t["publish_date"] = p_dt
+    if "scheduled_start_date" in data:
+        t["scheduled_start_date"] = s_dt
     if "publish_time" in data:
         t["publish_time"] = (data.get("publish_time") or "").strip() or "10:00"
-    if "delivery_deadline" in data:
-        t["delivery_deadline"] = (data.get("delivery_deadline") or "").strip()
-    # if no explicit deadline, default it to the publish date
+
+    # Always keep delivery_deadline and publish_date synced if one is empty
     if not t.get("delivery_deadline") and t.get("publish_date"):
         t["delivery_deadline"] = t["publish_date"]
+    if not t.get("publish_date") and t.get("delivery_deadline"):
+        t["publish_date"] = t["delivery_deadline"]
+
+    # CRITICAL: Always sync modification_deadline so effectiveDeadline in UI does NOT resurrect the old deadline!
+    if "modification_deadline" in data and m_dl:
+        t["modification_deadline"] = m_dl
+    elif t.get("delivery_deadline"):
+        t["modification_deadline"] = t["delivery_deadline"]
+
+    actor_rec = current_user_rec() or {}
+    actor_name = actor_rec.get("name") or current_username()
+    actor_role = current_role() or "account_manager"
+
     _append_task_log(t, "dates_updated",
-                     actor_name=current_user_rec().get("name") or current_username(),
-                     actor_type="account_manager",
+                     actor_name=actor_name,
+                     actor_type=actor_role,
                      note=f"تعديل المواعيد (البدء: {t.get('scheduled_start_date') or '—'} · النزول: {t.get('publish_date') or '—'} · التسليم: {t.get('delivery_deadline') or '—'})",
-                     details={"scheduled_start_date": t.get("scheduled_start_date"), "publish_date": t.get("publish_date"), "delivery_deadline": t.get("delivery_deadline")})
+                     details={
+                         "scheduled_start_date": t.get("scheduled_start_date"),
+                         "publish_date": t.get("publish_date"),
+                         "delivery_deadline": t.get("delivery_deadline"),
+                         "modification_deadline": t.get("modification_deadline")
+                     })
     save_one_task(t, cid)
-    return jsonify({"ok": True, "task": t})
+    invalidate_tasks_cache()
+    return jsonify({"ok": True, "success": True, "task": t})
 
 
 @app.route("/api/managers", methods=["GET"])

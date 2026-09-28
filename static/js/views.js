@@ -1711,7 +1711,7 @@ async function loadTasksEngine(forceRefresh) {
     };
 
     try {
-        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false') + (forceRefresh ? '&refresh=true' : '');
+        var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false') + (forceRefresh ? ('&refresh=true&_t=' + Date.now()) : '');
         var cacheKey = 'tasks_board_' + (tasksArchiveMode ? 'arch' : 'act');
         
         if (forceRefresh) {
@@ -1921,24 +1921,62 @@ function toggleTaskTimeline(boxId) {
     }
 }
 
-// AM sets start / publish / deadline for a task
+// Sets start / publish / deadline for a task
 async function saveTaskDates(taskId) {
     var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
-    var dDead = g('d-dead-' + taskId);
+    var dDead = (g('d-dead-' + taskId) || '').trim();
+    if (!dDead) {
+        showToast('يرجى تحديد موعد التسليم أولاً', 'error');
+        return;
+    }
+
+    // 1. Optimistic in-memory update so the UI updates instantaneously
+    if (Array.isArray(window.tasksList)) {
+        var localTask = window.tasksList.find(function(t) { return String(t.task_id || t.id) === String(taskId); });
+        if (localTask) {
+            localTask.delivery_deadline = dDead;
+            localTask.scheduled_start_date = dDead;
+            localTask.publish_date = dDead;
+            localTask.modification_deadline = dDead;
+        }
+    }
+
+    // 2. Clear frontend SWR localStorage & memory cache so stale data never reverts
+    try {
+        localStorage.removeItem('swr_cache_tasks_board_act');
+        localStorage.removeItem('swr_cache_tasks_board_arch');
+        if (typeof _swrMemoryCache !== 'undefined' && _swrMemoryCache) {
+            _swrMemoryCache.delete('swr_cache_tasks_board_act');
+            _swrMemoryCache.delete('swr_cache_tasks_board_arch');
+        }
+    } catch(e){}
+
     var body = {
         delivery_deadline: dDead,
         scheduled_start_date: dDead,
         publish_date: dDead,
+        modification_deadline: dDead,
         publish_time: '10:00'
     };
+
     try {
         var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/dates', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
         });
         var data = await res.json();
-        if (res.ok && data.ok) { showToast('تم حفظ موعد التسليم بنجاح '); loadTasksEngine(); }
-        else showToast(data.error || 'تعذّر الحفظ', 'error');
-    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+        if (res.ok && (data.ok || data.success)) {
+            showToast('تم حفظ موعد التسليم بنجاح ✓');
+            await loadTasksEngine(true);
+        } else {
+            showToast(data.error || 'تعذّر الحفظ', 'error');
+            await loadTasksEngine(true);
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال بالسيرفر', 'error');
+        await loadTasksEngine(true);
+    }
 }
 
 function copyTextToClipboard(text, label, btn) {
@@ -2679,6 +2717,8 @@ function renderTaskCard(t, indexInPlan) {
     if (hasActiveMod) {
         if (t.modification_deadline) {
             effectiveDeadline = String(t.modification_deadline).slice(0, 10);
+        } else if (dDead) {
+            effectiveDeadline = dDead;
         } else if (t.modification_requested_at) {
             try {
                 var mDt = new Date(t.modification_requested_at);
@@ -7596,6 +7636,8 @@ async function submitPlanBuilder() {
             post_type: type,
             publish_date: pdate,
             publish_time: '10:00',
+            delivery_deadline: pdate,
+            scheduled_start_date: pdate,
             creator_id: creatorId,
             creator_name: creatorName,
             content_creator_id: creatorId,
