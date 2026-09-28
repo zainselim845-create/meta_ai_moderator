@@ -17,3 +17,5 @@ scripts/
 !scripts/setup_pgvector.sql
 !scripts/ci_check.py
 !scripts/install_hooks.py
+backups/
+

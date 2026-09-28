@@ -48,6 +48,45 @@ from datetime import datetime, timezone, timedelta
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
+_CURR_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_CURR_DIR)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+if _CURR_DIR not in sys.path:
+    sys.path.insert(0, _CURR_DIR)
+
+try:
+    from api.services.drive_service import drive_file_id, drive_to_direct, extract_post_id_from_url
+    from api.services.kpi_service import resolve_post_number, natural_task_sort_key, calculate_task_kpis
+    from api.services.telegram_service import (
+        send_telegram_bot_notification,
+        tasks_bot_token,
+        tasks_api,
+        tasks_send,
+        tasks_edit,
+        tasks_answer,
+        att_notify_owner,
+    )
+except ImportError:
+    from services.drive_service import drive_file_id, drive_to_direct, extract_post_id_from_url
+    from services.kpi_service import resolve_post_number, natural_task_sort_key, calculate_task_kpis
+    from services.telegram_service import (
+        send_telegram_bot_notification,
+        tasks_bot_token,
+        tasks_api,
+        tasks_send,
+        tasks_edit,
+        tasks_answer,
+        att_notify_owner,
+    )
+
+_resolve_post_number = resolve_post_number
+_natural_task_sort_key = natural_task_sort_key
+_tasks_bot_token = tasks_bot_token
+_calc_task_kpi_on_action = calculate_task_kpis
+_calc_task_kpis = calculate_task_kpis
+_PROTECTED_KEYS = ("deliverables", "drive_link", "activity_log", "stage_history", "media_urls", "submissions_history")
+
 import requests
 from flask import Flask, request, jsonify, render_template_string, Response, session, redirect, send_from_directory
 from facebook_free_connector import FacebookFreeConnector
