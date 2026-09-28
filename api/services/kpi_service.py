@@ -158,3 +158,92 @@ def calculate_task_kpis(t, action_name=None, tz_offset_hours=2):
     return kpis
 
 _calc_task_kpi_on_action = calculate_task_kpis
+
+
+def task_has_employee_effort(t):
+    """Check if task has employee involvement that warrants KPI preservation."""
+    if not isinstance(t, dict):
+        return False
+    # Check if there is an employee assigned or linked
+    has_emp = bool(
+        t.get("assigned_employee_id")
+        or t.get("assignee_name")
+        or t.get("secondary_employee_id")
+        or t.get("secondary_assignee_name")
+        or t.get("content_creator_id")
+        or t.get("creator_id")
+    )
+    if not has_emp:
+        return False
+
+    status = str(t.get("status") or "").strip().lower()
+    # Unworked states
+    if status in ("draft", "unassigned", "cancelled"):
+        # If it has actual deliverables or submissions or timer, it still has effort
+        has_deliverables = bool(
+            t.get("submitted_at")
+            or t.get("completed_at")
+            or t.get("deliverable_url")
+            or t.get("drive_link")
+            or (isinstance(t.get("media_urls"), list) and len(t.get("media_urls")) > 0)
+        )
+        if not has_deliverables:
+            try:
+                if float(t.get("elapsed_seconds") or (t.get("timer_state") or {}).get("elapsed_seconds") or 0) > 0:
+                    return True
+            except Exception:
+                pass
+            return False
+
+    # Standard worked / assigned statuses
+    worked_statuses = {
+        "assigned", "in progress", "awaiting am review", "submitted / in review",
+        "submitted", "completed", "approved / scheduled", "done", "review required",
+        "pending revision", "revision requested", "modification requested",
+        "pending am approval"
+    }
+    if status in worked_statuses:
+        return True
+
+    if t.get("submitted_at") or t.get("completed_at") or t.get("started_at"):
+        return True
+
+    if t.get("deliverable_url") or t.get("drive_link"):
+        return True
+
+    media = t.get("media_urls")
+    if isinstance(media, list) and len(media) > 0:
+        return True
+
+    try:
+        if float(t.get("elapsed_seconds") or (t.get("timer_state") or {}).get("elapsed_seconds") or 0) > 0:
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
+def prepare_deleted_task_for_kpi(t, tz_offset_hours=2):
+    """Cleanly snapshot and flag a deleted task so it remains countable in KPIs."""
+    if not isinstance(t, dict):
+        return None
+    task_copy = dict(t)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    task_copy["is_deleted"] = True
+    if not task_copy.get("deleted_at"):
+        task_copy["deleted_at"] = now_iso
+    
+    # Ensure KPIs are calculated
+    calculate_task_kpis(task_copy, tz_offset_hours=tz_offset_hours)
+    
+    # Append to activity_log if present
+    act_log = list(task_copy.get("activity_log") or task_copy.get("stage_history") or [])
+    act_log.append({
+        "timestamp": now_iso,
+        "action": "task_deleted_preserved_for_kpi",
+        "note": "تم أرشفة المهمة واحتسابها في تقرير أداء الـ KPI لضمان حقوق ومجهود الموظف",
+        "actor": "system"
+    })
+    task_copy["activity_log"] = act_log
+    return task_copy

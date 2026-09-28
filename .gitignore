@@ -18,4 +18,5 @@ scripts/
 !scripts/ci_check.py
 !scripts/install_hooks.py
 backups/
+data/*.json
 

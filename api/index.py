@@ -57,7 +57,13 @@ if _CURR_DIR not in sys.path:
 
 try:
     from api.services.drive_service import drive_file_id, drive_to_direct, extract_post_id_from_url
-    from api.services.kpi_service import resolve_post_number, natural_task_sort_key, calculate_task_kpis
+    from api.services.kpi_service import (
+        resolve_post_number,
+        natural_task_sort_key,
+        calculate_task_kpis,
+        task_has_employee_effort,
+        prepare_deleted_task_for_kpi,
+    )
     from api.services.telegram_service import (
         send_telegram_bot_notification,
         tasks_bot_token,
@@ -69,7 +75,13 @@ try:
     )
 except ImportError:
     from services.drive_service import drive_file_id, drive_to_direct, extract_post_id_from_url
-    from services.kpi_service import resolve_post_number, natural_task_sort_key, calculate_task_kpis
+    from services.kpi_service import (
+        resolve_post_number,
+        natural_task_sort_key,
+        calculate_task_kpis,
+        task_has_employee_effort,
+        prepare_deleted_task_for_kpi,
+    )
     from services.telegram_service import (
         send_telegram_bot_notification,
         tasks_bot_token,
@@ -978,6 +990,8 @@ def sync_from_supabase(force=False):
                         cache["employees"] = parsed
                     elif k == "meta_ai_tasks" and isinstance(parsed, list):
                         cache["tasks"] = parsed
+                    elif k == "meta_ai_deleted_kpi_tasks" and isinstance(parsed, list):
+                        cache["deleted_kpi_tasks"] = parsed
                     elif k == "meta_ai_task_logs" and isinstance(parsed, list):
                         cache["task_logs"] = parsed
                     elif k == "meta_ai_project_teams" and isinstance(parsed, dict):
@@ -7446,6 +7460,85 @@ def _all_tasks_db(force=False):
     return out
 
 
+DELETED_KPI_TASKS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "deleted_kpi_tasks.json")
+
+
+def _get_deleted_kpi_tasks():
+    """Retrieve all deleted tasks that have employee effort for KPI preservation."""
+    del_tasks = cache.get("deleted_kpi_tasks")
+    if del_tasks is None:
+        try:
+            if os.path.exists(DELETED_KPI_TASKS_FILE):
+                with open(DELETED_KPI_TASKS_FILE, "r", encoding="utf-8") as f:
+                    del_tasks = json.load(f)
+        except Exception as _e:
+            print(f"[get_deleted_kpi_tasks disk read error] {_e}")
+        if not isinstance(del_tasks, list):
+            del_tasks = []
+        cache["deleted_kpi_tasks"] = del_tasks
+    return del_tasks
+
+
+def _record_deleted_tasks_for_kpi(tasks_to_record):
+    """Safely archive deleted tasks that have employee effort into persistent storage for KPIs."""
+    if not tasks_to_record:
+        return
+    current_archived = _get_deleted_kpi_tasks()
+    archived_map = {str(t.get("task_id") or t.get("id")): t for t in current_archived if isinstance(t, dict)}
+    added = False
+    for t in tasks_to_record:
+        if not isinstance(t, dict):
+            continue
+        if task_has_employee_effort(t):
+            tid = str(t.get("task_id") or t.get("id") or "").strip()
+            if not tid:
+                continue
+            prepared = prepare_deleted_task_for_kpi(t)
+            if prepared:
+                archived_map[tid] = prepared
+                added = True
+    if added:
+        new_list = list(archived_map.values())
+        cache["deleted_kpi_tasks"] = new_list
+        try:
+            os.makedirs(os.path.dirname(DELETED_KPI_TASKS_FILE), exist_ok=True)
+            with open(DELETED_KPI_TASKS_FILE, "w", encoding="utf-8") as f:
+                json.dump(new_list, f, ensure_ascii=False, indent=2)
+        except Exception as _fe:
+            print(f"[record_deleted_tasks_for_kpi disk write error] {_fe}")
+        try:
+            push_setting("meta_ai_deleted_kpi_tasks", new_list)
+        except Exception as _se:
+            print(f"[record_deleted_tasks_for_kpi supa error] {_se}")
+
+
+def _all_tasks_for_kpi_db():
+    """Retrieve all tasks for KPI calculation: active tasks + deleted tasks with employee effort.
+    Active tasks take precedence if any task_id collides."""
+    active_tasks = _all_tasks_db()
+    deleted_tasks = _get_deleted_kpi_tasks()
+    
+    seen_ids = set()
+    combined = []
+    
+    for t in active_tasks:
+        if isinstance(t, dict):
+            tid = str(t.get("task_id") or t.get("id") or "")
+            if tid:
+                seen_ids.add(tid)
+            combined.append(t)
+            
+    for dt in deleted_tasks:
+        if isinstance(dt, dict):
+            tid = str(dt.get("task_id") or dt.get("id") or "")
+            if tid and tid not in seen_ids:
+                seen_ids.add(tid)
+                combined.append(dt)
+                
+    return combined
+
+
+
 def get_client_tasks(_cid=None):
     _cid = _cid or current_client_id()
     all_t = _all_tasks_db()
@@ -12975,6 +13068,12 @@ def api_tasks_delete(task_id):
     if not is_admin() and not can_see_client(t_cid):
         return jsonify({"error": "غير مصرح لك بحذف هذه المهمة"}), 403
 
+    # Archive task for KPI preservation if employee worked on it
+    try:
+        _record_deleted_tasks_for_kpi([target_task])
+    except Exception as _kpie:
+        print(f"[api_tasks_delete record kpi error] {_kpie}")
+
     remaining = [x for x in all_tasks if str(x.get("task_id") or x.get("id")) != str(task_id)]
     cache["tasks"] = remaining
     invalidate_tasks_cache()
@@ -13038,6 +13137,13 @@ def api_plans_delete():
             deleted_tasks.append(t)
         else:
             remaining.append(t)
+
+    # Archive deleted tasks for KPI preservation if employees worked on them
+    if deleted_tasks:
+        try:
+            _record_deleted_tasks_for_kpi(deleted_tasks)
+        except Exception as _kpie:
+            print(f"[api_plans_delete record kpi error] {_kpie}")
 
     # Update in-memory cache
     cache["tasks"] = remaining
@@ -13256,7 +13362,7 @@ def api_employees_workload():
     my_cids = set(assigned_client_ids()) if not is_adm else set()
     my_eid = _my_employee_id()
 
-    for t in _all_tasks_db():
+    for t in _all_tasks_for_kpi_db():
         if not isinstance(t, dict) or t.get("is_archived"):
             continue
         
@@ -13301,56 +13407,61 @@ def api_employees_workload():
             continue
 
         st = str(t.get("status") or "Assigned").strip()
-        if st in active_statuses or st == "Completed":
+        is_del = bool(t.get("is_deleted"))
+        is_comp = st in ("Completed", "Approved / Scheduled", "Done") or (is_del and bool(t.get("completed_at")))
+        is_active = not is_del and (st in active_statuses)
+
+        if is_active or is_comp:
             for target_eid in eids_to_record:
                 if not is_adm and not is_mgr and my_eid and target_eid != my_eid:
                     continue
-                if st in active_statuses:
+                if is_active:
                     counts[target_eid] = counts.get(target_eid, 0) + 1
                     if st == "In Progress":
                         inprog[target_eid] = inprog.get(target_eid, 0) + 1
-                elif st == "Completed":
+                elif is_comp:
                     completed_counts[target_eid] = completed_counts.get(target_eid, 0) + 1
 
-                cid = t.get("client_id")
-                title_head = t.get("title") or t.get("tagline") or t.get("tag_line") or "مهمة بدون عنوان"
-                tasks_by_emp.setdefault(target_eid, []).append({
-                    "task_id": t.get("task_id"),
-                    "title": title_head,
-                    "tagline": t.get("tagline") or t.get("tag_line") or title_head,
-                    "status": st,
-                    "client_id": cid,
-                    "client_name": _client_name(cid),
-                    "delivery_deadline": t.get("delivery_deadline"),
-                    "publish_date": t.get("publish_date"),
-                    "publish_time": t.get("publish_time") or "10:00",
-                    "scheduled_start_date": t.get("scheduled_start_date"),
-                    "drive_link": t.get("drive_link"),
-                    "notes": t.get("notes") or t.get("note"),
-                    "caption": t.get("caption"),
-                    "description": t.get("description") or t.get("caption"),
-                    "visual_idea": t.get("visual_idea") or (t.get("content_data") or {}).get("visual_idea") or (t.get("graphic_data") or {}).get("idea"),
-                    "post_type": (t.get("content_data") or {}).get("post_type") or "post",
-                    "review_note": t.get("review_note"),
-                    "timer_state": t.get("timer_state"),
-                    "started_at": t.get("started_at"),
-                    "submitted_at": t.get("submitted_at"),
-                    "assigned_at": t.get("assigned_at"),
-                    "assigned_employee_id": eid,
-                    "assignee_name": t.get("assignee_name") or eid_to_name.get(eid, eid),
-                    "secondary_employee_id": t.get("secondary_employee_id"),
-                    "secondary_assignee_name": t.get("secondary_assignee_name"),
-                    "am_id": t.get("am_id"),
-                    "am_name": t.get("am_name"),
-                    "file_name": t.get("file_name"),
-                    "plan_name": t.get("plan_name"),
-                    "media_urls": t.get("media_urls") or [],
-                "reference_links": t.get("reference_links") or [],
-                "content_data": t.get("content_data") or {},
-                "graphic_data": t.get("graphic_data") or {},
-                "activity_log": t.get("activity_log") or t.get("stage_history") or [],
-                "kpis": t.get("kpis") or {}
-            })
+                if not is_del:
+                    cid = t.get("client_id")
+                    title_head = t.get("title") or t.get("tagline") or t.get("tag_line") or "مهمة بدون عنوان"
+                    tasks_by_emp.setdefault(target_eid, []).append({
+                        "task_id": t.get("task_id"),
+                        "title": title_head,
+                        "tagline": t.get("tagline") or t.get("tag_line") or title_head,
+                        "status": st,
+                        "client_id": cid,
+                        "client_name": _client_name(cid),
+                        "delivery_deadline": t.get("delivery_deadline"),
+                        "publish_date": t.get("publish_date"),
+                        "publish_time": t.get("publish_time") or "10:00",
+                        "scheduled_start_date": t.get("scheduled_start_date"),
+                        "drive_link": t.get("drive_link"),
+                        "notes": t.get("notes") or t.get("note"),
+                        "caption": t.get("caption"),
+                        "description": t.get("description") or t.get("caption"),
+                        "visual_idea": t.get("visual_idea") or (t.get("content_data") or {}).get("visual_idea") or (t.get("graphic_data") or {}).get("idea"),
+                        "post_type": (t.get("content_data") or {}).get("post_type") or "post",
+                        "review_note": t.get("review_note"),
+                        "timer_state": t.get("timer_state"),
+                        "started_at": t.get("started_at"),
+                        "submitted_at": t.get("submitted_at"),
+                        "assigned_at": t.get("assigned_at"),
+                        "assigned_employee_id": eid,
+                        "assignee_name": t.get("assignee_name") or eid_to_name.get(eid, eid),
+                        "secondary_employee_id": t.get("secondary_employee_id"),
+                        "secondary_assignee_name": t.get("secondary_assignee_name"),
+                        "am_id": t.get("am_id"),
+                        "am_name": t.get("am_name"),
+                        "file_name": t.get("file_name"),
+                        "plan_name": t.get("plan_name"),
+                        "media_urls": t.get("media_urls") or [],
+                        "reference_links": t.get("reference_links") or [],
+                        "content_data": t.get("content_data") or {},
+                        "graphic_data": t.get("graphic_data") or {},
+                        "activity_log": t.get("activity_log") or t.get("stage_history") or [],
+                        "kpis": t.get("kpis") or {}
+                    })
     return jsonify({
         "success": True,
         "workload": counts,
@@ -13368,7 +13479,13 @@ def api_tasks_clear():
     if not can_see_client(_cid):
         return jsonify({"error": "غير مصرح لك بمسح مهام هذا العميل", "success": False}), 403
     sync_from_supabase() # refresh first so other clients' tasks aren't lost from the blob
-    removed = len(get_client_tasks(_cid))
+    client_tasks = get_client_tasks(_cid)
+    removed = len(client_tasks)
+    if client_tasks:
+        try:
+            _record_deleted_tasks_for_kpi(client_tasks)
+        except Exception as _kpie:
+            print(f"[api_tasks_clear record kpi error] {_kpie}")
     if SUPABASE_URL and SUPABASE_KEY:
         supa_delete("mam_tasks", f"client_id=eq.{urllib.parse.quote(str(_cid))}")
     all_tasks = cache.get("tasks") or []
@@ -13448,7 +13565,7 @@ def api_tasks_monthly_report():
             "notes": []
         }
 
-    tasks = _all_tasks_db()
+    tasks = _all_tasks_for_kpi_db()
     for t in tasks:
         t_cid = str(t.get("client_id") or "").strip()
         if not is_admin() and not can_see_client(t_cid):
@@ -13463,6 +13580,7 @@ def api_tasks_monthly_report():
                 str(t.get("assigned_at") or "").strip(),
                 str(t.get("submitted_at") or "").strip(),
                 str(t.get("completed_at") or "").strip(),
+                str(t.get("deleted_at") or "").strip(),
             ]
             valid_dates = [d for d in task_dates if d]
             if valid_dates and not any(_matches_month(d, month_str) for d in valid_dates):
@@ -13485,13 +13603,14 @@ def api_tasks_monthly_report():
         elif "محمود" in t_am_nm or "mahmoud" in t_am_nm.lower() or t_am_id == "AM-2072-9827":
             am_key = "AM-2072-9827"
 
+        is_del = bool(t.get("is_deleted"))
         if am_key and am_key in stats:
             s_am = stats[am_key]
             s_am["assigned"] += 1
-            if st in ("Awaiting AM Review", "Submitted / In Review", "Review Required"):
+            if not is_del and st in ("Awaiting AM Review", "Submitted / In Review", "Review Required"):
                 s_am["in_progress"] += 1
                 s_am["submitted"] += 1
-            elif st in ("Completed", "Approved / Scheduled", "Done"):
+            elif st in ("Completed", "Approved / Scheduled", "Done") or (is_del and t.get("completed_at")):
                 s_am["submitted"] += 1
                 s_am["completed"] += 1
                 comp_at = t.get("completed_at")
@@ -13521,14 +13640,20 @@ def api_tasks_monthly_report():
                 tid = str(t.get("task_id", "")).strip()
                 title_str = str(t.get("title") or "").strip()
                 if not any(n.get("task_id") == tid for n in s_am["notes"]):
-                    s_am["notes"].append({
+                    am_note_entry = {
                         "task_id": tid,
                         "title": title_str or "مهمة معتمدة",
                         "client_name": c_name,
                         "drive_link": (t.get("drive_link") or "").strip(),
                         "note": t.get("review_note") or "تمت المراجعة والاعتماد",
                         "status": st
-                    })
+                    }
+                    if is_del:
+                        am_note_entry["is_deleted"] = True
+                        am_note_entry["deleted_at"] = t.get("deleted_at")
+                    s_am["notes"].append(am_note_entry)
+            elif is_del and (t.get("submitted_at") or st in ("Awaiting AM Review", "Submitted / In Review", "Review Required")):
+                s_am["submitted"] += 1
 
         # ----------------------------------------------------
         # 2. Executor KPIs: Designers, Video Editors, Content Creators
@@ -13627,19 +13752,19 @@ def api_tasks_monthly_report():
         for target_key in keys_to_credit:
             st = str(t.get("status") or "").strip()
             # Total tasks assigned to this employee
-            if st in ("Assigned", "In Progress", "Awaiting AM Review", "Submitted / In Review", "Submitted", "Completed", "Approved / Scheduled", "Done", "Review Required", "Pending Revision"):
+            if st in ("Assigned", "In Progress", "Awaiting AM Review", "Submitted / In Review", "Submitted", "Completed", "Approved / Scheduled", "Done", "Review Required", "Pending Revision") or is_del:
                 stats[target_key]["assigned"] += 1
                 
-            # Active in progress
-            if st in ("In Progress", "in_progress"):
+            # Active in progress (only if not deleted)
+            if not is_del and st in ("In Progress", "in_progress"):
                 stats[target_key]["in_progress"] += 1
                 
-            # Submitted by employee (Awaiting AM Review, Submitted / In Review, or Completed)
-            if st in ("Awaiting AM Review", "Submitted / In Review", "Submitted", "Review Required", "Completed", "Approved / Scheduled", "Done"):
+            # Submitted by employee (Awaiting AM Review, Submitted / In Review, or Completed, or has submitted_at / deliverable)
+            if st in ("Awaiting AM Review", "Submitted / In Review", "Submitted", "Review Required", "Completed", "Approved / Scheduled", "Done") or t.get("submitted_at") or t.get("drive_link"):
                 stats[target_key]["submitted"] += 1
                 
             # Approved / Completed by AM
-            if st in ("Completed", "Approved / Scheduled", "Done"):
+            if st in ("Completed", "Approved / Scheduled", "Done") or (is_del and t.get("completed_at")):
                 stats[target_key]["completed"] += 1
 
             # KPI turnaround & on-time calculations
@@ -13676,7 +13801,7 @@ def api_tasks_monthly_report():
 
             d_link = (t.get("drive_link") or "").strip()
             custom_note = (t.get("notes") or t.get("note") or t.get("review_note") or "").strip()
-            is_delivered = bool(d_link) or st in ("Completed", "Approved / Scheduled", "Submitted / In Review", "Awaiting AM Review", "Done")
+            is_delivered = bool(d_link) or st in ("Completed", "Approved / Scheduled", "Submitted / In Review", "Awaiting AM Review", "Done") or is_del
             
             if is_delivered or (custom_note and custom_note not in (".", "-")):
                 tid = str(t.get("task_id", "")).strip()
@@ -13688,14 +13813,18 @@ def api_tasks_monthly_report():
                     c_name = _client_name(t.get("client_id"))
                     
                 if not any(n.get("task_id") == tid for n in stats[target_key]["notes"]):
-                    stats[target_key]["notes"].append({
+                    note_entry = {
                         "task_id": tid,
                         "title": title_str or "مهمة",
                         "client_name": c_name,
                         "drive_link": d_link,
                         "note": display_note,
                         "status": st
-                    })
+                    }
+                    if is_del:
+                        note_entry["is_deleted"] = True
+                        note_entry["deleted_at"] = t.get("deleted_at")
+                    stats[target_key]["notes"].append(note_entry)
 
     report_data = []
     for k, s in stats.items():
@@ -15011,8 +15140,11 @@ def api_task_recall(task_id):
 # ============================================================
 def _find_task_any_client(task_id):
     """Return (task, cid) for a task id across all clients, or (None, None).
-    Reads the race-safe mam_tasks table (fallback to the cache blob)."""
+    Reads active tasks first, then falls back to preserved deleted KPI tasks."""
     for t in _all_tasks_db():
+        if isinstance(t, dict) and str(t.get("task_id")) == str(task_id):
+            return t, t.get("client_id")
+    for t in _get_deleted_kpi_tasks():
         if isinstance(t, dict) and str(t.get("task_id")) == str(task_id):
             return t, t.get("client_id")
     return None, None
