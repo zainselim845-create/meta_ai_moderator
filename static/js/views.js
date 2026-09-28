@@ -2296,20 +2296,36 @@ function setBoardCardViewMode(mode) {
 }
 
 function toggleTaskCardDetails(taskId) {
-    var el = document.getElementById('task-details-' + taskId);
-    var btn = document.getElementById('btn-toggle-details-' + taskId);
+    var sId = String(taskId);
+    var el = document.getElementById('task-details-' + sId);
+    var btn = document.getElementById('btn-toggle-details-' + sId);
     if (!el) return;
     var isCollapsed = el.classList.contains('collapsed') || el.style.display === 'none';
     if (isCollapsed) {
+        if (el.getAttribute('data-rendered') !== 'true' && typeof window.renderTaskCardDetailsContent === 'function') {
+            var allTasks = (window.tasksList && Array.isArray(window.tasksList)) ? window.tasksList : (typeof tasksList !== 'undefined' && Array.isArray(tasksList) ? tasksList : []);
+            var task = allTasks.find(function(item) {
+                return String(item.task_id) === sId;
+            });
+            if (task) {
+                el.innerHTML = window.renderTaskCardDetailsContent(task);
+                el.setAttribute('data-rendered', 'true');
+                if (window.initLucideIcons) {
+                    try { initLucideIcons(el); } catch(e){}
+                }
+            }
+        }
         el.classList.remove('collapsed');
         el.classList.add('expanded');
         el.style.display = 'block';
+        if (window._expandedTaskCardIds) window._expandedTaskCardIds.add(sId);
         if (btn) btn.innerHTML = '<span>👁️ إخفاء التفاصيل والماتريال ▲</span>';
     } else {
         el.classList.remove('expanded');
         el.classList.add('collapsed');
         el.style.display = 'none';
-        if (btn) btn.innerHTML = '<span>👁️ استعراض كامل التفاصيل والماتريال ▼</span>';
+        if (window._expandedTaskCardIds) window._expandedTaskCardIds.delete(sId);
+        if (btn) btn.innerHTML = '<span>👁️ كامل التفاصيل والماتريال ▼</span>';
     }
 }
 

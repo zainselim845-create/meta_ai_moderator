@@ -37,46 +37,111 @@ function escJs(str) {
 window.esc = esc;
 window.escJs = escJs;
 
-// Universal Safe JSON Fetch (Protects against HTML/500/404 unexpected token errors)
-async function safeFetchJson(url, options) {
-  try {
-    options = options || {};
-    var headers = options.headers || {};
-    var token = localStorage.getItem('domya_token');
-    if (token) {
-      if (typeof Headers !== 'undefined' && headers instanceof Headers) {
-        if (!headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + token);
-        if (!headers.has('X-Domya-Token')) headers.set('X-Domya-Token', token);
-      } else {
-        if (!headers['Authorization']) headers['Authorization'] = 'Bearer ' + token;
-        if (!headers['X-Domya-Token']) headers['X-Domya-Token'] = token;
-      }
-    }
-    options.headers = headers;
-    const res = await fetch(url, options);
-    const text = await res.text();
-    if (!text || !text.trim()) {
-      return { ok: res.ok, status: res.status };
-    }
-    const clean = text.trim();
-    if (clean.startsWith('<') || clean.startsWith('<!')) {
-      console.warn('[safeFetchJson] Server returned HTML for:', url, 'status:', res.status);
-      return { ok: false, status: res.status, error: 'استجابة غير متوقعة من السيرفر (HTML)' };
-    }
-    try {
-      const parsed = JSON.parse(clean);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        if (!('ok' in parsed) && res.ok) parsed.ok = true;
-      }
-      return parsed;
-    } catch(pe) {
-      console.warn('[safeFetchJson] JSON parse error for:', url, pe);
-      return { ok: false, error: 'تعذر قراءة بيانات السيرفر' };
-    }
-  } catch(e) {
-    console.warn('[safeFetchJson network error]', url, e);
-    return { ok: false, error: e.message || 'خطأ في الاتصال بالسيرفر' };
+// Universal Safe JSON Fetch with In-Flight Request Deduplication & Fast RAM Caching
+const _inFlightGetRequests = new Map();
+const _fastRamCache = new Map();
+const _CACHEABLE_GET_ROUTES = [
+  '/api/employees/workload',
+  '/api/tasks/employees',
+  '/api/clients',
+  '/api/account-managers',
+  '/api/managers'
+];
+
+function invalidateFastRamCache(pattern) {
+  if (!pattern) {
+    _fastRamCache.clear();
+    return;
   }
+  for (const k of _fastRamCache.keys()) {
+    if (k.includes(pattern)) {
+      _fastRamCache.delete(k);
+    }
+  }
+}
+window.invalidateFastRamCache = invalidateFastRamCache;
+
+async function safeFetchJson(url, options) {
+  options = options || {};
+  const method = (options.method || 'GET').toUpperCase();
+  const isGet = method === 'GET';
+
+  // Invalidate cache if a write mutation occurs
+  if (!isGet) {
+    if (url.includes('/api/tasks') || url.includes('/api/employees') || url.includes('/api/clients')) {
+      _fastRamCache.clear();
+    }
+  }
+
+  // Fast RAM cache check for read-heavy GET endpoints (TTL: 12 seconds)
+  if (isGet) {
+    const isCacheable = _CACHEABLE_GET_ROUTES.some(r => url.startsWith(r));
+    if (isCacheable && _fastRamCache.has(url)) {
+      const entry = _fastRamCache.get(url);
+      if (Date.now() - entry.timestamp < 12000) {
+        return JSON.parse(JSON.stringify(entry.data));
+      }
+      _fastRamCache.delete(url);
+    }
+
+    // In-flight deduplication: reuse active pending promise
+    if (_inFlightGetRequests.has(url)) {
+      return _inFlightGetRequests.get(url);
+    }
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      var headers = options.headers || {};
+      var token = localStorage.getItem('domya_token');
+      if (token) {
+        if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+          if (!headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + token);
+          if (!headers.has('X-Domya-Token')) headers.set('X-Domya-Token', token);
+        } else {
+          if (!headers['Authorization']) headers['Authorization'] = 'Bearer ' + token;
+          if (!headers['X-Domya-Token']) headers['X-Domya-Token'] = token;
+        }
+      }
+      options.headers = headers;
+      const res = await fetch(url, options);
+      const text = await res.text();
+      if (!text || !text.trim()) {
+        return { ok: res.ok, status: res.status };
+      }
+      const clean = text.trim();
+      if (clean.startsWith('<') || clean.startsWith('<!')) {
+        console.warn('[safeFetchJson] Server returned HTML for:', url, 'status:', res.status);
+        return { ok: false, status: res.status, error: 'استجابة غير متوقعة من السيرفر (HTML)' };
+      }
+      try {
+        const parsed = JSON.parse(clean);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          if (!('ok' in parsed) && res.ok) parsed.ok = true;
+        }
+        if (isGet && _CACHEABLE_GET_ROUTES.some(r => url.startsWith(r)) && res.ok) {
+          _fastRamCache.set(url, { timestamp: Date.now(), data: parsed });
+        }
+        return parsed;
+      } catch(pe) {
+        console.warn('[safeFetchJson] JSON parse error for:', url, pe);
+        return { ok: false, error: 'تعذر قراءة بيانات السيرفر' };
+      }
+    } catch(e) {
+      console.warn('[safeFetchJson network error]', url, e);
+      return { ok: false, error: e.message || 'خطأ في الاتصال بالسيرفر' };
+    } finally {
+      if (isGet) {
+        _inFlightGetRequests.delete(url);
+      }
+    }
+  })();
+
+  if (isGet) {
+    _inFlightGetRequests.set(url, fetchPromise);
+  }
+
+  return fetchPromise;
 }
 window.safeFetchJson = safeFetchJson;
 
@@ -399,11 +464,18 @@ async function handleLogin(e) {
   const p = document.getElementById('auth-password')?.value.trim() || '';
   const remember = document.getElementById('auth-remember-me')?.checked !== false;
   const errEl = document.getElementById('auth-error');
+  const submitBtn = document.querySelector('#login-modal-overlay button[type="submit"]');
+  const origBtnHtml = submitBtn ? submitBtn.innerHTML : 'تسجيل الدخول';
+
   if (!u || !p) {
     if (errEl) { errEl.classList.remove('hidden'); errEl.textContent = 'من فضلك اكتب اسم المستخدم وكلمة المرور'; }
     return;
   }
   if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span>جاري التحقق والدخول... ⏳</span>';
+  }
 
   try {
     const res = await fetch('/api/login', {
@@ -419,20 +491,42 @@ async function handleLogin(e) {
         document.cookie = 'domya_token=' + encodeURIComponent(d.token) + '; path=/; max-age=' + (90*86400) + '; SameSite=Lax; Secure';
       }
       if (d.username) localStorage.setItem('domya_username', d.username);
+      
+      // Permanently hide login overlay immediately
       const overlay = document.getElementById('login-modal-overlay');
-      if (overlay) overlay.style.display = 'none';
+      if (overlay) {
+        overlay.style.setProperty('display', 'none', 'important');
+        overlay.classList.add('hidden');
+      }
+      let authHide = document.getElementById('auth-instant-hide');
+      if (!authHide) {
+        authHide = document.createElement('style');
+        authHide.id = 'auth-instant-hide';
+        authHide.textContent = '#login-modal-overlay { display: none !important; }';
+        document.head.appendChild(authHide);
+      }
       showToast('تم تسجيل الدخول بنجاح ');
       
-      // Immediately enforce role and allowed tabs
-      window._me = null;
-      if (typeof applyRoleUI === 'function') {
-        await applyRoleUI();
-      }
-      restoreActiveTab();
-      if (typeof loadAccounts === 'function' && (window._me?.is_admin || window._me?.role === 'account_manager')) {
-        loadAccounts();
-      }
+      // Immediately enforce role and allowed tabs safely in background
+      setTimeout(async () => {
+        try {
+          window._me = null;
+          if (typeof applyRoleUI === 'function') {
+            await applyRoleUI();
+          }
+          restoreActiveTab();
+          if (typeof loadAccounts === 'function' && (window._me?.is_admin || window._me?.role === 'account_manager')) {
+            loadAccounts();
+          }
+        } catch(postErr) {
+          console.warn('[Post-login init warning]', postErr);
+        }
+      }, 10);
     } else {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origBtnHtml;
+      }
       if (errEl) {
         errEl.textContent = d.error || 'اسم المستخدم أو كلمة المرور غير صحيحة';
         errEl.classList.remove('hidden');
@@ -441,6 +535,10 @@ async function handleLogin(e) {
       }
     }
   } catch(err) {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = origBtnHtml;
+    }
     if (errEl) { errEl.textContent = 'تعذّر الاتصال بالخادم، حاول تاني'; errEl.classList.remove('hidden'); }
     else showToast('تعذّر الاتصال بالخادم', 'error');
   }
