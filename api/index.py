@@ -3803,6 +3803,25 @@ def current_user_rec():
             "job": role_info[1],
             "allowed_tabs": list(role_info[2]),
         }
+    # Privileged session roles (admin / account_manager) must never be demoted by creator alias fallbacks
+    if has_request_context() and session.get("role") == "admin":
+        return {
+            "username": u,
+            "employee_id": u,
+            "name": session.get("user_name") or u,
+            "role": "admin",
+            "job": "Administrator",
+            "allowed_tabs": list(ALLOWED_TAB_IDS),
+        }
+    if has_request_context() and session.get("role") == "account_manager":
+        return {
+            "username": u,
+            "employee_id": u,
+            "name": session.get("user_name") or u,
+            "role": "account_manager",
+            "job": "Account Manager",
+            "allowed_tabs": ["dash", "crm", "inbox", "rules", "kb", "mode", "settings", "logs", "scheduler", "tasks", "plan", "accounts", "analytics", "myportal"],
+        }
     # Check creator aliases
     if u_str in KNOWN_CREATOR_ALIASES:
         a_eid, a_name = KNOWN_CREATOR_ALIASES[u_str]
@@ -10613,7 +10632,9 @@ def _resolve_creator_employee(creator_input):
 
     # 8. Genuine new employee / creator
     name_clean = (clean_inp or inp).strip()
-    if name_clean and name_clean.lower() not in ("none", "null", "auto", "unassigned", "undefined", "اختيار", "تعيين"):
+    if name_clean and name_clean.lower() not in ("none", "null", "auto", "unassigned", "undefined", "اختيار", "تعيين", "admin", "mhmd-saeed", "mahmoud_khaled", "am-2072-9827"):
+        if clean_low in ("admin", "mhmd-saeed", "mahmoud_khaled", "am-2072-9827", "emp-8086-4520", "emp-5887-5256", "emp-0652-9532"):
+            return ("", name_clean)
         slug = re.sub(r'[^a-zA-Z0-9]', '', name_clean)
         new_eid = f"EMP-{slug[:8].upper()}" if (slug and len(slug) >= 3) else f"EMP-{abs(hash(name_clean)) % 100000:05d}"
         KNOWN_CREATOR_ALIASES[clean_low] = (new_eid, name_clean)
