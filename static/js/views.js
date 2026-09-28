@@ -3786,6 +3786,9 @@ function renderTasksBoard() {
                         '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer" title="إسناد مهام هذه الخطة لموظف محدد دفعة واحدة">' +
                             '<span>👥 إسناد جماعي</span>' +
                         '</button>' +
+                        '<button type="button" onclick="openBulkPlanDatesModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer" title="تعديل وتحديد تاريخ مهام هذه الخطة دفعة واحدة">' +
+                            '<span>📅 تاريخ الخطة</span>' +
+                        '</button>' +
                         '<button type="button" onclick="sharePlanWithClient(\'' + escJs(grp.clientName) + '\', \'' + escJs(grp.fileName) + '\')" class="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">' +
                             ICONS.share +
                             '<span>مشاركة الخطة مع العميل</span>' +
@@ -3829,7 +3832,9 @@ function renderTasksBoard() {
                         '</div>' +
                         '<div class="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-100 flex-wrap">' +
                             '<div class="flex items-center gap-2 text-xs text-slate-500">' +
-                                '<span class="bg-amber-100 text-amber-900 font-bold text-[11px] px-2.5 py-0.5 rounded-lg">🗓️ ' + esc(formatMonthLabel(getTaskMonthKey(fTasks[0]))) + '</span>' +
+                                '<button type="button" onclick="openBulkPlanDatesModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-[11px] px-2.5 py-0.5 rounded-lg transition cursor-pointer flex items-center gap-1 shadow-2xs" title="تعديل وتحديد تاريخ ومواعيد الخطة بالكامل">' +
+                                    '<span>🗓️ ' + esc(formatMonthLabel(getTaskMonthKey(fTasks[0]))) + '</span>' +
+                                '</button>' +
                                 '<span dir="ltr" class="text-slate-600 font-mono text-[11px] font-bold bg-slate-100 px-2 py-0.5 rounded-md">' + completedCount + ' / ' + fTasks.length + ' منجز</span>' +
                             '</div>' +
                             '<div class="flex items-center gap-1.5 flex-wrap">' +
@@ -3838,6 +3843,9 @@ function renderTasksBoard() {
                                 '</button>' +
                                 '<button type="button" onclick="openBulkAssignModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="إسناد جماعي لمهام الخطة">' +
                                     '<span>👥 إسناد</span>' +
+                                '</button>' +
+                                '<button type="button" onclick="openBulkPlanDatesModal(\'' + escJs(grp.fileName) + '\', \'' + escJs((grp.tasks[0] && grp.tasks[0].client_id) || '') + '\')" class="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="تعديل وتحديد تاريخ مهام الخطة بالكامل دفعة واحدة">' +
+                                    '<span>📅 التاريخ</span>' +
                                 '</button>' +
                                 '<button type="button" onclick="sharePlanWithClient(\'' + escJs(grp.clientName) + '\', \'' + escJs(grp.fileName) + '\')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-2xs" title="نسخ رابط مشاركة الخطة للعميل">' +
                                     '<span>🔗 مشاركة</span>' +
@@ -5397,6 +5405,262 @@ async function executeBulkAssignAction(planName, clientId) {
 window.openBulkAssignModal = openBulkAssignModal;
 window.closeBulkAssignModal = closeBulkAssignModal;
 window.executeBulkAssignAction = executeBulkAssignAction;
+
+async function openBulkPlanDatesModal(planName, clientId) {
+    var modal = document.getElementById('bulk-plan-dates-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'bulk-plan-dates-modal';
+        modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4';
+        document.body.appendChild(modal);
+    }
+
+    function _norm(s) {
+        return String(s || '').replace(/—/g, '-').replace(/–/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+    var qPlan = _norm(planName);
+
+    var matchingTasks = (tasksList || []).filter(function(t){
+        var p = _norm(t.plan_name || t.file_name || '');
+        var f = _norm(t.file_name || '');
+        var isPlanMatch = !qPlan || (p === qPlan || f === qPlan || (qPlan.length >= 4 && (p.indexOf(qPlan) !== -1 || qPlan.indexOf(p) !== -1 || f.indexOf(qPlan) !== -1 || qPlan.indexOf(f) !== -1)));
+        if (clientId && String(t.client_id || '').trim() !== String(clientId).trim()) {
+            if (!isPlanMatch) return false;
+        }
+        return isPlanMatch;
+    });
+
+    var cName = (matchingTasks[0] && matchingTasks[0].client_name) || 'العميل';
+    var defaultDate = '';
+    for (var i = 0; i < matchingTasks.length; i++) {
+        var d = (matchingTasks[i].publish_date || matchingTasks[i].delivery_deadline || '').trim();
+        if (d && /\d{4}-\d{2}-\d{2}/.test(d)) {
+            defaultDate = d;
+            break;
+        }
+    }
+    if (!defaultDate) {
+        var now = new Date();
+        var y = now.getFullYear();
+        var m = String(now.getMonth() + 1).padStart(2, '0');
+        var day = String(now.getDate()).padStart(2, '0');
+        defaultDate = y + '-' + m + '-' + day;
+    }
+
+    var curYear = parseInt(defaultDate.split('-')[0], 10) || 2026;
+    var curMonth = parseInt(defaultDate.split('-')[1], 10) || (new Date().getMonth() + 1);
+
+    var monthNames = [
+        { id: 1, name: 'يناير' }, { id: 2, name: 'فبراير' }, { id: 3, name: 'مارس' },
+        { id: 4, name: 'أبريل' }, { id: 5, name: 'مايو' }, { id: 6, name: 'يونيو' },
+        { id: 7, name: 'يوليو' }, { id: 8, name: 'أغسطس' }, { id: 9, name: 'سبتمبر' },
+        { id: 10, name: 'أكتوبر' }, { id: 11, name: 'نوفمبر' }, { id: 12, name: 'ديسمبر' }
+    ];
+
+    var monthOptionsHtml = monthNames.map(function(m) {
+        var sel = m.id === curMonth ? 'selected' : '';
+        return '<option value="' + m.id + '" ' + sel + '>' + m.name + ' (' + m.id + ')</option>';
+    }).join('');
+
+    var yearOptionsHtml = [2025, 2026, 2027].map(function(y) {
+        var sel = y === curYear ? 'selected' : '';
+        return '<option value="' + y + '" ' + sel + '>' + y + '</option>';
+    }).join('');
+
+    modal.innerHTML = '<div class="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">' +
+        '<div class="flex items-center justify-between border-b border-slate-100 pb-3">' +
+            '<h3 class="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">' +
+                '<span class="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-base">📅</span>' +
+                '<span>تحديد وتعديل تاريخ الخطة بالكامل</span>' +
+            '</h3>' +
+            '<button type="button" onclick="closeBulkPlanDatesModal()" class="text-slate-400 hover:text-slate-700 text-sm p-1 cursor-pointer">✕</button>' +
+        '</div>' +
+
+        '<div class="bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200/80 text-xs space-y-1.5">' +
+            '<div class="flex items-center justify-between">' +
+                '<div>🏢 العميل: <b class="text-slate-900">' + esc(cName) + '</b></div>' +
+                '<div>إجمالي المهام: <b class="text-amber-900 font-mono font-bold">' + matchingTasks.length + ' مهمة</b></div>' +
+            '</div>' +
+            '<div class="text-slate-700">📁 الخطة: <b class="text-slate-900">' + esc(planName) + '</b></div>' +
+        '</div>' +
+
+        '<div class="space-y-3">' +
+            '<div class="text-xs font-bold text-slate-800">اختر طريقة تحديث تواريخ مهام الخطة:</div>' +
+
+            '<div class="border border-slate-200 rounded-2xl p-3 space-y-2 hover:border-amber-400 transition bg-slate-50/50">' +
+                '<label class="flex items-start gap-2.5 cursor-pointer">' +
+                    '<input type="radio" name="bulk_date_mode" value="unified" checked onchange="toggleBulkDateOptions()" class="mt-0.5 accent-amber-600 cursor-pointer">' +
+                    '<div class="space-y-0.5">' +
+                        '<div class="text-xs font-bold text-slate-900">تاريخ موحد لكافة المهام (تاريخ واحد للبلان كلها)</div>' +
+                        '<div class="text-[11px] text-slate-500">يتم تحديد نفس موعد النشر والتسليم لجميع مهام الخطة دفعة واحدة.</div>' +
+                    '</div>' +
+                '</label>' +
+                '<div id="opt-unified-container" class="pt-2 pl-6 pr-2 flex items-center gap-3 flex-wrap">' +
+                    '<div class="flex-1 min-w-[160px]">' +
+                        '<label class="block text-[11px] font-bold text-slate-700 mb-1">📅 التاريخ الموحد:</label>' +
+                        '<input type="date" id="bulk-plan-date-unified" value="' + esc(defaultDate) + '" class="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-amber-500 shadow-2xs cursor-pointer">' +
+                    '</div>' +
+                    '<div class="w-28">' +
+                        '<label class="block text-[11px] font-bold text-slate-700 mb-1">⏰ وقت النشر:</label>' +
+                        '<input type="time" id="bulk-plan-time-unified" value="10:00" class="w-full px-2 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-amber-500 shadow-2xs cursor-pointer">' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+
+            '<div class="border border-slate-200 rounded-2xl p-3 space-y-2 hover:border-amber-400 transition bg-slate-50/50">' +
+                '<label class="flex items-start gap-2.5 cursor-pointer">' +
+                    '<input type="radio" name="bulk_date_mode" value="sequential" onchange="toggleBulkDateOptions()" class="mt-0.5 accent-amber-600 cursor-pointer">' +
+                    '<div class="space-y-0.5">' +
+                        '<div class="text-xs font-bold text-slate-900">توزيع تسلسلي تلقائي على مدار الشهر</div>' +
+                        '<div class="text-[11px] text-slate-500">يقوم النظام بتوزيع المهام بالتساوي على أيام الشهر المحدد تسلسلياً (من بوست 1 لآخر بوست).</div>' +
+                    '</div>' +
+                '</label>' +
+                '<div id="opt-sequential-container" class="hidden pt-2 pl-6 pr-2 flex items-center gap-3 flex-wrap">' +
+                    '<div class="flex-1 min-w-[120px]">' +
+                        '<label class="block text-[11px] font-bold text-slate-700 mb-1">🗓️ اختر الشهر:</label>' +
+                        '<select id="bulk-plan-target-month" class="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-amber-500 shadow-2xs cursor-pointer">' +
+                            monthOptionsHtml +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="w-28">' +
+                        '<label class="block text-[11px] font-bold text-slate-700 mb-1">📅 السنة:</label>' +
+                        '<select id="bulk-plan-target-year" class="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-amber-500 shadow-2xs cursor-pointer">' +
+                            yearOptionsHtml +
+                        '</select>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+
+            '<div class="border border-slate-200 rounded-2xl p-3 space-y-2 hover:border-amber-400 transition bg-slate-50/50">' +
+                '<label class="flex items-start gap-2.5 cursor-pointer">' +
+                    '<input type="radio" name="bulk_date_mode" value="interval" onchange="toggleBulkDateOptions()" class="mt-0.5 accent-amber-600 cursor-pointer">' +
+                    '<div class="space-y-0.5">' +
+                        '<div class="text-xs font-bold text-slate-900">تاريخ بداية مع فاصل زمني بين البوستات</div>' +
+                        '<div class="text-[11px] text-slate-500">حدد تاريخ أول بوست وسيتم جدولة البوستات التالية بفاصل أيام محدد تلقائياً.</div>' +
+                    '</div>' +
+                '</label>' +
+                '<div id="opt-interval-container" class="hidden pt-2 pl-6 pr-2 flex items-center gap-3 flex-wrap">' +
+                    '<div class="flex-1 min-w-[140px]">' +
+                        '<label class="block text-[11px] font-bold text-slate-700 mb-1">🚀 تاريخ أول بوست:</label>' +
+                        '<input type="date" id="bulk-plan-date-start" value="' + esc(defaultDate) + '" class="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-amber-500 shadow-2xs cursor-pointer">' +
+                    '</div>' +
+                    '<div class="flex-1 min-w-[130px]">' +
+                        '<label class="block text-[11px] font-bold text-slate-700 mb-1">⏱️ النشر كل:</label>' +
+                        '<select id="bulk-plan-interval-days" class="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-amber-500 shadow-2xs cursor-pointer">' +
+                            '<option value="1">كل يوم (يومياً)</option>' +
+                            '<option value="2" selected>كل يومين (يوم بعد يوم)</option>' +
+                            '<option value="3">كل 3 أيام</option>' +
+                            '<option value="4">كل 4 أيام</option>' +
+                            '<option value="7">كل أسبوع (كل 7 أيام)</option>' +
+                        '</select>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>' +
+
+        '<div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">' +
+            '<button type="button" onclick="closeBulkPlanDatesModal()" class="text-xs px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer">إلغاء</button>' +
+            '<button type="button" onclick="executeBulkPlanDatesAction(\'' + escJs(planName) + '\', \'' + escJs(clientId || '') + '\')" id="btn-confirm-bulk-dates" class="text-xs px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer">' +
+                '<span>حفظ وتطبيق تاريخ الخطة الآن 🚀</span>' +
+            '</button>' +
+        '</div>' +
+    '</div>';
+
+    modal.classList.remove('hidden');
+}
+
+function toggleBulkDateOptions() {
+    var mode = (document.querySelector('input[name="bulk_date_mode"]:checked') || {}).value || 'unified';
+    var uBox = document.getElementById('opt-unified-container');
+    var sBox = document.getElementById('opt-sequential-container');
+    var iBox = document.getElementById('opt-interval-container');
+    if (uBox) uBox.classList.toggle('hidden', mode !== 'unified');
+    if (sBox) sBox.classList.toggle('hidden', mode !== 'sequential');
+    if (iBox) iBox.classList.toggle('hidden', mode !== 'interval');
+}
+
+function closeBulkPlanDatesModal() {
+    var modal = document.getElementById('bulk-plan-dates-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function executeBulkPlanDatesAction(planName, clientId) {
+    var mode = (document.querySelector('input[name="bulk_date_mode"]:checked') || {}).value || 'unified';
+    var targetDate = (document.getElementById('bulk-plan-date-unified') || {}).value || '';
+    var targetTime = (document.getElementById('bulk-plan-time-unified') || {}).value || '10:00';
+    var startDate = (document.getElementById('bulk-plan-date-start') || {}).value || '';
+    var intervalDays = parseInt((document.getElementById('bulk-plan-interval-days') || {}).value || '2', 10);
+    var targetMonth = parseInt((document.getElementById('bulk-plan-target-month') || {}).value || '0', 10);
+    var targetYear = parseInt((document.getElementById('bulk-plan-target-year') || {}).value || '2026', 10);
+
+    if (mode === 'unified' && !targetDate) {
+        showToast('يرجى اختيار التاريخ الموحد للمهام', 'warning');
+        return;
+    }
+    if (mode === 'interval' && !startDate) {
+        showToast('يرجى تحديد تاريخ بداية الخطة', 'warning');
+        return;
+    }
+
+    var btn = document.getElementById('btn-confirm-bulk-dates');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>جاري التحديث السحابي... ⏳</span>';
+    }
+
+    try {
+        var res = await fetch('/api/plans/update-dates-bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                plan_name: planName,
+                client_id: clientId || '',
+                mode: mode,
+                target_date: targetDate,
+                target_time: targetTime,
+                start_date: startDate,
+                interval_days: intervalDays,
+                target_month: targetMonth,
+                target_year: targetYear
+            })
+        });
+        var data = await res.json();
+        if (res.ok && data.ok) {
+            showToast(data.message || ('تم تحديث مواعيد ' + (data.count || 0) + ' مهمة في الخطة بنجاح! 📅'), 'success');
+            closeBulkPlanDatesModal();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_tasks_board_arch');
+                if (typeof _swrMemoryCache !== 'undefined') {
+                    _swrMemoryCache.delete('swr_cache_tasks_board_act');
+                    _swrMemoryCache.delete('swr_cache_tasks_board_arch');
+                }
+            } catch(e){}
+            if (typeof loadTasksEngine === 'function') {
+                await loadTasksEngine(true);
+            } else if (typeof renderTasksBoard === 'function') {
+                renderTasksBoard();
+            }
+        } else {
+            showToast(data.error || 'تعذر تحديث تواريخ الخطة', 'error');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<span>حفظ وتطبيق تاريخ الخطة الآن 🚀</span>';
+            }
+        }
+    } catch(err) {
+        showToast('خطأ في الاتصال أثناء تحديث التواريخ', 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>حفظ وتطبيق تاريخ الخطة الآن 🚀</span>';
+        }
+    }
+}
+
+window.openBulkPlanDatesModal = openBulkPlanDatesModal;
+window.toggleBulkDateOptions = toggleBulkDateOptions;
+window.closeBulkPlanDatesModal = closeBulkPlanDatesModal;
+window.executeBulkPlanDatesAction = executeBulkPlanDatesAction;
 
 async function openAddPlanTaskModal(planName, clientName, clientId) {
     var emps = window.allTeamEmployees || employeesList || [];

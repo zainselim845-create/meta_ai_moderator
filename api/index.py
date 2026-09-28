@@ -10944,6 +10944,14 @@ def api_tasks_ingest_plan():
             extracted_posts = structured_posts
         elif not extracted_posts and plan_text:
             extracted_posts = _universal_extract_plan_posts(plan_text)
+        elif extracted_posts and plan_text and len(plan_text.strip()) > 100:
+            try:
+                alt_posts = _universal_extract_plan_posts(plan_text)
+                if alt_posts and len(alt_posts) > len(extracted_posts):
+                    print(f"[plan ingest] Universal extractor found {len(alt_posts)} posts vs {len(extracted_posts)} from table parser — using full set")
+                    extracted_posts = alt_posts
+            except Exception as _ex_alt:
+                print(f"[plan ingest alt extraction error] {_ex_alt}")
 
         if not extracted_posts and (not plan_text or len(plan_text.strip()) < 5):
             return jsonify({"error": "تعذر قراءة نص الخطة. يرجى التأكد من رفع ملف DOCX أو CSV سليم أو لصق النص مباشرة.", "success": False}), 400
@@ -11241,7 +11249,8 @@ def api_tasks_ingest_plan():
                 dl_date = pub_date
             if not pub_date and dl_date:
                 pub_date = dl_date
-            if not dl_date and not pub_date:
+            has_digits = bool((pub_date and re.search(r'\d', pub_date)) or (dl_date and re.search(r'\d', dl_date)))
+            if not has_digits:
                 dl_date = _infer_sequential_post_date(clean_file_title, p_idx - 1, len(extracted_posts))
                 pub_date = dl_date
             media_urls = p.get("media_urls") or []
@@ -14727,6 +14736,171 @@ def api_plans_assign_bulk():
         "secondary_assignee_name": sec_emp_name,
         "telegram_sent": tg_sent,
         "secondary_telegram_sent": sec_tg_sent
+    })
+
+
+@app.route("/api/plans/update-dates-bulk", methods=["POST", "PUT"])
+@auth_guard
+def api_plans_update_dates_bulk():
+    """Bulk update delivery deadlines and publish dates for all tasks in a plan at once."""
+    from datetime import datetime, timedelta, timezone
+    data = request.get_json(silent=True) or {}
+    plan_name = str(data.get("plan_name") or "").strip()
+    client_id = str(data.get("client_id") or "").strip()
+    mode = str(data.get("mode") or "unified").strip().lower()
+    target_date = str(data.get("target_date") or "").strip()
+    start_date = str(data.get("start_date") or "").strip()
+    try:
+        interval_days = int(data.get("interval_days") or 2)
+    except Exception:
+        interval_days = 2
+    try:
+        target_month = int(data.get("target_month") or 0)
+    except Exception:
+        target_month = 0
+    try:
+        target_year = int(data.get("target_year") or 0)
+    except Exception:
+        target_year = 0
+    publish_time = str(data.get("publish_time") or "10:00").strip()
+
+    if not plan_name and not client_id:
+        return jsonify({"error": "اسم الخطة أو معرف العميل مطلوب", "ok": False}), 400
+
+    sync_from_supabase()
+    all_tasks = list(_all_tasks_db())
+
+    def _norm_s(s):
+        if not s:
+            return ""
+        return str(s).replace("—", "-").replace("–", "-").replace("  ", " ").strip().lower()
+
+    q_norm = _norm_s(plan_name)
+
+    matching = []
+    for t in all_tasks:
+        if not isinstance(t, dict):
+            continue
+        t_cid = str(t.get("client_id") or "").strip()
+        p = _norm_s(t.get("plan_name") or t.get("file_name") or "")
+        f = _norm_s(t.get("file_name") or "")
+        
+        is_plan_match = bool(q_norm and (p == q_norm or f == q_norm or
+                             (len(q_norm) >= 4 and (q_norm in p or p in q_norm or q_norm in f or f in q_norm))))
+
+        if client_id and t_cid != client_id and not is_plan_match:
+            continue
+        if not q_norm:
+            matching.append(t)
+        elif is_plan_match:
+            matching.append(t)
+
+    if not matching:
+        return jsonify({"error": "لم يتم العثور على مهام مطابقة لهذه الخطة", "ok": False}), 404
+
+    # Permission check: Caller must be admin, manager, or allowed for client
+    for t in matching:
+        cid = t.get("client_id")
+        if cid and not (is_admin() or is_manager() or can_see_client(cid)):
+            return jsonify({"error": "غير مصرح لك بتعديل مواعيد هذه الخطة", "ok": False}), 403
+
+    matching.sort(key=_natural_task_sort_key)
+    tot = len(matching)
+
+    now = datetime.now()
+    if not target_year:
+        target_year = now.year
+    if not target_month:
+        target_month = now.month
+
+    # If plan_name has year/month info and none was explicitly provided in sequential mode
+    if mode == "sequential" and not data.get("target_month"):
+        p_str = plan_name.lower()
+        y_match = re.search(r'20\d{2}', p_str)
+        if y_match:
+            try:
+                target_year = int(y_match.group(0))
+            except Exception:
+                pass
+        month_map = {
+            "يناير": 1, "january": 1, "jan": 1,
+            "فبراير": 2, "february": 2, "feb": 2,
+            "مارس": 3, "march": 3, "mar": 3,
+            "أبريل": 4, "ابريل": 4, "april": 4, "apr": 4,
+            "مايو": 5, "may": 5,
+            "يونيو": 6, "june": 6, "jun": 6,
+            "يوليو": 7, "july": 7, "jul": 7,
+            "أغسطس": 8, "اغسطس": 8, "august": 8, "aug": 8,
+            "سبتمبر": 9, "september": 9, "sep": 9,
+            "أكتوبر": 10, "اكتوبر": 10, "october": 10, "oct": 10,
+            "نوفمبر": 11, "november": 11, "nov": 11,
+            "ديسمبر": 12, "december": 12, "dec": 12
+        }
+        for k, m in month_map.items():
+            if k in p_str:
+                target_month = m
+                break
+
+    parsed_start_dt = None
+    if start_date:
+        try:
+            parsed_start_dt = datetime.strptime(start_date[:10], "%Y-%m-%d")
+        except Exception:
+            try:
+                parsed_start_dt = datetime.strptime(start_date[:10], "%Y/%m/%d")
+            except Exception:
+                pass
+
+    actor_rec = current_user_rec() or {}
+    actor_name = actor_rec.get("name") or current_username()
+    actor_role = current_role() or "account_manager"
+
+    updated_count = 0
+    for idx, t in enumerate(matching):
+        cid = t.get("client_id")
+        assigned_date = ""
+
+        if mode == "unified":
+            assigned_date = target_date or start_date or now.strftime("%Y-%m-%d")
+        elif mode == "interval" and parsed_start_dt:
+            c_dt = parsed_start_dt + timedelta(days=idx * max(1, interval_days))
+            assigned_date = c_dt.strftime("%Y-%m-%d")
+        elif mode == "sequential":
+            day = min(28, max(1, round(((idx + 1) / max(1, tot)) * 26 + 1)))
+            assigned_date = f"{target_year}-{target_month:02d}-{day:02d}"
+        else:
+            assigned_date = target_date or now.strftime("%Y-%m-%d")
+
+        t["publish_date"] = assigned_date
+        t["delivery_deadline"] = assigned_date
+        t["modification_deadline"] = assigned_date
+        t["scheduled_start_date"] = assigned_date
+        if publish_time:
+            t["publish_time"] = publish_time
+
+        _append_task_log(t, "dates_updated",
+                         actor_name=actor_name,
+                         actor_type=actor_role,
+                         note=f"تحديث جماعي لتاريخ الخطة إلى: {assigned_date}",
+                         details={
+                             "plan_name": plan_name,
+                             "mode": mode,
+                             "publish_date": assigned_date,
+                             "delivery_deadline": assigned_date
+                         })
+        save_one_task(t, cid)
+        updated_count += 1
+
+    invalidate_tasks_cache()
+
+    return jsonify({
+        "ok": True,
+        "success": True,
+        "count": updated_count,
+        "plan_name": plan_name,
+        "mode": mode,
+        "applied_date_sample": matching[0].get("publish_date") if matching else "",
+        "message": f"تم تحديث مواعيد {updated_count} مهمة في خطة «{plan_name}» بنجاح"
     })
 
 
