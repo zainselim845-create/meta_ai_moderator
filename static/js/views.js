@@ -5495,14 +5495,10 @@ async function openBulkPlanDatesModal(planName, clientId) {
                         '<div class="text-[11px] text-slate-500">يتم تحديد نفس موعد النشر والتسليم لجميع مهام الخطة دفعة واحدة.</div>' +
                     '</div>' +
                 '</label>' +
-                '<div id="opt-unified-container" class="pt-2 pl-6 pr-2 flex items-center gap-3 flex-wrap">' +
-                    '<div class="flex-1 min-w-[160px]">' +
-                        '<label class="block text-[11px] font-bold text-slate-700 mb-1">📅 التاريخ الموحد:</label>' +
-                        '<input type="date" id="bulk-plan-date-unified" value="' + esc(defaultDate) + '" class="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-amber-500 shadow-2xs cursor-pointer">' +
-                    '</div>' +
-                    '<div class="w-28">' +
-                        '<label class="block text-[11px] font-bold text-slate-700 mb-1">⏰ وقت النشر:</label>' +
-                        '<input type="time" id="bulk-plan-time-unified" value="10:00" class="w-full px-2 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-amber-500 shadow-2xs cursor-pointer">' +
+                '<div id="opt-unified-container" class="pt-2 pl-6 pr-2">' +
+                    '<div>' +
+                        '<label class="block text-[11px] font-bold text-slate-700 mb-1">📅 التاريخ الموحد لكافة المهام:</label>' +
+                        '<input type="date" id="bulk-plan-date-unified" value="' + esc(defaultDate) + '" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold bg-white text-slate-900 focus:outline-amber-500 shadow-2xs cursor-pointer">' +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -5587,7 +5583,7 @@ function closeBulkPlanDatesModal() {
 async function executeBulkPlanDatesAction(planName, clientId) {
     var mode = (document.querySelector('input[name="bulk_date_mode"]:checked') || {}).value || 'unified';
     var targetDate = (document.getElementById('bulk-plan-date-unified') || {}).value || '';
-    var targetTime = (document.getElementById('bulk-plan-time-unified') || {}).value || '10:00';
+    var targetTime = (document.getElementById('bulk-plan-time-unified') || {}).value || '';
     var startDate = (document.getElementById('bulk-plan-date-start') || {}).value || '';
     var intervalDays = parseInt((document.getElementById('bulk-plan-interval-days') || {}).value || '2', 10);
     var targetMonth = parseInt((document.getElementById('bulk-plan-target-month') || {}).value || '0', 10);

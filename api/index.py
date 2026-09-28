@@ -14783,7 +14783,7 @@ def api_plans_update_dates_bulk():
         target_year = int(data.get("target_year") or 0)
     except Exception:
         target_year = 0
-    publish_time = str(data.get("publish_time") or "10:00").strip()
+    publish_time = str(data.get("publish_time") or "").strip()
 
     if not plan_name and not client_id:
         return jsonify({"error": "اسم الخطة أو معرف العميل مطلوب", "ok": False}), 400
