@@ -396,7 +396,7 @@ function renderTaskCardDetailsContent(t) {
     var deadlineBoxClass = 'bg-slate-50 border-slate-200';
     var deadlineBadgeHtml = '';
 
-    var hasActiveMod = (t.status !== 'Completed' && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && t.status !== 'Submitted / In Review')));
+    var hasActiveMod = (t.status !== 'Completed' && t.status !== 'Submitted / In Review' && t.status !== 'Awaiting AM Review' && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && t.status !== 'Submitted / In Review')));
     var effectiveDeadline = dDead;
 
     if (hasActiveMod) {
@@ -929,8 +929,8 @@ function renderTaskCardDetailsContent(t) {
     if (isSubmitted) {
         html += '<div class="space-y-2 w-full">' +
             '<div class="grid grid-cols-2 gap-1.5">' +
-                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'reject\')" class="w-full h-9 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer">↩️ طلب تعديل</button>' +
-                '<button onclick="reviewTaskDecision(\'' + esc(t.task_id) + '\',\'finalize\')" class="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">✅ اعتماد واكتمال</button>' +
+                '<button type="button" onclick="openAMRevisionModal(\'' + escJs(t.task_id) + '\')" class="w-full h-9 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer">↩️ طلب تعديل</button>' +
+                '<button type="button" onclick="reviewTaskDecision(\'' + escJs(t.task_id) + '\',\'finalize\')" class="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">✅ اعتماد واكتمال</button>' +
             '</div>' +
             '<div class="flex items-center gap-1.5 w-full">' +
                 '<select id="fwd-select-' + esc(t.task_id) + '" class="w-full min-w-0 flex-1 h-9 text-xs px-2.5 border border-slate-300 rounded-xl truncate bg-white text-slate-800 focus:outline-blue-500 shadow-2xs cursor-pointer flex items-center">' +
@@ -1432,15 +1432,20 @@ function renderTaskCard(t, indexInPlan) {
         '</span>') :
         ('<span class="text-[11px] font-bold px-2 py-0.5 rounded-lg border bg-slate-100 text-slate-500 border-slate-200">📅 التسليم: غير محدد</span>');
 
-    var isDeliveredCard = Boolean(isSubmitted || isCompleted || Boolean(t.submitted_at) || Boolean(t.drive_link) || (Array.isArray(t.deliverables) && t.deliverables.length > 0));
+    var modNotes = (t.review_note || t.modification_request || t.notes || '').trim();
+    var hasActiveMod = (t.status !== 'Completed' && t.status !== 'Submitted / In Review' && t.status !== 'Awaiting AM Review' && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && t.status !== 'Submitted / In Review')));
+    var isDeliveredCard = !hasActiveMod && Boolean(isSubmitted || isCompleted || Boolean(t.submitted_at) || Boolean(t.drive_link) || (Array.isArray(t.deliverables) && t.deliverables.length > 0));
 
     var cardWrapperClass = isSub ?
         'bg-amber-50/15 border-2 border-amber-400 border-r-[8px] border-r-amber-500 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner' :
         (isCompleted ?
             'bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-emerald-50/70 border-2 border-emerald-500 border-r-[8px] border-r-emerald-600 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner ring-1 ring-emerald-400/30' :
-            (isDeliveredCard ?
-                'bg-gradient-to-br from-teal-50/80 via-cyan-50/30 to-emerald-50/60 border-2 border-teal-500 border-r-[8px] border-r-teal-600 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner ring-1 ring-teal-400/30' :
-                'bg-white border-2 border-slate-300 border-r-[8px] border-r-slate-400 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner'
+            (hasActiveMod ?
+                'bg-gradient-to-br from-amber-50/80 via-orange-50/40 to-rose-50/60 border-2 border-amber-500 border-r-[8px] border-r-amber-600 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner ring-1 ring-amber-400/30' :
+                (isDeliveredCard ?
+                    'bg-gradient-to-br from-teal-50/80 via-cyan-50/30 to-emerald-50/60 border-2 border-teal-500 border-r-[8px] border-r-teal-600 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner ring-1 ring-teal-400/30' :
+                    'bg-white border-2 border-slate-300 border-r-[8px] border-r-slate-400 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner'
+                )
             )
         );
 
@@ -1449,6 +1454,11 @@ function renderTaskCard(t, indexInPlan) {
         deliveryTopBannerHtml = '<div class="bg-emerald-600 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-xs flex items-center justify-between flex-wrap gap-1">' +
             '<span class="flex items-center gap-1.5"><span class="text-sm">✅</span> <span>تم التسليم واكتمال المهمة (معتمدة ومكتملة)</span></span>' +
             '<span class="bg-emerald-800/90 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold tracking-wider">COMPLETED & LOCKED</span>' +
+        '</div>';
+    } else if (hasActiveMod) {
+        deliveryTopBannerHtml = '<div class="bg-gradient-to-r from-rose-600 via-amber-600 to-orange-600 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-xs flex items-center justify-between flex-wrap gap-1 animate-pulse">' +
+            '<span class="flex items-center gap-1.5"><span class="text-sm">⚠️</span> <span>مطلوب تعديل من مدير الحساب (AM) — المهمة قيد التعديل وإعادة التنفيذ</span></span>' +
+            '<span class="bg-rose-900/90 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold tracking-wider">REVISION REQUIRED</span>' +
         '</div>';
     } else if (isDeliveredCard) {
         deliveryTopBannerHtml = '<div class="bg-teal-700 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-xs flex items-center justify-between flex-wrap gap-1">' +
@@ -1522,20 +1532,40 @@ function renderTaskCard(t, indexInPlan) {
         ) : '') +
     '</div>';
 
+    var isAMOrAdmin = (function(){
+        var me = window._me || {};
+        return Boolean(me.is_admin || me.role === 'admin' || me.role === 'account_manager' || me.is_manager || localStorage.getItem('domya_username') === 'admin');
+    })();
+
     var fastActionRowHtml = '<div class="grid grid-cols-2 gap-2 pt-1.5">' +
         (isCompleted ? (
             '<div class="h-10 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 rounded-xl border border-emerald-300 flex items-center justify-center gap-1.5 cursor-default shadow-2xs">' +
                 '<span>🔒 معتمدة ومقفولة للتعديل</span>' +
             '</div>'
+        ) : (hasActiveMod ? (
+            '<button type="button" onclick="submitMyTask(\'' + escJs(t.task_id) + '\')" class="h-10 bg-gradient-to-r from-amber-600 to-emerald-600 hover:opacity-95 text-white text-xs font-bold px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
+                '<span>✅ إعادة التسليم بعد التعديل</span>' +
+            '</button>'
         ) : (isSubmitted ? (
-            '<div class="h-10 bg-teal-100 text-teal-800 text-xs font-bold px-3 rounded-xl border border-teal-300 flex items-center justify-center gap-1.5 cursor-default shadow-2xs">' +
-                '<span>🔒 تم التسليم (بانتظار AM)</span>' +
-            '</div>'
+            isAMOrAdmin ? (
+                '<div class="grid grid-cols-2 gap-1.5 h-10">' +
+                    '<button type="button" onclick="openAMRevisionModal(\'' + escJs(t.task_id) + '\')" class="h-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold text-xs rounded-xl transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer" title="طلب تعديل رسمي على المخرجات">' +
+                        '<span>↩️ طلب تعديل</span>' +
+                    '</button>' +
+                    '<button type="button" onclick="reviewTaskDecision(\'' + escJs(t.task_id) + '\',\'finalize\')" class="h-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1 cursor-pointer" title="اعتماد واكتمال المهمة">' +
+                        '<span>✅ اعتماد</span>' +
+                    '</button>' +
+                '</div>'
+            ) : (
+                '<div class="h-10 bg-teal-100 text-teal-800 text-xs font-bold px-3 rounded-xl border border-teal-300 flex items-center justify-center gap-1.5 cursor-default shadow-2xs">' +
+                    '<span>🔒 تم التسليم (بانتظار AM)</span>' +
+                '</div>'
+            )
         ) : (
             '<button type="button" onclick="submitMyTask(\'' + escJs(t.task_id) + '\')" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
                 '<span>✅ سلّمت وخلصت</span>' +
             '</button>'
-        ))) +
+        )))) +
         '<button type="button" id="btn-toggle-details-' + esc(t.task_id) + '" onclick="toggleTaskCardDetails(\'' + escJs(t.task_id) + '\')" class="h-10 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-3 rounded-xl border border-slate-300 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs">' +
             '<span>' + (isDetailed ? '👁️ إخفاء التفاصيل والماتريال ▲' : '👁️ كامل التفاصيل والماتريال ▼') + '</span>' +
         '</button>' +

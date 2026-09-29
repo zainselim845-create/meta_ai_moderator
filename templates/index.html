@@ -2121,25 +2121,25 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.js?v=1790627000">
+  <script defer src="/static/js/app.js?v=1790628000">
   </script>
-  <script defer src="/static/js/portal_view.js?v=1790627000">
+  <script defer src="/static/js/portal_view.js?v=1790628000">
   </script>
-  <script defer src="/static/js/inbox.js?v=1790627000">
+  <script defer src="/static/js/inbox.js?v=1790628000">
   </script>
-  <script defer src="/static/js/chatwoot_free.js?v=1790627000">
+  <script defer src="/static/js/chatwoot_free.js?v=1790628000">
   </script>
-  <script defer src="/static/js/views.js?v=1790627000">
+  <script defer src="/static/js/views.js?v=1790628000">
   </script>
-  <script defer src="/static/js/tasks_board.js?v=1790627000">
+  <script defer src="/static/js/tasks_board.js?v=1790628000">
   </script>
-  <script defer src="/static/js/team_availability.js?v=1790627000">
+  <script defer src="/static/js/team_availability.js?v=1790628000">
   </script>
-  <script defer src="/static/js/performance_reports.js?v=1790627000">
+  <script defer src="/static/js/performance_reports.js?v=1790628000">
   </script>
-  <script defer src="/static/js/plan_builder.js?v=1790627000">
+  <script defer src="/static/js/plan_builder.js?v=1790628000">
   </script>
-  <script defer src="/static/js/clients.js?v=1790627000">
+  <script defer src="/static/js/clients.js?v=1790628000">
   </script>
  
   <!-- Modal: Add New Connected Account -->
@@ -2552,6 +2552,81 @@
       </form>
     </div>
   </div>
+
+   <!-- Modal: Account Manager Revision Request (طلب تعديل رسمي من مدير الحساب) -->
+   <div id="modal-am-request-revision" onclick="if(event.target===this) closeAMRevisionModal()" role="dialog" aria-modal="true" aria-labelledby="am-rev-modal-title" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden overflow-y-auto">
+     <div class="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
+       <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-rose-50 via-amber-50 to-orange-50">
+         <div class="flex items-center gap-3">
+           <div class="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center text-xl shadow-md">
+             ↩️
+           </div>
+           <div>
+             <h3 id="am-rev-modal-title" class="font-bold text-base text-slate-900">طلب تعديل على المهمة (AM Revision Request)</h3>
+             <p class="text-xs text-slate-500" id="am-rev-task-subtitle">إرجاع المهمة للموظف مع تحديد الملاحظات وموعد التسليم الجديد</p>
+           </div>
+         </div>
+         <button type="button" onclick="closeAMRevisionModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition shadow-xs cursor-pointer" title="إغلاق">
+           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+         </button>
+       </div>
+
+       <form id="form-am-request-revision" onsubmit="submitAMRevisionAction(event)" class="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto text-xs">
+         <input type="hidden" id="am-rev-task-id" />
+
+         <!-- Current Task & Delivery Summary Box (Zero Data Loss) -->
+         <div id="am-rev-summary-box" class="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+           <div class="flex items-center justify-between text-[11px] font-bold text-slate-700">
+             <span id="am-rev-task-display-id" class="font-mono bg-slate-200 text-slate-800 px-2 py-0.5 rounded-md">TASK-ID</span>
+             <span id="am-rev-client-name" class="text-blue-800">العميل: —</span>
+           </div>
+           <div id="am-rev-task-title-text" class="text-xs font-bold text-slate-900 line-clamp-2">عنوان المهمة</div>
+           <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/80 text-[11px] text-slate-600">
+             <span>👤 المنفذ: <b id="am-rev-assignee-text" class="text-slate-900">—</b></span>
+             <div id="am-rev-current-link-wrapper" class="hidden">
+               <a id="am-rev-current-link-btn" href="#" target="_blank" class="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                 <span>📦 التسليم الحالي ↗</span>
+               </a>
+             </div>
+           </div>
+         </div>
+
+         <!-- Revision Notes (Required) -->
+         <div>
+           <label class="block font-bold text-slate-800 mb-1 flex items-center justify-between">
+             <span class="flex items-center gap-1">✍️ سبب وتفاصيل التعديل المطلوب (Detailed Feedback):</span>
+             <span class="text-[10px] text-rose-600 font-normal">مطلوب توضيح التعديل بدقة</span>
+           </label>
+           <textarea id="am-rev-note" rows="4" placeholder="اكتب التعديلات المطلوبة بدقة لمساعدة المنفذ على تصحيح المخرجات بشكل صحيح..." class="w-full px-3 py-2 border border-rose-200 rounded-xl bg-white text-slate-900 font-medium leading-relaxed focus:border-rose-500 focus:ring-2 focus:ring-rose-200 focus:outline-none" required></textarea>
+         </div>
+
+         <!-- Revision Delivery Deadline -->
+         <div>
+           <label class="block font-bold text-slate-800 mb-1">📅 موعد تسليم التعديل النهائي (Revision Deadline):</label>
+           <input id="am-rev-deadline" type="date" class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-bold text-slate-900 focus:border-amber-500 focus:outline-none cursor-pointer" required style="color-scheme: light;" />
+           <p class="text-[10px] text-slate-500 mt-1">يُقترح تلقائياً موعد غداً، ويمكنك تحديد تاريخ آخر وفقاً للاتفاق.</p>
+         </div>
+
+         <!-- Optional Forward to another team member -->
+         <div>
+           <label class="block font-bold text-slate-800 mb-1">👥 توجيه المهمة (إبقاء المنفذ أو تحويلها لموظف آخر):</label>
+           <select id="am-rev-assignee-select" class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white text-slate-800 font-bold focus:border-amber-500 focus:outline-none">
+             <option value="">إبقاء نفس المنفذ الحالي</option>
+           </select>
+         </div>
+
+         <!-- Action Buttons -->
+         <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+           <button type="button" onclick="closeAMRevisionModal()" class="btn-ghost text-xs py-2 px-4 rounded-xl border border-slate-200 font-bold hover:bg-slate-100 cursor-pointer">
+             إلغاء
+           </button>
+           <button id="btn-submit-am-revision" type="submit" class="btn-primary text-xs py-2.5 px-6 rounded-xl bg-gradient-to-r from-rose-600 via-rose-700 to-amber-600 text-white font-bold hover:opacity-95 shadow-md flex items-center gap-1.5 transition cursor-pointer">
+             <span>إرسال طلب التعديل للموظف ↩️</span>
+           </button>
+         </div>
+       </form>
+     </div>
+   </div>
 
  </body>
 

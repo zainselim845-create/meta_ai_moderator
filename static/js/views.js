@@ -8297,6 +8297,162 @@ function closeTaskContentEditorModal() {
     var existingBanner = document.getElementById('etc-locked-banner');
     if (existingBanner) existingBanner.remove();
 }
+window.closeTaskContentEditorModal = closeTaskContentEditorModal;
+
+function openAMRevisionModal(taskId) {
+    if (!taskId) return;
+    var task = (tasksList || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
+    if (!task) {
+        for (var k in employeesWorkloadData) {
+            var found = (employeesWorkloadData[k] || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
+            if (found) { task = found; break; }
+        }
+    }
+    var m = document.getElementById('modal-am-request-revision');
+    if (!m) return;
+
+    var idEl = document.getElementById('am-rev-task-id');
+    var displayIdEl = document.getElementById('am-rev-task-display-id');
+    var clientEl = document.getElementById('am-rev-client-name');
+    var titleEl = document.getElementById('am-rev-task-title-text');
+    var assigneeEl = document.getElementById('am-rev-assignee-text');
+    var linkWrapper = document.getElementById('am-rev-current-link-wrapper');
+    var linkBtn = document.getElementById('am-rev-current-link-btn');
+    var noteEl = document.getElementById('am-rev-note');
+    var deadlineEl = document.getElementById('am-rev-deadline');
+    var assigneeSelect = document.getElementById('am-rev-assignee-select');
+
+    if (idEl) idEl.value = taskId;
+    if (displayIdEl) displayIdEl.textContent = taskId;
+    if (clientEl) clientEl.textContent = 'العميل: ' + ((task && (task.client_name || task.client_id)) || '—');
+    if (titleEl) titleEl.textContent = (task && (task.title || task.tagline || 'بدون عنوان')) || '—';
+    if (assigneeEl) assigneeEl.textContent = (task && (task.assignee_name || task.assigned_employee_id)) || 'غير محدد';
+
+    // Current delivery preview link
+    var dLink = (task && (task.drive_link || task.google_drive_url || '')) || '';
+    if (!dLink && task && Array.isArray(task.deliverables) && task.deliverables.length) {
+        var firstD = task.deliverables[0];
+        dLink = (typeof firstD === 'string') ? firstD : (firstD.url || firstD.drive_link || '');
+    }
+    if (linkWrapper && linkBtn) {
+        if (dLink) {
+            linkBtn.href = dLink;
+            linkWrapper.classList.remove('hidden');
+        } else {
+            linkWrapper.classList.add('hidden');
+        }
+    }
+
+    // Default deadline to tomorrow or current modification deadline
+    var defDate = new Date();
+    defDate.setDate(defDate.getDate() + 1);
+    var defDl = defDate.toISOString().slice(0, 10);
+    if (task && task.modification_deadline) {
+        defDl = String(task.modification_deadline).slice(0, 10);
+    }
+    if (deadlineEl) deadlineEl.value = defDl;
+
+    // Reset notes
+    if (noteEl) {
+        noteEl.value = '';
+        setTimeout(function(){ noteEl.focus(); }, 100);
+    }
+
+    // Populate employee options
+    if (assigneeSelect) {
+        var curEid = (task && task.assigned_employee_id) || '';
+        var optsHtml = '<option value="">إبقاء نفس المنفذ الحالي (' + esc(assigneeEl ? assigneeEl.textContent : '') + ')</option>';
+        if (typeof empOptionsHtml === 'function') {
+            optsHtml += empOptionsHtml(curEid);
+        } else if (window.employeesList && Array.isArray(window.employeesList)) {
+            window.employeesList.forEach(function(emp){
+                var eid = emp.employee_id || emp.id || '';
+                var ename = emp.name || eid;
+                optsHtml += '<option value="' + esc(eid) + '">' + esc(ename) + ' [' + esc(eid) + ']</option>';
+            });
+        }
+        assigneeSelect.innerHTML = optsHtml;
+    }
+
+    m.classList.remove('hidden');
+}
+window.openAMRevisionModal = openAMRevisionModal;
+
+function closeAMRevisionModal() {
+    var m = document.getElementById('modal-am-request-revision');
+    if (m) m.classList.add('hidden');
+}
+window.closeAMRevisionModal = closeAMRevisionModal;
+
+async function submitAMRevisionAction(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    var idEl = document.getElementById('am-rev-task-id');
+    var taskId = idEl ? (idEl.value || '').trim() : '';
+    if (!taskId) return;
+
+    var noteEl = document.getElementById('am-rev-note');
+    var deadlineEl = document.getElementById('am-rev-deadline');
+    var assigneeSelect = document.getElementById('am-rev-assignee-select');
+
+    var note = noteEl ? (noteEl.value || '').trim() : '';
+    var deadline = deadlineEl ? (deadlineEl.value || '').trim() : '';
+    var nextEmpId = assigneeSelect ? (assigneeSelect.value || '').trim() : '';
+
+    if (!note) {
+        showToast('يرجى توضيح سبب وملاحظات التعديل المطلوبة للموظف', 'error');
+        if (noteEl) noteEl.focus();
+        return;
+    }
+    if (!deadline) {
+        showToast('يرجى تحديد موعد تسليم التعديل الجديد', 'error');
+        if (deadlineEl) deadlineEl.focus();
+        return;
+    }
+
+    var submitBtn = document.getElementById('btn-submit-am-revision');
+    var origText = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>جاري إرسال طلب التعديل... ⏳</span>';
+    }
+
+    var body = {
+        action: nextEmpId ? 'forward' : 'reject',
+        note: note,
+        modification_deadline: deadline
+    };
+    if (nextEmpId) {
+        body.next_employee_id = nextEmpId;
+    }
+
+    try {
+        var res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        var data = await res.json();
+        if (res.ok && data.success !== false && (data.ok || data.task)) {
+            closeAMRevisionModal();
+            showToast('تم إرسال طلب التعديل للموظف بنجاح والمهمة الآن قيد التنفيذ للتعديل ↩️', 'success');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            if (typeof loadMyPortal === 'function') loadMyPortal();
+        } else {
+            showToast(data.error || 'تعذّر إرسال طلب التعديل', 'error');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = origText;
+            }
+        }
+    } catch(err) {
+        showToast('خطأ في الاتصال بالخادم', 'error');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origText;
+        }
+    }
+}
+window.submitAMRevisionAction = submitAMRevisionAction;
 
 async function saveTaskContentEditorAction(e) {
     if (e && e.preventDefault) e.preventDefault();
