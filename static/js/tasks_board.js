@@ -1643,7 +1643,7 @@ function renderTaskCard(t, indexInPlan) {
         '</button>' +
     '</div>';
 
-    var html = '<div class="' + cardWrapperClass + '">' +
+    var html = '<div id="task-card-' + esc(t.task_id) + '" data-task-id="' + esc(t.task_id) + '" class="task-card ' + cardWrapperClass + '">' +
         deliveryTopBannerHtml +
         '<div class="flex items-center justify-between gap-1 flex-wrap">' +
             '<div class="flex items-center gap-1.5 flex-wrap">' +
