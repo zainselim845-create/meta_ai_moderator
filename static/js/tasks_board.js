@@ -62,6 +62,73 @@ window.onTaskSearchInput = onTaskSearchInput;
 window.setBoardCardViewMode = setBoardCardViewMode;
 window.toggleTaskCardDetails = toggleTaskCardDetails;
 
+function checkTaskHasActiveMod(t) {
+    if (!t) return false;
+    var st = t.status || '';
+    var isCompleted = (st === 'Completed' || st === 'Approved / Scheduled' || st === 'Done');
+    if (isCompleted) return false;
+    if (st === 'Submitted / In Review' || st === 'Awaiting AM Review' || st === 'Pending AM Approval') return false;
+    if (st === 'Changes Requested' || st === 'Returned') return true;
+    if (Array.isArray(t.subtasks) && t.subtasks.some(function(stk){
+        return stk && (stk.type === 'revision' || stk.is_subtask) && !stk.completed_at && !stk.submitted_at;
+    })) return true;
+    if (t.modification_requested_at && (st === 'Assigned' || st === 'In Progress')) {
+        if (!t.submitted_at) return true;
+        return String(t.modification_requested_at) > String(t.submitted_at);
+    }
+    return false;
+}
+window.checkTaskHasActiveMod = checkTaskHasActiveMod;
+
+function copyTaskID(taskId, btnEl) {
+    if (!taskId) return;
+    var cleanId = String(taskId).trim();
+    var origHtml = btnEl ? btnEl.innerHTML : '';
+    
+    function onSuccess() {
+        if (typeof showToast === 'function') {
+            showToast('تم نسخ كود المهمة بنجاح: ' + cleanId, 'success');
+        }
+        if (btnEl) {
+            btnEl.classList.add('bg-emerald-600', 'text-white', 'border-emerald-700');
+            btnEl.innerHTML = '<span> تم النسخ</span>';
+            setTimeout(function() {
+                if (btnEl) {
+                    btnEl.innerHTML = origHtml;
+                    btnEl.classList.remove('bg-emerald-600', 'text-white', 'border-emerald-700');
+                }
+            }, 1500);
+        }
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(cleanId).then(onSuccess).catch(function() {
+            fallbackCopy(cleanId);
+        });
+    } else {
+        fallbackCopy(cleanId);
+    }
+
+    function fallbackCopy(text) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            onSuccess();
+        } catch (e) {
+            if (typeof showToast === 'function') {
+                showToast('كود المهمة: ' + text, 'info');
+            }
+        }
+    }
+}
+window.copyTaskID = copyTaskID;
+
 function getTaskSequenceNum(t) {
     if (!t) return 999999;
     if (t.post_number !== undefined && t.post_number !== null && !isNaN(parseInt(t.post_number, 10)) && parseInt(t.post_number, 10) > 0) {
@@ -396,7 +463,7 @@ function renderTaskCardDetailsContent(t) {
     var deadlineBoxClass = 'bg-slate-50 border-slate-200';
     var deadlineBadgeHtml = '';
 
-    var hasActiveMod = (t.status !== 'Completed' && t.status !== 'Submitted / In Review' && t.status !== 'Awaiting AM Review' && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && t.status !== 'Submitted / In Review')));
+    var hasActiveMod = checkTaskHasActiveMod(t);
     var effectiveDeadline = dDead;
 
     if (hasActiveMod) {
@@ -1359,9 +1426,7 @@ function renderTaskCard(t, indexInPlan) {
     var deadlineBoxClass = 'bg-slate-50 border-slate-200';
     var deadlineBadgeHtml = '';
 
-    // Check if task has an active modification request / note
-    var modNotes = (t.review_note || t.modification_request || t.notes || '').trim();
-    var hasActiveMod = (t.status !== 'Completed' && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && t.status !== 'Submitted / In Review')));
+    var hasActiveMod = checkTaskHasActiveMod(t);
     var effectiveDeadline = dDead;
 
     if (hasActiveMod) {
@@ -1432,9 +1497,15 @@ function renderTaskCard(t, indexInPlan) {
         '</span>') :
         ('<span class="text-[11px] font-bold px-2 py-0.5 rounded-lg border bg-slate-100 text-slate-500 border-slate-200">📅 التسليم: غير محدد</span>');
 
-    var modNotes = (t.review_note || t.modification_request || t.notes || '').trim();
-    var hasActiveMod = (t.status !== 'Completed' && t.status !== 'Submitted / In Review' && t.status !== 'Awaiting AM Review' && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && t.status !== 'Submitted / In Review')));
-    var isDeliveredCard = !hasActiveMod && Boolean(isSubmitted || isCompleted || Boolean(t.submitted_at) || Boolean(t.drive_link) || (Array.isArray(t.deliverables) && t.deliverables.length > 0));
+    var hasActiveMod = checkTaskHasActiveMod(t);
+    var isDeliveredCard = !isCompleted && !hasActiveMod && Boolean(
+        t.status === 'Submitted / In Review' || 
+        t.status === 'Awaiting AM Review' || 
+        t.status === 'Pending AM Approval' || 
+        Boolean(t.submitted_at) || 
+        Boolean(t.drive_link) || 
+        (Array.isArray(t.deliverables) && t.deliverables.length > 0)
+    );
 
     var cardWrapperClass = isSub ?
         'bg-amber-50/15 border-2 border-amber-400 border-r-[8px] border-r-amber-500 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner' :
@@ -1474,11 +1545,11 @@ function renderTaskCard(t, indexInPlan) {
 
     var headerBadgesHtml = isSub ? (
         '<span class="bg-amber-600 text-white font-extrabold font-mono text-xs px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1"><span>🔄</span> <span>تعديل فرعي #' + (t.revision_number || 1) + '</span></span>' +
-        '<span class="font-mono font-bold text-xs bg-amber-950 text-amber-100 px-2 py-0.5 rounded-lg border border-amber-800">' + esc(t.task_id) + '</span>' +
+        '<button type="button" onclick="copyTaskID(\'' + escJs(t.task_id) + '\', this)" class="font-mono font-bold text-xs bg-amber-950 hover:bg-amber-900 text-amber-100 px-2 py-0.5 rounded-lg border border-amber-800 cursor-pointer shadow-2xs" title="انقر لنسخ كود التعديل">📋 ' + esc(t.task_id) + '</button>' +
         '<span class="bg-white text-amber-950 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1 shadow-2xs">🔗 تابعة للمهمة: [' + esc(t.parent_task_id || '') + ']</span>'
     ) : (
         postBadge +
-        '<span class="font-mono font-bold text-xs bg-slate-900 text-white px-2 py-0.5 rounded-lg">' + esc(t.task_id) + '</span>'
+        '<button type="button" onclick="copyTaskID(\'' + escJs(t.task_id) + '\', this)" class="font-mono font-bold text-xs bg-slate-900 hover:bg-blue-700 text-white px-2.5 py-0.5 rounded-lg transition shadow-2xs flex items-center gap-1 cursor-pointer" title="انقر لنسخ كود المهمة ID"><span>📋</span> <span>' + esc(t.task_id) + '</span></button>'
     );
 
     var subtaskReasonBanner = isSub ? (
@@ -1493,7 +1564,7 @@ function renderTaskCard(t, indexInPlan) {
                 '</span>' +
             '</div>' +
             '<div class="text-xs sm:text-sm text-slate-950 font-bold bg-white p-3 rounded-xl border border-rose-200 whitespace-pre-wrap leading-relaxed shadow-2xs select-all">' +
-                esc(t.revision_reason || t.review_note || t.notes || 'يرجى مراجعة التعديلات المطلوبة وتحديث المطلوب') +
+                esc(t.revision_reason || t.review_note || t.last_revision_note || 'يرجى مراجعة التعديلات المطلوبة وتحديث المخرجات') +
             '</div>' +
         '</div>'
     ) : '';
@@ -1521,6 +1592,7 @@ function renderTaskCard(t, indexInPlan) {
     ) : '');
 
     var quickChipsHtml = '<div class="flex items-center gap-1.5 flex-wrap pt-0.5">' +
+        '<button type="button" onclick="copyTaskID(\'' + escJs(t.task_id) + '\', this)" class="text-[11px] font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-1 rounded-lg inline-flex items-center gap-1 shadow-2xs transition cursor-pointer font-mono" title="نسخ كود المهمة ID"><span>📋 ' + esc(t.task_id) + '</span></button>' +
         (driveMaterialLinks.length ? (
             '<a href="' + esc(driveMaterialLinks[0]) + '" target="_blank" class="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 transition shadow-2xs"><span>📁 Drive ↗</span></a>'
         ) : '') +
@@ -1656,8 +1728,12 @@ function renderTasksBoard() {
         var badge = document.getElementById('tasks-count-badge');
         var allTasks = tasksList || [];
 
-        // Scope tasks to the active client if one is selected
-        var curCid = window.activeClientId || (function(){ try { return localStorage.getItem('active_client_id'); } catch(e){ return null; } })();
+        // Scope tasks to the active client if explicitly selected on the board
+        var curCid = (window.activeTasksBoardClientId !== undefined) ? window.activeTasksBoardClientId : window.activeClientId;
+        // When searching or filtering by a specific employee, display across all clients so no tasks are hidden!
+        if (selectedEmployeeFilter || (taskSearchQuery && taskSearchQuery.trim())) {
+            curCid = null;
+        }
         if (curCid && curCid !== 'all' && curCid !== '__all__' && curCid !== 'client_default') {
             var clientScoped = allTasks.filter(function(t) {
                 var tCid = String(t.client_id || '').toLowerCase();
@@ -1667,8 +1743,8 @@ function renderTasksBoard() {
             if (clientScoped.length > 0) {
                 allTasks = clientScoped;
             } else {
-                try { localStorage.removeItem('active_client_id'); } catch(e){}
                 window.activeClientId = null;
+                window.activeTasksBoardClientId = null;
             }
         }
 
@@ -1704,8 +1780,11 @@ function renderTasksBoard() {
             }
         });
 
-        // 0. Month Filter (both in active mode and archive mode)
-        if (selectedMonthFilter && selectedMonthFilter !== 'all') {
+        var rawSearch = (taskSearchQuery || '').trim();
+        var isIdSearch = /^(?:TASK[\-_]?|#)?\d+$/i.test(rawSearch) || /^TASK[\-_]/i.test(rawSearch) || /REV[\-_]\d+/i.test(rawSearch);
+
+        // 0. Month Filter (both in active mode and archive mode) - bypassed during ID search so direct ID lookup always finds the card!
+        if (selectedMonthFilter && selectedMonthFilter !== 'all' && !isIdSearch) {
             allTasks = allTasks.filter(function(t) {
                 return getTaskMonthKey(t) === selectedMonthFilter;
             });
@@ -1714,14 +1793,14 @@ function renderTasksBoard() {
 
         // 0. Plan/Employee/AM Filters (Task board displays all plans with interactive plan tabs)
 
-        // 1. Employee AND AM Filters (Combinable)
-        if (selectedAMFilter) {
+        // 1. Employee AND AM Filters (Combinable) - bypassed during ID search so direct ID lookup always finds the card!
+        if (selectedAMFilter && !isIdSearch) {
             displayTasks = displayTasks.filter(function(t) {
                 return String(t.am_id || '').trim() === String(selectedAMFilter).trim() ||
                        String(t.am_name || '').trim() === String(selectedAMName).trim();
             });
         }
-        if (selectedEmployeeFilter) {
+        if (selectedEmployeeFilter && !isIdSearch) {
             displayTasks = displayTasks.filter(function(t) {
                 var eid = String(t.assigned_employee_id || '').trim().toLowerCase();
                 var secEid = String(t.secondary_employee_id || '').trim().toLowerCase();
@@ -1734,8 +1813,8 @@ function renderTasksBoard() {
             });
         }
 
-        // 1.5 Plan Filter
-        if (selectedPlanFilter) {
+        // 1.5 Plan Filter - bypassed during ID search
+        if (selectedPlanFilter && !isIdSearch) {
             displayTasks = displayTasks.filter(function(t) {
                 var p = (t.plan_name || t.file_name || 'خطة عامة').trim();
                 var f = (t.file_name || '').trim();
@@ -1787,7 +1866,15 @@ function renderTasksBoard() {
 
             var targetEid = empQueryMap[q] || empQueryMap[qNorm] || (q.indexOf('emp-') === 0 || q.indexOf('am-') === 0 ? q : null);
 
+            var cleanDigits = q.replace(/\D/g, '');
             displayTasks = displayTasks.filter(function(t) {
+                var tid = String(t.task_id || t.id || '').toLowerCase();
+                var tidDigits = tid.replace(/\D/g, '');
+
+                // Priority 1: Direct Task ID matching (e.g. TASK-0196, 0196, 196, TASK-REV-103)
+                if (tid.indexOf(q) !== -1) return true;
+                if (cleanDigits && cleanDigits.length >= 2 && (tidDigits === cleanDigits || tidDigits.endsWith(cleanDigits))) return true;
+
                 var eid = String(t.assigned_employee_id || '').trim().toLowerCase();
                 var secEid = String(t.secondary_employee_id || '').trim().toLowerCase();
 
@@ -2333,7 +2420,7 @@ window.reviewTaskDecision = reviewTaskDecision;
 
 async function bulkApproveFilteredTasks() {
     var all = tasksList || [];
-    var curCid = window.activeClientId || (function(){ try { return localStorage.getItem('active_client_id'); } catch(e){ return null; } })();
+    var curCid = (window.activeTasksBoardClientId !== undefined) ? window.activeTasksBoardClientId : window.activeClientId;
     if (curCid && curCid !== 'all' && curCid !== '__all__' && curCid !== 'client_default') {
         all = all.filter(function(t) {
             var tCid = String(t.client_id || '').toLowerCase();

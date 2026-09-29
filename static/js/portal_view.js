@@ -241,8 +241,11 @@ function renderMyPortalTasks() {
     const isDone = /Completed|مكتمل|Approved/i.test(t.status || '');
     const isSubmitted = /Awaiting|Submitted|Review|قيد مراجعة/i.test(t.status || '') || Boolean(t.submitted_at) || Boolean(t.drive_link) || (Array.isArray(t.deliverables) && t.deliverables.length > 0);
 
-    const modNotes = (t.review_note || t.modification_request || t.notes || '').trim();
-    const hasActiveMod = (!isDone && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && !isSubmitted)));
+    const hasActiveMod = !isDone && !isSubmitted && (t.status !== 'Pending AM Approval') && (
+      t.status === 'Changes Requested' || t.status === 'Returned' ||
+      (Array.isArray(t.subtasks) && t.subtasks.some(st => (st.type === 'revision' || st.is_subtask) && !st.completed_at && !st.submitted_at)) ||
+      Boolean(t.modification_requested_at && (t.status === 'Assigned' || t.status === 'In Progress') && (!t.submitted_at || String(t.modification_requested_at) > String(t.submitted_at)))
+    );
     if (hasActiveMod && t.modification_deadline) {
       const mStr = String(t.modification_deadline).slice(0, 10);
       try {

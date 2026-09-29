@@ -2246,12 +2246,80 @@ function setTaskSort(sortKey) {
     renderTasksBoard();
 }
 
+function checkTaskHasActiveMod(t) {
+    if (!t) return false;
+    var st = t.status || '';
+    var isCompleted = (st === 'Completed' || st === 'Approved / Scheduled' || st === 'Done');
+    if (isCompleted) return false;
+    if (st === 'Submitted / In Review' || st === 'Awaiting AM Review' || st === 'Pending AM Approval') return false;
+    if (st === 'Changes Requested' || st === 'Returned') return true;
+    if (Array.isArray(t.subtasks) && t.subtasks.some(function(stk){
+        return stk && (stk.type === 'revision' || stk.is_subtask) && !stk.completed_at && !stk.submitted_at;
+    })) return true;
+    if (t.modification_requested_at && (st === 'Assigned' || st === 'In Progress')) {
+        if (!t.submitted_at) return true;
+        return String(t.modification_requested_at) > String(t.submitted_at);
+    }
+    return false;
+}
+window.checkTaskHasActiveMod = checkTaskHasActiveMod;
+
+function copyTaskID(taskId, btnEl) {
+    if (!taskId) return;
+    var cleanId = String(taskId).trim();
+    var origHtml = btnEl ? btnEl.innerHTML : '';
+    
+    function onSuccess() {
+        if (typeof showToast === 'function') {
+            showToast('تم نسخ كود المهمة بنجاح: ' + cleanId, 'success');
+        }
+        if (btnEl) {
+            btnEl.classList.add('bg-emerald-600', 'text-white', 'border-emerald-700');
+            btnEl.innerHTML = '<span> تم النسخ</span>';
+            setTimeout(function() {
+                if (btnEl) {
+                    btnEl.innerHTML = origHtml;
+                    btnEl.classList.remove('bg-emerald-600', 'text-white', 'border-emerald-700');
+                }
+            }, 1500);
+        }
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(cleanId).then(onSuccess).catch(function() {
+            fallbackCopy(cleanId);
+        });
+    } else {
+        fallbackCopy(cleanId);
+    }
+
+    function fallbackCopy(text) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            onSuccess();
+        } catch (e) {
+            if (typeof showToast === 'function') {
+                showToast('كود المهمة: ' + text, 'info');
+            }
+        }
+    }
+}
+window.copyTaskID = copyTaskID;
+
 function matchTaskStatus(taskStatus, filterKey, taskObj) {
     if (!filterKey || filterKey === 'all') return true;
     var t = (typeof taskStatus === 'object' && taskStatus !== null) ? taskStatus : (taskObj || {});
     var st = String((typeof taskStatus === 'string' ? taskStatus : (t.status || ''))).trim().toLowerCase();
     if (filterKey === 'revisions') {
-        return !!(t.is_subtask || (t.task_id && String(t.task_id).indexOf('-REV') !== -1) || st.indexOf('revision') !== -1 || st.indexOf('تعديل') !== -1);
+        if (checkTaskHasActiveMod(t)) return true;
+        return !!(t.is_subtask || (t.task_id && String(t.task_id).indexOf('-REV') !== -1) || st === 'changes requested' || st === 'returned');
     }
     if (filterKey === 'review') {
         return st === 'awaiting am review' || st === 'submitted / in review' || st === 'submitted' || st === 'in review' || st === 'review' || st.indexOf('review') !== -1 || st.indexOf('submitted') !== -1 || st.indexOf('مراجعة') !== -1 || st.indexOf('تسليم') !== -1;
@@ -3475,8 +3543,12 @@ function renderTasksBoard() {
         var badge = document.getElementById('tasks-count-badge');
         var allTasks = tasksList || [];
 
-        // Scope tasks to the active client if one is selected
-        var curCid = window.activeClientId || (function(){ try { return localStorage.getItem('active_client_id'); } catch(e){ return null; } })();
+        // Scope tasks to the active client if explicitly selected on the board
+        var curCid = (window.activeTasksBoardClientId !== undefined) ? window.activeTasksBoardClientId : window.activeClientId;
+        // When searching or filtering by a specific employee, display across all clients so no tasks are hidden!
+        if (selectedEmployeeFilter || (taskSearchQuery && taskSearchQuery.trim())) {
+            curCid = null;
+        }
         if (curCid && curCid !== 'all' && curCid !== '__all__' && curCid !== 'client_default') {
             var clientScoped = allTasks.filter(function(t) {
                 var tCid = String(t.client_id || '').toLowerCase();
@@ -3486,8 +3558,8 @@ function renderTasksBoard() {
             if (clientScoped.length > 0) {
                 allTasks = clientScoped;
             } else {
-                try { localStorage.removeItem('active_client_id'); } catch(e){}
                 window.activeClientId = null;
+                window.activeTasksBoardClientId = null;
             }
         }
 
@@ -4152,7 +4224,7 @@ window.reviewTaskDecision = reviewTaskDecision;
 
 async function bulkApproveFilteredTasks() {
     var all = tasksList || [];
-    var curCid = window.activeClientId || (function(){ try { return localStorage.getItem('active_client_id'); } catch(e){ return null; } })();
+    var curCid = (window.activeTasksBoardClientId !== undefined) ? window.activeTasksBoardClientId : window.activeClientId;
     if (curCid && curCid !== 'all' && curCid !== '__all__' && curCid !== 'client_default') {
         all = all.filter(function(t) {
             var tCid = String(t.client_id || '').toLowerCase();
@@ -8248,8 +8320,7 @@ function openTaskContentEditorModal(taskId) {
 
     var st = (task && task.status) || '';
     var isDelivered = (st === 'Completed' || st === 'Approved / Scheduled' || st === 'Done' || st === 'Submitted / In Review' || st === 'Awaiting AM Review' || Boolean(task && task.submitted_at) || Boolean(task && task.drive_link));
-    var modNotes = (task && (task.review_note || task.modification_request || task.notes || '')) || '';
-    var hasActiveMod = (st !== 'Completed' && Boolean(task && (task.modification_requested_at || task.returned_to_employee_at || (modNotes && st !== 'Submitted / In Review'))));
+    var hasActiveMod = checkTaskHasActiveMod(task);
     var isLocked = isDelivered && !hasActiveMod;
 
     var saveBtn = document.getElementById('btn-save-task-content');
@@ -8469,8 +8540,7 @@ async function saveTaskContentEditorAction(e) {
     }
     var st = (task && task.status) || '';
     var isDelivered = (st === 'Completed' || st === 'Approved / Scheduled' || st === 'Done' || st === 'Submitted / In Review' || st === 'Awaiting AM Review' || Boolean(task && task.submitted_at) || Boolean(task && task.drive_link));
-    var modNotes = (task && (task.review_note || task.modification_request || task.notes || '')) || '';
-    var hasActiveMod = (st !== 'Completed' && Boolean(task && (task.modification_requested_at || task.returned_to_employee_at || (modNotes && st !== 'Submitted / In Review'))));
+    var hasActiveMod = checkTaskHasActiveMod(task);
     if (isDelivered && !hasActiveMod) {
         showToast('🔒 المهمة مسلّمة بالفعل ومقفولة ضد التعديل. لا يمكن التعديل إلا بعد قيام مدير الحساب بطلب تعديل', 'warning');
         return;
