@@ -461,18 +461,24 @@ function renderTaskCardDetailsContent(t) {
     }
 
     var deadlineLabel = (t.status === 'Completed' || t.status === 'Approved / Scheduled') ? 'موعد التسليم (مكتملة):' : (isDeliveredOrReview ? 'موعد التسليم (مُسلّمة):' : (hasActiveMod ? 'موعد تسليم التعديل:' : 'موعد التسليم:'));
+    var isCardLocked = (t.status === 'Completed' || t.status === 'Approved / Scheduled' || isDeliveredOrReview) && !hasActiveMod;
 
     var html = captionHtml +
-captionHtml +
         visHtml +
         modHtml +
         driveMaterialsHtml +
         refsHtml + links +
         '<div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">' +
-            '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer">' +
-                ICONS.edit +
-                '<span>تعديل نصوص البوست</span>' +
-            '</button>' +
+            (isCardLocked ? (
+                '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-slate-300 shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer" title="المهمة مسلّمة بالفعل — اضغط للمعاينة فقط دون تعديل">' +
+                    '<span>🔒 نصوص البوست (معاينة فقط — مقفولة)</span>' +
+                '</button>'
+            ) : (
+                '<button type="button" onclick="openTaskContentEditorModal(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold py-1.5 px-2 rounded-xl border border-amber-200 shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer">' +
+                    ICONS.edit +
+                    '<span>تعديل نصوص البوست</span>' +
+                '</button>'
+            )) +
             '<button type="button" onclick="requestReturnMyTask(\'' + escJs(t.task_id) + '\')" class="w-full bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold py-1.5 px-2 rounded-xl shadow-xs transition flex items-center justify-center gap-1 cursor-pointer" title="استرجاع المهمة لقيد التنفيذ لإجراء تعديلات عليها">' +
                 '<span>↩️ طلب استرجاع للتعديل</span>' +
             '</button>' +
@@ -481,8 +487,6 @@ captionHtml +
             '</button>' +
         '</div>';
 
-    var deadlineLabel = (t.status === 'Completed' || t.status === 'Approved / Scheduled') ? 'موعد التسليم (مكتملة):' : (isDeliveredOrReview ? 'موعد التسليم (مُسلّمة):' : (hasActiveMod ? 'موعد تسليم التعديل:' : 'موعد التسليم:'));
-
     html += '<div class="' + deadlineBoxClass + ' p-2.5 rounded-2xl border text-xs space-y-1.5 shadow-2xs transition">' +
         '<div class="flex items-center justify-between gap-1 mb-1">' +
             '<span class="text-[11px] text-amber-950 font-bold flex items-center gap-1.5">' +
@@ -490,13 +494,20 @@ captionHtml +
             '</span>' +
             deadlineBadgeHtml +
         '</div>' +
-        '<div class="flex items-center gap-1.5">' +
-            '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(effectiveDeadline || dDead) + '" onchange="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="flex-1 min-w-0 text-xs font-bold font-mono px-2.5 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
-            '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1 shrink-0" title="حفظ موعد التسليم">' +
-                ICONS.save +
-                '<span>حفظ</span>' +
-            '</button>' +
-        '</div>' +
+        (isCardLocked ? (
+            '<div class="flex items-center justify-between gap-2 bg-white/90 p-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-800">' +
+                '<span>📅 ' + esc(effectiveDeadline || dDead) + '</span>' +
+                '<span class="text-[10px] text-slate-500 font-sans font-bold bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">🔒 موعد مثبت بعد التسليم</span>' +
+            '</div>'
+        ) : (
+            '<div class="flex items-center gap-1.5">' +
+                '<input type="date" id="d-dead-' + esc(t.task_id) + '" value="' + esc(effectiveDeadline || dDead) + '" onchange="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="flex-1 min-w-0 text-xs font-bold font-mono px-2.5 py-1.5 border border-amber-300 rounded-xl bg-white text-slate-950 focus:ring-2 focus:ring-amber-500 shadow-2xs cursor-pointer" style="color-scheme: light;">' +
+                '<button onclick="saveTaskDates(\'' + escJs(t.task_id) + '\')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-xl whitespace-nowrap shadow-xs cursor-pointer transition flex items-center gap-1 shrink-0" title="حفظ موعد التسليم">' +
+                    ICONS.save +
+                    '<span>حفظ</span>' +
+                '</button>' +
+            '</div>'
+        )) +
     '</div>';
 
     // Deliverables section
@@ -1421,9 +1432,35 @@ function renderTaskCard(t, indexInPlan) {
         '</span>') :
         ('<span class="text-[11px] font-bold px-2 py-0.5 rounded-lg border bg-slate-100 text-slate-500 border-slate-200">📅 التسليم: غير محدد</span>');
 
+    var isDeliveredCard = Boolean(isSubmitted || isCompleted || Boolean(t.submitted_at) || Boolean(t.drive_link) || (Array.isArray(t.deliverables) && t.deliverables.length > 0));
+
     var cardWrapperClass = isSub ?
-        'bg-amber-50/15 border-2 border-amber-400 border-r-[6px] border-r-amber-500 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner' :
-        'bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner';
+        'bg-amber-50/15 border-2 border-amber-400 border-r-[8px] border-r-amber-500 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner' :
+        (isCompleted ?
+            'bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-emerald-50/70 border-2 border-emerald-500 border-r-[8px] border-r-emerald-600 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner ring-1 ring-emerald-400/30' :
+            (isDeliveredCard ?
+                'bg-gradient-to-br from-teal-50/80 via-cyan-50/30 to-emerald-50/60 border-2 border-teal-500 border-r-[8px] border-r-teal-600 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner ring-1 ring-teal-400/30' :
+                'bg-white border-2 border-slate-300 border-r-[8px] border-r-slate-400 rounded-2xl p-3.5 sm:p-4 shadow-sm hover:shadow-md transition space-y-3 w-full max-w-full overflow-hidden box-border task-card-inner'
+            )
+        );
+
+    var deliveryTopBannerHtml = '';
+    if (isCompleted) {
+        deliveryTopBannerHtml = '<div class="bg-emerald-600 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-xs flex items-center justify-between flex-wrap gap-1">' +
+            '<span class="flex items-center gap-1.5"><span class="text-sm">✅</span> <span>تم التسليم واكتمال المهمة (معتمدة ومكتملة)</span></span>' +
+            '<span class="bg-emerald-800/90 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold tracking-wider">COMPLETED & LOCKED</span>' +
+        '</div>';
+    } else if (isDeliveredCard) {
+        deliveryTopBannerHtml = '<div class="bg-teal-700 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-xs flex items-center justify-between flex-wrap gap-1">' +
+            '<span class="flex items-center gap-1.5"><span class="text-sm">📦</span> <span>تم تسليم مخرجات المهمة — بانتظار مراجعة واعتماد مدير الحساب (AM)</span></span>' +
+            '<span class="bg-teal-900/90 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold tracking-wider">DELIVERED</span>' +
+        '</div>';
+    } else if (!isSub) {
+        deliveryTopBannerHtml = '<div class="bg-slate-100/90 border border-slate-200 text-slate-700 font-bold text-[11px] px-2.5 py-1 rounded-xl flex items-center justify-between flex-wrap gap-1">' +
+            '<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> <span>مهمة قيد التنفيذ (بانتظار التسليم والمخرجات)</span></span>' +
+            '<span class="text-[10px] text-slate-500 font-mono font-medium">IN PROGRESS</span>' +
+        '</div>';
+    }
 
     var headerBadgesHtml = isSub ? (
         '<span class="bg-amber-600 text-white font-extrabold font-mono text-xs px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1"><span>🔄</span> <span>تعديل فرعي #' + (t.revision_number || 1) + '</span></span>' +
@@ -1486,15 +1523,26 @@ function renderTaskCard(t, indexInPlan) {
     '</div>';
 
     var fastActionRowHtml = '<div class="grid grid-cols-2 gap-2 pt-1.5">' +
-        '<button type="button" onclick="submitMyTask(\'' + escJs(t.task_id) + '\')" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
-            '<span>✅ سلّمت وخلصت</span>' +
-        '</button>' +
+        (isCompleted ? (
+            '<div class="h-10 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 rounded-xl border border-emerald-300 flex items-center justify-center gap-1.5 cursor-default shadow-2xs">' +
+                '<span>🔒 معتمدة ومقفولة للتعديل</span>' +
+            '</div>'
+        ) : (isSubmitted ? (
+            '<div class="h-10 bg-teal-100 text-teal-800 text-xs font-bold px-3 rounded-xl border border-teal-300 flex items-center justify-center gap-1.5 cursor-default shadow-2xs">' +
+                '<span>🔒 تم التسليم (بانتظار AM)</span>' +
+            '</div>'
+        ) : (
+            '<button type="button" onclick="submitMyTask(\'' + escJs(t.task_id) + '\')" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">' +
+                '<span>✅ سلّمت وخلصت</span>' +
+            '</button>'
+        ))) +
         '<button type="button" id="btn-toggle-details-' + esc(t.task_id) + '" onclick="toggleTaskCardDetails(\'' + escJs(t.task_id) + '\')" class="h-10 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-3 rounded-xl border border-slate-300 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs">' +
             '<span>' + (isDetailed ? '👁️ إخفاء التفاصيل والماتريال ▲' : '👁️ كامل التفاصيل والماتريال ▼') + '</span>' +
         '</button>' +
     '</div>';
 
     var html = '<div class="' + cardWrapperClass + '">' +
+        deliveryTopBannerHtml +
         '<div class="flex items-center justify-between gap-1 flex-wrap">' +
             '<div class="flex items-center gap-1.5 flex-wrap">' +
                 headerBadgesHtml +

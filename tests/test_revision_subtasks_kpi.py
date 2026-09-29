@@ -117,6 +117,7 @@ def test_employee_resubmission_resolves_subtask_and_computes_kpis(monkeypatch):
     monkeypatch.setattr(idx, "_notify_client_am", lambda *a, **k: None)
     monkeypatch.setattr(idx, "send_telegram_bot_notification", lambda *a, **k: None)
 
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     task = {
         "task_id": "TASK-REV-002",
         "client_id": "cli_test_101",
@@ -126,7 +127,7 @@ def test_employee_resubmission_resolves_subtask_and_computes_kpis(monkeypatch):
         "assignee_name": "كريم المصمم",
         "assigned_at": "2026-09-20T10:00:00+00:00",
         "delivery_deadline": "2026-09-21",
-        "modification_deadline": "2026-09-28",
+        "modification_deadline": today_str,
         "subtasks": [
             {
                 "subtask_id": "TASK-REV-002-REV1",
@@ -141,7 +142,7 @@ def test_employee_resubmission_resolves_subtask_and_computes_kpis(monkeypatch):
                 "client_id": "cli_test_101",
                 "status": "In Progress",
                 "assigned_at": "2026-09-28T08:00:00+00:00",
-                "delivery_deadline": "2026-09-28",
+                "delivery_deadline": today_str,
                 "submitted_at": None,
                 "completed_at": None,
                 "kpis": {}

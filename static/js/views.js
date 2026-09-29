@@ -8245,6 +8245,48 @@ function openTaskContentEditorModal(taskId) {
     if (subEl) {
         subEl.textContent = 'مهمة: ' + (taskId || '') + ((task && task.client_name) ? (' · ' + task.client_name) : '');
     }
+
+    var st = (task && task.status) || '';
+    var isDelivered = (st === 'Completed' || st === 'Approved / Scheduled' || st === 'Done' || st === 'Submitted / In Review' || st === 'Awaiting AM Review' || Boolean(task && task.submitted_at) || Boolean(task && task.drive_link));
+    var modNotes = (task && (task.review_note || task.modification_request || task.notes || '')) || '';
+    var hasActiveMod = (st !== 'Completed' && Boolean(task && (task.modification_requested_at || task.returned_to_employee_at || (modNotes && st !== 'Submitted / In Review'))));
+    var isLocked = isDelivered && !hasActiveMod;
+
+    var saveBtn = document.getElementById('btn-save-task-content');
+    var existingBanner = document.getElementById('etc-locked-banner');
+    if (existingBanner) existingBanner.remove();
+
+    if (isLocked) {
+        var banner = document.createElement('div');
+        banner.id = 'etc-locked-banner';
+        banner.className = 'bg-amber-50 border-2 border-amber-300 text-amber-950 p-3 rounded-2xl flex items-center gap-2 mb-2 font-bold text-xs shadow-2xs';
+        banner.innerHTML = '<span class="text-lg">🔒</span><span>المهمة مسلّمة بالفعل ومقفولة ضد التعديل لحماية سلامة المخرجات والمراجعة. الحقول معروضة للاطلاع والمعاينة فقط. لإجراء تعديلات يجب طلب تعديل من مدير الحساب (AM).</span>';
+        var form = document.getElementById('form-edit-task-content');
+        if (form && form.firstChild) {
+            form.insertBefore(banner, form.firstChild);
+        }
+        if (titleEl) { titleEl.readOnly = true; titleEl.classList.add('bg-slate-50', 'text-slate-500'); }
+        if (captionEl) { captionEl.readOnly = true; captionEl.classList.add('bg-slate-50', 'text-slate-500'); }
+        if (visEl) { visEl.readOnly = true; visEl.classList.add('bg-slate-50', 'text-slate-500'); }
+        if (refsEl) { refsEl.readOnly = true; refsEl.classList.add('bg-slate-50', 'text-slate-500'); }
+        if (ptypeEl) { ptypeEl.disabled = true; ptypeEl.classList.add('bg-slate-50', 'text-slate-500'); }
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span>🔒 التعديلات مقفولة (المهمة مسلّمة)</span>';
+            saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    } else {
+        if (titleEl) { titleEl.readOnly = false; titleEl.classList.remove('bg-slate-50', 'text-slate-500'); }
+        if (captionEl) { captionEl.readOnly = false; captionEl.classList.remove('bg-slate-50', 'text-slate-500'); }
+        if (visEl) { visEl.readOnly = false; visEl.classList.remove('bg-slate-50', 'text-slate-500'); }
+        if (refsEl) { refsEl.readOnly = false; refsEl.classList.remove('bg-slate-50', 'text-slate-500'); }
+        if (ptypeEl) { ptypeEl.disabled = false; ptypeEl.classList.remove('bg-slate-50', 'text-slate-500'); }
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<span>حفظ محتوى البوست ✍️</span>';
+            saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    }
     
     m.classList.remove('hidden');
 }
@@ -8252,6 +8294,8 @@ function openTaskContentEditorModal(taskId) {
 function closeTaskContentEditorModal() {
     var m = document.getElementById('modal-edit-task-content');
     if (m) m.classList.add('hidden');
+    var existingBanner = document.getElementById('etc-locked-banner');
+    if (existingBanner) existingBanner.remove();
 }
 
 async function saveTaskContentEditorAction(e) {
@@ -8259,6 +8303,22 @@ async function saveTaskContentEditorAction(e) {
     var idEl = document.getElementById('etc-task-id');
     var taskId = idEl ? (idEl.value || '').trim() : '';
     if (!taskId) return;
+
+    var task = (tasksList || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
+    if (!task) {
+        for (var k in employeesWorkloadData) {
+            var found = (employeesWorkloadData[k] || []).find(function(x){ return String(x.task_id || x.id) === String(taskId); });
+            if (found) { task = found; break; }
+        }
+    }
+    var st = (task && task.status) || '';
+    var isDelivered = (st === 'Completed' || st === 'Approved / Scheduled' || st === 'Done' || st === 'Submitted / In Review' || st === 'Awaiting AM Review' || Boolean(task && task.submitted_at) || Boolean(task && task.drive_link));
+    var modNotes = (task && (task.review_note || task.modification_request || task.notes || '')) || '';
+    var hasActiveMod = (st !== 'Completed' && Boolean(task && (task.modification_requested_at || task.returned_to_employee_at || (modNotes && st !== 'Submitted / In Review'))));
+    if (isDelivered && !hasActiveMod) {
+        showToast('🔒 المهمة مسلّمة بالفعل ومقفولة ضد التعديل. لا يمكن التعديل إلا بعد قيام مدير الحساب بطلب تعديل', 'warning');
+        return;
+    }
     
     var titleEl = document.getElementById('etc-task-title');
     var captionEl = document.getElementById('etc-task-caption');
