@@ -58,6 +58,29 @@ function toggleTaskCardDetails(taskId) {
 window.matchTaskStatus = matchTaskStatus;
 window.setTaskStatusFilter = setTaskStatusFilter;
 window.setTaskSort = setTaskSort;
+
+var _taskSearchDebounceTimer = null;
+function onTaskSearchInput(query) {
+    var searchEl = document.getElementById('tasks-search-input');
+    if (searchEl && typeof query === 'string' && searchEl.value !== query) {
+        searchEl.value = query;
+    }
+    var clearBtn = document.getElementById('tasks-search-clear-btn');
+    if (clearBtn) {
+        if (query && String(query).trim()) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+    }
+    clearTimeout(_taskSearchDebounceTimer);
+    if (!query || !String(query).trim()) {
+        taskSearchQuery = '';
+        renderTasksBoard();
+        return;
+    }
+    _taskSearchDebounceTimer = setTimeout(function() {
+        taskSearchQuery = (query || '').trim().toLowerCase();
+        renderTasksBoard();
+    }, 180);
+}
 window.onTaskSearchInput = onTaskSearchInput;
 window.setBoardCardViewMode = setBoardCardViewMode;
 window.toggleTaskCardDetails = toggleTaskCardDetails;
@@ -2097,8 +2120,8 @@ function renderTasksBoard() {
                         '</button>' +
                     '</div>' +
                     '<div class="relative w-full sm:w-64">' +
-                        '<input type="text" value="' + esc(taskSearchQuery) + '" oninput="onTaskSearchInput(this.value)" placeholder="🔍 بحث في عنوان أو كابشن أو كود المهمة..." class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-blue-500 shadow-2xs">' +
-                        (taskSearchQuery ? '<button type="button" onclick="onTaskSearchInput(\'\')" class="absolute left-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-700">✕</button>' : '') +
+                        '<input id="tasks-search-input" type="text" autocomplete="off" value="' + esc(taskSearchQuery) + '" oninput="onTaskSearchInput(this.value)" onkeydown="if(event.key===\'Escape\'){onTaskSearchInput(\'\');}" placeholder="🔍 بحث في عنوان أو كابشن أو كود المهمة..." class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-blue-500 shadow-2xs">' +
+                        '<button id="tasks-search-clear-btn" type="button" onclick="onTaskSearchInput(\'\')" class="absolute left-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-700 ' + (taskSearchQuery ? '' : 'hidden') + '">✕</button>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -2134,6 +2157,22 @@ function renderTasksBoard() {
             '</div>';
         }
 
+        var tbContainer = document.getElementById('tasks-board-toolbar');
+        var isTypingInSearch = !!(document.activeElement && document.activeElement.id === 'tasks-search-input');
+        var searchEl = document.getElementById('tasks-search-input');
+        var caretPos = (searchEl && isTypingInSearch) ? { start: searchEl.selectionStart, end: searchEl.selectionEnd } : null;
+
+        if (tbContainer) {
+            if (!isTypingInSearch || !tbContainer.innerHTML.trim()) {
+                tbContainer.innerHTML = topBanners;
+            } else {
+                var clearBtn = document.getElementById('tasks-search-clear-btn');
+                if (clearBtn) {
+                    if (taskSearchQuery && String(taskSearchQuery).trim()) clearBtn.classList.remove('hidden');
+                    else clearBtn.classList.add('hidden');
+                }
+            }
+        }
 
         if (!displayTasks || displayTasks.length === 0) {
             var emptyMsg = '';
@@ -2165,7 +2204,17 @@ function renderTasksBoard() {
             } else {
                 emptyMsg = 'لا توجد مهام مسجلة حالياً. ارفع الخطة الشهرية أو أضف مهمة جديدة 📑';
             }
-            board.innerHTML = topBanners + '<div class="col-span-full p-8 text-center text-slate-700 text-xs bg-white border border-slate-200 rounded-2xl shadow-xs">' + emptyMsg + '</div>';
+            var emptyHtml = '<div class="col-span-full p-8 text-center text-slate-700 text-xs bg-white border border-slate-200 rounded-2xl shadow-xs">' + emptyMsg + '</div>';
+            if (tbContainer) {
+                board.innerHTML = emptyHtml;
+            } else {
+                board.innerHTML = topBanners + emptyHtml;
+            }
+            if (caretPos && document.getElementById('tasks-search-input')) {
+                var curSearchEl = document.getElementById('tasks-search-input');
+                if (document.activeElement !== curSearchEl) curSearchEl.focus();
+                try { curSearchEl.setSelectionRange(caretPos.start, caretPos.end); } catch(e) {}
+            }
             return;
         }
 
@@ -2314,7 +2363,16 @@ function renderTasksBoard() {
             columnsHtml += '</div>';
         }
 
-        board.innerHTML = topBanners + columnsHtml;
+        if (tbContainer) {
+            board.innerHTML = columnsHtml;
+        } else {
+            board.innerHTML = topBanners + columnsHtml;
+        }
+        if (caretPos && document.getElementById('tasks-search-input')) {
+            var curSearchEl = document.getElementById('tasks-search-input');
+            if (document.activeElement !== curSearchEl) curSearchEl.focus();
+            try { curSearchEl.setSelectionRange(caretPos.start, caretPos.end); } catch(e) {}
+        }
     } catch(err) {
         console.error("renderTasksBoard error:", err);
         var b = document.getElementById('tasks-board-grid');
