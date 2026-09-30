@@ -47,6 +47,10 @@ function renderMonthlyReportTable() {
     }
 
     var filtered = report.filter(function(r) {
+        var empStr = ((r.employee || '') + ' ' + (r.employee_id || '')).toLowerCase();
+        if (empStr.indexOf('اسلام') !== -1 || empStr.indexOf('إسلام') !== -1 || empStr.indexOf('islam') !== -1 || empStr.indexOf('eslam') !== -1 || empStr.indexOf('4100-3630') !== -1) {
+            return false;
+        }
         if (currentMonthlyReportRoleFilter === 'am') return !!r.is_am;
         if (currentMonthlyReportRoleFilter === 'executors') return !r.is_am;
         return true;

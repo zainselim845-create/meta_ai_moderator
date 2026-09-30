@@ -7608,6 +7608,11 @@ def _get_deleted_kpi_tasks():
     return del_tasks
 
 
+def _is_kpi_excluded_employee(eid="", nm=""):
+    s = f"{eid} {nm}".lower()
+    return any(w in s for w in ("اسلام", "إسلام", "islam", "eslam", "4100-3630"))
+
+
 def _record_deleted_tasks_for_kpi(tasks_to_record):
     """Safely archive deleted tasks that have employee effort into persistent storage for KPIs."""
     if not tasks_to_record:
@@ -7619,6 +7624,8 @@ def _record_deleted_tasks_for_kpi(tasks_to_record):
         if not isinstance(t, dict):
             continue
         if task_has_employee_effort(t):
+            if _is_kpi_excluded_employee(t.get("assigned_employee_id"), t.get("assignee_name")):
+                continue
             tid = str(t.get("task_id") or t.get("id") or "").strip()
             if not tid:
                 continue
@@ -7653,6 +7660,8 @@ def _all_tasks_for_kpi_db():
     def _collect_task_item(t):
         if not isinstance(t, dict):
             return
+        if _is_kpi_excluded_employee(t.get("assigned_employee_id"), t.get("assignee_name")):
+            return
         tid = str(t.get("task_id") or t.get("id") or "")
         if tid and tid not in seen_ids:
             seen_ids.add(tid)
@@ -7661,6 +7670,8 @@ def _all_tasks_for_kpi_db():
         # Also extract any revision subtasks linked to this task
         for st in (t.get("subtasks") or []):
             if isinstance(st, dict) and (st.get("type") == "revision" or st.get("is_subtask")):
+                if _is_kpi_excluded_employee(st.get("assigned_employee_id") or t.get("assigned_employee_id"), st.get("assignee_name") or t.get("assignee_name")):
+                    continue
                 stid = str(st.get("subtask_id") or st.get("task_id") or "")
                 if stid and stid not in seen_ids:
                     seen_ids.add(stid)
@@ -13510,6 +13521,9 @@ def api_employees_workload():
 
         if is_active or is_comp:
             for target_eid in eids_to_record:
+                target_nm = eid_to_name.get(target_eid, "")
+                if _is_kpi_excluded_employee(target_eid, target_nm):
+                    continue
                 if not is_adm and not is_mgr and my_eid and target_eid != my_eid:
                     continue
                 if is_active:
@@ -13591,7 +13605,10 @@ def api_tasks_clear():
     invalidate_tasks_cache()
     return jsonify({"success": True, "removed": removed})
 
+
 def _is_fake_demo_employee(eid="", nm="", role=""):
+    if _is_kpi_excluded_employee(eid, nm):
+        return True
     s = f"{eid} {nm} {role}".lower()
     fake_exact = [
         "مدير الحسابات (account manager)", "مصمم الجرافيك (graphic designer)", "كاتب المحتوى (content writer)",
@@ -13639,6 +13656,8 @@ def api_tasks_monthly_report():
 
     # Also ensure all entries in KNOWN_EMPLOYEE_ROSTER are in roster
     for k, (e_code, e_name) in (KNOWN_EMPLOYEE_ROSTER or {}).items():
+        if _is_kpi_excluded_employee(e_code, e_name):
+            continue
         if e_code not in roster:
             roster[e_code] = {"name": e_name, "role": "Account Manager" if is_account_manager_job("", e_code) else "فريق العمل"}
         if e_name not in name_to_eid:
@@ -13759,6 +13778,9 @@ def api_tasks_monthly_report():
         keys_to_credit = set()
         eid = str(t.get("assigned_employee_id") or "").strip()
         nm = str(t.get("assignee_name") or "").strip()
+        if _is_kpi_excluded_employee(eid, nm):
+            eid = ""
+            nm = ""
         
         target_key = None
         if eid and eid in stats:
@@ -13803,6 +13825,9 @@ def api_tasks_monthly_report():
         # Co-assignee / Secondary Employee
         sec_eid = str(t.get("secondary_employee_id") or "").strip()
         sec_nm = str(t.get("secondary_assignee_name") or "").strip()
+        if _is_kpi_excluded_employee(sec_eid, sec_nm):
+            sec_eid = ""
+            sec_nm = ""
         sec_target_key = None
         if sec_eid and sec_eid in stats:
             sec_target_key = sec_eid
@@ -13981,6 +14006,7 @@ def api_tasks_monthly_report():
                 "notes": s["notes"],
             })
 
+    report_data = [r for r in report_data if not _is_kpi_excluded_employee(r.get("employee_id"), r.get("employee"))]
     report_data.sort(key=lambda r: (r["submitted"], r["completed"], r["assigned"]), reverse=True)
     return jsonify({"success": True, "month": month_str, "report": report_data})
 

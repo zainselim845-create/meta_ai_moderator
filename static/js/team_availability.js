@@ -73,7 +73,10 @@ async function renderEmployeesStatus() {
         console.warn('[renderEmployeesStatus load error]', e);
     }
 
-    var emps = (employeesList || []).slice();
+    var emps = (employeesList || []).filter(function(e) {
+        var s = ((e.name || '') + ' ' + (e.employee_id || '')).toLowerCase();
+        return s.indexOf('اسلام') === -1 && s.indexOf('إسلام') === -1 && s.indexOf('islam') === -1 && s.indexOf('eslam') === -1 && s.indexOf('4100-3630') === -1;
+    });
     if (!emps.length) {
         box.innerHTML = '<div class="py-8 text-slate-400 text-center text-xs">لا يوجد موظفون متاحون حالياً</div>';
         return;
