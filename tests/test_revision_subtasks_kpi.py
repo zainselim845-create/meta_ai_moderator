@@ -290,7 +290,7 @@ def test_subtask_standalone_cards_api_and_direct_subtask_id_submit(monkeypatch):
                 "assignee_name": "راما المصممة",
                 "status": "In Progress",
                 "assigned_at": "2026-09-28T09:00:00+00:00",
-                "delivery_deadline": "2026-09-29",
+                "delivery_deadline": (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%d"),
                 "submitted_at": None,
                 "completed_at": None
             }
