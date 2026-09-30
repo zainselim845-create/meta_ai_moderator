@@ -1613,9 +1613,10 @@
 
        <!-- Add member form -->
        <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-         <input id="nm-username" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="اسم المستخدم (للدخول)"/>
-         <input id="nm-email" type="email" class="px-3 py-2 border border-slate-200 rounded-lg text-xs" placeholder="البريد الإلكتروني (تتبعتله البيانات)"/>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+         <input id="nm-name" class="px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium" placeholder="الاسم (مثال: م/ عبدالرحمن)"/>
+         <input id="nm-email" type="email" class="px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium" placeholder="البريد الإلكتروني (اليوزر للدخول)"/>
+         <input id="nm-password" type="text" class="px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono" placeholder="كلمة المرور (اختياري - الافتراضي: domya2026)"/>
          <select id="nm-role" class="px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
           <option value="content_creator" selected>️ كاتب محتوى (Content Creator)</option>
           <option value="account_manager"> أكونت مانيجر (Account Manager)</option>
@@ -2090,7 +2091,7 @@
     </h3>
     <p class="text-xs text-slate-500 text-center -mt-2">منصة إدارة ومودريشن فيسبوك وإنستجرام</p>
     <form class="space-y-3" onsubmit="handleLogin(event)">
-     <input class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none" id="auth-username" placeholder="اسم المستخدم أو كود الموظف (مثل EMP-8086-4520)" type="text" autocomplete="username"/>
+     <input class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none" id="auth-username" placeholder="البريد الإلكتروني أو اسم المستخدم أو كود الموظف" type="text" autocomplete="username"/>
      <input class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none" id="auth-password" placeholder="كلمة المرور" type="password" autocomplete="current-password"/>
      <div class="flex items-center justify-between text-[11px] text-slate-600 px-1">
        <label class="flex items-center gap-1.5 cursor-pointer select-none">
@@ -2123,17 +2124,17 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.js?v=1790695000">
+  <script defer src="/static/js/app.js?v=1790700000">
   </script>
-  <script defer src="/static/js/portal_view.js?v=1790695000">
+  <script defer src="/static/js/portal_view.js?v=1790700000">
   </script>
   <script defer src="/static/js/inbox.js?v=1790638000">
   </script>
   <script defer src="/static/js/chatwoot_free.js?v=1790638000">
   </script>
-  <script defer src="/static/js/views.js?v=1790695000">
+  <script defer src="/static/js/views.js?v=1790700000">
   </script>
-  <script defer src="/static/js/tasks_board.js?v=1790695000">
+  <script defer src="/static/js/tasks_board.js?v=1790700000">
   </script>
   <script defer src="/static/js/team_availability.js?v=1790638000">
   </script>

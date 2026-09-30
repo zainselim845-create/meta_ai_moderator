@@ -3430,3 +3430,118 @@ def test_deadline_with_timestamp_string_does_not_break_same_day():
     assert kpis["deadline"] == "2026-09-30"
 
 
+def test_register_with_email_sets_email_as_username_and_preserves_name_and_default_password():
+    """Verify that when an email is provided:
+    1. The login username is strictly set to the email address.
+    2. The Arabic/display name (e.g. 'م/ عبدالرحمن') is saved as the display name.
+    3. The default password is 'domya2026' rather than cryptic tokens like '4oH2rYGO8gk5'.
+    4. Both email and Arabic name can authenticate via /api/login."""
+    from api.index import app, USERS_DB
+
+    with app.test_client() as client:
+        # Simulate admin login session
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        # Register user with Arabic name in username input and valid email
+        res = client.post("/api/register", json={
+            "username": "م/ عبدالرحمن",
+            "email": "abdelrahman.engineer@example.com",
+            "role": "content_creator"
+        })
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["ok"] is True
+        assert data["username"] == "abdelrahman.engineer@example.com"
+        assert data["name"] == "م/ عبدالرحمن"
+        assert data["password"] == "domya2026"
+        assert data["role"] == "content_creator"
+
+        # Verify login with Email
+        res_email_login = client.post("/api/login", json={
+            "username": "abdelrahman.engineer@example.com",
+            "password": "domya2026"
+        })
+        assert res_email_login.status_code == 200
+        login_data = res_email_login.get_json()
+        assert login_data["ok"] is True
+        assert login_data["username"] == "abdelrahman.engineer@example.com"
+        assert login_data["name"] == "م/ عبدالرحمن"
+        assert login_data["role"] == "content_creator"
+
+        # Verify login with Arabic name as alias
+        res_name_login = client.post("/api/login", json={
+            "username": "م/ عبدالرحمن",
+            "password": "domya2026"
+        })
+        assert res_name_login.status_code == 200
+        assert res_name_login.get_json()["ok"] is True
+
+
+def test_register_with_custom_password():
+    """Verify that when admin specifies a custom password, it is respected and used."""
+    from api.index import app
+
+    with app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.post("/api/register", json={
+            "name": "مهندس علي",
+            "email": "ali.designer@example.com",
+            "password": "mySecurePass123",
+            "role": "designer"
+        })
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["username"] == "ali.designer@example.com"
+        assert data["name"] == "مهندس علي"
+        assert data["password"] == "mySecurePass123"
+
+        # Verify login
+        res_login = client.post("/api/login", json={
+            "username": "ali.designer@example.com",
+            "password": "mySecurePass123"
+        })
+        assert res_login.status_code == 200
+        assert res_login.get_json()["ok"] is True
+
+
+def test_api_users_list_deduplicates_aliases_and_returns_name():
+    """Verify /api/users returns each user exactly once with their name and email."""
+    from api.index import app
+
+    with app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.get("/api/users")
+        assert res.status_code == 200
+        users = res.get_json().get("users", [])
+        abdel_users = [u for u in users if u.get("email") == "abdelrahman.engineer@example.com"]
+        assert len(abdel_users) == 1
+        assert abdel_users[0]["name"] == "م/ عبدالرحمن"
+        assert abdel_users[0]["username"] == "abdelrahman.engineer@example.com"
+
+
+def test_send_credentials_defaults_to_domya2026():
+    """Verify /api/auth/send-credentials issues domya2026 instead of random token."""
+    from api.index import app
+
+    with app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        res = client.post("/api/auth/send-credentials", json={
+            "username": "abdelrahman.engineer@example.com"
+        })
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["password"] == "domya2026"
+
+
+

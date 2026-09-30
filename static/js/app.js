@@ -2529,7 +2529,7 @@ async function renderMembers() {
   const clients = window._teamClients || [];
   const nameOf = id => (clients.find(c => c.id === id)||{}).name || id;
   const roleLabel = r => r==='admin' ? 'مدير' : r==='account_manager' ? 'أكونت مانيجر' : r==='content_creator' ? 'كاتب محتوى (Content)' : 'موظف';
-  const displayName = u => empNames[u.employee_id] || empNames[u.username] || u.username;
+  const displayName = u => u.name || empNames[u.employee_id] || empNames[u.username] || u.username;
   list.innerHTML = users.map(u => {
     const assigned = (u.assigned_clients||[]).map(nameOf);
     const chips = clients.map(c => {
@@ -2575,27 +2575,35 @@ async function renderMembers() {
 }
 
 async function createMember() {
-  const username = document.getElementById('nm-username')?.value.trim();
-  const email = document.getElementById('nm-email')?.value.trim();
+  const name = (document.getElementById('nm-name')?.value || document.getElementById('nm-username')?.value || '').trim();
+  const email = (document.getElementById('nm-email')?.value || '').trim();
+  const password = (document.getElementById('nm-password')?.value || '').trim() || 'domya2026';
   const role = document.getElementById('nm-role')?.value || 'account_manager';
   const assigned = Array.from(document.querySelectorAll('.nm-client-cb:checked')).map(cb => cb.value);
-  if (!username) { showToast('اكتب اسم المستخدم', 'error'); return; }
-  if (!email) { showToast('اكتب البريد الإلكتروني لإرسال البيانات', 'error'); return; }
+  if (!name && !email) { showToast('اكتب الاسم أو البريد الإلكتروني', 'error'); return; }
+  
+  // When email is provided, the login username is strictly the email address
+  const username = email ? email : name;
+
   try {
     const r = await fetch('/api/register', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({username, email, role, assigned_clients: assigned, send_email: true})});
+      body: JSON.stringify({username, name, email, password, role, assigned_clients: assigned, send_email: true})});
     const d = await r.json();
     if (!r.ok) { showToast(d.error || 'تعذّر الإضافة', 'error'); return; }
     // Show credentials to the admin once (works even if SMTP email isn't configured).
     const info = document.getElementById('new-member-creds');
     if (info) {
       info.classList.remove('hidden');
-      info.innerHTML = `تم إنشاء الحساب ${d.email_sent ? '(واتبعت على بريده)' : '(الإيميل مش مفعّل — انسخ البيانات وابعتها له)'}
-        <div class="mt-1 font-mono text-slate-800">اسم المستخدم: <b>${esc(d.username)}</b> — كلمة المرور: <b>${esc(d.password||'')}</b></div>`;
+      info.innerHTML = `تم إنشاء الحساب ${d.email_sent ? '(واتبعت على بريده ✉️)' : '(الإيميل مش مفعّل — انسخ البيانات وابعتها له)'}
+        <div class="mt-1 font-mono text-slate-800">
+          ${d.name && d.name !== d.username ? `الاسم: <b>${esc(d.name)}</b> — ` : ''}اسم المستخدم (البريد): <b>${esc(d.username)}</b> — كلمة المرور: <b>${esc(d.password||'')}</b>
+        </div>`;
     }
-    showToast(d.email_sent ? 'تم إضافة العضو وإرسال البيانات على بريده ' : 'تم إضافة العضو — انسخ بيانات الدخول');
+    showToast(d.email_sent ? 'تم إضافة العضو وإرسال البيانات على بريده ✉️' : 'تم إضافة العضو — انسخ بيانات الدخول');
+    var _n = document.getElementById('nm-name'); if (_n) _n.value = '';
     var _u = document.getElementById('nm-username'); if (_u) _u.value = '';
     var _em = document.getElementById('nm-email'); if (_em) _em.value = '';
+    var _p = document.getElementById('nm-password'); if (_p) _p.value = '';
     document.querySelectorAll('.nm-client-cb:checked').forEach(cb=>cb.checked=false);
     renderMembers();
   } catch(e) { showToast('خطأ في الشبكة', 'error'); }
