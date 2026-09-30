@@ -2575,15 +2575,26 @@ async function renderMembers() {
 }
 
 async function createMember() {
-  const name = (document.getElementById('nm-name')?.value || document.getElementById('nm-username')?.value || '').trim();
-  const email = (document.getElementById('nm-email')?.value || '').trim();
-  const password = (document.getElementById('nm-password')?.value || '').trim() || 'domya2026';
+  const nameInput = (document.getElementById('nm-name')?.value || document.getElementById('nm-username')?.value || '').trim();
+  const emailInput = (document.getElementById('nm-email')?.value || '').trim();
+  const passInput = (document.getElementById('nm-password')?.value || '').trim();
   const role = document.getElementById('nm-role')?.value || 'account_manager';
   const assigned = Array.from(document.querySelectorAll('.nm-client-cb:checked')).map(cb => cb.value);
+
+  let name = nameInput;
+  let email = emailInput;
+  const password = passInput || 'domya2026';
+
+  // If the user typed the email in the name input field
+  if (!email && name.includes('@')) {
+    email = name;
+    name = '';
+  }
+
   if (!name && !email) { showToast('اكتب الاسم أو البريد الإلكتروني', 'error'); return; }
   
-  // When email is provided, the login username is strictly the email address
-  const username = email ? email : name;
+  // When email is provided, the login username is strictly the email address (Gmail, etc.)
+  const username = (email && email.includes('@')) ? email.toLowerCase() : name;
 
   try {
     const r = await fetch('/api/register', {method:'POST', headers:{'Content-Type':'application/json'},
@@ -2596,7 +2607,8 @@ async function createMember() {
       info.classList.remove('hidden');
       info.innerHTML = `تم إنشاء الحساب ${d.email_sent ? '(واتبعت على بريده ✉️)' : '(الإيميل مش مفعّل — انسخ البيانات وابعتها له)'}
         <div class="mt-1 font-mono text-slate-800">
-          ${d.name && d.name !== d.username ? `الاسم: <b>${esc(d.name)}</b> — ` : ''}اسم المستخدم (البريد): <b>${esc(d.username)}</b> — كلمة المرور: <b>${esc(d.password||'')}</b>
+          ${d.name ? `الاسم: <b>${esc(d.name)}</b> — ` : ''}
+          اسم المستخدم (الجيميل / البريد للدخول): <b class="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 select-all">${esc(d.username)}</b> — كلمة المرور: <b class="select-all">${esc(d.password||'')}</b>
         </div>`;
     }
     showToast(d.email_sent ? 'تم إضافة العضو وإرسال البيانات على بريده ✉️' : 'تم إضافة العضو — انسخ بيانات الدخول');
