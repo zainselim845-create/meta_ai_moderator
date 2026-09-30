@@ -19,6 +19,43 @@ function setBoardCardViewMode(mode) {
     renderTasksBoard();
 }
 
+function getCleanDateStr(val) {
+    if (!val) return '';
+    var s = String(val).trim();
+    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) {
+        var y = m[1], mo = m[2].length === 1 ? '0' + m[2] : m[2], d = m[3].length === 1 ? '0' + m[3] : m[3];
+        return y + '-' + mo + '-' + d;
+    }
+    try {
+        var dt = new Date(s);
+        if (!isNaN(dt.getTime())) {
+            try {
+                return dt.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+            } catch(e) {
+                var offsetMs = 3 * 3600 * 1000;
+                var cairoD = new Date(dt.getTime() + offsetMs);
+                return cairoD.toISOString().slice(0, 10);
+            }
+        }
+    } catch(e){}
+    return s.slice(0, 10);
+}
+window.getCleanDateStr = getCleanDateStr;
+
+function getCairoTodayStr() {
+    try {
+        return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+    } catch(e) {
+        var d = new Date();
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+    }
+}
+window.getCairoTodayStr = getCairoTodayStr;
+
 window._expandedTaskCardIds = window._expandedTaskCardIds || new Set();
 
 function toggleTaskCardDetails(taskId) {
@@ -489,7 +526,7 @@ function renderTaskCardDetailsContent(t) {
     var hasActiveMod = checkTaskHasActiveMod(t);
     var effectiveDeadline = dDead;
 
-    if (hasActiveMod) {
+    if (hasActiveMod || t.modification_deadline) {
         if (t.modification_deadline) {
             effectiveDeadline = String(t.modification_deadline).slice(0, 10);
         } else if (dDead) {
@@ -503,11 +540,13 @@ function renderTaskCardDetailsContent(t) {
         }
     }
 
-    if (effectiveDeadline) {
-        var todayStr = new Date().toISOString().slice(0, 10);
+    var effectiveDlClean = getCleanDateStr(effectiveDeadline);
+
+    if (effectiveDlClean) {
+        var todayStr = getCairoTodayStr();
         var tomDate = new Date();
         tomDate.setDate(tomDate.getDate() + 1);
-        var tomorrowStr = tomDate.toISOString().slice(0, 10);
+        var tomorrowStr = getCleanDateStr(tomDate);
 
         var isDeliveredOrReview = (t.status === 'Submitted / In Review' || t.status === 'Awaiting AM Review' || !!t.drive_link || (Array.isArray(t.deliverables) && t.deliverables.length > 0));
 
@@ -517,7 +556,13 @@ function renderTaskCardDetailsContent(t) {
         } else if (isDeliveredOrReview) {
             deadlineBoxClass = 'bg-purple-50/40 border-purple-200';
             var kpis = t.kpis || {};
-            var isOnTime = (typeof kpis.is_on_time === 'boolean') ? kpis.is_on_time : (t.submitted_at && dDead ? String(t.submitted_at).slice(0, 10) <= String(dDead).slice(0, 10) : undefined);
+            var isOnTime = (typeof kpis.is_on_time === 'boolean') ? kpis.is_on_time : undefined;
+            if (isOnTime === undefined && t.submitted_at && effectiveDlClean) {
+                var subClean = getCleanDateStr(t.submitted_at);
+                if (subClean && effectiveDlClean) {
+                    isOnTime = (subClean <= effectiveDlClean);
+                }
+            }
             if (isOnTime === true) {
                 deadlineBadgeHtml = '<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">✅ تم التسليم في الموعد</span>';
             } else if (isOnTime === false) {
@@ -526,27 +571,27 @@ function renderTaskCardDetailsContent(t) {
                 deadlineBadgeHtml = '<span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-md">📤 تم التسليم / بانتظار الاعتماد</span>';
             }
         } else if (hasActiveMod) {
-            if (effectiveDeadline < todayStr) {
+            if (effectiveDlClean < todayStr) {
                 deadlineBoxClass = 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-300';
                 deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md animate-pulse">🚨 متأخر عن موعد التعديل!</span>';
-            } else if (effectiveDeadline === todayStr) {
-                deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
-                deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم التعديل اليوم!</span>';
+            } else if (effectiveDlClean === todayStr) {
+                deadlineBoxClass = 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-200';
+                deadlineBadgeHtml = '<span class="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم التعديل اليوم!</span>';
             } else {
                 deadlineBoxClass = 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-200';
                 deadlineBadgeHtml = '<span class="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">✍️ جاري التعديل</span>';
             }
-        } else if (effectiveDeadline < todayStr) {
+        } else if (effectiveDlClean < todayStr) {
             deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
             deadlineBadgeHtml = '<span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-md animate-pulse">🚨 متأخر عن الموعد!</span>';
-        } else if (effectiveDeadline === todayStr) {
-            deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
-            deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم اليوم!</span>';
-        } else if (effectiveDeadline === tomorrowStr) {
+        } else if (effectiveDlClean === todayStr) {
+            deadlineBoxClass = 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-200';
+            deadlineBadgeHtml = '<span class="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم اليوم!</span>';
+        } else if (effectiveDlClean === tomorrowStr) {
             deadlineBoxClass = 'bg-amber-50/60 border-amber-300';
             deadlineBadgeHtml = '<span class="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md">⏳ تسليم غداً</span>';
         } else {
-            deadlineBadgeHtml = '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(effectiveDeadline) + ')</span>';
+            deadlineBadgeHtml = '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(effectiveDlClean) + ')</span>';
         }
     }
 
@@ -728,11 +773,13 @@ function renderTaskCardDetailsContent(t) {
         }
         
         var isOnTime = kpis ? kpis.is_on_time : undefined;
-        var effectiveDl = (t.modification_deadline || t.delivery_deadline);
+        var effectiveDl = (t.modification_deadline || t.delivery_deadline || t.publish_date);
         if (isOnTime === undefined && effectiveDl && t.submitted_at) {
-            var dl = String(effectiveDl).slice(0, 10);
-            var sub = String(t.submitted_at).slice(0, 10);
-            isOnTime = sub <= dl;
+            var dl = getCleanDateStr(effectiveDl);
+            var sub = getCleanDateStr(t.submitted_at);
+            if (dl && sub) {
+                isOnTime = (sub <= dl);
+            }
         }
 
         var kpiBadge = isOnTime === true ?
@@ -1455,7 +1502,7 @@ function renderTaskCard(t, indexInPlan) {
     var hasActiveMod = checkTaskHasActiveMod(t);
     var effectiveDeadline = dDead;
 
-    if (hasActiveMod) {
+    if (hasActiveMod || t.modification_deadline) {
         if (t.modification_deadline) {
             effectiveDeadline = String(t.modification_deadline).slice(0, 10);
         } else if (dDead) {
@@ -1469,11 +1516,13 @@ function renderTaskCard(t, indexInPlan) {
         }
     }
 
-    if (effectiveDeadline) {
-        var todayStr = new Date().toISOString().slice(0, 10);
+    var effectiveDlClean = getCleanDateStr(effectiveDeadline);
+
+    if (effectiveDlClean) {
+        var todayStr = getCairoTodayStr();
         var tomDate = new Date();
         tomDate.setDate(tomDate.getDate() + 1);
-        var tomorrowStr = tomDate.toISOString().slice(0, 10);
+        var tomorrowStr = getCleanDateStr(tomDate);
 
         var isDeliveredOrReview = (t.status === 'Submitted / In Review' || t.status === 'Awaiting AM Review' || !!t.drive_link || (Array.isArray(t.deliverables) && t.deliverables.length > 0));
 
@@ -1483,7 +1532,13 @@ function renderTaskCard(t, indexInPlan) {
         } else if (isDeliveredOrReview) {
             deadlineBoxClass = 'bg-purple-50/40 border-purple-200';
             var kpis = t.kpis || {};
-            var isOnTime = (typeof kpis.is_on_time === 'boolean') ? kpis.is_on_time : (t.submitted_at && dDead ? String(t.submitted_at).slice(0, 10) <= String(dDead).slice(0, 10) : undefined);
+            var isOnTime = (typeof kpis.is_on_time === 'boolean') ? kpis.is_on_time : undefined;
+            if (isOnTime === undefined && t.submitted_at && effectiveDlClean) {
+                var subClean = getCleanDateStr(t.submitted_at);
+                if (subClean && effectiveDlClean) {
+                    isOnTime = (subClean <= effectiveDlClean);
+                }
+            }
             if (isOnTime === true) {
                 deadlineBadgeHtml = '<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">✅ تم التسليم في الموعد</span>';
             } else if (isOnTime === false) {
@@ -1492,27 +1547,27 @@ function renderTaskCard(t, indexInPlan) {
                 deadlineBadgeHtml = '<span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-md">📤 تم التسليم / بانتظار الاعتماد</span>';
             }
         } else if (hasActiveMod) {
-            if (effectiveDeadline < todayStr) {
+            if (effectiveDlClean < todayStr) {
                 deadlineBoxClass = 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-300';
                 deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md animate-pulse">🚨 متأخر عن موعد التعديل!</span>';
-            } else if (effectiveDeadline === todayStr) {
-                deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
-                deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم التعديل اليوم!</span>';
+            } else if (effectiveDlClean === todayStr) {
+                deadlineBoxClass = 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-200';
+                deadlineBadgeHtml = '<span class="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم التعديل اليوم!</span>';
             } else {
                 deadlineBoxClass = 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-200';
                 deadlineBadgeHtml = '<span class="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">✍️ جاري التعديل</span>';
             }
-        } else if (effectiveDeadline < todayStr) {
+        } else if (effectiveDlClean < todayStr) {
             deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
             deadlineBadgeHtml = '<span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-md animate-pulse">🚨 متأخر عن الموعد!</span>';
-        } else if (effectiveDeadline === todayStr) {
-            deadlineBoxClass = 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-200';
-            deadlineBadgeHtml = '<span class="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم اليوم!</span>';
-        } else if (effectiveDeadline === tomorrowStr) {
+        } else if (effectiveDlClean === todayStr) {
+            deadlineBoxClass = 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-200';
+            deadlineBadgeHtml = '<span class="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⏰ تسليم اليوم!</span>';
+        } else if (effectiveDlClean === tomorrowStr) {
             deadlineBoxClass = 'bg-amber-50/60 border-amber-300';
             deadlineBadgeHtml = '<span class="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md">⏳ تسليم غداً</span>';
         } else {
-            deadlineBadgeHtml = '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(effectiveDeadline) + ')</span>';
+            deadlineBadgeHtml = '<span class="text-[10px] text-slate-500 font-mono font-normal">(' + esc(effectiveDlClean) + ')</span>';
         }
     }
 

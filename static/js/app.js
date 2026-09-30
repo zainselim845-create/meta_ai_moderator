@@ -1243,27 +1243,20 @@ function renderMyPortalTasks() {
     if (hasActiveMod && t.modification_deadline) {
       const mStr = String(t.modification_deadline).slice(0, 10);
       try {
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const parts = mStr.split('-');
-        if (parts.length === 3) {
-          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-          d.setHours(0,0,0,0);
-          const diffDays = Math.round((d - today) / (1000 * 60 * 60 * 24));
-          if (diffDays === 0) return `<span class="bg-rose-600 text-white px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⏰ تسليم التعديل اليوم! (${mStr})</span>`;
-          if (diffDays === 1) return `<span class="bg-amber-500 text-white px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⏳ تسليم التعديل غداً (${mStr})</span>`;
-          if (diffDays < 0) return `<span class="bg-rose-600 text-white px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1 animate-pulse">🚨 متأخر عن موعد التعديل! (${mStr})</span>`;
-          return `<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px]">✍️ تعديل (${mStr} - باقي ${diffDays} يوم)</span>`;
-        }
+        const todayStr = (window.getCairoTodayStr ? window.getCairoTodayStr() : new Date().toISOString().slice(0, 10));
+        const mClean = (window.getCleanDateStr ? window.getCleanDateStr(mStr) : mStr);
+        if (mClean === todayStr) return `<span class="bg-amber-500 text-white px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1 shadow-2xs">⏰ تسليم التعديل اليوم! (${mStr})</span>`;
+        if (mClean < todayStr) return `<span class="bg-rose-600 text-white px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1 animate-pulse">🚨 متأخر عن موعد التعديل! (${mStr})</span>`;
+        return `<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px]">✍️ تعديل (${mStr})</span>`;
       } catch(e){}
     }
 
     if (isDone || isSubmitted) {
       let isOnTime = (t.kpis && typeof t.kpis.is_on_time === 'boolean') ? t.kpis.is_on_time : null;
       if (isOnTime === null && t.submitted_at && dStr) {
-        const subDate = String(t.submitted_at).slice(0, 10);
-        const dlDate = String(dStr).slice(0, 10);
-        isOnTime = subDate <= dlDate;
+        const subDate = (window.getCleanDateStr ? window.getCleanDateStr(t.submitted_at) : String(t.submitted_at).slice(0, 10));
+        const dlDate = (window.getCleanDateStr ? window.getCleanDateStr(dStr) : String(dStr).slice(0, 10));
+        isOnTime = (subDate <= dlDate);
       }
 
       if (isOnTime === true) {
@@ -1278,18 +1271,17 @@ function renderMyPortalTasks() {
       return `<span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">📤 تم التسليم / قيد المراجعة (${dStr})</span>`;
     }
     try {
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const parts = dStr.split('-');
-      if (parts.length === 3) {
-        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        d.setHours(0,0,0,0);
-        const diffDays = Math.round((d - today) / (1000 * 60 * 60 * 24));
-        if (diffDays === 0) return `<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">🚨 اليوم (${dStr})</span>`;
-        if (diffDays === 1) return `<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⏰ غداً (${dStr})</span>`;
-        if (diffDays < 0) return `<span class="bg-rose-100 text-rose-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⚠️ متأخرة عن الموعد (${dStr})</span>`;
-        return `<span class="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px]">${dStr} (باقي ${diffDays} يوم)</span>`;
-      }
+      const todayStr = (window.getCairoTodayStr ? window.getCairoTodayStr() : new Date().toISOString().slice(0, 10));
+      const dlClean = (window.getCleanDateStr ? window.getCleanDateStr(dStr) : String(dStr).slice(0, 10));
+      
+      const tomDate = new Date();
+      tomDate.setDate(tomDate.getDate() + 1);
+      const tomorrowStr = (window.getCleanDateStr ? window.getCleanDateStr(tomDate) : tomDate.toISOString().slice(0, 10));
+
+      if (dlClean === todayStr) return `<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⏰ تسليم اليوم (${dStr})</span>`;
+      if (dlClean === tomorrowStr) return `<span class="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⏳ غداً (${dStr})</span>`;
+      if (dlClean < todayStr) return `<span class="bg-rose-100 text-rose-900 px-2 py-0.5 rounded-md font-bold font-mono text-[11px] inline-flex items-center gap-1">⚠️ متأخرة عن الموعد (${dStr})</span>`;
+      return `<span class="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md font-bold font-mono text-[11px]">${dStr}</span>`;
     } catch(e) {}
     return `<span class="font-bold font-mono text-xs">${esc(dStr)}</span>`;
   };

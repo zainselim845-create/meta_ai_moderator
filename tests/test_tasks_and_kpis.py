@@ -3310,3 +3310,123 @@ def test_pdf_deliverable_upload_and_media_type_classification(monkeypatch):
         assert test_task["status"] == "Submitted / In Review"
         assert test_task["deliverables"][-1]["filename"] == "brochure_final.pdf"
 
+
+def test_to_cairo_date_str_various_formats():
+    """Verify that to_cairo_date_str correctly extracts YYYY-MM-DD in Cairo time."""
+    from api.services.kpi_service import to_cairo_date_str
+    # Pure date
+    assert to_cairo_date_str("2026-09-30") == "2026-09-30"
+    assert to_cairo_date_str("2026-9-30") == "2026-09-30"
+    assert to_cairo_date_str("2026-09-5") == "2026-09-05"
+    
+    # DateTime with space
+    assert to_cairo_date_str("2026-09-30 14:30") == "2026-09-30"
+    
+    # UTC timestamps converted to Cairo (UTC+3)
+    # 20:30 UTC on Sep 30 is 23:30 Cairo on Sep 30 (same day)
+    assert to_cairo_date_str("2026-09-30T20:30:00Z", tz_offset_hours=3) == "2026-09-30"
+    assert to_cairo_date_str("2026-09-30T20:59:59+00:00", tz_offset_hours=3) == "2026-09-30"
+    
+    # 21:05 UTC on Sep 30 is 00:05 Cairo on Oct 1 (next day)
+    assert to_cairo_date_str("2026-09-30T21:05:00Z", tz_offset_hours=3) == "2026-10-01"
+
+
+def test_task_submitted_on_same_day_is_strictly_on_time():
+    """Tasks submitted on the exact same day as the deadline must NEVER be marked late."""
+    from api.services.kpi_service import calculate_task_kpis
+    # Morning submission
+    t1 = {
+        "task_id": "T-101",
+        "delivery_deadline": "2026-09-30",
+        "assigned_at": "2026-09-28T09:00:00Z",
+        "submitted_at": "2026-09-30T07:00:00Z", # 10:00 AM Cairo
+    }
+    kpis1 = calculate_task_kpis(t1, tz_offset_hours=3)
+    assert kpis1["is_on_time"] is True
+    assert kpis1["is_delayed"] is False
+    assert kpis1.get("delay_days") == 0
+    assert kpis1["deadline"] == "2026-09-30"
+    assert kpis1["submitted_date"] == "2026-09-30"
+
+    # Late evening submission (11:59 PM Cairo on deadline date)
+    t2 = {
+        "task_id": "T-102",
+        "delivery_deadline": "2026-09-30",
+        "assigned_at": "2026-09-28T09:00:00Z",
+        "submitted_at": "2026-09-30T20:59:00Z", # 23:59 Cairo (same day)
+    }
+    kpis2 = calculate_task_kpis(t2, tz_offset_hours=3)
+    assert kpis2["is_on_time"] is True
+    assert kpis2["is_delayed"] is False
+    assert kpis2.get("delay_days") == 0
+    assert kpis2["deadline"] == "2026-09-30"
+    assert kpis2["submitted_date"] == "2026-09-30"
+
+
+def test_task_submitted_after_deadline_is_delayed():
+    """Tasks submitted strictly after the deadline day has ended are marked delayed."""
+    from api.services.kpi_service import calculate_task_kpis
+    t = {
+        "task_id": "T-103",
+        "delivery_deadline": "2026-09-30",
+        "assigned_at": "2026-09-28T09:00:00Z",
+        "submitted_at": "2026-10-01T08:00:00Z", # Next day
+    }
+    kpis = calculate_task_kpis(t, tz_offset_hours=3)
+    assert kpis["is_on_time"] is False
+    assert kpis["is_delayed"] is True
+    assert kpis["deadline"] == "2026-09-30"
+    assert kpis["submitted_date"] == "2026-10-01"
+
+
+def test_modification_deadline_same_day_is_on_time():
+    """When a task has a modification deadline, submitting on modification deadline day is on-time."""
+    from api.services.kpi_service import calculate_task_kpis
+    t = {
+        "task_id": "T-104",
+        "delivery_deadline": "2026-09-20", # Old initial deadline
+        "modification_deadline": "2026-09-25",
+        "modification_requested_at": "2026-09-22T10:00:00Z",
+        "submitted_at": "2026-09-25T15:00:00Z", # Submitted on modification deadline day
+    }
+    kpis = calculate_task_kpis(t, tz_offset_hours=3)
+    assert kpis["is_on_time"] is True
+    assert kpis["is_delayed"] is False
+    assert kpis["deadline"] == "2026-09-25"
+
+
+def test_modification_archived_requested_at_preserves_modification_deadline():
+    """When modification_requested_at is cleared/archived to last_modification_requested_at,
+    modification_deadline is still respected and not overwritten by old delivery_deadline."""
+    from api.services.kpi_service import calculate_task_kpis
+    t = {
+        "task_id": "T-105",
+        "delivery_deadline": "2026-09-20", # Old initial deadline
+        "modification_deadline": "2026-09-25",
+        "last_modification_requested_at": "2026-09-22T10:00:00Z",
+        "modification_requested_at": None,
+        "submitted_at": "2026-09-25T18:00:00Z",
+    }
+    # AM approves
+    kpis = calculate_task_kpis(t, action_name="approve", tz_offset_hours=3)
+    assert kpis["is_on_time"] is True
+    assert kpis["is_delayed"] is False
+    assert kpis["deadline"] == "2026-09-25"
+
+
+def test_deadline_with_timestamp_string_does_not_break_same_day():
+    """If delivery_deadline or publish_date contains a timestamp like '2026-09-30 12:00',
+    string comparison must not treat submission at 17:00 on the same date as late."""
+    from api.services.kpi_service import calculate_task_kpis
+    t = {
+        "task_id": "T-106",
+        "delivery_deadline": "2026-09-30 12:00",
+        "assigned_at": "2026-09-28T09:00:00Z",
+        "submitted_at": "2026-09-30T17:00:00Z", # 20:00 Cairo (same calendar day)
+    }
+    kpis = calculate_task_kpis(t, tz_offset_hours=3)
+    assert kpis["is_on_time"] is True
+    assert kpis["is_delayed"] is False
+    assert kpis["deadline"] == "2026-09-30"
+
+

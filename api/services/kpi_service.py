@@ -1,6 +1,38 @@
 # KPI & Sorting service for meta_ai_moderator
+import os
 import re
 from datetime import datetime, timezone, timedelta
+
+def to_cairo_date_str(val, tz_offset_hours=None):
+    """Safely extracts YYYY-MM-DD in Cairo local time from any ISO string, date string, or datetime."""
+    if not val:
+        return ""
+    if tz_offset_hours is None:
+        try:
+            tz_offset_hours = float(os.environ.get("TZ_OFFSET_HOURS", "3"))
+        except Exception:
+            tz_offset_hours = 3.0
+    s = str(val).strip()
+    m_pure = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", s)
+    if m_pure:
+        return f"{m_pure.group(1)}-{m_pure.group(2).zfill(2)}-{m_pure.group(3).zfill(2)}"
+    try:
+        if s.endswith("Z") or re.search(r"[+-]\d{2}:?\d{2}$", s):
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            cairo_tz = timezone(timedelta(hours=tz_offset_hours))
+            return dt.astimezone(cairo_tz).strftime("%Y-%m-%d")
+        elif "T" in s or " " in s:
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            cairo_tz = timezone(timedelta(hours=tz_offset_hours))
+            return dt.astimezone(cairo_tz).strftime("%Y-%m-%d")
+    except Exception:
+        pass
+    m = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", s)
+    if m:
+        return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+    return s[:10]
 
 def resolve_post_number(t, default_index=1):
     """Resolve the clean sequential post number (1, 2, 3...) inside a client's plan."""
@@ -65,13 +97,19 @@ def natural_task_sort_key(t):
         
     return (4, 999999, task_id)
 
-def calculate_task_kpis(t, action_name=None, tz_offset_hours=2):
+def calculate_task_kpis(t, action_name=None, tz_offset_hours=None):
     """Recalculate turnaround hours, on-time flag, and deadlines for a task dictionary."""
     if not isinstance(t, dict):
         return {}
     if isinstance(action_name, (int, float)):
         tz_offset_hours = action_name
         action_name = None
+
+    if tz_offset_hours is None:
+        try:
+            tz_offset_hours = float(os.environ.get("TZ_OFFSET_HOURS", "3"))
+        except Exception:
+            tz_offset_hours = 3.0
 
     if action_name:
         act = str(action_name).lower()
@@ -85,13 +123,19 @@ def calculate_task_kpis(t, action_name=None, tz_offset_hours=2):
     kpis = t.get("kpis") or {}
     assigned_at = t.get("assigned_at")
     submitted_at = t.get("submitted_at")
-    deadline = t.get("delivery_deadline")
+    deadline = t.get("delivery_deadline") or t.get("publish_date")
     
-    mod_at = t.get("modification_requested_at") or t.get("returned_to_employee_at")
+    mod_at = t.get("modification_requested_at") or t.get("returned_to_employee_at") or t.get("last_modification_requested_at")
+    mod_dl = t.get("modification_deadline")
     effective_start = assigned_at
     effective_deadline = deadline
 
-    if mod_at:
+    if mod_dl:
+        effective_deadline = mod_dl
+        effective_start = mod_at or assigned_at
+        kpis["is_modification"] = True
+        kpis["modification_deadline"] = mod_dl
+    elif mod_at:
         try:
             dt_mod = datetime.fromisoformat(str(mod_at).replace("Z", "+00:00"))
             dt_sub = datetime.fromisoformat(str(submitted_at).replace("Z", "+00:00")) if submitted_at else None
@@ -99,21 +143,17 @@ def calculate_task_kpis(t, action_name=None, tz_offset_hours=2):
                 effective_start = mod_at
                 kpis["is_modification"] = True
                 kpis["modification_requested_at"] = mod_at
-                mod_dl = t.get("modification_deadline")
-                if mod_dl:
-                    effective_deadline = mod_dl
+                mod_cairo_d = (dt_mod + timedelta(hours=tz_offset_hours)).date()
+                orig_dl_d = None
+                if deadline:
+                    try:
+                        orig_dl_d = datetime.strptime(str(deadline)[:10], "%Y-%m-%d").date()
+                    except Exception:
+                        pass
+                if not orig_dl_d or orig_dl_d < mod_cairo_d:
+                    effective_deadline = (dt_mod + timedelta(hours=tz_offset_hours, days=1)).strftime("%Y-%m-%d")
                 else:
-                    mod_cairo_d = (dt_mod + timedelta(hours=tz_offset_hours)).date()
-                    orig_dl_d = None
-                    if deadline:
-                        try:
-                            orig_dl_d = datetime.strptime(str(deadline)[:10], "%Y-%m-%d").date()
-                        except Exception:
-                            pass
-                    if not orig_dl_d or orig_dl_d < mod_cairo_d:
-                        effective_deadline = (dt_mod + timedelta(hours=tz_offset_hours, days=1)).strftime("%Y-%m-%d")
-                    else:
-                        effective_deadline = str(deadline)[:10]
+                    effective_deadline = str(deadline)[:10]
         except Exception:
             pass
 
@@ -132,14 +172,18 @@ def calculate_task_kpis(t, action_name=None, tz_offset_hours=2):
             pass
             
         if effective_deadline:
-            dl_str = str(effective_deadline)[:10]
-            try:
-                dt_submit = datetime.fromisoformat(str(submitted_at).replace("Z", "+00:00"))
-                sub_cairo = (dt_submit + timedelta(hours=tz_offset_hours)).strftime("%Y-%m-%d")
-                kpis["is_on_time"] = bool(sub_cairo <= dl_str)
-                kpis["deadline"] = dl_str
-            except Exception:
-                pass
+            dl_clean = to_cairo_date_str(effective_deadline, tz_offset_hours)
+            sub_cairo = to_cairo_date_str(submitted_at, tz_offset_hours)
+            if dl_clean and sub_cairo:
+                # STRICT RULE: A delay is ONLY counted when the task is submitted AFTER its deadline day.
+                # If submitted on the same calendar day or earlier (sub_cairo <= dl_clean), it is STRICTLY on-time!
+                is_on_time = bool(sub_cairo <= dl_clean)
+                kpis["is_on_time"] = is_on_time
+                kpis["is_delayed"] = not is_on_time
+                kpis["deadline"] = dl_clean
+                kpis["submitted_date"] = sub_cairo
+                if is_on_time:
+                    kpis["delay_days"] = 0
                 
     if t.get("type") == "revision" or t.get("is_subtask"):
         kpis["is_subtask"] = True
@@ -154,10 +198,16 @@ def calculate_task_kpis(t, action_name=None, tz_offset_hours=2):
             review_turnaround_secs = max(0, (dt_comp - dt_sub).total_seconds())
             kpis["review_turnaround_hours"] = round(review_turnaround_secs / 3600, 2)
             kpis["am_turnaround_hours"] = round(review_turnaround_secs / 3600, 2)
+            kpis["am_review_hours"] = round(review_turnaround_secs / 3600, 2)
+            kpis["am_review_minutes"] = round(review_turnaround_secs / 60, 1)
             kpis["am_reviewed_at"] = completed_at
             kpis["am_on_time"] = bool(review_turnaround_secs <= 86400) # AM within 24h
         except Exception:
             pass
+
+    timer_secs = (t.get("timer_state") or {}).get("elapsed_seconds", 0)
+    if timer_secs:
+        kpis["timer_minutes"] = round(timer_secs / 60, 1)
 
     t["kpis"] = kpis
     return kpis
