@@ -3545,4 +3545,92 @@ def test_send_credentials_defaults_to_domya2026():
         assert data["password"] == "domya2026"
 
 
+def test_monthly_report_month_by_month_filtering_and_available_months(monkeypatch):
+    """Verify month-by-month task isolation:
+    1. Tasks with explicit monthly plan name belong strictly to that plan's month,
+       even if created early in a previous month.
+    2. /api/tasks/monthly-report returns available_months list.
+    3. Filtering by month=YYYY-MM isolates that month's tasks with 0 cross-month leakage.
+    4. Filtering with month=all includes all tasks across all months.
+    """
+    import api.index as idx
+
+    # Task for October plan created early in September
+    t_oct = {
+        "task_id": "TASK-OCT-01",
+        "client_id": "cli_reaya",
+        "plan_name": "خطة معامل رعاية — أكتوبر 2026",
+        "title": "بوست أكتوبر 1",
+        "status": "Completed",
+        "assigned_employee_id": "EMP-8148",
+        "assignee_name": "عمر أحمد",
+        "created_at": "2026-09-07T12:00:00+00:00",
+        "delivery_deadline": "2026-10-02",
+        "completed_at": "2026-10-02T15:00:00+00:00",
+    }
+
+    # Task for September plan created in September
+    t_sep = {
+        "task_id": "TASK-SEP-01",
+        "client_id": "cli_sk",
+        "plan_name": "خطة SK — سبتمبر 2026",
+        "title": "بوست سبتمبر 1",
+        "status": "Completed",
+        "assigned_employee_id": "EMP-8148",
+        "assignee_name": "عمر أحمد",
+        "created_at": "2026-09-02T10:00:00+00:00",
+        "delivery_deadline": "2026-09-10",
+        "completed_at": "2026-09-09T14:00:00+00:00",
+    }
+
+    # Verify unit function _task_matches_month
+    assert idx._task_matches_month(t_oct, "2026-10") is True
+    assert idx._task_matches_month(t_oct, "2026-09") is False
+    assert idx._task_matches_month(t_sep, "2026-09") is True
+    assert idx._task_matches_month(t_sep, "2026-10") is False
+    assert idx._task_matches_month(t_oct, "all") is True
+    assert idx._task_matches_month(t_sep, "all") is True
+
+    # Mock DB tasks
+    monkeypatch.setattr(idx, "_all_tasks_db", lambda: [t_oct, t_sep])
+    monkeypatch.setattr(idx, "_get_deleted_kpi_tasks", lambda: [])
+    monkeypatch.setattr(idx, "sync_from_supabase", lambda *a, **k: None)
+    monkeypatch.setattr(idx, "can_see_client", lambda cid: True)
+
+    with idx.app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["uid"] = "admin"
+            sess["role"] = "admin"
+
+        # 1. Query September 2026: only t_sep must be included
+        res_sep = client.get("/api/tasks/monthly-report?month=2026-09")
+        assert res_sep.status_code == 200
+        data_sep = res_sep.get_json()
+        assert data_sep["success"] is True
+        assert "2026-09" in data_sep["available_months"]
+        assert "2026-10" in data_sep["available_months"]
+        omar_sep = next(r for r in data_sep["report"] if r["employee_id"] == "EMP-8148")
+        assert omar_sep["assigned"] == 1
+        assert omar_sep["completed"] == 1
+        assert omar_sep["notes"][0]["task_id"] == "TASK-SEP-01"
+
+        # 2. Query October 2026: only t_oct must be included
+        res_oct = client.get("/api/tasks/monthly-report?month=2026-10")
+        assert res_oct.status_code == 200
+        data_oct = res_oct.get_json()
+        omar_oct = next(r for r in data_oct["report"] if r["employee_id"] == "EMP-8148")
+        assert omar_oct["assigned"] == 1
+        assert omar_oct["completed"] == 1
+        assert omar_oct["notes"][0]["task_id"] == "TASK-OCT-01"
+
+        # 3. Query all months: both tasks must be included
+        res_all = client.get("/api/tasks/monthly-report?month=all")
+        assert res_all.status_code == 200
+        data_all = res_all.get_json()
+        omar_all = next(r for r in data_all["report"] if r["employee_id"] == "EMP-8148")
+        assert omar_all["assigned"] == 2
+        assert omar_all["completed"] == 2
+
+
+
 

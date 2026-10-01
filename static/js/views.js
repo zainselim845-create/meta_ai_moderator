@@ -6828,6 +6828,21 @@ function renderMonthlyReportTable() {
         var rateBadge = r.completion_rate !== '-' ?
             '<span class="font-mono font-bold px-2 py-0.5 rounded-md ' + (rateNum >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800') + '">' + esc(r.completion_rate) + '</span>' : '<span class="text-slate-400">—</span>';
 
+        var subAssigned = r.subtasks_assigned || 0;
+        var subCompleted = r.subtasks_completed || 0;
+        var subtasksBadge = '<span class="text-slate-400 font-normal">—</span>';
+        if (subAssigned > 0) {
+            var subAllDone = (subCompleted >= subAssigned);
+            subtasksBadge = '<div class="inline-flex flex-col items-center gap-0.5">' +
+                '<span class="font-mono font-bold px-2 py-0.5 rounded-md text-[11px] ' + 
+                    (subAllDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300') + '">' +
+                    'سلم ' + subCompleted + ' من ' + subAssigned +
+                '</span>' +
+                (r.subtasks_completion_rate && r.subtasks_completion_rate !== '-' ? 
+                    '<span class="text-[9px] text-slate-500 font-semibold">(' + esc(r.subtasks_completion_rate) + ')</span>' : '') +
+            '</div>';
+        }
+
         var inProg = (r.in_progress !== undefined) ? r.in_progress : 0;
         var deliv = (r.submitted !== undefined) ? r.submitted : r.completed;
 
@@ -6843,10 +6858,11 @@ function renderMonthlyReportTable() {
                     '<div>' + empCode + esc(r.employee) + ' <div class="mt-0.5">' + roleBadge + '</div></div>' +
                 '</div>' +
             '</td>' +
-            '<td class="p-3 font-mono font-bold text-slate-800 text-center align-middle" title="' + (r.is_am ? 'إجمالي مهام العملاء تحت الإشراف' : 'إجمالي المهام المسندة للتنفيذ') + '">' + r.assigned + (r.is_am ? ' <span class="text-[9px] text-purple-600 block font-normal">إشراف</span>' : '') + '</td>' +
-            '<td class="p-3 font-mono text-amber-600 font-bold text-center align-middle" title="' + (r.is_am ? 'مهام بانتظار مراجعة واعتماد AM' : 'مهام قيد العمل من المنفذ') + '">' + inProg + (r.is_am ? ' <span class="text-[9px] text-amber-600 block font-normal">بانتظار AM</span>' : '') + '</td>' +
-            '<td class="p-3 font-mono font-bold text-emerald-600 text-center align-middle" title="' + (r.is_am ? 'مهام راجعها واعتمدها AM' : 'مهام تم تسليمها من المنفذ') + '">' + deliv + (r.is_am ? ' <span class="text-[9px] text-emerald-600 block font-normal">معتمدة ومغلقة</span>' : '') + '</td>' +
+            '<td class="p-3 font-mono font-bold text-slate-800 text-center align-middle" title="' + (r.is_am ? 'إجمالي مهام العملاء الأساسية تحت الإشراف' : 'إجمالي المهام الأساسية المسندة للتنفيذ') + '">' + r.assigned + (r.is_am ? ' <span class="text-[9px] text-purple-600 block font-normal">إشراف</span>' : '') + '</td>' +
+            '<td class="p-3 font-mono text-amber-600 font-bold text-center align-middle" title="' + (r.is_am ? 'مهام أساسية بانتظار مراجعة واعتماد AM' : 'مهام أساسية قيد العمل من المنفذ') + '">' + inProg + (r.is_am ? ' <span class="text-[9px] text-amber-600 block font-normal">بانتظار AM</span>' : '') + '</td>' +
+            '<td class="p-3 font-mono font-bold text-emerald-600 text-center align-middle" title="' + (r.is_am ? 'مهام أساسية راجعها واعتمدها AM' : 'مهام أساسية تم تسليمها من المنفذ') + '">' + deliv + (r.is_am ? ' <span class="text-[9px] text-emerald-600 block font-normal">معتمدة ومغلقة</span>' : '') + '</td>' +
             '<td class="p-3 text-center align-middle">' + rateBadge + '</td>' +
+            '<td class="p-3 text-center align-middle" title="مهام التعديل الفرعية: سلم ' + subCompleted + ' من ' + subAssigned + '">' + subtasksBadge + '</td>' +
             '<td class="p-3 font-mono align-middle">' + onTimeBadge + '</td>' +
             '<td class="p-3 font-mono text-indigo-900 font-bold align-middle" title="' + (r.is_am ? 'متوسط سرعة مراجعة واعتماد المهام' : 'متوسط مدة تنفيذ المهمة') + '">' + esc(r.avg_turnaround || '-') + (r.is_am ? ' <span class="text-[9px] text-indigo-600 block font-normal">سرعة المراجعة</span>' : '') + '</td>' +
             '<td class="p-3 font-mono text-slate-700 font-bold align-middle">' + (r.is_am ? '<span class="text-slate-400 font-normal text-[11px]">—</span>' : esc(r.avg_duration || '-')) + '</td>' +
@@ -6855,25 +6871,148 @@ function renderMonthlyReportTable() {
     }).join('');
 }
 
-async function loadTaskMonthlyReport() {
+function formatArabicMonthName(m) {
+    if (!m) return '';
+    if (m === 'all') return 'كافة الشهور (التقرير الشامل)';
+    var monthsMap = {
+        '01': 'يناير', '02': 'فبراير', '03': 'مارس', '04': 'أبريل',
+        '05': 'مايو', '06': 'يونيو', '07': 'يوليو', '08': 'أغسطس',
+        '09': 'سبتمبر', '10': 'أكتوبر', '11': 'نوفمبر', '12': 'ديسمبر'
+    };
+    var parts = m.split('-');
+    if (parts.length === 2 && monthsMap[parts[1]]) {
+        return monthsMap[parts[1]] + ' ' + parts[0];
+    }
+    return m;
+}
+
+function populateMonthDropdown(availableMonths, selectedMonth) {
+    var sel = document.getElementById('monthly-report-month-select');
+    if (!sel) return;
+    var currentRealMonth = new Date().toISOString().slice(0, 7);
+
+    var allM = (availableMonths || []).slice();
+    if (allM.indexOf(currentRealMonth) === -1) allM.push(currentRealMonth);
+    if (selectedMonth && selectedMonth !== 'all' && allM.indexOf(selectedMonth) === -1) allM.push(selectedMonth);
+    allM.sort().reverse();
+
+    var html = '<option value="all"' + (selectedMonth === 'all' ? ' selected' : '') + '>🌐 كل الشهور (التقرير الشامل التراكمي)</option>';
+    allM.forEach(function(m) {
+        var isCur = (m === currentRealMonth);
+        var label = '📅 ' + formatArabicMonthName(m) + (isCur ? ' (الشهر الحالي)' : '');
+        html += '<option value="' + esc(m) + '"' + (selectedMonth === m ? ' selected' : '') + '>' + label + '</option>';
+    });
+    sel.innerHTML = html;
+}
+
+function onMonthlyReportMonthSelectChange(val) {
+    if (val === '__current__') {
+        val = new Date().toISOString().slice(0, 7);
+    }
+    var mInput = document.getElementById('monthly-report-month');
+    if (mInput) {
+        if (val === 'all') {
+            mInput.value = '';
+            mInput.disabled = true;
+            mInput.classList.add('opacity-40');
+        } else {
+            mInput.value = val;
+            mInput.disabled = false;
+            mInput.classList.remove('opacity-40');
+        }
+    }
+    loadTaskMonthlyReport(val);
+}
+
+function onMonthlyReportMonthInputChange(val) {
+    if (!val) return;
+    var sel = document.getElementById('monthly-report-month-select');
+    if (sel) {
+        var opt = sel.querySelector('option[value="' + val + '"]');
+        if (opt) {
+            sel.value = val;
+        }
+    }
+    loadTaskMonthlyReport(val);
+}
+
+function navigateMonthlyReportMonth(delta) {
+    var cur = window._lastMonthlyReportMonth;
+    var currentRealMonth = new Date().toISOString().slice(0, 7);
+    if (delta === 0 || !cur || cur === 'all') {
+        onMonthlyReportMonthSelectChange(currentRealMonth);
+        return;
+    }
+    var parts = cur.split('-');
+    if (parts.length !== 2) {
+        onMonthlyReportMonthSelectChange(currentRealMonth);
+        return;
+    }
+    var y = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    m += delta;
+    if (m < 1) { m = 12; y -= 1; }
+    if (m > 12) { m = 1; y += 1; }
+    var nextM = y + '-' + (m < 10 ? '0' + m : m);
+    onMonthlyReportMonthSelectChange(nextM);
+}
+
+async function loadTaskMonthlyReport(overrideMonth) {
     try {
         var mInput = document.getElementById('monthly-report-month');
         var nowMonth = new Date().toISOString().slice(0, 7);
-        if (mInput && !mInput.value) {
-            mInput.value = nowMonth;
+        var selectedMonth = overrideMonth || (mInput && mInput.value) || nowMonth;
+
+        if (mInput) {
+            if (selectedMonth === 'all') {
+                mInput.value = '';
+                mInput.disabled = true;
+                mInput.classList.add('opacity-40');
+            } else {
+                mInput.value = selectedMonth;
+                mInput.disabled = false;
+                mInput.classList.remove('opacity-40');
+            }
         }
-        var selectedMonth = (mInput && mInput.value) ? mInput.value : nowMonth;
+
+        var tbody = document.getElementById('monthly-report-table-body');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-slate-500 font-bold"><span class="animate-pulse">جاري جلب وحساب تقرير أداء ' + (selectedMonth === 'all' ? 'كافة الشهور' : formatArabicMonthName(selectedMonth)) + '...</span></td></tr>';
+        }
+
         var res = await fetch('/api/tasks/monthly-report?month=' + encodeURIComponent(selectedMonth));
         var data = await res.json();
-        var tbody = document.getElementById('monthly-report-table-body');
         if (!tbody) return;
 
         var report = (data && data.report) ? data.report : [];
         window._lastMonthlyReportData = report;
         window._lastMonthlyReportMonth = selectedMonth;
+        window._availableReportMonths = data.available_months || [];
+
+        populateMonthDropdown(data.available_months || [], selectedMonth);
+
+        // Update period summary label
+        var periodLabel = document.getElementById('monthly-report-period-label');
+        if (periodLabel) {
+            var totalAssigned = report.reduce(function(acc, r) { return acc + (r.assigned || 0); }, 0);
+            var totalCompleted = report.reduce(function(acc, r) { return acc + (r.completed || 0); }, 0);
+            var totalSubAssigned = report.reduce(function(acc, r) { return acc + (r.subtasks_assigned || 0); }, 0);
+            var totalSubCompleted = report.reduce(function(acc, r) { return acc + (r.subtasks_completed || 0); }, 0);
+
+            var monthNameStr = selectedMonth === 'all' ? 'كافة الشهور (التقرير الشامل التراكمي)' : formatArabicMonthName(selectedMonth);
+            periodLabel.innerHTML = 'عرض أداء: <strong class="text-emerald-700 font-bold">' + esc(monthNameStr) + '</strong> &bull; ' +
+                'المهام الأساسية: <span class="font-mono font-bold text-slate-800">' + totalAssigned + ' مسندة</span> (' + totalCompleted + ' منجزة) &bull; ' +
+                'مهام التعديل (Subtasks): <span class="font-mono font-bold text-amber-700">' + totalSubAssigned + ' مسندة</span> (' + totalSubCompleted + ' منجزة)';
+        }
 
         renderMonthlyReportTable();
-    } catch(e) { console.error(e); }
+    } catch(e) {
+        console.error(e);
+        var tbody = document.getElementById('monthly-report-table-body');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-rose-500 font-bold">حدث خطأ أثناء تحميل تقرير الأداء</td></tr>';
+        }
+    }
 }
 
 function exportMonthlyReportCsv() {
@@ -6883,7 +7022,7 @@ function exportMonthlyReportCsv() {
         return;
     }
     var rows = [
-        ["كود الموظف", "اسم الموظف", "الدور / المسمى الوظيفي", "تصنيف الدور", "المسندة / إشراف (Total)", "قيد العمل / بانتظار AM", "المسلمة / المعتمدة (Delivered)", "المعتمدة (Completed)", "معدل الإنجاز (Rate)", "الالتزام بالموعد (On-Time KPI)", "متوسط مدة الإنجاز / سرعة المراجعة", "وقت التايمر"]
+        ["كود الموظف", "اسم الموظف", "الدور / المسمى الوظيفي", "تصنيف الدور", "المهام الأساسية المسندة (Main Tasks)", "مهام أساسية قيد العمل", "مهام أساسية تم تسليمها", "مهام أساسية معتمدة", "معدل إنجاز المهام الأساسية", "مهام التعديل المسندة (Subtasks)", "تعديلات تم تسليمها (Delivered Subtasks)", "معدل إنجاز التعديلات", "الالتزام بالموعد (On-Time KPI)", "متوسط مدة الإنجاز / سرعة المراجعة", "وقت التايمر"]
     ];
     var dataToExport = (window._lastMonthlyReportData || []).filter(function(r) {
         if (currentMonthlyReportRoleFilter === 'am') return !!r.is_am;
@@ -6901,6 +7040,9 @@ function exportMonthlyReportCsv() {
             r.submitted || 0,
             r.completed || 0,
             r.completion_rate || '-',
+            r.subtasks_assigned || 0,
+            r.subtasks_completed || 0,
+            r.subtasks_completion_rate || '-',
             (r.on_time_rate || '-') + ' (' + (r.on_time_count || 0) + ' في الموعد)',
             r.avg_turnaround || '-',
             r.is_am ? '-' : (r.avg_duration || '-')
@@ -6915,29 +7057,30 @@ function exportMonthlyReportCsv() {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    var mInput = document.getElementById('monthly-report-month');
-    var m = (mInput && mInput.value) ? mInput.value : new Date().toISOString().slice(0, 7);
+    var curMonth = window._lastMonthlyReportMonth || new Date().toISOString().slice(0, 7);
     var filterSuffix = currentMonthlyReportRoleFilter === 'am' ? '_AM' : (currentMonthlyReportRoleFilter === 'executors' ? '_Executors' : '_All');
-    a.download = 'Monthly_Performance_Report_' + m + filterSuffix + '.csv';
+    a.download = 'Monthly_Performance_Report_' + curMonth + filterSuffix + '.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    showToast('تم تصدير التقرير الشهري بنجاح ');
+    showToast('تم تصدير التقرير بنجاح ✅');
 }
 
 async function sendMonthlyReportAction() {
-    var targetEmail = prompt("أدخل البريد الإلكتروني لاستلام التقرير الشهري:", "agencydomya@gmail.com");
+    var selectedMonth = window._lastMonthlyReportMonth || new Date().toISOString().slice(0, 7);
+    var monthDisplay = selectedMonth === 'all' ? 'كافة الشهور (التقرير الشامل)' : formatArabicMonthName(selectedMonth);
+    var targetEmail = prompt("أدخل البريد الإلكتروني لاستلام تقرير أداء (" + monthDisplay + "):", "agencydomya@gmail.com");
     if (!targetEmail) return;
     try {
-        showToast("جاري تجهيز وإرسال التقرير للإيميل... ");
+        showToast("جاري إرسال تقرير (" + monthDisplay + ") للإيميل... ⏳");
         var res = await fetch('/api/tasks/send-monthly-report', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: targetEmail })
+            body: JSON.stringify({ email: targetEmail, month: selectedMonth })
         });
         var data = await res.json();
         if (data.success) {
-            showToast(data.message || 'تم إرسال التقرير بنجاح ');
+            showToast(data.message || 'تم إرسال التقرير بنجاح ✅');
         } else {
             showToast(data.error || 'خطأ في إرسال التقرير', 'error');
         }

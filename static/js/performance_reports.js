@@ -156,25 +156,148 @@ function renderMonthlyReportTable() {
     }).join('');
 }
 
-async function loadTaskMonthlyReport() {
+function formatArabicMonthName(m) {
+    if (!m) return '';
+    if (m === 'all') return 'كافة الشهور (التقرير الشامل)';
+    var monthsMap = {
+        '01': 'يناير', '02': 'فبراير', '03': 'مارس', '04': 'أبريل',
+        '05': 'مايو', '06': 'يونيو', '07': 'يوليو', '08': 'أغسطس',
+        '09': 'سبتمبر', '10': 'أكتوبر', '11': 'نوفمبر', '12': 'ديسمبر'
+    };
+    var parts = m.split('-');
+    if (parts.length === 2 && monthsMap[parts[1]]) {
+        return monthsMap[parts[1]] + ' ' + parts[0];
+    }
+    return m;
+}
+
+function populateMonthDropdown(availableMonths, selectedMonth) {
+    var sel = document.getElementById('monthly-report-month-select');
+    if (!sel) return;
+    var currentRealMonth = new Date().toISOString().slice(0, 7);
+
+    var allM = (availableMonths || []).slice();
+    if (allM.indexOf(currentRealMonth) === -1) allM.push(currentRealMonth);
+    if (selectedMonth && selectedMonth !== 'all' && allM.indexOf(selectedMonth) === -1) allM.push(selectedMonth);
+    allM.sort().reverse();
+
+    var html = '<option value="all"' + (selectedMonth === 'all' ? ' selected' : '') + '>🌐 كل الشهور (التقرير الشامل التراكمي)</option>';
+    allM.forEach(function(m) {
+        var isCur = (m === currentRealMonth);
+        var label = '📅 ' + formatArabicMonthName(m) + (isCur ? ' (الشهر الحالي)' : '');
+        html += '<option value="' + esc(m) + '"' + (selectedMonth === m ? ' selected' : '') + '>' + label + '</option>';
+    });
+    sel.innerHTML = html;
+}
+
+function onMonthlyReportMonthSelectChange(val) {
+    if (val === '__current__') {
+        val = new Date().toISOString().slice(0, 7);
+    }
+    var mInput = document.getElementById('monthly-report-month');
+    if (mInput) {
+        if (val === 'all') {
+            mInput.value = '';
+            mInput.disabled = true;
+            mInput.classList.add('opacity-40');
+        } else {
+            mInput.value = val;
+            mInput.disabled = false;
+            mInput.classList.remove('opacity-40');
+        }
+    }
+    loadTaskMonthlyReport(val);
+}
+
+function onMonthlyReportMonthInputChange(val) {
+    if (!val) return;
+    var sel = document.getElementById('monthly-report-month-select');
+    if (sel) {
+        var opt = sel.querySelector('option[value="' + val + '"]');
+        if (opt) {
+            sel.value = val;
+        }
+    }
+    loadTaskMonthlyReport(val);
+}
+
+function navigateMonthlyReportMonth(delta) {
+    var cur = window._lastMonthlyReportMonth;
+    var currentRealMonth = new Date().toISOString().slice(0, 7);
+    if (delta === 0 || !cur || cur === 'all') {
+        onMonthlyReportMonthSelectChange(currentRealMonth);
+        return;
+    }
+    var parts = cur.split('-');
+    if (parts.length !== 2) {
+        onMonthlyReportMonthSelectChange(currentRealMonth);
+        return;
+    }
+    var y = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    m += delta;
+    if (m < 1) { m = 12; y -= 1; }
+    if (m > 12) { m = 1; y += 1; }
+    var nextM = y + '-' + (m < 10 ? '0' + m : m);
+    onMonthlyReportMonthSelectChange(nextM);
+}
+
+async function loadTaskMonthlyReport(overrideMonth) {
     try {
         var mInput = document.getElementById('monthly-report-month');
         var nowMonth = new Date().toISOString().slice(0, 7);
-        if (mInput && !mInput.value) {
-            mInput.value = nowMonth;
+        var selectedMonth = overrideMonth || (mInput && mInput.value) || nowMonth;
+
+        if (mInput) {
+            if (selectedMonth === 'all') {
+                mInput.value = '';
+                mInput.disabled = true;
+                mInput.classList.add('opacity-40');
+            } else {
+                mInput.value = selectedMonth;
+                mInput.disabled = false;
+                mInput.classList.remove('opacity-40');
+            }
         }
-        var selectedMonth = (mInput && mInput.value) ? mInput.value : nowMonth;
+
+        var tbody = document.getElementById('monthly-report-table-body');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-slate-500 font-bold"><span class="animate-pulse">جاري جلب وحساب تقرير أداء ' + (selectedMonth === 'all' ? 'كافة الشهور' : formatArabicMonthName(selectedMonth)) + '...</span></td></tr>';
+        }
+
         var res = await fetch('/api/tasks/monthly-report?month=' + encodeURIComponent(selectedMonth));
         var data = await res.json();
-        var tbody = document.getElementById('monthly-report-table-body');
         if (!tbody) return;
 
         var report = (data && data.report) ? data.report : [];
         window._lastMonthlyReportData = report;
         window._lastMonthlyReportMonth = selectedMonth;
+        window._availableReportMonths = data.available_months || [];
+
+        populateMonthDropdown(data.available_months || [], selectedMonth);
+
+        // Update period summary label
+        var periodLabel = document.getElementById('monthly-report-period-label');
+        if (periodLabel) {
+            var totalAssigned = report.reduce(function(acc, r) { return acc + (r.assigned || 0); }, 0);
+            var totalCompleted = report.reduce(function(acc, r) { return acc + (r.completed || 0); }, 0);
+            var totalSubAssigned = report.reduce(function(acc, r) { return acc + (r.subtasks_assigned || 0); }, 0);
+            var totalSubCompleted = report.reduce(function(acc, r) { return acc + (r.subtasks_completed || 0); }, 0);
+
+            var monthNameStr = selectedMonth === 'all' ? 'كافة الشهور (التقرير الشامل التراكمي)' : formatArabicMonthName(selectedMonth);
+            periodLabel.innerHTML = 'عرض أداء: <strong class="text-emerald-700 font-bold">' + esc(monthNameStr) + '</strong> &bull; ' +
+                'المهام الأساسية: <span class="font-mono font-bold text-slate-800">' + totalAssigned + ' مسندة</span> (' + totalCompleted + ' منجزة) &bull; ' +
+                'مهام التعديل (Subtasks): <span class="font-mono font-bold text-amber-700">' + totalSubAssigned + ' مسندة</span> (' + totalSubCompleted + ' منجزة)';
+        }
 
         renderMonthlyReportTable();
-    } catch(e) { console.error(e); }
+    } catch(e) {
+        console.error(e);
+        var tbody = document.getElementById('monthly-report-table-body');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-rose-500 font-bold">حدث خطأ أثناء تحميل تقرير الأداء</td></tr>';
+        }
+    }
 }
 
 function exportMonthlyReportCsv() {
@@ -219,29 +342,30 @@ function exportMonthlyReportCsv() {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    var mInput = document.getElementById('monthly-report-month');
-    var m = (mInput && mInput.value) ? mInput.value : new Date().toISOString().slice(0, 7);
+    var curMonth = window._lastMonthlyReportMonth || new Date().toISOString().slice(0, 7);
     var filterSuffix = currentMonthlyReportRoleFilter === 'am' ? '_AM' : (currentMonthlyReportRoleFilter === 'executors' ? '_Executors' : '_All');
-    a.download = 'Monthly_Performance_Report_' + m + filterSuffix + '.csv';
+    a.download = 'Monthly_Performance_Report_' + curMonth + filterSuffix + '.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    showToast('تم تصدير التقرير الشهري بنجاح ');
+    showToast('تم تصدير التقرير بنجاح ✅');
 }
 
 async function sendMonthlyReportAction() {
-    var targetEmail = prompt("أدخل البريد الإلكتروني لاستلام التقرير الشهري:", "agencydomya@gmail.com");
+    var selectedMonth = window._lastMonthlyReportMonth || new Date().toISOString().slice(0, 7);
+    var monthDisplay = selectedMonth === 'all' ? 'كافة الشهور (التقرير الشامل)' : formatArabicMonthName(selectedMonth);
+    var targetEmail = prompt("أدخل البريد الإلكتروني لاستلام تقرير أداء (" + monthDisplay + "):", "agencydomya@gmail.com");
     if (!targetEmail) return;
     try {
-        showToast("جاري تجهيز وإرسال التقرير للإيميل... ");
+        showToast("جاري إرسال تقرير (" + monthDisplay + ") للإيميل... ⏳");
         var res = await fetch('/api/tasks/send-monthly-report', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: targetEmail })
+            body: JSON.stringify({ email: targetEmail, month: selectedMonth })
         });
         var data = await res.json();
         if (data.success) {
-            showToast(data.message || 'تم إرسال التقرير بنجاح ');
+            showToast(data.message || 'تم إرسال التقرير بنجاح ✅');
         } else {
             showToast(data.error || 'خطأ في إرسال التقرير', 'error');
         }
@@ -258,3 +382,7 @@ window.renderMonthlyReportTable = renderMonthlyReportTable;
 window.loadTaskMonthlyReport = loadTaskMonthlyReport;
 window.exportMonthlyReportCsv = exportMonthlyReportCsv;
 window.sendMonthlyReportAction = sendMonthlyReportAction;
+window.onMonthlyReportMonthSelectChange = onMonthlyReportMonthSelectChange;
+window.onMonthlyReportMonthInputChange = onMonthlyReportMonthInputChange;
+window.navigateMonthlyReportMonth = navigateMonthlyReportMonth;
+window.formatArabicMonthName = formatArabicMonthName;
