@@ -239,10 +239,13 @@ def test_subtasks_included_in_kpi_database_and_monthly_report(monkeypatch):
         
         mariam = next((r for r in report if r["employee_id"] == "EMP-6604-4444" or r["name"] == "مريم الشريف"), None)
         assert mariam is not None
-        # Maryam has 1 parent task + 1 revision subtask = 2 assigned & 2 completed!
-        assert mariam["assigned"] == 2
-        assert mariam["completed"] == 2
-        assert mariam["on_time_count"] == 2
+        # Maryam has 1 main task (assigned=1, completed=1) and 1 revision subtask tracked separately!
+        assert mariam["assigned"] == 1
+        assert mariam["completed"] == 1
+        assert mariam["subtasks_assigned"] == 1
+        assert mariam["subtasks_completed"] == 1
+        assert mariam["subtasks_completion_rate"] == "100%"
+        assert mariam["on_time_count"] == 1
         
         # Verify subtask note formatting in report
         notes = mariam.get("notes") or []

@@ -3116,21 +3116,21 @@ def test_canonical_client_folder_resolution():
     whether passed as ID, Arabic name, or alias, guaranteeing 100% client isolation."""
     import api.index as idx
 
-    # Check key clients by ID and Arabic Name
-    assert idx.client_month_folder_id("cli_sk_1788270118") == "1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW"
-    assert idx.client_month_folder_id("SK") == "1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW"
+    # Check key clients by ID and Arabic Name for canonical month (2026-09)
+    assert idx.client_month_folder_id("cli_sk_1788270118", "2026-09") == "1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW"
+    assert idx.client_month_folder_id("SK", "2026-09") == "1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW"
 
-    assert idx.client_month_folder_id("cli_dr_ahmed_1788270119") == "1jbGNqWok5zqPuKUVnjhG5TrTecKyofCI"
-    assert idx.client_month_folder_id("دكتور أحمد حمدي") == "1jbGNqWok5zqPuKUVnjhG5TrTecKyofCI"
+    assert idx.client_month_folder_id("cli_dr_ahmed_1788270119", "2026-09") == "1jbGNqWok5zqPuKUVnjhG5TrTecKyofCI"
+    assert idx.client_month_folder_id("دكتور أحمد حمدي", "2026-09") == "1jbGNqWok5zqPuKUVnjhG5TrTecKyofCI"
 
-    assert idx.client_month_folder_id("cli_ايه_عبدو_1788944266") == "15GmrSkAoolWY9T1tz2ghrgKmZBEtGLrF"
-    assert idx.client_month_folder_id("ايه عبدو") == "15GmrSkAoolWY9T1tz2ghrgKmZBEtGLrF"
+    assert idx.client_month_folder_id("cli_ايه_عبدو_1788944266", "2026-09") == "15GmrSkAoolWY9T1tz2ghrgKmZBEtGLrF"
+    assert idx.client_month_folder_id("ايه عبدو", "2026-09") == "15GmrSkAoolWY9T1tz2ghrgKmZBEtGLrF"
 
-    assert idx.client_month_folder_id("client_100821894800009") == "12Tr1P3DHfCHfN-uqSSymx65KCJqeN_TU"
-    assert idx.client_month_folder_id("Domya Marketing Agency") == "12Tr1P3DHfCHfN-uqSSymx65KCJqeN_TU"
+    assert idx.client_month_folder_id("client_100821894800009", "2026-09") == "12Tr1P3DHfCHfN-uqSSymx65KCJqeN_TU"
+    assert idx.client_month_folder_id("Domya Marketing Agency", "2026-09") == "12Tr1P3DHfCHfN-uqSSymx65KCJqeN_TU"
 
-    assert idx.client_month_folder_id("cli_معامل_رعاية_1788336726") == "15N8jmo2KTVQnxwA2XPTZEakFXRDJNK9_"
-    assert idx.client_month_folder_id("معامل رعاية") == "15N8jmo2KTVQnxwA2XPTZEakFXRDJNK9_"
+    assert idx.client_month_folder_id("cli_معامل_رعاية_1788336726", "2026-09") == "15N8jmo2KTVQnxwA2XPTZEakFXRDJNK9_"
+    assert idx.client_month_folder_id("معامل رعاية", "2026-09") == "15N8jmo2KTVQnxwA2XPTZEakFXRDJNK9_"
 
     # Also verify client_drive_folder_id returns the client's canonical main parent folder
     assert idx.client_drive_folder_id("cli_sk_1788270118") == "1X-UzI2662R1CEH1xnBln1RmVxQ9pY1Sz"
@@ -3206,8 +3206,9 @@ def test_ensure_task_deliverable_in_client_drive_auto_routing(monkeypatch):
 
     # File must be set to anyone reader
     assert "1p3ofKnfQmduLfKEsuHyIfSN7Zvto5fRJ" in reader_calls
-    # addParents must be called with the canonical SK month folder (1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW)
-    assert any("addParents=1KV6-ImSXvlS5D8ryibB5bwyLBreGvmIW" in u for u in patched_urls)
+    # addParents must be called with the resolved SK month folder
+    expected_fid = idx.client_month_folder_id("cli_sk_1788270118")
+    assert any(f"addParents={expected_fid}" in u for u in patched_urls)
 
 
 # =====================================================================

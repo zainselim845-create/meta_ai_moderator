@@ -42,7 +42,7 @@ function renderMonthlyReportTable() {
     var selectedMonth = window._lastMonthlyReportMonth || new Date().toISOString().slice(0, 7);
 
     if (!report || report.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-slate-500">لا توجد سجلات أداء لشهر (' + esc(selectedMonth) + ') بعد</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-slate-500">لا توجد سجلات أداء لشهر (' + esc(selectedMonth) + ') بعد</td></tr>';
         return;
     }
 
@@ -59,7 +59,7 @@ function renderMonthlyReportTable() {
     if (filtered.length === 0) {
         var emptyMsg = currentMonthlyReportRoleFilter === 'am' ? 'لا يوجد مديرو حسابات في تقرير هذا الشهر' :
                       (currentMonthlyReportRoleFilter === 'executors' ? 'لا يوجد فريق تنفيذ في تقرير هذا الشهر' : 'لا توجد سجلات أداء لهذا الشهر');
-        tbody.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-slate-500 font-bold">' + esc(emptyMsg) + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-slate-500 font-bold">' + esc(emptyMsg) + '</td></tr>';
         return;
     }
 
@@ -113,6 +113,21 @@ function renderMonthlyReportTable() {
         var rateBadge = r.completion_rate !== '-' ?
             '<span class="font-mono font-bold px-2 py-0.5 rounded-md ' + (rateNum >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800') + '">' + esc(r.completion_rate) + '</span>' : '<span class="text-slate-400">—</span>';
 
+        var subAssigned = r.subtasks_assigned || 0;
+        var subCompleted = r.subtasks_completed || 0;
+        var subtasksBadge = '<span class="text-slate-400 font-normal">—</span>';
+        if (subAssigned > 0) {
+            var subAllDone = (subCompleted >= subAssigned);
+            subtasksBadge = '<div class="inline-flex flex-col items-center gap-0.5">' +
+                '<span class="font-mono font-bold px-2 py-0.5 rounded-md text-[11px] ' + 
+                    (subAllDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300') + '">' +
+                    'سلم ' + subCompleted + ' من ' + subAssigned +
+                '</span>' +
+                (r.subtasks_completion_rate && r.subtasks_completion_rate !== '-' ? 
+                    '<span class="text-[9px] text-slate-500 font-semibold">(' + esc(r.subtasks_completion_rate) + ')</span>' : '') +
+            '</div>';
+        }
+
         var inProg = (r.in_progress !== undefined) ? r.in_progress : 0;
         var deliv = (r.submitted !== undefined) ? r.submitted : r.completed;
 
@@ -128,10 +143,11 @@ function renderMonthlyReportTable() {
                     '<div>' + empCode + esc(r.employee) + ' <div class="mt-0.5">' + roleBadge + '</div></div>' +
                 '</div>' +
             '</td>' +
-            '<td class="p-3 font-mono font-bold text-slate-800 text-center align-middle" title="' + (r.is_am ? 'إجمالي مهام العملاء تحت الإشراف' : 'إجمالي المهام المسندة للتنفيذ') + '">' + r.assigned + (r.is_am ? ' <span class="text-[9px] text-purple-600 block font-normal">إشراف</span>' : '') + '</td>' +
-            '<td class="p-3 font-mono text-amber-600 font-bold text-center align-middle" title="' + (r.is_am ? 'مهام بانتظار مراجعة واعتماد AM' : 'مهام قيد العمل من المنفذ') + '">' + inProg + (r.is_am ? ' <span class="text-[9px] text-amber-600 block font-normal">بانتظار AM</span>' : '') + '</td>' +
-            '<td class="p-3 font-mono font-bold text-emerald-600 text-center align-middle" title="' + (r.is_am ? 'مهام راجعها واعتمدها AM' : 'مهام تم تسليمها من المنفذ') + '">' + deliv + (r.is_am ? ' <span class="text-[9px] text-emerald-600 block font-normal">معتمدة ومغلقة</span>' : '') + '</td>' +
+            '<td class="p-3 font-mono font-bold text-slate-800 text-center align-middle" title="' + (r.is_am ? 'إجمالي مهام العملاء الأساسية تحت الإشراف' : 'إجمالي المهام الأساسية المسندة للتنفيذ') + '">' + r.assigned + (r.is_am ? ' <span class="text-[9px] text-purple-600 block font-normal">إشراف</span>' : '') + '</td>' +
+            '<td class="p-3 font-mono text-amber-600 font-bold text-center align-middle" title="' + (r.is_am ? 'مهام أساسية بانتظار مراجعة واعتماد AM' : 'مهام أساسية قيد العمل من المنفذ') + '">' + inProg + (r.is_am ? ' <span class="text-[9px] text-amber-600 block font-normal">بانتظار AM</span>' : '') + '</td>' +
+            '<td class="p-3 font-mono font-bold text-emerald-600 text-center align-middle" title="' + (r.is_am ? 'مهام أساسية راجعها واعتمدها AM' : 'مهام أساسية تم تسليمها من المنفذ') + '">' + deliv + (r.is_am ? ' <span class="text-[9px] text-emerald-600 block font-normal">معتمدة ومغلقة</span>' : '') + '</td>' +
             '<td class="p-3 text-center align-middle">' + rateBadge + '</td>' +
+            '<td class="p-3 text-center align-middle" title="مهام التعديل الفرعية: سلم ' + subCompleted + ' من ' + subAssigned + '">' + subtasksBadge + '</td>' +
             '<td class="p-3 font-mono align-middle">' + onTimeBadge + '</td>' +
             '<td class="p-3 font-mono text-indigo-900 font-bold align-middle" title="' + (r.is_am ? 'متوسط سرعة مراجعة واعتماد المهام' : 'متوسط مدة تنفيذ المهمة') + '">' + esc(r.avg_turnaround || '-') + (r.is_am ? ' <span class="text-[9px] text-indigo-600 block font-normal">سرعة المراجعة</span>' : '') + '</td>' +
             '<td class="p-3 font-mono text-slate-700 font-bold align-middle">' + (r.is_am ? '<span class="text-slate-400 font-normal text-[11px]">—</span>' : esc(r.avg_duration || '-')) + '</td>' +
@@ -168,7 +184,7 @@ function exportMonthlyReportCsv() {
         return;
     }
     var rows = [
-        ["كود الموظف", "اسم الموظف", "الدور / المسمى الوظيفي", "تصنيف الدور", "المسندة / إشراف (Total)", "قيد العمل / بانتظار AM", "المسلمة / المعتمدة (Delivered)", "المعتمدة (Completed)", "معدل الإنجاز (Rate)", "الالتزام بالموعد (On-Time KPI)", "متوسط مدة الإنجاز / سرعة المراجعة", "وقت التايمر"]
+        ["كود الموظف", "اسم الموظف", "الدور / المسمى الوظيفي", "تصنيف الدور", "المهام الأساسية المسندة (Main Tasks)", "مهام أساسية قيد العمل", "مهام أساسية تم تسليمها", "مهام أساسية معتمدة", "معدل إنجاز المهام الأساسية", "مهام التعديل المسندة (Subtasks)", "تعديلات تم تسليمها (Delivered Subtasks)", "معدل إنجاز التعديلات", "الالتزام بالموعد (On-Time KPI)", "متوسط مدة الإنجاز / سرعة المراجعة", "وقت التايمر"]
     ];
     var dataToExport = (window._lastMonthlyReportData || []).filter(function(r) {
         if (currentMonthlyReportRoleFilter === 'am') return !!r.is_am;
@@ -186,6 +202,9 @@ function exportMonthlyReportCsv() {
             r.submitted || 0,
             r.completed || 0,
             r.completion_rate || '-',
+            r.subtasks_assigned || 0,
+            r.subtasks_completed || 0,
+            r.subtasks_completion_rate || '-',
             (r.on_time_rate || '-') + ' (' + (r.on_time_count || 0) + ' في الموعد)',
             r.avg_turnaround || '-',
             r.is_am ? '-' : (r.avg_duration || '-')
