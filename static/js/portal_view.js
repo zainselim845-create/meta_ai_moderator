@@ -1061,6 +1061,7 @@ async function startMyTask(id) {
   } catch(e) { showToast('خطأ', 'error'); }
 }
 async function submitMyTask(id) {
+  if (!confirm('هل أنت متأكد من تسليم المهمة لمدير الحساب؟ ✅')) return;
   showToast('جاري تسليم المهمة لمدير الحساب... ⏳');
   try {
     const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/submit`, {

@@ -1236,7 +1236,7 @@ function renderMyPortalTasks() {
     const dStr = (t.delivery_deadline || t.publish_date || '').trim();
     if (!dStr) return '<span class="text-slate-400 font-normal">غير محدد</span>';
     const isDone = /Completed|مكتمل|Approved/i.test(t.status || '');
-    const isSubmitted = /Awaiting|Submitted|Review|قيد مراجعة/i.test(t.status || '') || Boolean(t.submitted_at) || Boolean(t.drive_link) || (Array.isArray(t.deliverables) && t.deliverables.length > 0);
+    const isSubmitted = /Awaiting|Submitted|Review|قيد مراجعة/i.test(t.status || '') || Boolean(t.submitted_at);
 
     const modNotes = (t.review_note || t.modification_request || t.notes || '').trim();
     const hasActiveMod = (!isDone && Boolean(t.modification_requested_at || t.returned_to_employee_at || (modNotes && !isSubmitted)));
@@ -2055,6 +2055,7 @@ async function startMyTask(id) {
   } catch(e) { showToast('خطأ', 'error'); }
 }
 async function submitMyTask(id) {
+  if (!confirm('هل أنت متأكد من تسليم المهمة لمدير الحساب؟ ✅')) return;
   showToast('جاري تسليم المهمة لمدير الحساب... ⏳');
   try {
     const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/submit`, {

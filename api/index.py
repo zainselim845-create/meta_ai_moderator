@@ -456,14 +456,14 @@ CANONICAL_CLIENT_ALIASES = {
     ]
 }
 
-HABIBA_CLIENTS = {
+INITIAL_DEFAULT_HABIBA_CLIENTS = {
     "cli_dr_ahmed_1788270119",  # دكتور أحمد حمدي
     "cli_sk_1788270118",        # SK
     "cli_انفينيتي_1788270119",    # انفينيتي
     "cli_د_حسام_مشعل_1790680406"  # د حسام مشعل
 }
 
-AYA_CLIENTS = {
+INITIAL_DEFAULT_AYA_CLIENTS = {
     "client_100821894800009",           # Domya Marketing Agency
     "cli_معامل_رعاية_1788336726",       # معامل رعاية
     "cli_هبه_حافظ_1788431922",          # هبه حافظ
@@ -476,10 +476,55 @@ AYA_CLIENTS = {
     "cli_eng_1790243022"                # ENG
 }
 
+HABIBA_CLIENTS = set(INITIAL_DEFAULT_HABIBA_CLIENTS)
+AYA_CLIENTS = set(INITIAL_DEFAULT_AYA_CLIENTS)
 MAHMOUD_CLIENTS = set()
 
 AGENCY_CLIENTS_STORE = [dict(c) for c in CANONICAL_DEFAULT_CLIENTS]
 ACCOUNTS_STORE = []
+
+
+def sync_am_client_sets():
+    """Dynamically recalculate AYA_CLIENTS, HABIBA_CLIENTS, and MAHMOUD_CLIENTS
+    based on the authoritative 'am_employee_id' and 'am_name' stored in AGENCY_CLIENTS_STORE.
+    This guarantees that whenever a client is transferred/reassigned between Account Managers,
+    the client immediately disappears from the old AM's view and appears in the new AM's view.
+    """
+    global AYA_CLIENTS, HABIBA_CLIENTS, MAHMOUD_CLIENTS
+    aya_set = set()
+    habiba_set = set()
+    mahmoud_set = set()
+
+    for c in AGENCY_CLIENTS_STORE:
+        if not isinstance(c, dict):
+            continue
+        cid = str(c.get("id") or c.get("client_id") or "").strip()
+        if not cid:
+            continue
+        c_amid = str(c.get("am_employee_id") or c.get("am_id") or "").strip().upper()
+        c_amname = str(c.get("am_name") or c.get("account_manager") or "").strip()
+
+        if c_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in c_amname or "ايه" in c_amname:
+            aya_set.add(cid)
+        elif c_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in c_amname or "حبيبة" in c_amname:
+            habiba_set.add(cid)
+        elif c_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in c_amname:
+            mahmoud_set.add(cid)
+
+    # Initial fallback only if a default client is not explicitly assigned to any other AM
+    for cid in INITIAL_DEFAULT_HABIBA_CLIENTS:
+        if cid not in aya_set and cid not in mahmoud_set:
+            habiba_set.add(cid)
+    for cid in INITIAL_DEFAULT_AYA_CLIENTS:
+        if cid not in habiba_set and cid not in mahmoud_set:
+            aya_set.add(cid)
+
+    AYA_CLIENTS.clear()
+    AYA_CLIENTS.update(aya_set)
+    HABIBA_CLIENTS.clear()
+    HABIBA_CLIENTS.update(habiba_set)
+    MAHMOUD_CLIENTS.clear()
+    MAHMOUD_CLIENTS.update(mahmoud_set)
 
 
 def ensure_default_clients_grouped():
@@ -978,6 +1023,7 @@ def sync_from_supabase(force=False):
                                 clean_parsed.append(dict(cc))
                         AGENCY_CLIENTS_STORE[:] = clean_parsed
                         cache["clients"] = clean_parsed
+                        sync_am_client_sets()
                     elif k == "meta_ai_bot_enabled":
                         cache["bot_enabled"] = bool(parsed)
                     elif k == "meta_ai_approval_mode":
@@ -4055,6 +4101,7 @@ def assigned_client_ids():
     - Account Managers: see their assigned clients.
     - Plain Employees: see their assigned clients.
     """
+    sync_am_client_sets()
     if is_admin() or is_content_creator():
         return [str(c.get("id") or c.get("client_id")) for c in AGENCY_CLIENTS_STORE if (c.get("id") or c.get("client_id"))]
     
@@ -5332,6 +5379,7 @@ def api_set_active_client():
 def api_clients_get():
     sync_from_supabase()
     heal_orphan_accounts()
+    sync_am_client_sets()
     show_archived = request.args.get("archived") == "true"
     pool = AGENCY_CLIENTS_STORE if show_archived else [c for c in AGENCY_CLIENTS_STORE if c.get("is_active", True)]
     
@@ -5664,6 +5712,7 @@ def api_clients_update(cid):
 
     push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
     cache["clients"] = AGENCY_CLIENTS_STORE
+    sync_am_client_sets()
 
     # If AM changed, update all existing tasks for this client to the new AM
     if am_changed and new_am_id:
@@ -7146,15 +7195,18 @@ def _sanitize_task_record(d):
     c_amname = str((matched_client or {}).get("am_name") or "").strip()
 
     # 1. Authoritative AM assignment by Client Ownership
-    if cid in HABIBA_CLIENTS or c_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in c_amname or "حبيبة" in c_amname:
+    if c_amid in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in c_amname or "حبيبة" in c_amname or cid in HABIBA_CLIENTS:
         d["am_id"] = "EMP-0652-9532"
         d["am_name"] = "حبيبه احمد محمد"
-    elif cid in AYA_CLIENTS or c_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in c_amname or "ايه" in c_amname or "domya" in cid.lower() or cid == "client_100821894800009":
-        d["am_id"] = "EMP-5887-5256"
-        d["am_name"] = "آيه أحمد مجاهد"
-    elif cid in MAHMOUD_CLIENTS or c_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in c_amname:
+    elif c_amid in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in c_amname or cid in MAHMOUD_CLIENTS:
         d["am_id"] = "AM-2072-9827"
         d["am_name"] = "محمود خالد"
+    elif c_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in c_amname or "ايه" in c_amname or cid in AYA_CLIENTS:
+        d["am_id"] = "EMP-5887-5256"
+        d["am_name"] = "آيه أحمد مجاهد"
+    elif "domya" in cid.lower() or cid == "client_100821894800009":
+        d["am_id"] = "EMP-5887-5256"
+        d["am_name"] = "آيه أحمد مجاهد"
     elif am_id and am_id not in ["EMP-001", "EMP-001-AM", "AM-001", "system", "unassigned"]:
         if am_id in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in am_name or "ايه" in am_name:
             d["am_id"] = "EMP-5887-5256"
@@ -7552,7 +7604,7 @@ def _gsheet_tasks_save_all(tasks_list):
 
 _tasks_cache_data = None
 _tasks_cache_time = 0.0
-TASKS_CACHE_TTL = 120.0  # 120s in-memory server cache for sub-millisecond response time
+TASKS_CACHE_TTL = 1.0  # 1.0s in-memory server cache so task assignments and transfers reflect instantaneously (<500ms)
 
 def invalidate_tasks_cache():
     global _tasks_cache_data, _tasks_cache_time
@@ -8334,6 +8386,60 @@ def client_month_folder_id(cid, month=None):
         return parent
 
 
+def get_employees_root_folder_id(token):
+    global EMPLOYEES_ROOT_FOLDER_ID
+    if not token:
+        return EMPLOYEES_ROOT_FOLDER_ID
+    # 1. Verify if current EMPLOYEES_ROOT_FOLDER_ID is valid on Drive
+    if EMPLOYEES_ROOT_FOLDER_ID:
+        try:
+            req = urllib.request.Request(
+                f"https://www.googleapis.com/drive/v3/files/{EMPLOYEES_ROOT_FOLDER_ID}?fields=id,trashed",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            res = urllib.request.urlopen(req, timeout=8)
+            d = json.loads(res.read().decode())
+            if not d.get("trashed"):
+                return EMPLOYEES_ROOT_FOLDER_ID
+        except Exception:
+            pass
+
+    # 2. Search for existing 'مجلدات الموظفين' folder in Drive
+    try:
+        q = urllib.parse.quote("mimeType = 'application/vnd.google-apps.folder' and name contains 'مجلدات الموظفين' and trashed = false")
+        req = urllib.request.Request(
+            f"https://www.googleapis.com/drive/v3/files?q={q}&fields=files(id,name)&pageSize=5",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        res = urllib.request.urlopen(req, timeout=10)
+        files = json.loads(res.read().decode()).get("files", [])
+        if files:
+            EMPLOYEES_ROOT_FOLDER_ID = files[0]["id"]
+            _drive_set_anyone_reader(token, EMPLOYEES_ROOT_FOLDER_ID)
+            return EMPLOYEES_ROOT_FOLDER_ID
+    except Exception:
+        pass
+
+    # 3. Create canonical root folder in Drive
+    try:
+        meta = {"name": "Domya — مجلدات الموظفين", "mimeType": "application/vnd.google-apps.folder"}
+        req = urllib.request.Request(
+            "https://www.googleapis.com/drive/v3/files?fields=id",
+            data=json.dumps(meta).encode("utf-8"),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        )
+        fid = json.loads(urllib.request.urlopen(req, timeout=12).read()).get("id")
+        if fid:
+            _drive_set_anyone_reader(token, fid)
+            EMPLOYEES_ROOT_FOLDER_ID = fid
+            push_setting("meta_ai_employees_root_folder_id", fid)
+            return fid
+    except Exception as e:
+        print(f"[get_employees_root_folder_id error] {e}")
+
+    return EMPLOYEES_ROOT_FOLDER_ID
+
+
 def employee_drive_folder_id(eid, name=None):
     """Get-or-create EXACTLY ONE canonical Drive folder for an employee inside EMPLOYEES_ROOT_FOLDER_ID."""
     if not eid:
@@ -8344,21 +8450,25 @@ def employee_drive_folder_id(eid, name=None):
 
     emp_info = _sheet_emp(eid)
     emp_name = name or emp_info.get("name") or eid
+    token = get_google_oauth_access_token()
+    if not token:
+        return None
+    root_fid = get_employees_root_folder_id(token)
+    if not root_fid:
+        return None
+
     # 1. Search Google Drive directly so duplicates are NEVER created
-    existing_fid = _drive_find_folder_by_name(EMPLOYEES_ROOT_FOLDER_ID, eid)
+    existing_fid = _drive_find_folder_by_name(root_fid, eid)
     if not existing_fid and emp_name and len(emp_name) > 3:
-        existing_fid = _drive_find_folder_by_name(EMPLOYEES_ROOT_FOLDER_ID, emp_name.split()[0])
+        existing_fid = _drive_find_folder_by_name(root_fid, emp_name.split()[0])
     if existing_fid:
         folders[str(eid)] = existing_fid
         cache["employee_folders"] = folders
         return existing_fid
 
-    token = get_google_oauth_access_token()
-    if not token:
-        return None
     folder_name = f"{emp_name} ({eid})"
     try:
-        meta = {"name": folder_name, "mimeType": "application/vnd.google-apps.folder", "parents": [EMPLOYEES_ROOT_FOLDER_ID]}
+        meta = {"name": folder_name, "mimeType": "application/vnd.google-apps.folder", "parents": [root_fid]}
         req = urllib.request.Request(
             "https://www.googleapis.com/drive/v3/files?fields=id",
             data=json.dumps(meta).encode("utf-8"),
@@ -15491,14 +15601,95 @@ def api_task_recall(task_id):
                 msg += f"\n السبب: {reason}"
             send_telegram_bot_notification(tg, msg)
 
-    # Reset assignment & status back to unassigned
+    # Reset assignment & status back to unassigned (clear both primary & secondary)
     t["assigned_employee_id"] = None
     t["assignee_name"] = ""
+    t["secondary_employee_id"] = None
+    t["secondary_assignee_name"] = ""
     t["status"] = "Pending AM Approval"
     t["recalled_at"] = datetime.now(timezone.utc).isoformat()
     
     save_one_task(t, cid)
+    invalidate_tasks_cache()
     return jsonify({"ok": True, "task": t, "message": "تم سحب المهمة بنجاح ↩️"})
+
+
+@app.route("/api/plans/recall", methods=["POST"])
+@require_manager
+def api_plan_recall():
+    """AM/admin pulls back (recalls) all tasks under a specific plan from assigned employees."""
+    sync_from_supabase()
+    data = request.get_json(silent=True) or {}
+    plan_name = (data.get("plan_name") or data.get("file_name") or "").strip()
+    client_id = (data.get("client_id") or "").strip()
+    reason = (data.get("reason") or "سحب الخطة بالكامل").strip()
+
+    if not plan_name and not client_id:
+        return jsonify({"error": "يرجى تحديد الخطة أو العميل المطلوب سحبها"}), 400
+
+    all_t = _all_tasks_db()
+    recalled_count = 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    actor_rec = current_user_rec() or {}
+    actor_name = actor_rec.get("name") or current_username()
+
+    for t in all_t:
+        t_pname = (t.get("plan_name") or t.get("file_name") or "").strip()
+        t_cid = (t.get("client_id") or "").strip()
+
+        match_plan = bool(plan_name and t_pname and (plan_name == t_pname or plan_name in t_pname or t_pname in plan_name))
+        match_client = bool(client_id and t_cid and client_id == t_cid)
+
+        if (plan_name and match_plan) or (not plan_name and match_client):
+            if not can_see_client(t_cid):
+                continue
+            prev_emp_id = t.get("assigned_employee_id")
+            prev_emp_name = t.get("assignee_name") or prev_emp_id
+            prev_sec_id = t.get("secondary_employee_id")
+            prev_sec_name = t.get("secondary_assignee_name") or prev_sec_id
+
+            if not prev_emp_id and not prev_sec_id and t.get("status") == "Pending AM Approval":
+                continue
+
+            # Stop timer if running
+            ts = t.get("timer_state") or {}
+            if ts.get("is_running") and ts.get("last_start"):
+                try:
+                    ts["elapsed_seconds"] = (ts.get("elapsed_seconds") or 0) + int(
+                        (datetime.now(timezone.utc) - datetime.fromisoformat(ts["last_start"])).total_seconds())
+                except Exception:
+                    pass
+            ts["is_running"] = False
+            ts["last_start"] = None
+            t["timer_state"] = ts
+
+            _append_task_log(t, "recalled",
+                             actor_name=actor_name,
+                             actor_type="account_manager",
+                             target_emp_id=prev_emp_id,
+                             target_emp_name=prev_emp_name,
+                             note=f"سحب الخطة بالكامل من الموظفين ({prev_emp_name} / {prev_sec_name})",
+                             details={"reason": reason, "plan_name": plan_name})
+
+            t["assigned_employee_id"] = None
+            t["assignee_name"] = ""
+            t["secondary_employee_id"] = None
+            t["secondary_assignee_name"] = ""
+            t["status"] = "Pending AM Approval"
+            t["recalled_at"] = now_iso
+
+            save_one_task(t, t_cid)
+            recalled_count += 1
+
+    invalidate_tasks_cache()
+    return jsonify({
+        "ok": True,
+        "success": True,
+        "recalled_count": recalled_count,
+        "plan_name": plan_name,
+        "message": f"تم سحب {recalled_count} مهمة بنجاح وإلغاء إسنادها ↩️"
+    })
+
 
 
 # ============================================================
@@ -15688,7 +15879,7 @@ def api_my_task_submit(task_id):
         (eid and t_sec_eid and t_sec_eid.lower() == str(eid).lower()) or
         (e_norm and ta_norm and (e_norm in ta_norm or ta_norm in e_norm)) or
         (e_norm and tsa_norm and (e_norm in tsa_norm or tsa_norm in e_norm)) or
-        (not t_eid and not t_assignee)
+        (not t_eid and not t_assignee and (is_admin() or is_manager()))
     )
     if not is_allowed:
         return jsonify({"error": "دي مش مهمتك"}), 403

@@ -1521,6 +1521,9 @@ function renderClientTabs() {
         }
 
         if (!tasksArchiveMode) {
+            html += '<button type="button" onclick="recallPlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-orange-50 text-orange-800 hover:bg-orange-600 hover:text-white border border-orange-200 shadow-sm transition flex items-center gap-1.5" title="سحب جميع مهام هذه الخطة من الموظفين وإعادتها لحالة بانتظار الإسناد">' +
+                '<span>↩️ سحب الخطة من الموظفين</span>' +
+            '</button>';
             html += '<button type="button" onclick="archivePlanAction(\'' + escapedSel + '\')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-600 hover:text-white border border-amber-200 shadow-sm transition flex items-center gap-1.5" title="أرشفة الخطة المحددة">' +
                 ICONS.archive +
                 '<span>أرشفة الخطة</span>' +
@@ -1648,6 +1651,32 @@ async function deletePlanAction(planName) {
         await loadTasksEngine();
     }
 }
+
+async function recallPlanAction(planName) {
+    if (!planName) return;
+    var cleanTitle = planName.replace(/\.(docx|doc|pdf|txt)$/i, '').trim();
+    if (!confirm("↩️ هل أنت متأكد من سحب جميع مهام خطة «" + cleanTitle + "» من الموظفين وإعادتها لحالة بانتظار الإسناد؟")) {
+        return;
+    }
+    if (typeof showToast === 'function') showToast("جاري سحب مهام الخطة من الموظفين... ⏳", "info");
+    try {
+        var res = await safeFetchJson('/api/plans/recall', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_name: planName })
+        });
+        if (res && (res.success || res.ok)) {
+            if (typeof showToast === 'function') showToast(res.message || "تم سحب الخطة بنجاح ↩️", "success");
+        } else {
+            if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر سحب الخطة", "error");
+        }
+        await loadTasksEngine();
+    } catch(err) {
+        console.error("Recall plan error:", err);
+        await loadTasksEngine();
+    }
+}
+window.recallPlanAction = recallPlanAction;
 
 function filterTasksByPlan(planName) {
     selectedPlanFilter = planName;
@@ -2521,12 +2550,30 @@ function renderTaskCard(t, indexInPlan) {
     var cleanAM = (t.am_name || '').trim();
     var tAmid = (t.am_id || '').trim().toUpperCase();
     var tCid = String(t.client_id || '').toLowerCase();
-    var habibaClientIds = ['cli_dr_ahmed_1788270119', 'cli_sk_1788270118', 'cli_انفينيتي_1788270119', 'cli_د_حسام_مشعل_1790680406'];
-    var ayaClientIds = ['client_100821894800009', 'cli_معامل_رعاية_1788336726', 'cli_هبه_حافظ_1788431922', 'cli_dr_ahmed_fahmy_1788683119', 'cli_dr_hadeer_1788684282', 'cli_hayat_dental_center_1788685057', 'cli_dr_shimaa_atef_1788298157', 'cli_dr_shahenda_1788685119', 'cli_ايه_عبدو_1788944266', 'cli_eng_1790243022'];
-    if (habibaClientIds.indexOf(tCid) !== -1 || tAmid === 'EMP-0652-9532' || tAmid === 'AM-0652-9532' || cleanAM.indexOf('حبيبه') !== -1 || cleanAM.indexOf('حبيبة') !== -1) {
+
+    // 1. Dynamic live client lookup from window.agencyClients
+    var matchedClient = (window.agencyClients || []).find(function(c) {
+        return String(c.id || c.client_id || '').toLowerCase() === tCid;
+    });
+    var cAmid = matchedClient ? String(matchedClient.am_id || matchedClient.account_manager_id || matchedClient.am_employee_id || '').trim().toUpperCase() : '';
+    var cAmName = matchedClient ? String(matchedClient.am_name || '').trim() : '';
+
+    if (cAmid === 'EMP-0652-9532' || cAmid === 'AM-0652-9532' || cAmName.indexOf('حبيبه') !== -1 || cAmName.indexOf('حبيبة') !== -1) {
         cleanAM = 'حبيبه أحمد محمد';
         tAmid = 'EMP-0652-9532';
-    } else if (ayaClientIds.indexOf(tCid) !== -1 || tAmid === 'EMP-5887-5256' || tAmid === 'AM-5887-5256' || cleanAM.indexOf('آيه') !== -1 || cleanAM.indexOf('ايه') !== -1 || tCid.indexOf('domya') !== -1) {
+    } else if (cAmid === 'EMP-5887-5256' || cAmid === 'AM-5887-5256' || cAmName.indexOf('آيه') !== -1 || cAmName.indexOf('ايه') !== -1) {
+        cleanAM = 'آيه أحمد مجاهد';
+        tAmid = 'EMP-5887-5256';
+    } else if (cAmid === 'AM-2072-9827' || cAmid === 'EMP-2072-9827' || cAmName.indexOf('محمود') !== -1) {
+        cleanAM = 'محمود خالد';
+        tAmid = 'AM-2072-9827';
+    } else if (cAmid) {
+        tAmid = cAmid;
+        cleanAM = cAmName || cleanAM;
+    } else if (tAmid === 'EMP-0652-9532' || tAmid === 'AM-0652-9532' || cleanAM.indexOf('حبيبه') !== -1 || cleanAM.indexOf('حبيبة') !== -1) {
+        cleanAM = 'حبيبه أحمد محمد';
+        tAmid = 'EMP-0652-9532';
+    } else if (tAmid === 'EMP-5887-5256' || tAmid === 'AM-5887-5256' || cleanAM.indexOf('آيه') !== -1 || cleanAM.indexOf('ايه') !== -1 || tCid.indexOf('domya') !== -1) {
         cleanAM = 'آيه أحمد مجاهد';
         tAmid = 'EMP-5887-5256';
     } else if (tAmid === 'AM-2072-9827' || tAmid === 'EMP-2072-9827' || cleanAM.indexOf('محمود') !== -1) {
@@ -2728,7 +2775,7 @@ function renderTaskCard(t, indexInPlan) {
     var driveLink = (t.drive_link || t.google_drive_url || t.submission_link || '').trim();
     var delivList = Array.isArray(t.deliverables) ? t.deliverables : [];
 
-    var isSubmitted = (t.status === 'Submitted / In Review' || t.status === 'Awaiting AM Review' || t.status === 'Completed' || t.status === 'Approved / Scheduled' || !!driveLink || delivList.length > 0);
+    var isSubmitted = (t.status === 'Submitted / In Review' || t.status === 'Awaiting AM Review' || t.status === 'Completed' || t.status === 'Approved / Scheduled');
     var isTimerRunning = !isSubmitted && !!(t.timer_state && t.timer_state.is_running);
     var elapsedSecs = t.timer_state ? (t.timer_state.elapsed_seconds || 0) : 0;
     var elapsedMins = Math.round(elapsedSecs / 60);
@@ -2738,7 +2785,7 @@ function renderTaskCard(t, indexInPlan) {
         var timerTag = '';
         if (t.status === 'Completed' || t.status === 'Approved / Scheduled') {
             timerTag = '<span class="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">✅ تم الاعتماد والاكتمال</span>';
-        } else if (t.status === 'Submitted / In Review' || t.status === 'Awaiting AM Review' || driveLink || delivList.length > 0) {
+        } else if (t.status === 'Submitted / In Review' || t.status === 'Awaiting AM Review') {
             timerTag = '<span class="bg-purple-100 text-purple-800 border border-purple-300 px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">📤 تم التسليم / بانتظار الاعتماد</span>';
         } else if (isTimerRunning) {
             timerTag = '<span class="bg-amber-500 text-white animate-pulse px-2 py-0.5 rounded-full font-bold text-[10px] flex items-center gap-1">⏱️ جاري العمل الآن</span>';
@@ -3637,15 +3684,28 @@ function renderTasksBoard() {
             var cid = String(t.client_id || '').toLowerCase();
             var cname = String(t.client_name || '').toLowerCase();
 
-            var habibaClientIds = ['cli_dr_ahmed_1788270119', 'cli_sk_1788270118', 'cli_انفينيتي_1788270119', 'cli_د_حسام_مشعل_1790680406'];
-            var isHabibaClient = habibaClientIds.indexOf(cid) !== -1 || cname.includes('أحمد حمدي') || cname.includes('احمد حمدي') || cname.includes('sk') || cname.includes('انفينيتي') || cname.includes('مشعل') || cname.includes('حسام');
-            var ayaClientIds = ['client_100821894800009', 'cli_معامل_رعاية_1788336726', 'cli_هبه_حافظ_1788431922', 'cli_dr_ahmed_fahmy_1788683119', 'cli_dr_hadeer_1788684282', 'cli_hayat_dental_center_1788685057', 'cli_dr_shimaa_atef_1788298157', 'cli_dr_shahenda_1788685119', 'cli_ايه_عبدو_1788944266', 'cli_eng_1790243022'];
-            var isAyaClient = ayaClientIds.indexOf(cid) !== -1 || cid.includes('domya') || cname.includes('domya') || cname.includes('رعاية') || cname.includes('هبه حافظ') || cname.includes('fahmy') || cname.includes('hadeer') || cname.includes('hayat') || cname.includes('shimaa') || cname.includes('shahenda') || cname.includes('عبدو') || cname.includes('eng');
+            var matchedClient = (window.agencyClients || window.allClients || []).find(function(c) {
+                return String(c.id || c.client_id || '').toLowerCase() === cid;
+            });
+            var cAmid = matchedClient ? String(matchedClient.am_id || matchedClient.account_manager_id || matchedClient.am_employee_id || '').trim().toUpperCase() : '';
+            var cAmName = matchedClient ? String(matchedClient.am_name || '').trim() : '';
 
-            if (isHabibaClient || amId === 'EMP-0652-9532' || amId === 'AM-0652-9532' || amName.includes('حبيبه') || amName.includes('حبيبة')) {
+            if (cAmid === 'EMP-0652-9532' || cAmid === 'AM-0652-9532' || cAmName.includes('حبيبه') || cAmName.includes('حبيبة')) {
                 t.am_id = 'EMP-0652-9532';
                 t.am_name = 'حبيبه أحمد محمد';
-            } else if (isAyaClient || amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه')) {
+            } else if (cAmid === 'EMP-5887-5256' || cAmid === 'AM-5887-5256' || cAmName.includes('آيه') || cAmName.includes('ايه')) {
+                t.am_id = 'EMP-5887-5256';
+                t.am_name = 'آيه أحمد مجاهد';
+            } else if (cAmid === 'AM-2072-9827' || cAmid === 'EMP-2072-9827' || cAmName.includes('محمود')) {
+                t.am_id = 'AM-2072-9827';
+                t.am_name = 'محمود خالد';
+            } else if (cAmid) {
+                t.am_id = cAmid;
+                t.am_name = cAmName || t.am_name;
+            } else if (amId === 'EMP-0652-9532' || amId === 'AM-0652-9532' || amName.includes('حبيبه') || amName.includes('حبيبة')) {
+                t.am_id = 'EMP-0652-9532';
+                t.am_name = 'حبيبه أحمد محمد';
+            } else if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه') || cid.includes('domya')) {
                 t.am_id = 'EMP-5887-5256';
                 t.am_name = 'آيه أحمد مجاهد';
             } else if (amId === 'AM-2072-9827' || amId === 'EMP-2072-9827' || amName.includes('محمود')) {
@@ -3655,12 +3715,6 @@ function renderTasksBoard() {
                 var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === String(amId).toUpperCase(); });
                 if (foundAm) {
                     t.am_name = foundAm.name || amName;
-                }
-            } else {
-                var clientMatch = (window.agencyClients || window.allClients || []).find(function(c){ return String(c.id).toLowerCase() === cid; });
-                if (clientMatch && (clientMatch.am_employee_id || clientMatch.am_id)) {
-                    t.am_id = clientMatch.am_employee_id || clientMatch.am_id;
-                    t.am_name = clientMatch.am_name || t.am_name;
                 }
             }
         });
@@ -3796,15 +3850,28 @@ function renderTasksBoard() {
             var cid = String(t.client_id || '').toLowerCase();
             var cname = String(t.client_name || '').toLowerCase();
 
-            var habibaClientIds = ['cli_dr_ahmed_1788270119', 'cli_sk_1788270118', 'cli_انفينيتي_1788270119', 'cli_د_حسام_مشعل_1790680406'];
-            var isHabibaClient = habibaClientIds.indexOf(cid) !== -1 || cname.includes('أحمد حمدي') || cname.includes('احمد حمدي') || cname.includes('sk') || cname.includes('انفينيتي') || cname.includes('مشعل') || cname.includes('حسام');
-            var ayaClientIds = ['client_100821894800009', 'cli_معامل_رعاية_1788336726', 'cli_هبه_حافظ_1788431922', 'cli_dr_ahmed_fahmy_1788683119', 'cli_dr_hadeer_1788684282', 'cli_hayat_dental_center_1788685057', 'cli_dr_shimaa_atef_1788298157', 'cli_dr_shahenda_1788685119', 'cli_ايه_عبدو_1788944266', 'cli_eng_1790243022'];
-            var isAyaClient = ayaClientIds.indexOf(cid) !== -1 || cid.includes('domya') || cname.includes('domya') || cname.includes('رعاية') || cname.includes('هبه حافظ') || cname.includes('fahmy') || cname.includes('hadeer') || cname.includes('hayat') || cname.includes('shimaa') || cname.includes('shahenda') || cname.includes('عبدو') || cname.includes('eng');
+            var matchedClient = (window.agencyClients || window.allClients || []).find(function(c) {
+                return String(c.id || c.client_id || '').toLowerCase() === cid;
+            });
+            var cAmid = matchedClient ? String(matchedClient.am_id || matchedClient.account_manager_id || matchedClient.am_employee_id || '').trim().toUpperCase() : '';
+            var cAmName = matchedClient ? String(matchedClient.am_name || '').trim() : '';
 
-            if (isHabibaClient || amId === 'EMP-0652-9532' || amId === 'AM-0652-9532' || amName.includes('حبيبه') || amName.includes('حبيبة')) {
+            if (cAmid === 'EMP-0652-9532' || cAmid === 'AM-0652-9532' || cAmName.includes('حبيبه') || cAmName.includes('حبيبة')) {
                 amId = 'EMP-0652-9532';
                 amName = 'حبيبه أحمد محمد';
-            } else if (isAyaClient || amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه')) {
+            } else if (cAmid === 'EMP-5887-5256' || cAmid === 'AM-5887-5256' || cAmName.includes('آيه') || cAmName.includes('ايه')) {
+                amId = 'EMP-5887-5256';
+                amName = 'آيه أحمد مجاهد';
+            } else if (cAmid === 'AM-2072-9827' || cAmid === 'EMP-2072-9827' || cAmName.includes('محمود')) {
+                amId = 'AM-2072-9827';
+                amName = 'محمود خالد';
+            } else if (cAmid) {
+                amId = cAmid;
+                amName = cAmName || amName;
+            } else if (amId === 'EMP-0652-9532' || amId === 'AM-0652-9532' || amName.includes('حبيبه') || amName.includes('حبيبة')) {
+                amId = 'EMP-0652-9532';
+                amName = 'حبيبه أحمد محمد';
+            } else if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه') || cid.includes('domya')) {
                 amId = 'EMP-5887-5256';
                 amName = 'آيه أحمد مجاهد';
             } else if (amId === 'AM-2072-9827' || amId === 'EMP-2072-9827' || amName.includes('محمود')) {
@@ -3814,12 +3881,6 @@ function renderTasksBoard() {
                 var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === String(amId).toUpperCase(); });
                 if (foundAm) {
                     amName = foundAm.name || amName;
-                }
-            } else {
-                var clientMatch = (window.agencyClients || window.allClients || []).find(function(c){ return String(c.id).toLowerCase() === cid; });
-                if (clientMatch && (clientMatch.am_employee_id || clientMatch.am_id)) {
-                    amId = clientMatch.am_employee_id || clientMatch.am_id;
-                    amName = clientMatch.am_name || amName;
                 }
             }
             t.am_id = amId;
@@ -7769,6 +7830,7 @@ window.saveTaskNotesEditorAction = saveTaskNotesEditorAction;
 async function submitTaskDirectlyNoFile() {
     var taskId = window._activeDeliverableTaskId;
     if (!taskId) return;
+    if (!confirm('هل أنت متأكد من تسليم المهمة لمدير الحساب؟ ✅')) return;
     closeDeliverableModal();
     showToast('جاري تسليم المهمة لمدير الحساب... ');
     try {
@@ -7798,6 +7860,7 @@ window.submitTaskDirectlyNoFile = submitTaskDirectlyNoFile;
 
 async function submitMyTaskDirect(taskId) {
     if (!taskId) return;
+    if (!confirm('هل أنت متأكد من تسليم المهمة لمدير الحساب؟ ✅')) return;
     showToast('جاري تسليم المهمة لمدير الحساب... ⏳');
     try {
         var res = await fetch('/api/me/tasks/' + encodeURIComponent(taskId) + '/submit', {
