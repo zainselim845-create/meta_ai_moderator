@@ -153,13 +153,13 @@ function renderClientsGrid() {
             
             <div class="space-y-2 pt-2 border-t border-slate-100">
                 <div class="flex gap-2">
-                    <a href="tel:${esc(phone)}" class="flex-1 btn-primary text-xs py-1.5 px-2 rounded-lg text-center font-bold flex items-center justify-center gap-1"><i data-lucide="phone" class="w-3.5 h-3.5 inline"></i> اتصل الآن</a>
-                    <a href="whatsapp://send?phone=${cleanPhone.startsWith('01') ? '2' + cleanPhone : cleanPhone}" target="_blank" class="flex-1 btn-ghost text-xs py-1.5 px-2 rounded-lg text-center font-bold flex items-center justify-center gap-1 border border-slate-200"><i data-lucide="message-square" class="w-3.5 h-3.5 inline"></i> واتساب</a>
+                    <a href="tel:${esc(phone)}" class="flex-1 h-9 btn-primary text-xs px-2.5 rounded-xl text-center font-bold flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs transition"><i data-lucide="phone" class="w-3.5 h-3.5 inline"></i> اتصل الآن</a>
+                    <a href="whatsapp://send?phone=${cleanPhone.startsWith('01') ? '2' + cleanPhone : cleanPhone}" target="_blank" class="flex-1 h-9 btn-ghost text-xs px-2.5 rounded-xl text-center font-bold flex items-center justify-center gap-1.5 border border-slate-200 hover:bg-slate-50 shadow-2xs transition"><i data-lucide="message-square" class="w-3.5 h-3.5 inline"></i> واتساب</a>
                 </div>
-                <div class="flex gap-1">
-                    <button class="flex-1 btn-ghost text-xs py-1 px-2 rounded-lg border border-slate-200" onclick="switchClient('${esc(c.id)}')">تفعيل</button>
-                    <button class="btn-ghost text-xs py-1 px-2 rounded-lg border border-slate-200" onclick="openEditClient('${esc(c.id)}')">تعديل</button>
-                    <button class="btn-ghost text-xs py-1 px-2 rounded-lg border border-slate-200 text-red-600" onclick="deleteClientConfirm('${esc(c.id)}','${esc(c.name)}')">حذف</button>
+                <div class="flex gap-1.5">
+                    <button class="flex-1 h-9 btn-ghost text-xs px-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 font-bold transition flex items-center justify-center gap-1 shadow-2xs" onclick="switchClient('${esc(c.id)}')"><i data-lucide="power" class="w-3.5 h-3.5 text-emerald-600 inline"></i> تفعيل</button>
+                    <button class="h-9 btn-ghost text-xs px-3 rounded-xl border border-slate-200 hover:bg-slate-50 font-bold transition flex items-center justify-center gap-1 shadow-2xs" onclick="openEditClient('${esc(c.id)}')"><i data-lucide="edit-3" class="w-3.5 h-3.5 text-slate-600 inline"></i> تعديل</button>
+                    <button class="h-9 btn-ghost text-xs px-3 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold transition flex items-center justify-center gap-1 shadow-2xs" onclick="deleteClientConfirm('${esc(c.id)}','${esc(c.name)}')"><i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i> حذف</button>
                 </div>
             </div>
         </div>
