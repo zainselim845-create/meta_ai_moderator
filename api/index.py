@@ -4704,6 +4704,7 @@ def api_login():
         except Exception:
             pass
 
+        supa_user = supabase_auth_login(username, password)
         if supa_user:
             session.permanent = True
             session["uid"] = username
