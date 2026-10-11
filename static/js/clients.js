@@ -363,6 +363,7 @@ async function updateClientAM(clientId, amId) {
         showToast('حدث خطأ أثناء تحديث مدير الحسابات', 'error');
     }
 }
+window.updateClientAM = updateClientAM;
 
 function openEditClient(id) {
     const c = agencyClients.find(x => x.id === id || x.name === id);
@@ -418,7 +419,10 @@ async function submitClientEdit(e) {
     const company = ((document.getElementById('edit-client-company') || {}).value || '').trim();
     const packageVal = ((document.getElementById('edit-client-package') || {}).value || '').trim();
     const amId = ((document.getElementById('edit-client-amid') || {}).value || '').trim();
-    let amName = (amId === 'EMP-5887-5256') ? 'آيه أحمد مجاهد' : 'محمود خالد';
+    let amName = '';
+    if (amId === 'EMP-0652-9532') amName = 'حبيبه احمد محمد';
+    else if (amId === 'EMP-5887-5256') amName = 'آيه أحمد مجاهد';
+    else if (amId === 'AM-2072-9827') amName = 'محمود خالد';
     const team = window.allTeamEmployees || window.employeesList || [];
     const foundEmp = team.find(e => (e.employee_id || e.id) === amId);
     if (foundEmp && foundEmp.name) {
@@ -459,6 +463,14 @@ async function submitClientEdit(e) {
         showToast('حدث خطأ أثناء تحديث بيانات العميل', 'error');
     }
 }
+window.openEditClient = openEditClient;
+window.closeClientEditModal = closeClientEditModal;
+window.submitClientEdit = submitClientEdit;
+window.openClientFolder = openClientFolder;
+window.openClientPlanDoc = openClientPlanDoc;
+window.switchClient = switchClient;
+window.archiveClient = archiveClient;
+window.deleteClientConfirm = deleteClientConfirm;
 
 async function archiveClient(id, name) {
     if (!confirm(`أرشفة «${name}»؟

@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 import sys
 import os
 
@@ -85,9 +85,13 @@ def test_cross_am_client_edit_protection():
         res = client.post("/api/clients/client_100821894800009", json={"name": "Hacked Domya"})
         assert res.status_code == 403
 
-        # Habiba tries to reassign her own client's AM to someone else
+        # Habiba reassigns her own client's AM to Aya (Allowed per user requirement)
         res = client.post("/api/clients/cli_dr_ahmed_1788270119", json={"am_employee_id": "EMP-5887-5256"})
-        assert res.status_code == 403
+        assert res.status_code == 200
+        assert res.get_json().get("am_changed") is True
+        # Reset back to Habiba to keep test state clean
+        res_reset = client.post("/api/clients/cli_dr_ahmed_1788270119", json={"am_employee_id": "EMP-0652-9532"})
+        assert res_reset.status_code == 200
 
         # Admin CAN update client and reassign AM
         with client.session_transaction() as sess:

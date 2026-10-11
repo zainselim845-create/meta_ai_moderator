@@ -5594,12 +5594,14 @@ def find_client_in_store(cid, data=None):
 @app.route("/api/clients/<cid>", methods=["PUT", "POST"])
 @require_manager
 def api_clients_update(cid):
-    if not is_admin() and not can_see_client(cid):
-        return jsonify({"error": "غير مصرح لك بتعديل بيانات هذا العميل"}), 403
     data = request.get_json() or {}
     client = find_client_in_store(cid, data)
     if not client:
         return jsonify({"error": "العميل غير موجود"}), 404
+    is_unassigned_client = not str(client.get("am_employee_id") or "").strip()
+    is_reassigning_am = bool("am_employee_id" in data or "am_id" in data or "am_name" in data)
+    if not is_admin() and not can_see_client(cid) and not (is_manager() and (is_unassigned_client or is_reassigning_am)):
+        return jsonify({"error": "غير مصرح لك بتعديل بيانات هذا العميل"}), 403
     for k in ("name", "company", "package"):
         if k in data:
             client[k] = data[k]
@@ -5610,8 +5612,8 @@ def api_clients_update(cid):
     new_am_id = ""
     new_am_name = ""
     if "am_employee_id" in data or "am_id" in data or "am_name" in data:
-        if not is_admin():
-            return jsonify({"error": "تغيير مسؤول الحساب متاح للإدارة فقط"}), 403
+        if not is_admin() and not is_manager():
+            return jsonify({"error": "صلاحيات المدير أو مدير الحسابات مطلوبة لتغيير مسؤول الحساب"}), 403
         raw_amid = str(data.get("am_employee_id") or data.get("am_id") or "").strip()
         raw_amname = str(data.get("am_name") or "").strip()
         if raw_amid in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in raw_amname or "ايه" in raw_amname:
@@ -5640,6 +5642,24 @@ def api_clients_update(cid):
                 client["am_employee_id"] = new_am_id
                 client["am_name"] = new_am_name
                 am_changed = True
+
+                # Synchronize memory sets if present
+                if new_am_id in ("EMP-5887-5256", "AM-5887-5256") or "آيه" in new_am_name or "ايه" in new_am_name:
+                    AYA_CLIENTS.add(cid_actual)
+                    HABIBA_CLIENTS.discard(cid_actual)
+                    MAHMOUD_CLIENTS.discard(cid_actual)
+                elif new_am_id in ("EMP-0652-9532", "AM-0652-9532") or "حبيبه" in new_am_name or "حبيبة" in new_am_name:
+                    HABIBA_CLIENTS.add(cid_actual)
+                    AYA_CLIENTS.discard(cid_actual)
+                    MAHMOUD_CLIENTS.discard(cid_actual)
+                elif new_am_id in ("AM-2072-9827", "EMP-2072-9827") or "محمود" in new_am_name:
+                    MAHMOUD_CLIENTS.add(cid_actual)
+                    HABIBA_CLIENTS.discard(cid_actual)
+                    AYA_CLIENTS.discard(cid_actual)
+                else:
+                    HABIBA_CLIENTS.discard(cid_actual)
+                    AYA_CLIENTS.discard(cid_actual)
+                    MAHMOUD_CLIENTS.discard(cid_actual)
 
     push_setting("meta_ai_clients", AGENCY_CLIENTS_STORE)
     cache["clients"] = AGENCY_CLIENTS_STORE
