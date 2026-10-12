@@ -7601,6 +7601,51 @@ def _gsheet_tasks_read():
     return tasks
 
 
+def _gsheet_emergency_backup_read():
+    """Reads all tasks from the Emergency_Backup tab in Google Sheets."""
+    cfg = hr_config()
+    sheet_id = cfg.get("sheet_id", "1Y4i5wOm85xg6Umwph0i5-5SmssAdCy0uUlqUvzQwGj0")
+    token = get_google_oauth_access_token()
+    if not token:
+        return []
+    try:
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{urllib.parse.quote('Emergency_Backup!A1:Q5000')}"
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            val_data = json.loads(resp.read().decode("utf-8")).get("values", [])
+            if len(val_data) < 2:
+                return []
+            tasks = []
+            for r in val_data[1:]:
+                if len(r) > 1:
+                    tid = str(r[1]).strip()
+                    if not tid:
+                        continue
+                    json_str = r[13] if len(r) > 13 else ""
+                    task_obj = {}
+                    if json_str:
+                        try:
+                            task_obj = json.loads(json_str)
+                        except Exception:
+                            pass
+                    if not isinstance(task_obj, dict):
+                        task_obj = {}
+                    task_obj["task_id"] = tid
+                    task_obj["id"] = tid
+                    if len(r) > 2 and r[2]: task_obj["client_id"] = r[2]
+                    if len(r) > 3 and r[3]: task_obj["client_name"] = r[3]
+                    if len(r) > 4 and r[4]: task_obj["plan_name"] = r[4]
+                    if len(r) > 5 and r[5]: task_obj["title"] = r[5]
+                    if len(r) > 6 and r[6]: task_obj["status"] = r[6]
+                    if len(r) > 7 and r[7]: task_obj["assigned_employee_id"] = r[7]
+                    if len(r) > 8 and r[8]: task_obj["assignee_name"] = r[8]
+                    tasks.append(_sanitize_task_record(task_obj))
+            return tasks
+    except Exception as e:
+        print(f"[_gsheet_emergency_backup_read error] {e}")
+        return []
+
+
 def _clean_task_for_gsheet(task_record):
     """Sanitizes task payload before writing to Google Sheets cell (<50,000 char cell ceiling)
     without truncating JSON string syntax."""
@@ -7637,7 +7682,7 @@ def _clean_task_for_gsheet(task_record):
     return serialized_json
 
 
-_KNOWN_SHEET_TABS = {"Tasks", "Tasks_2026_09", "Tasks_2026_10", "Employees", "Attendance", "Payroll"}
+_KNOWN_SHEET_TABS = {"Tasks", "Tasks_2026_09", "Tasks_2026_10", "Emergency_Backup", "Task_Logs", "Employees", "Attendance", "Payroll"}
 
 def _ensure_monthly_tab_exists(sheet_id, tab_name, token):
     global _KNOWN_SHEET_TABS
@@ -7734,11 +7779,20 @@ def _gsheet_tasks_save_all(tasks_list):
                 datetime.now(timezone.utc).isoformat()
             ])
 
-        # Prepare batch update: Master 'Tasks' + Monthly tabs 'Tasks_YYYY_MM'
+        # Prepare batch update: Master 'Tasks' + Monthly tabs 'Tasks_YYYY_MM' + 'Emergency_Backup'
+        now_iso = datetime.now(timezone.utc).isoformat()
+        emergency_rows = [["backup_timestamp"] + headers + ["backup_note"]]
+        for r in rows_data[1:]:
+            emergency_rows.append([now_iso] + r + ["نسخة طوارئ لحظية شاملة"])
+
         batch_data = [
             {
                 "range": f"Tasks!A1:O{len(rows_data)}",
                 "values": rows_data
+            },
+            {
+                "range": f"Emergency_Backup!A1:Q{len(emergency_rows)}",
+                "values": emergency_rows
             }
         ]
 
@@ -7832,6 +7886,19 @@ def _all_tasks_db(force=False):
                     tasks_map[tid] = t
         except Exception as err:
             print(f"[_all_tasks_db sheet read error] {err}")
+
+    # 4. Emergency Backup Fallback: if tasks_map is still empty, recover from Emergency_Backup tab!
+    if not tasks_map:
+        try:
+            em_tasks = _gsheet_emergency_backup_read()
+            for t in em_tasks:
+                tid = str(t.get("task_id") or t.get("id") or "")
+                if tid:
+                    tasks_map[tid] = t
+            if tasks_map:
+                print(f"[EMERGENCY RECOVERY] Auto-restored {len(tasks_map)} tasks from Emergency_Backup tab!")
+        except Exception as _em_err:
+            print(f"[_all_tasks_db emergency backup read error] {_em_err}")
 
     out = list(tasks_map.values())
     out.sort(key=_natural_task_sort_key)
@@ -8075,6 +8142,38 @@ def save_client_task_logs(logs_list, _cid=None):
     cache["task_logs"] = updated
     push_setting("meta_ai_task_logs", updated)
 
+def _append_gsheet_task_log(t, entry):
+    """Appends an audit log row to the Task_Logs tab in Google Sheets."""
+    try:
+        token = get_google_oauth_access_token()
+        if not token:
+            return
+        cfg = hr_config()
+        sheet_id = cfg.get("sheet_id", "1Y4i5wOm85xg6Umwph0i5-5SmssAdCy0uUlqUvzQwGj0")
+        row = [
+            str(entry.get("id") or ""),
+            str(t.get("task_id") or t.get("id") or ""),
+            str(t.get("client_name") or ""),
+            str(t.get("plan_name") or t.get("file_name") or ""),
+            str(entry.get("action") or ""),
+            str(entry.get("actor_name") or ""),
+            str(entry.get("actor_id") or ""),
+            str(entry.get("actor_type") or ""),
+            str(entry.get("note") or ""),
+            json.dumps(entry.get("details") or {}, ensure_ascii=False) if isinstance(entry.get("details"), (dict, list)) else str(entry.get("details") or ""),
+            str(entry.get("time_cairo") or ""),
+            str(entry.get("timestamp") or "")
+        ]
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{urllib.parse.quote('Task_Logs!A:L')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps({"values": [row]}).encode("utf-8"),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        )
+        urllib.request.urlopen(req, timeout=4)
+    except Exception as e:
+        print(f"[_append_gsheet_task_log err] {e}")
+
 def _append_task_log(t, action, actor_name=None, actor_id=None, **kwargs):
     """Appends an event to the task's activity log and recalculates KPI metrics."""
     actor_type = kwargs.get("actor_type")
@@ -8120,6 +8219,7 @@ def _append_task_log(t, action, actor_name=None, actor_id=None, **kwargs):
     # Calculate KPI metrics for the task
     kpis = calculate_task_kpis(t, tz_offset_hours=_tz_offset())
     t["kpis"] = kpis
+    _append_gsheet_task_log(t, entry)
     return entry
 
 def parse_flexible_date_str(val_str):
@@ -13744,6 +13844,26 @@ def api_plans_unarchive():
         "message": f"تمت استعادة الخطة «{raw_plan_name}» ({len(restored_tasks)} مهمة) للوحة النشطة بنجاح ️",
         "restored_count": len(restored_tasks),
         "plan_name": raw_plan_name
+    })
+
+
+@app.route("/api/tasks/emergency-restore", methods=["POST"])
+@require_admin
+def api_tasks_emergency_restore():
+    """1-Click Emergency Restore: Recovers all tasks from the Emergency_Backup tab in Google Sheets."""
+    em_tasks = _gsheet_emergency_backup_read()
+    if not em_tasks:
+        return jsonify({"error": "لم يتم العثور على أي مهام في شيت الطوارئ (Emergency_Backup)"}), 404
+    
+    # Save back to live tasks store
+    cache["tasks"] = em_tasks
+    invalidate_tasks_cache()
+    _gsheet_tasks_save_all(em_tasks)
+    return jsonify({
+        "success": True,
+        "ok": True,
+        "message": f"تمت استعادة كافة البيانات ({len(em_tasks)} مهمة) بنجاح من شيت الطوارئ وحفظها في الشيتات الحية!",
+        "count": len(em_tasks)
     })
 
 
