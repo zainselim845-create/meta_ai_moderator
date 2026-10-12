@@ -647,6 +647,23 @@ def redis_del(key):
     except Exception as _e:
         return False
 
+_SUPABASE_RESTRICTED = False
+_SUPABASE_RESTRICTED_UNTIL = 0.0
+
+def _is_supa_available():
+    global _SUPABASE_RESTRICTED, _SUPABASE_RESTRICTED_UNTIL
+    if not (SUPABASE_URL and SUPABASE_KEY):
+        return False
+    if _SUPABASE_RESTRICTED and time.time() < _SUPABASE_RESTRICTED_UNTIL:
+        return False
+    return True
+
+def _mark_supa_restricted():
+    global _SUPABASE_RESTRICTED, _SUPABASE_RESTRICTED_UNTIL
+    _SUPABASE_RESTRICTED = True
+    _SUPABASE_RESTRICTED_UNTIL = time.time() + 300.0  # 5 min circuit breaker
+    print("[SUPABASE CIRCUIT BREAKER] Quota exceeded (402). Switching to Google Sheets persistent storage.")
+
 def supa_headers():
     return {
         "apikey": SUPABASE_KEY,
@@ -656,7 +673,7 @@ def supa_headers():
     }
 
 def supa_upsert(table_name, rows):
-    if not (SUPABASE_URL and SUPABASE_KEY) or not rows:
+    if not _is_supa_available() or not rows:
         return False
     try:
         url = f"{SUPABASE_URL}/rest/v1/{table_name}"
@@ -666,7 +683,10 @@ def supa_upsert(table_name, rows):
             "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates,return=minimal",
         }
-        r = requests.post(url, headers=headers, json=rows, timeout=8)
+        r = requests.post(url, headers=headers, json=rows, timeout=4)
+        if r.status_code == 402:
+            _mark_supa_restricted()
+            return False
         ok = r.status_code in (200, 201, 204)
         if not ok:
             print(f"[supa_upsert] {table_name} -> {r.status_code}: {r.text[:200]}")
@@ -676,12 +696,15 @@ def supa_upsert(table_name, rows):
         return False
 
 def supa_select(table_name, query_params=""):
-    if not (SUPABASE_URL and SUPABASE_KEY):
+    if not _is_supa_available():
         return None
     try:
         url = f"{SUPABASE_URL}/rest/v1/{table_name}?{query_params}"
         headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-        r = requests.get(url, headers=headers, timeout=5)
+        r = requests.get(url, headers=headers, timeout=4)
+        if r.status_code == 402:
+            _mark_supa_restricted()
+            return None
         if r.status_code == 200:
             return r.json()
     except Exception as e:
@@ -689,12 +712,15 @@ def supa_select(table_name, query_params=""):
     return None
 
 def supa_delete(table_name, query_params=""):
-    if not (SUPABASE_URL and SUPABASE_KEY):
+    if not _is_supa_available():
         return False
     try:
         url = f"{SUPABASE_URL}/rest/v1/{table_name}?{query_params}"
         headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-        r = requests.delete(url, headers=headers, timeout=5)
+        r = requests.delete(url, headers=headers, timeout=4)
+        if r.status_code == 402:
+            _mark_supa_restricted()
+            return False
         return r.status_code in (200, 204)
     except Exception as e:
         print(f"[supa_delete] Error deleting from {table_name}: {e}")
@@ -1263,41 +1289,35 @@ def push_setting(key, value):
     try:
         redis_del("app_settings_sync")
     except Exception as _rde:
-        print(f"[Redis del warning] {_rde}")
-    if SUPABASE_URL and SUPABASE_KEY:
-        val_str = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
-        pushed = False
-        # Try PATCH first for existing setting key (cleanest for large setting objects)
-        patch_url = f"{SUPABASE_URL}/rest/v1/app_settings?key=eq.{key}"
-        patch_headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json",
-            "Prefer": "return=minimal"
-        }
-        for attempt in range(3):
-            try:
-                res = requests.patch(patch_url, headers=patch_headers, json={"value": val_str}, timeout=25)
-                if res.status_code in (200, 204):
-                    print(f"[Supabase Patch OK] {key} -> HTTP {res.status_code}")
-                    pushed = True
-                    break
-            except Exception as _pe:
-                print(f"[Supabase Patch attempt {attempt+1} err] {key}: {_pe}")
-                time.sleep(1)
+        pass
+    if not _is_supa_available():
+        return
+    val_str = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+    patch_url = f"{SUPABASE_URL}/rest/v1/app_settings?key=eq.{key}"
+    patch_headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+    }
+    try:
+        res = requests.patch(patch_url, headers=patch_headers, json={"value": val_str}, timeout=4)
+        if res.status_code == 402:
+            _mark_supa_restricted()
+            return
+        if res.status_code in (200, 204):
+            return
+    except Exception as _pe:
+        pass
 
-        if not pushed:
-            # Fallback to POST with merge-duplicates if key does not exist yet
-            for attempt in range(2):
-                try:
-                    url = f"{SUPABASE_URL}/rest/v1/app_settings"
-                    res = requests.post(url, headers=supa_headers(), json={"key": key, "value": val_str}, timeout=25)
-                    if res.status_code in (200, 201, 204):
-                        print(f"[Supabase Push OK] {key} -> HTTP {res.status_code}")
-                        break
-                except Exception as e:
-                    print(f"[Supabase Push attempt {attempt+1} err] {key}: {e}")
-                    time.sleep(1)
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/app_settings"
+        res = requests.post(url, headers=supa_headers(), json={"key": key, "value": val_str}, timeout=4)
+        if res.status_code == 402:
+            _mark_supa_restricted()
+            return
+    except Exception as e:
+        pass
 
 sync_from_supabase()
 
@@ -7617,8 +7637,53 @@ def _clean_task_for_gsheet(task_record):
     return serialized_json
 
 
+_KNOWN_SHEET_TABS = {"Tasks", "Tasks_2026_09", "Tasks_2026_10", "Employees", "Attendance", "Payroll"}
+
+def _ensure_monthly_tab_exists(sheet_id, tab_name, token):
+    global _KNOWN_SHEET_TABS
+    if tab_name in _KNOWN_SHEET_TABS:
+        return True
+    try:
+        meta_req = urllib.request.Request(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}?fields=sheets.properties.title",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        with urllib.request.urlopen(meta_req, timeout=5) as m_resp:
+            meta = json.loads(m_resp.read().decode("utf-8"))
+            for s in meta.get("sheets", []):
+                t_name = s.get("properties", {}).get("title", "")
+                if t_name:
+                    _KNOWN_SHEET_TABS.add(t_name)
+        if tab_name in _KNOWN_SHEET_TABS:
+            return True
+        add_body = {
+            "requests": [
+                {
+                    "addSheet": {
+                        "properties": {
+                            "title": tab_name,
+                            "gridProperties": {"rowCount": 1000, "columnCount": 20}
+                        }
+                    }
+                }
+            ]
+        }
+        add_req = urllib.request.Request(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}:batchUpdate",
+            data=json.dumps(add_body).encode("utf-8"),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(add_req, timeout=6) as a_resp:
+            _KNOWN_SHEET_TABS.add(tab_name)
+            return True
+    except Exception as e:
+        print(f"[_ensure_monthly_tab_exists error] {e}")
+    return False
+
 def _gsheet_tasks_save_all(tasks_list):
-    """Persist all tasks to the Tasks tab in the Google Spreadsheet (clearing previous data cleanly)."""
+    """Persist all tasks to the Google Spreadsheet:
+    1. Master tab 'Tasks' (all months comprehensive).
+    2. Monthly tabs 'Tasks_YYYY_MM' (per-month dedicated clean archive)."""
     if not isinstance(tasks_list, list):
         return False
     try:
@@ -7669,14 +7734,37 @@ def _gsheet_tasks_save_all(tasks_list):
                 datetime.now(timezone.utc).isoformat()
             ])
 
+        # Prepare batch update: Master 'Tasks' + Monthly tabs 'Tasks_YYYY_MM'
+        batch_data = [
+            {
+                "range": f"Tasks!A1:O{len(rows_data)}",
+                "values": rows_data
+            }
+        ]
+
+        # Group data rows by month
+        by_month = {}
+        for r in rows_data[1:]:
+            date_str = str(r[10] or r[9] or r[13] or "").strip()
+            m_match = re.search(r"(\d{4})[/-](\d{1,2})", date_str)
+            if m_match:
+                m_num = int(m_match.group(2))
+                m_key = f"{m_match.group(1)}_{m_num:02d}"
+            else:
+                m_key = "other"
+            by_month.setdefault(m_key, []).append(r)
+
+        for m_key, m_rows in by_month.items():
+            month_tab = f"Tasks_{m_key}"
+            _ensure_monthly_tab_exists(sheet_id, month_tab, token)
+            batch_data.append({
+                "range": f"{month_tab}!A1:O{len(m_rows) + 1}",
+                "values": [headers] + m_rows
+            })
+
         req_body = {
             "valueInputOption": "USER_ENTERED",
-            "data": [
-                {
-                    "range": f"Tasks!A1:O{len(rows_data)}",
-                    "values": rows_data
-                }
-            ]
+            "data": batch_data
         }
         url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values:batchUpdate"
         req = urllib.request.Request(
@@ -7959,13 +8047,11 @@ def save_client_tasks(tasks_list, _cid=None):
             except Exception as _se:
                 print(f"[save_client_tasks supa err] {_se}")
 
-    # 2. Sync to Google Sheets in background thread so HTTP requests never block or lag
+    # 2. Sync to Google Sheets synchronously so Vercel Serverless persists the changes reliably
     try:
-        import threading
-        t_bg = threading.Thread(target=_gsheet_tasks_save_all, args=(updated_all,), daemon=True)
-        t_bg.start()
+        _gsheet_tasks_save_all(updated_all)
     except Exception as _ge:
-        print(f"[save_client_tasks gsheet thread err] {_ge}")
+        print(f"[save_client_tasks gsheet err] {_ge}")
 
 
 def save_one_task(t, cid=None):
