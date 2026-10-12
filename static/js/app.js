@@ -897,6 +897,11 @@ async function applyRoleUI() {
   if (overlay) overlay.style.display = 'none';
 
   window._me = me;
+  window.currentUserData = me;
+  window.canViewKPIs = function() {
+    var cur = window._me || window.currentUserData || {};
+    return !!(cur.is_admin || cur.is_manager || cur.can_view_kpi || cur.role === 'admin' || cur.role === 'account_manager');
+  };
 
   const isEmp = me.role === 'employee';
   const isMgr = me.role === 'account_manager';
@@ -982,6 +987,9 @@ async function applyRoleUI() {
     if (tabIngest) tabIngest.classList.add('hidden');
     const tabReports = document.getElementById('tab-tasks-reports');
     if (tabReports) tabReports.classList.add('hidden');
+    if (localStorage.getItem('tasks_active_section') === 'reports') {
+      localStorage.setItem('tasks_active_section', 'board');
+    }
     const tabTeam = document.getElementById('tab-tasks-team');
     if (tabTeam) tabTeam.classList.toggle('hidden', !allow.has('team'));
 
@@ -1270,11 +1278,14 @@ function renderMyPortalTasks() {
     }
 
     if (isDone || isSubmitted) {
-      let isOnTime = (t.kpis && typeof t.kpis.is_on_time === 'boolean') ? t.kpis.is_on_time : null;
-      if (isOnTime === null && t.submitted_at && dStr) {
-        const subDate = (window.getCleanDateStr ? window.getCleanDateStr(t.submitted_at) : String(t.submitted_at).slice(0, 10));
-        const dlDate = (window.getCleanDateStr ? window.getCleanDateStr(dStr) : String(dStr).slice(0, 10));
-        isOnTime = (subDate <= dlDate);
+      let isOnTime = null;
+      if (typeof window.canViewKPIs === 'function' && window.canViewKPIs()) {
+        isOnTime = (t.kpis && typeof t.kpis.is_on_time === 'boolean') ? t.kpis.is_on_time : null;
+        if (isOnTime === null && t.submitted_at && dStr) {
+          const subDate = (window.getCleanDateStr ? window.getCleanDateStr(t.submitted_at) : String(t.submitted_at).slice(0, 10));
+          const dlDate = (window.getCleanDateStr ? window.getCleanDateStr(dStr) : String(dStr).slice(0, 10));
+          isOnTime = (subDate <= dlDate);
+        }
       }
 
       if (isOnTime === true) {

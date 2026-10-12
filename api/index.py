@@ -5515,6 +5515,7 @@ def api_me():
         "is_admin": is_admin(),
         "is_manager": is_manager(),
         "is_content_creator": is_content_creator(),
+        "can_view_kpi": is_admin() or is_manager(),
         "employee_id": emp_id,
         "name": emp_name,
         "job": rec.get("job") or emp_info.get("job") or ("Content creator" if is_content_creator() else "Employee"),
@@ -9910,9 +9911,15 @@ def api_tasks():
             elif not t.get("client_name"):
                 t["client_name"] = canonical_cname
 
+    expanded_tasks = _expand_tasks_with_revision_subtasks(tasks)
+    if not (is_admin() or is_manager()):
+        for t in expanded_tasks:
+            if isinstance(t, dict):
+                t["kpis"] = {}
+
     return jsonify({
         "success": True,
-        "tasks": _expand_tasks_with_revision_subtasks(tasks),
+        "tasks": expanded_tasks,
         "is_admin": is_admin(),
         "am_id": _my_employee_id(),
         "archived_count": total_archived,
@@ -14312,6 +14319,8 @@ def _task_matches_month(t, month_str):
 @app.route("/api/tasks/monthly-report", methods=["GET"])
 @auth_guard
 def api_tasks_monthly_report(target_month=None):
+    if not (is_admin() or is_manager()):
+        return jsonify({"error": "غير مصرح لك بالاطلاع على تقارير الأداء و الـ KPIs", "report": [], "available_months": []}), 403
     sync_from_supabase()
     _cid = current_client_id()
     raw_month = target_month or request.args.get("month") or (request.get_json(silent=True) or {}).get("month")
@@ -15355,6 +15364,11 @@ def api_my_tasks():
 
     # Strictly sort and return personal assigned tasks only (no accidental team dump)
     mine.sort(key=_natural_task_sort_key)
+    if not (is_admin() or is_manager()):
+        for t in mine:
+            if isinstance(t, dict):
+                t["kpis"] = {}
+
     return jsonify({"tasks": mine, "employee_id": eid or "me", "is_admin": is_adm})
 
 
@@ -16210,7 +16224,10 @@ def api_get_task_details(task_id):
     if not (is_admin() or is_content_creator() or (is_manager() and can_see_client(cid)) or is_assigned):
         return jsonify({"error": "غير مصرح لك بالاطلاع على تفاصيل هذه المهمة"}), 403
     client_name = _client_name(cid)
-    return jsonify({"ok": True, "task": t, "client_id": cid, "client_name": client_name})
+    ret_t = dict(t)
+    if not (is_admin() or is_manager()):
+        ret_t["kpis"] = {}
+    return jsonify({"ok": True, "task": ret_t, "client_id": cid, "client_name": client_name})
 
 
 @app.route("/api/me/tasks/<task_id>/start", methods=["POST", "PUT"])

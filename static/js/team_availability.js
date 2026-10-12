@@ -12,7 +12,9 @@ function setEmployeesDeptFilter(dept) {
 }
 
 function switchTasksSection(secName) {
-    var valid = ['board', 'team', 'ingest', 'reports'];
+    var canSeeKPIs = (typeof canViewKPIs === 'function') ? canViewKPIs() : !!(window._me && (window._me.is_admin || window._me.is_manager));
+    var valid = ['board', 'team', 'ingest'];
+    if (canSeeKPIs) valid.push('reports');
     var target = valid.indexOf(secName) !== -1 ? secName : 'board';
 
     valid.forEach(function(s) {

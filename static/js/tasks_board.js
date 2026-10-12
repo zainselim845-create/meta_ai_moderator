@@ -555,12 +555,16 @@ function renderTaskCardDetailsContent(t) {
             deadlineBadgeHtml = '<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">✅ مكتمل ومعتمد</span>';
         } else if (isDeliveredOrReview) {
             deadlineBoxClass = 'bg-purple-50/40 border-purple-200';
+            var canSeeKPIs = (typeof canViewKPIs === 'function') ? canViewKPIs() : !!(window._me && (window._me.is_admin || window._me.is_manager));
             var kpis = t.kpis || {};
-            var isOnTime = (typeof kpis.is_on_time === 'boolean') ? kpis.is_on_time : undefined;
-            if (isOnTime === undefined && t.submitted_at && effectiveDlClean) {
-                var subClean = getCleanDateStr(t.submitted_at);
-                if (subClean && effectiveDlClean) {
-                    isOnTime = (subClean <= effectiveDlClean);
+            var isOnTime = undefined;
+            if (canSeeKPIs) {
+                isOnTime = (typeof kpis.is_on_time === 'boolean') ? kpis.is_on_time : undefined;
+                if (isOnTime === undefined && t.submitted_at && effectiveDlClean) {
+                    var subClean = getCleanDateStr(t.submitted_at);
+                    if (subClean && effectiveDlClean) {
+                        isOnTime = (subClean <= effectiveDlClean);
+                    }
                 }
             }
             if (isOnTime === true) {
@@ -753,9 +757,10 @@ function renderTaskCardDetailsContent(t) {
         }
     }
 
+    var canSeeKPIs = (typeof canViewKPIs === 'function') ? canViewKPIs() : !!(window._me && (window._me.is_admin || window._me.is_manager));
     var kpisHtml = '';
     var kpis = t.kpis || {};
-    var hasKpis = (t.assigned_at && (t.submitted_at || t.status === 'Completed' || t.status === 'Awaiting AM Review')) || (kpis && kpis.turnaround_hours !== undefined);
+    var hasKpis = canSeeKPIs && ((t.assigned_at && (t.submitted_at || t.status === 'Completed' || t.status === 'Awaiting AM Review')) || (kpis && kpis.turnaround_hours !== undefined));
     
     if (hasKpis) {
         var isModTask = Boolean(t.modification_requested_at || t.returned_to_employee_at || (kpis && kpis.is_modification));
@@ -1549,12 +1554,16 @@ function renderTaskCard(t, indexInPlan) {
             deadlineBadgeHtml = '<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">✅ مكتمل ومعتمد</span>';
         } else if (isDeliveredOrReview) {
             deadlineBoxClass = 'bg-purple-50/40 border-purple-200';
+            var canSeeKPIs = (typeof canViewKPIs === 'function') ? canViewKPIs() : !!(window._me && (window._me.is_admin || window._me.is_manager));
             var kpis = t.kpis || {};
-            var isOnTime = (typeof kpis.is_on_time === 'boolean') ? kpis.is_on_time : undefined;
-            if (isOnTime === undefined && t.submitted_at && effectiveDlClean) {
-                var subClean = getCleanDateStr(t.submitted_at);
-                if (subClean && effectiveDlClean) {
-                    isOnTime = (subClean <= effectiveDlClean);
+            var isOnTime = undefined;
+            if (canSeeKPIs) {
+                isOnTime = (typeof kpis.is_on_time === 'boolean') ? kpis.is_on_time : undefined;
+                if (isOnTime === undefined && t.submitted_at && effectiveDlClean) {
+                    var subClean = getCleanDateStr(t.submitted_at);
+                    if (subClean && effectiveDlClean) {
+                        isOnTime = (subClean <= effectiveDlClean);
+                    }
                 }
             }
             if (isOnTime === true) {

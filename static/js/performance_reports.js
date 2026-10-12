@@ -38,6 +38,12 @@ function renderMonthlyReportTable() {
     var tbody = document.getElementById('monthly-report-table-body');
     if (!tbody) return;
 
+    var canSeeKPIs = (typeof canViewKPIs === 'function') ? canViewKPIs() : !!(window._me && (window._me.is_admin || window._me.is_manager));
+    if (!canSeeKPIs) {
+        tbody.innerHTML = '<tr><td colspan="10" class="p-6 text-center text-slate-400 font-bold">غير مصرح لك بمشاهدة تقارير الأداء ومؤشرات الـ KPIs</td></tr>';
+        return;
+    }
+
     var report = window._lastMonthlyReportData || [];
     var selectedMonth = window._lastMonthlyReportMonth || new Date().toISOString().slice(0, 7);
 
@@ -243,6 +249,8 @@ function navigateMonthlyReportMonth(delta) {
 }
 
 async function loadTaskMonthlyReport(overrideMonth) {
+    var canSeeKPIs = (typeof canViewKPIs === 'function') ? canViewKPIs() : !!(window._me && (window._me.is_admin || window._me.is_manager));
+    if (!canSeeKPIs) return;
     try {
         var mInput = document.getElementById('monthly-report-month');
         var nowMonth = new Date().toISOString().slice(0, 7);
@@ -301,6 +309,11 @@ async function loadTaskMonthlyReport(overrideMonth) {
 }
 
 function exportMonthlyReportCsv() {
+    var canSeeKPIs = (typeof canViewKPIs === 'function') ? canViewKPIs() : !!(window._me && (window._me.is_admin || window._me.is_manager));
+    if (!canSeeKPIs) {
+        showToast('غير مصرح لك بتصدير تقارير الأداء', 'error');
+        return;
+    }
     var tbody = document.getElementById('monthly-report-table-body');
     if (!tbody || !window._lastMonthlyReportData || !window._lastMonthlyReportData.length) {
         showToast('لا توجد بيانات متاحة للتصدير حالياً', 'error');
@@ -352,6 +365,11 @@ function exportMonthlyReportCsv() {
 }
 
 async function sendMonthlyReportAction() {
+    var canSeeKPIs = (typeof canViewKPIs === 'function') ? canViewKPIs() : !!(window._me && (window._me.is_admin || window._me.is_manager));
+    if (!canSeeKPIs) {
+        showToast('غير مصرح لك بإرسال تقارير الأداء', 'error');
+        return;
+    }
     var selectedMonth = window._lastMonthlyReportMonth || new Date().toISOString().slice(0, 7);
     var monthDisplay = selectedMonth === 'all' ? 'كافة الشهور (التقرير الشامل)' : formatArabicMonthName(selectedMonth);
     var targetEmail = prompt("أدخل البريد الإلكتروني لاستلام تقرير أداء (" + monthDisplay + "):", "agencydomya@gmail.com");
