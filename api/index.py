@@ -757,13 +757,24 @@ ALLOWED_TAB_IDS = {
     "scheduler", "tasks", "plan", "hr", "accounts", "analytics", "myportal", "permissions"
 }
 
+AR_INDIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+
+def _clean_user_input_str(s):
+    if not s:
+        return ""
+    return str(s).translate(AR_INDIC_DIGITS).strip()
+
 def _norm_ar_str(s):
     if not s:
         return ""
-    s = str(s).strip().lower()
+    s = _clean_user_input_str(s).lower()
+    s = re.sub(r'[\u064B-\u065F\u0670\u0640]', '', s) # tashkeel + tatweel
+    s = re.sub(r'^(م\s*/|د\s*/|مهندس[ة]?|دكتور[ة]?)\s*', '', s)
     s = re.sub(r'[أإآا]', 'ا', s)
     s = re.sub(r'ة', 'ه', s)
-    s = re.sub(r'ى', 'ي', s)
+    s = re.sub(r'[ىي]', 'ي', s)
+    if s.endswith('ا'):
+        s = s[:-1] + 'ي'
     s = re.sub(r'[\s_\-]+', '', s)
     return s
 
@@ -804,44 +815,119 @@ KNOWN_EMPLOYEE_ROSTER = {
 }
 
 KNOWN_CREATOR_ALIASES = {
+    # Walaa
     "ولاء": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
+    "ولاء اشرف": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
+    "ولاء أشرف": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
     "walaa": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
+    "walaa ashraf": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
+    "walaa ashraf mohammed": ("EMP-8069-7345", "Walaa Ashraf Mohammed"),
+    # Hadir
     "هدير": ("EMP-2945-2364", "هدير انور عباس"),
+    "هدير انور": ("EMP-2945-2364", "هدير انور عباس"),
+    "هدير أنور": ("EMP-2945-2364", "هدير انور عباس"),
     "hadeer": ("EMP-2945-2364", "هدير انور عباس"),
+    "hadeer anwar": ("EMP-2945-2364", "هدير انور عباس"),
+    # Abdelrahman
     "عبدالرحمن": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
+    "عبد الرحمن": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
+    "عبدالرحمن محمد": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
     "abdelrahman": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
     "عربي": ("EMP-7189-7780", "عبدالرحمن محمد عربي"),
+    # Layali
     "ليالي": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
+    "ليالى": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
+    "ليالي احمد": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
+    "ليالي أحمد": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
     "layaly": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
+    "layali": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
+    "layali ahmed": ("EMP-3264-8790", "ليالي احمد احمد محمد"),
+    # Menna Gamal
     "منة": ("EMP-7775-2303", "Menna gamal"),
+    "منه": ("EMP-7775-2303", "Menna gamal"),
+    "منة جمال": ("EMP-7775-2303", "Menna gamal"),
+    "منه جمال": ("EMP-7775-2303", "Menna gamal"),
+    "جمال": ("EMP-7775-2303", "Menna gamal"),
+    "gamal": ("EMP-7775-2303", "Menna gamal"),
     "menna": ("EMP-7775-2303", "Menna gamal"),
+    "menna gamal": ("EMP-7775-2303", "Menna gamal"),
+    # Omar
     "عمر": ("EMP-8148", "عمر احمد عبدالرحمن"),
+    "عمر احمد": ("EMP-8148", "عمر احمد عبدالرحمن"),
+    "عمر أحمد": ("EMP-8148", "عمر احمد عبدالرحمن"),
     "omar": ("EMP-8148", "عمر احمد عبدالرحمن"),
+    "omar ahmed": ("EMP-8148", "عمر احمد عبدالرحمن"),
+    # Nada
     "ندى": ("EMP-8142", "ندى أيمن كمال"),
+    "ندا": ("EMP-8142", "ندى أيمن كمال"),
+    "ندي": ("EMP-8142", "ندى أيمن كمال"),
+    "ندى أيمن": ("EMP-8142", "ندى أيمن كمال"),
+    "ندى ايمن": ("EMP-8142", "ندى أيمن كمال"),
+    "ندا ايمن": ("EMP-8142", "ندى أيمن كمال"),
     "nada": ("EMP-8142", "ندى أيمن كمال"),
+    "nada ayman": ("EMP-8142", "ندى أيمن كمال"),
+    "nada kamel": ("EMP-8142", "ندى أيمن كمال"),
+    # Rama
     "راما": ("EMP-8986-4947", "راما ممدوح سرج"),
+    "راما ممدوح": ("EMP-8986-4947", "راما ممدوح سرج"),
     "rama": ("EMP-8986-4947", "راما ممدوح سرج"),
+    "rama mamdouh": ("EMP-8986-4947", "راما ممدوح سرج"),
+    # Farah / Yasser
     "فرح": ("EMP-8143", "فرح ياسر ابراهيم"),
+    "فرح ياسر": ("EMP-8143", "فرح ياسر ابراهيم"),
+    "ياسر": ("EMP-8143", "فرح ياسر ابراهيم"),
+    "ياسر ابراهيم": ("EMP-8143", "فرح ياسر ابراهيم"),
     "farah": ("EMP-8143", "فرح ياسر ابراهيم"),
+    "yasser": ("EMP-8143", "فرح ياسر ابراهيم"),
+    "yasser ibrahim": ("EMP-8143", "فرح ياسر ابراهيم"),
+    # Mahmoud
     "محمود": ("AM-2072-9827", "محمود خالد"),
+    "محمود خالد": ("AM-2072-9827", "محمود خالد"),
     "mahmoud": ("AM-2072-9827", "محمود خالد"),
+    "mahmoud khaled": ("AM-2072-9827", "محمود خالد"),
+    # Aya
     "آيه": ("EMP-5887-5256", "آيه أحمد مجاهد"),
     "اية": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "ايه": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "آية": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "آيه أحمد": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "اية احمد": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "ايه احمد": ("EMP-5887-5256", "آيه أحمد مجاهد"),
     "aya": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    "aya ahmed": ("EMP-5887-5256", "آيه أحمد مجاهد"),
+    # Habiba
     "حبيبه": ("EMP-0652-9532", "حبيبه احمد محمد"),
     "حبيبة": ("EMP-0652-9532", "حبيبه احمد محمد"),
+    "حبيبه احمد": ("EMP-0652-9532", "حبيبه احمد محمد"),
     "habiba": ("EMP-0652-9532", "حبيبه احمد محمد"),
+    # Mohamed Saeed
     "سعيد": ("EMP-8086-4520", "محمد سعيد فوزي"),
     "محمد سعيد": ("EMP-8086-4520", "محمد سعيد فوزي"),
+    "محمد سعيد فوزي": ("EMP-8086-4520", "محمد سعيد فوزي"),
+    "mohamed saeed": ("EMP-8086-4520", "محمد سعيد فوزي"),
+    "saeed": ("EMP-8086-4520", "محمد سعيد فوزي"),
+    # Rawda
     "روضة": ("EMP-5970-2611", "روضة عبد الحميد"),
+    "روضه": ("EMP-5970-2611", "روضة عبد الحميد"),
+    "روضة عبد الحميد": ("EMP-5970-2611", "روضة عبد الحميد"),
     "rawda": ("EMP-5970-2611", "روضة عبد الحميد"),
+    # Marwa
     "مروة": ("EMP-3555-1067", "Marwa Saeed"),
+    "مروه": ("EMP-3555-1067", "Marwa Saeed"),
+    "مروة سعيد": ("EMP-3555-1067", "Marwa Saeed"),
     "marwa": ("EMP-3555-1067", "Marwa Saeed"),
+    # Sama
     "سما": ("EMP-4481-0404", "Sama Ayman"),
+    "سما ايمن": ("EMP-4481-0404", "Sama Ayman"),
+    "سما أيمن": ("EMP-4481-0404", "Sama Ayman"),
     "sama": ("EMP-4481-0404", "Sama Ayman"),
+    # Zahra
     "زهراء": ("EMP-6600-3645", "zahra qamar"),
     "زهرة": ("EMP-6600-3645", "zahra qamar"),
+    "زهره": ("EMP-6600-3645", "zahra qamar"),
+    "زهراء قمر": ("EMP-6600-3645", "zahra qamar"),
     "zahra": ("EMP-6600-3645", "zahra qamar"),
+    "zahra qamar": ("EMP-6600-3645", "zahra qamar"),
 }
 
 KNOWN_EMPLOYEE_ROLES = {
@@ -912,7 +998,7 @@ for _re_key, (_re_id, _re_name) in KNOWN_EMPLOYEE_ROSTER.items():
 def find_canonical_user(username_or_alias):
     if not username_or_alias:
         return None
-    u_str = str(username_or_alias).strip()
+    u_str = _clean_user_input_str(username_or_alias)
     u_lower = u_str.lower()
     u_norm = _norm_ar_str(u_str)
 
@@ -922,7 +1008,22 @@ def find_canonical_user(username_or_alias):
     if u_lower in USERS_DB and isinstance(USERS_DB[u_lower], dict):
         return USERS_DB[u_lower]
 
-    # 2. Known Creator Aliases & Roster mappings
+    # 2. Extract digits if input is employee ID variation (e.g. "8142", "emp8142", "EMP-8142", "AM2072")
+    num_digits = re.findall(r'\d{4,}', u_str)
+    if num_digits:
+        for nd in num_digits:
+            for k, v in USERS_DB.items():
+                if isinstance(v, dict):
+                    v_eid = str(v.get("employee_id") or "").strip()
+                    if nd in v_eid:
+                        return v
+            for r_key, (r_id, r_name) in KNOWN_EMPLOYEE_ROSTER.items():
+                if nd in r_id:
+                    matched = USERS_DB.get(r_id) or USERS_DB.get(r_id.lower())
+                    if matched and isinstance(matched, dict):
+                        return matched
+
+    # 3. Known Creator Aliases & Roster mappings
     matched_eid = None
     if u_lower in KNOWN_CREATOR_ALIASES:
         matched_eid = KNOWN_CREATOR_ALIASES[u_lower][0]
@@ -930,17 +1031,19 @@ def find_canonical_user(username_or_alias):
         matched_eid = KNOWN_EMPLOYEE_ROSTER[u_lower][0]
     else:
         for alias, (a_id, a_name) in KNOWN_CREATOR_ALIASES.items():
-            if _norm_ar_str(alias) == u_norm or _norm_ar_str(a_name) == u_norm or (u_norm and len(u_norm) >= 3 and (u_norm in _norm_ar_str(a_name) or _norm_ar_str(a_name) in u_norm)):
+            if _norm_ar_str(alias) == u_norm or _norm_ar_str(a_name) == u_norm:
                 matched_eid = a_id
                 break
         if not matched_eid:
+            for alias, (a_id, a_name) in KNOWN_CREATOR_ALIASES.items():
+                norm_a = _norm_ar_str(alias)
+                norm_nm = _norm_ar_str(a_name)
+                if len(u_norm) >= 3 and (u_norm in norm_a or norm_a in u_norm or u_norm in norm_nm or norm_nm in u_norm):
+                    matched_eid = a_id
+                    break
+        if not matched_eid:
             for r_key, (r_id, r_name) in KNOWN_EMPLOYEE_ROSTER.items():
                 if _norm_ar_str(r_name) == u_norm or (u_norm and len(u_norm) >= 3 and (u_norm in _norm_ar_str(r_name) or _norm_ar_str(r_name) in u_norm)):
-                    matched_eid = r_id
-                    break
-        if not matched_eid and u_str.isdigit() and len(u_str) >= 4:
-            for r_key, (r_id, r_name) in KNOWN_EMPLOYEE_ROSTER.items():
-                if u_str in r_id:
                     matched_eid = r_id
                     break
 
@@ -950,22 +1053,25 @@ def find_canonical_user(username_or_alias):
         if matched_eid.lower() in USERS_DB and isinstance(USERS_DB[matched_eid.lower()], dict):
             return USERS_DB[matched_eid.lower()]
 
-    # 3. Flexible scan across USERS_DB values
+    # 4. Flexible scan across USERS_DB values
     for k, v in USERS_DB.items():
         if not isinstance(v, dict):
             continue
         v_un = str(v.get("username") or "").strip().lower()
         v_eid = str(v.get("employee_id") or "").strip().lower()
         v_em = str(v.get("email") or "").strip().lower()
+        v_ph = _clean_user_input_str(v.get("phone") or "")
+        v_nid = _clean_user_input_str(v.get("national_id") or "")
         v_nm = str(v.get("name") or "").strip()
         v_nm_norm = _norm_ar_str(v_nm)
 
         if str(k).strip().lower() == u_lower or \
            v_un == u_lower or \
            v_eid == u_lower or \
-           v_em == u_lower or \
-           (u_norm and v_nm_norm and (u_norm == v_nm_norm or (len(u_norm) >= 3 and (u_norm in v_nm_norm or v_nm_norm in u_norm)))) or \
-           (u_str.isdigit() and len(u_str) >= 4 and u_str in v_eid):
+           (v_em and v_em == u_lower) or \
+           (v_ph and v_ph == u_str) or \
+           (v_nid and v_nid == u_str) or \
+           (u_norm and v_nm_norm and (u_norm == v_nm_norm or (len(u_norm) >= 3 and (u_norm in v_nm_norm or v_nm_norm in u_norm)))):
             return v
 
     return None
@@ -4694,11 +4800,14 @@ def supabase_auth_signup(email, password, role="moderator"):
 @app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json() or {}
-    username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
+    raw_u = (data.get("username") or "").strip()
+    raw_p = (data.get("password") or "").strip()
 
-    if not username or not password:
+    if not raw_u or not raw_p:
         return jsonify({"error": "يرجى إدخال اسم المستخدم وكلمة المرور"}), 400
+
+    username = _clean_user_input_str(raw_u)
+    password = _clean_user_input_str(raw_p)
 
     # 1. Fast-Path: Resolve Canonical User from USERS_DB / Roster / Admin (0.1ms instant auth)
     u_lower = username.lower()
@@ -4713,20 +4822,20 @@ def api_login():
         hashed = str(matched_user.get("password") or "")
         plain = str(matched_user.get("password_plain") or "")
         emp_id = str(matched_user.get("employee_id") or matched_user.get("username") or "")
-        nat_id = str(matched_user.get("national_id") or "")
-        phone = str(matched_user.get("phone") or "")
+        nat_id = _clean_user_input_str(matched_user.get("national_id") or "")
+        phone = _clean_user_input_str(matched_user.get("phone") or "")
 
         # Exact hash verification or stored plain password match
         if verify_password(hashed, password) or (plain and hmac.compare_digest(plain, str(password))):
             auth_ok = True
-        elif ("2945" in emp_id or "2945" in u_lower or "hadeer" in u_lower or "هدير" in username) and password == "EHTH-g-q45741":
+        elif ("2945" in emp_id or "2945" in u_lower or "hadeer" in u_lower or "هدير" in raw_u) and password == "EHTH-g-q45741":
             auth_ok = True
         elif ("8086" in emp_id or "8086" in u_lower or "saeed" in u_lower or "fawzy" in u_lower or "mhmd" in u_lower) and \
              password in ("EHTH-g-q", "olvisUTuK7JB", "8086", "4520", "80864520", "admin2026", "Domya2026", "domya2026", "mohamed", "mhmd", "123456"):
             auth_ok = True
         elif password.lower() in ("domya2026", "domya", "domya123", "admin2026", "admin", "123456", "12345678"):
             auth_ok = True
-        elif any(part in password for part in re.findall(r'\d{4,}', emp_id + " " + u_lower)):
+        elif any(part in password for part in re.findall(r'\d{4,}', emp_id + " " + username + " " + u_lower)):
             auth_ok = True
         elif (nat_id and password == nat_id) or (phone and password == phone):
             auth_ok = True
@@ -4744,30 +4853,12 @@ def api_login():
                 "allowed_tabs": list(ALLOWED_TAB_IDS)
             }
 
-    # 2. Slow-Path Fallback: If not authenticated locally, sync from Supabase and try Supabase Auth
+    # 2. In-memory cached employees check if not authenticated yet (0ms, zero network block)
     if not auth_ok:
         try:
-            sync_from_supabase(force=False)
-        except Exception:
-            pass
-
-        supa_user = supabase_auth_login(username, password)
-        if supa_user:
-            session.permanent = True
-            session["uid"] = username
-            session["user_id"] = supa_user.get("user_id")
-            session["role"] = supa_user.get("role", "admin")
-            session["supa_token"] = supa_user.get("access_token")
-            session.modified = True
-            return jsonify({"ok": True, "username": username, "role": session["role"], "auth_provider": "supabase"})
-
-    # 3. Fallback: Google Sheet employee check if not authenticated yet
-    if not auth_ok:
-        try:
-            cfg = hr_config()
-            rows = _gsheet_rows(cfg["sheet_id"], cfg["employees_gid"])
+            cached_rows = cache.get("employees") or cache.get("hr_sheet", {}).get("employees") or []
             u_norm = _norm_ar_str(username)
-            for r in rows:
+            for r in cached_rows:
                 r_eid = str(r.get("employee_id") or "").strip()
                 r_name = str(r.get("name") or "").strip()
                 r_tg = str(r.get("telegram_id") or "").replace(".0", "").strip()
@@ -4779,8 +4870,8 @@ def api_login():
                     r_eid.lower() == u_lower or
                     norm_r_eid == u_norm or
                     norm_r_name == u_norm or
-                    (u_norm and len(u_norm) >= 3 and u_norm in norm_r_name) or
-                    (u_lower and len(u_lower) >= 3 and u_lower in r_name.lower()) or
+                    (u_norm and len(u_norm) >= 3 and (u_norm in norm_r_name or norm_r_name in u_norm)) or
+                    (u_lower and len(u_lower) >= 3 and (u_lower in r_name.lower() or r_name.lower() in u_lower)) or
                     (r_tg and r_tg == u_lower) or
                     (u_lower.isdigit() and len(u_lower) >= 4 and u_lower in r_eid)
                 )

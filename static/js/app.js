@@ -460,8 +460,9 @@ async function quickDemoLogin() {
 
 async function handleLogin(e) {
   if (e && e.preventDefault) e.preventDefault();
-  const u = document.getElementById('auth-username')?.value.trim() || '';
-  const p = document.getElementById('auth-password')?.value.trim() || '';
+  const cleanDigits = (s) => (s || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  const u = cleanDigits(document.getElementById('auth-username')?.value?.trim() || '');
+  const p = cleanDigits(document.getElementById('auth-password')?.value?.trim() || '');
   const remember = document.getElementById('auth-remember-me')?.checked !== false;
   const errEl = document.getElementById('auth-error');
   const submitBtn = document.querySelector('#login-modal-overlay button[type="submit"]');
@@ -477,21 +478,36 @@ async function handleLogin(e) {
     submitBtn.innerHTML = '<span>جاري التحقق والدخول... ⏳</span>';
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
   try {
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({username: u, password: p, remember: remember})
+      body: JSON.stringify({username: u, password: p, remember: remember}),
+      signal: controller.signal
     });
-    const d = await res.json();
+    clearTimeout(timeoutId);
+
+    let d = {};
+    try {
+      d = await res.json();
+    } catch(pe) {
+      d = { ok: false, error: 'حدث خطأ في قراءة استجابة السيرفر' };
+    }
+
     if (d.ok || res.ok) {
       localStorage.setItem('domya_auth', 'true');
       if (d.token) {
         localStorage.setItem('domya_token', d.token);
-        document.cookie = 'domya_token=' + encodeURIComponent(d.token) + '; path=/; max-age=' + (90*86400) + '; SameSite=Lax; Secure';
+        document.cookie = 'domya_token=' + encodeURIComponent(d.token) + '; path=/; max-age=' + (90*86400) + '; SameSite=Lax';
       }
       if (d.username) localStorage.setItem('domya_username', d.username);
       
+      // Set window._me immediately for zero-latency UI transition
+      window._me = d;
+
       // Permanently hide login overlay immediately
       const overlay = document.getElementById('login-modal-overlay');
       if (overlay) {
@@ -507,40 +523,42 @@ async function handleLogin(e) {
       }
       showToast('تم تسجيل الدخول بنجاح ');
       
-      // Immediately enforce role and allowed tabs safely in background
-      setTimeout(async () => {
-        try {
-          window._me = null;
-          if (typeof applyRoleUI === 'function') {
-            await applyRoleUI();
-          }
-          restoreActiveTab();
-          if (typeof loadAccounts === 'function' && (window._me?.is_admin || window._me?.role === 'account_manager')) {
-            loadAccounts();
-          }
-        } catch(postErr) {
-          console.warn('[Post-login init warning]', postErr);
+      // Enforce role and active view immediately
+      try {
+        if (typeof applyRoleUI === 'function') {
+          applyRoleUI();
         }
-      }, 10);
+        restoreActiveTab();
+        if (typeof loadAccounts === 'function' && (d.is_admin || d.role === 'account_manager')) {
+          loadAccounts();
+        }
+      } catch(postErr) {
+        console.warn('[Post-login init warning]', postErr);
+      }
     } else {
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = origBtnHtml;
       }
+      const errMsg = d.error || 'اسم المستخدم أو كلمة المرور غير صحيحة';
       if (errEl) {
-        errEl.textContent = d.error || 'اسم المستخدم أو كلمة المرور غير صحيحة';
+        errEl.textContent = errMsg;
         errEl.classList.remove('hidden');
       } else {
-        showToast(d.error || 'اسم المستخدم أو كلمة المرور غير صحيحة', 'error');
+        showToast(errMsg, 'error');
       }
     }
   } catch(err) {
+    clearTimeout(timeoutId);
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.innerHTML = origBtnHtml;
     }
-    if (errEl) { errEl.textContent = 'تعذّر الاتصال بالخادم، حاول تاني'; errEl.classList.remove('hidden'); }
-    else showToast('تعذّر الاتصال بالخادم', 'error');
+    const msg = (err && err.name === 'AbortError')
+      ? 'استغرق التحقق وقتاً طويلاً، يرجى المحاولة مرة أخرى'
+      : 'تعذّر الاتصال بالخادم، حاول مرة أخرى';
+    if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
+    else showToast(msg, 'error');
   }
 }
 
