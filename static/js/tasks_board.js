@@ -1121,6 +1121,7 @@ function renderTaskCard(t, indexInPlan) {
 
     var cleanAM = (t.am_name || '').trim();
     var tAmid = (t.am_id || '').trim().toUpperCase();
+    var tCid = String(t.client_id || '').toLowerCase();
     // 1. Dynamic live client lookup from window.agencyClients
     var matchedClient = (window.agencyClients || []).find(function(c) {
         return String(c.id || c.client_id || '').toLowerCase() === tCid;
