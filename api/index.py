@@ -367,6 +367,54 @@ CANONICAL_DEFAULT_CLIENTS = [
         "is_active": True,
         "fb_connected": False,
         "ig_connected": False
+    },
+    {
+        "id": "cli_dr_abdallah_1791790876",
+        "name": "دكتور عبد الله",
+        "company": "دكتور عبد الله",
+        "package": "Business VIP",
+        "am_employee_id": "EMP-0652-9532",
+        "am_name": "حبيبه احمد محمد",
+        "status": "active",
+        "is_active": True,
+        "fb_connected": False,
+        "ig_connected": False
+    },
+    {
+        "id": "cli_dr_abdallah_1791790843",
+        "name": "دكتور عبد الله",
+        "company": "دكتور عبد الله",
+        "package": "Business VIP",
+        "am_employee_id": "EMP-0652-9532",
+        "am_name": "حبيبه احمد محمد",
+        "status": "active",
+        "is_active": True,
+        "fb_connected": False,
+        "ig_connected": False
+    },
+    {
+        "id": "cli_verginia_1789315321",
+        "name": "فرجينيا - Virginia",
+        "company": "فرجينيا",
+        "package": "Business VIP",
+        "am_employee_id": "EMP-5887-5256",
+        "am_name": "آيه أحمد مجاهد",
+        "status": "active",
+        "is_active": True,
+        "fb_connected": False,
+        "ig_connected": False
+    },
+    {
+        "id": "cli_vigrginia_1791794602",
+        "name": "فرجينيا - Virginia",
+        "company": "فرجينيا",
+        "package": "Business VIP",
+        "am_employee_id": "EMP-5887-5256",
+        "am_name": "آيه أحمد مجاهد",
+        "status": "active",
+        "is_active": True,
+        "fb_connected": False,
+        "ig_connected": False
     }
 ]
 
@@ -453,6 +501,18 @@ CANONICAL_CLIENT_ALIASES = {
     ],
     "cli_eng_1790243022": [
         "eng", "مهندس", "eng marketing", "عميل eng"
+    ],
+    "cli_dr_abdallah_1791790876": [
+        "دكتور عبد الله", "د عبد الله", "د. عبد الله", "د/ عبد الله", "عبد الله", "dr abdallah", "abdallah"
+    ],
+    "cli_dr_abdallah_1791790843": [
+        "دكتور عبد الله", "د عبد الله", "د. عبد الله", "د/ عبد الله", "عبد الله", "dr abdallah", "abdallah"
+    ],
+    "cli_verginia_1789315321": [
+        "فرجينيا", "فيرجينيا", "virginia", "verginia", "خطة فرجينيا"
+    ],
+    "cli_vigrginia_1791794602": [
+        "فرجينيا", "فيرجينيا", "virginia", "verginia", "خطة فرجينيا"
     ]
 }
 
@@ -460,7 +520,9 @@ INITIAL_DEFAULT_HABIBA_CLIENTS = {
     "cli_dr_ahmed_1788270119",  # دكتور أحمد حمدي
     "cli_sk_1788270118",        # SK
     "cli_انفينيتي_1788270119",    # انفينيتي
-    "cli_د_حسام_مشعل_1790680406"  # د حسام مشعل
+    "cli_د_حسام_مشعل_1790680406", # د حسام مشعل
+    "cli_dr_abdallah_1791790876", # دكتور عبد الله
+    "cli_dr_abdallah_1791790843"  # دكتور عبد الله
 }
 
 INITIAL_DEFAULT_AYA_CLIENTS = {
@@ -473,7 +535,9 @@ INITIAL_DEFAULT_AYA_CLIENTS = {
     "cli_dr_shimaa_atef_1788298157",    # Dr Shimaa Atef
     "cli_dr_shahenda_1788685119",       # دكتورة شاهندة مختار
     "cli_ايه_عبدو_1788944266",          # ايه عبدو
-    "cli_eng_1790243022"                # ENG
+    "cli_eng_1790243022",               # ENG
+    "cli_verginia_1789315321",          # فرجينيا - Virginia
+    "cli_vigrginia_1791794602"          # فرجينيا - Virginia
 }
 
 HABIBA_CLIENTS = set(INITIAL_DEFAULT_HABIBA_CLIENTS)
@@ -5538,8 +5602,8 @@ def api_clients_get():
                 c["am_name"] = "آيه أحمد مجاهد"
                 c["am_employee_id"] = "EMP-5887-5256"
             else:
-                c["am_name"] = "محمود خالد"
-                c["am_employee_id"] = "AM-2072-9827"
+                c["am_name"] = ""
+                c["am_employee_id"] = ""
 
         # Drive folder & Plan file links
         cid = str(c.get("id") or "")
@@ -7348,8 +7412,8 @@ def _sanitize_task_record(d):
         d["am_id"] = c_amid or c_amname
         d["am_name"] = c_amname or c_amid
     else:
-        d["am_id"] = "AM-2072-9827"
-        d["am_name"] = "محمود خالد"
+        d["am_id"] = ""
+        d["am_name"] = ""
         
     cid = str(d.get("client_id") or "").strip()
     cname = str(d.get("client_name") or "").strip()
@@ -7562,16 +7626,96 @@ def _sanitize_task_record(d):
 
 TASKS_SHEET_GID = "653761646"
 
+_DELETED_TASK_IDS = set()
+_deleted_ids_last_load = 0.0
+
+def _get_deleted_task_ids(force=False):
+    """Loads all tombstone deleted task IDs from Google Sheets Deleted_Tasks tab."""
+    global _DELETED_TASK_IDS, _deleted_ids_last_load
+    now = time.time()
+    if not force and _DELETED_TASK_IDS and (now - _deleted_ids_last_load) < 30.0:
+        return set(_DELETED_TASK_IDS)
+    try:
+        token = get_google_oauth_access_token()
+        if token:
+            cfg = hr_config()
+            sheet_id = cfg.get("sheet_id", "1Y4i5wOm85xg6Umwph0i5-5SmssAdCy0uUlqUvzQwGj0")
+            url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{urllib.parse.quote('Deleted_Tasks!A2:A5000')}"
+            req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                val_data = json.loads(resp.read().decode("utf-8")).get("values", [])
+                for r in val_data:
+                    if r and len(r) > 0:
+                        tid = str(r[0]).strip()
+                        if tid:
+                            _DELETED_TASK_IDS.add(tid)
+                _deleted_ids_last_load = now
+    except Exception as e:
+        print(f"[_get_deleted_task_ids error] {e}")
+    return set(_DELETED_TASK_IDS)
+
+def _record_deleted_task_ids(task_ids, deleted_by="manager"):
+    """Permanently records deleted task IDs to Google Sheets Deleted_Tasks tab."""
+    global _DELETED_TASK_IDS
+    clean_ids = [str(x).strip() for x in (task_ids or []) if str(x).strip()]
+    if not clean_ids:
+        return
+    for tid in clean_ids:
+        _DELETED_TASK_IDS.add(tid)
+    try:
+        token = get_google_oauth_access_token()
+        if token:
+            cfg = hr_config()
+            sheet_id = cfg.get("sheet_id", "1Y4i5wOm85xg6Umwph0i5-5SmssAdCy0uUlqUvzQwGj0")
+            now_iso = datetime.now(timezone.utc).isoformat()
+            append_rows = [[tid, now_iso, str(deleted_by), "حذف نهائي"] for tid in clean_ids]
+            req_body = {"values": append_rows}
+            url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{urllib.parse.quote('Deleted_Tasks!A:D')}:append?valueInputOption=USER_ENTERED"
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(req_body).encode("utf-8"),
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(req, timeout=8)
+    except Exception as e:
+        print(f"[_record_deleted_task_ids error] {e}")
+
 
 def _gsheet_tasks_read():
-    """Reads all task rows from the Tasks tab of the company Google Spreadsheet."""
+    """Reads all task rows from the Tasks tab of the company Google Spreadsheet.
+    Uses direct Google Sheets API v4 for real-time consistency with zero CDN cache lag,
+    falling back to _gsheet_rows if OAuth token is unavailable."""
     cfg = hr_config()
     sheet_id = cfg.get("sheet_id", "1Y4i5wOm85xg6Umwph0i5-5SmssAdCy0uUlqUvzQwGj0")
-    rows = _gsheet_rows(sheet_id, TASKS_SHEET_GID)
+    token = get_google_oauth_access_token()
+    raw_rows = []
+
+    # 1. Direct Sheets API v4 (zero CDN caching lag)
+    if token:
+        try:
+            url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{urllib.parse.quote('Tasks!A1:O5000')}"
+            req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                val_data = json.loads(resp.read().decode("utf-8")).get("values", [])
+                if len(val_data) >= 2:
+                    headers = [str(h).strip() for h in val_data[0]]
+                    for row in val_data[1:]:
+                        row_dict = {}
+                        for idx, h in enumerate(headers):
+                            row_dict[h] = row[idx] if idx < len(row) else ""
+                        raw_rows.append(row_dict)
+        except Exception as e:
+            print(f"[_gsheet_tasks_read API v4 error] {e}")
+
+    # 2. Fallback to _gsheet_rows if API v4 didn't return rows
+    if not raw_rows:
+        raw_rows = _gsheet_rows(sheet_id, TASKS_SHEET_GID, force_refresh=True)
+
+    deleted_ids = _get_deleted_task_ids()
     tasks = []
-    for r in (rows or []):
+    for r in (raw_rows or []):
         tid = str(r.get("task_id") or "").strip()
-        if not tid:
+        if not tid or tid in deleted_ids:
             continue
         data_raw = r.get("data_json") or ""
         task_obj = {}
@@ -7592,7 +7736,7 @@ def _gsheet_tasks_read():
         task_obj["status"] = r.get("status") or task_obj.get("status") or "Pending AM Approval"
         task_obj["assigned_employee_id"] = r.get("assigned_employee_id") or task_obj.get("assigned_employee_id") or ""
         task_obj["assignee_name"] = r.get("assignee_name") or task_obj.get("assignee_name") or ""
-        task_obj["am_name"] = r.get("am_name") or task_obj.get("am_name") or "محمود خالد"
+        task_obj["am_name"] = r.get("am_name") or task_obj.get("am_name") or ""
         task_obj["publish_date"] = r.get("publish_date") or task_obj.get("publish_date") or ""
         task_obj["delivery_deadline"] = r.get("delivery_deadline") or task_obj.get("delivery_deadline") or ""
         task_obj["drive_link"] = r.get("drive_link") or task_obj.get("drive_link") or ""
@@ -7615,11 +7759,12 @@ def _gsheet_emergency_backup_read():
             val_data = json.loads(resp.read().decode("utf-8")).get("values", [])
             if len(val_data) < 2:
                 return []
+            deleted_ids = _get_deleted_task_ids()
             tasks = []
             for r in val_data[1:]:
                 if len(r) > 1:
                     tid = str(r[1]).strip()
-                    if not tid:
+                    if not tid or tid in deleted_ids:
                         continue
                     json_str = r[13] if len(r) > 13 else ""
                     task_obj = {}
@@ -7682,7 +7827,7 @@ def _clean_task_for_gsheet(task_record):
     return serialized_json
 
 
-_KNOWN_SHEET_TABS = {"Tasks", "Tasks_2026_09", "Tasks_2026_10", "Emergency_Backup", "Task_Logs", "Employees", "Attendance", "Payroll"}
+_KNOWN_SHEET_TABS = {"Tasks", "Tasks_2026_09", "Tasks_2026_10", "Emergency_Backup", "Deleted_Tasks", "Task_Logs", "Employees", "Attendance", "Payroll"}
 
 def _ensure_monthly_tab_exists(sheet_id, tab_name, token):
     global _KNOWN_SHEET_TABS
@@ -7728,7 +7873,8 @@ def _ensure_monthly_tab_exists(sheet_id, tab_name, token):
 def _gsheet_tasks_save_all(tasks_list):
     """Persist all tasks to the Google Spreadsheet:
     1. Master tab 'Tasks' (all months comprehensive).
-    2. Monthly tabs 'Tasks_YYYY_MM' (per-month dedicated clean archive)."""
+    2. Monthly tabs 'Tasks_YYYY_MM' (per-month dedicated clean archive).
+    3. Emergency Backup tab."""
     if not isinstance(tasks_list, list):
         return False
     try:
@@ -7738,27 +7884,32 @@ def _gsheet_tasks_save_all(tasks_list):
         cfg = hr_config()
         sheet_id = cfg.get("sheet_id", "1Y4i5wOm85xg6Umwph0i5-5SmssAdCy0uUlqUvzQwGj0")
 
-        # 1. Clear previous data range Tasks!A2:O5000 so deletions are 100% clean
-        try:
-            range_enc = urllib.parse.quote("Tasks!A2:O5000")
-            clear_url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{range_enc}:clear"
-            clear_req = urllib.request.Request(
-                clear_url,
-                data=b"{}",
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                method="POST"
-            )
-            urllib.request.urlopen(clear_req, timeout=8)
-        except Exception as _cl_err:
-            print(f"[clear tasks sheet error] {_cl_err}")
+        # Never resurrect deleted tasks
+        deleted_ids = _get_deleted_task_ids()
+        clean_tasks = [t for t in tasks_list if isinstance(t, dict) and str(t.get("task_id") or t.get("id") or "").strip() not in deleted_ids]
+
+        # 1. Clear previous data range Tasks!A2:O5000 and Emergency_Backup!A2:Q5000 so deletions are 100% clean
+        for clear_range in ("Tasks!A2:O5000", "Emergency_Backup!A2:Q5000"):
+            try:
+                range_enc = urllib.parse.quote(clear_range)
+                clear_url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{range_enc}:clear"
+                clear_req = urllib.request.Request(
+                    clear_url,
+                    data=b"{}",
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    method="POST"
+                )
+                urllib.request.urlopen(clear_req, timeout=8)
+            except Exception as _cl_err:
+                print(f"[clear sheet error {clear_range}] {_cl_err}")
 
         headers = ["task_id", "client_id", "client_name", "plan_name", "title", "status", "assigned_employee_id", "assignee_name", "am_name", "publish_date", "delivery_deadline", "drive_link", "data_json", "created_at", "updated_at"]
         rows_data = [headers]
-        for t in tasks_list:
+        for t in clean_tasks:
             if not isinstance(t, dict):
                 continue
             tid = str(t.get("task_id") or t.get("id") or "").strip()
-            if not tid:
+            if not tid or tid in deleted_ids:
                 continue
             t_json = _clean_task_for_gsheet(t)
             rows_data.append([
@@ -7770,7 +7921,7 @@ def _gsheet_tasks_save_all(tasks_list):
                 str(t.get("status") or "Pending AM Approval"),
                 str(t.get("assigned_employee_id") or ""),
                 str(t.get("assignee_name") or ""),
-                str(t.get("am_name") or "محمود خالد"),
+                str(t.get("am_name") or ""),
                 str(t.get("publish_date") or ""),
                 str(t.get("delivery_deadline") or ""),
                 str(t.get("drive_link") or ""),
@@ -7837,7 +7988,7 @@ def _gsheet_tasks_save_all(tasks_list):
 
 _tasks_cache_data = None
 _tasks_cache_time = 0.0
-TASKS_CACHE_TTL = 1.0  # 1.0s in-memory server cache so task assignments and transfers reflect instantaneously (<500ms)
+TASKS_CACHE_TTL = 2.0  # 2.0s in-memory server cache so task changes reflect instantaneously
 
 def invalidate_tasks_cache():
     global _tasks_cache_data, _tasks_cache_time
@@ -7845,55 +7996,56 @@ def invalidate_tasks_cache():
     _tasks_cache_time = 0.0
 
 def _all_tasks_db(force=False):
-    """ALL tasks across every client — Supabase (authoritative, ultra-fast sub-50ms SQL)
-    cached in memory with 120s TTL for lightning-fast reads."""
+    """Authoritative task database backed by Google Sheets (primary source of truth)
+    with ultra-fast in-memory caching."""
     global _tasks_cache_data, _tasks_cache_time
     now = time.time()
     if not force and _tasks_cache_data is not None and (now - _tasks_cache_time) < TASKS_CACHE_TTL:
         return [dict(t) for t in _tasks_cache_data]
-    tasks_map = {}
     
-    # 1. Authoritative: Read from Supabase mam_tasks (instant, persistent)
+    tasks_map = {}
+    deleted_ids = _get_deleted_task_ids()
+
+    # 1. Primary Authoritative: Read from Google Sheets
     try:
-        if SUPABASE_URL and SUPABASE_KEY and len(SUPABASE_URL) > 15:
+        sheet_tasks = _gsheet_tasks_read()
+        for t in sheet_tasks:
+            tid = str(t.get("task_id") or t.get("id") or "").strip()
+            if tid and tid not in deleted_ids:
+                tasks_map[tid] = t
+    except Exception as err:
+        print(f"[_all_tasks_db sheet read error] {err}")
+
+    # 2. In-memory cache fallback (only if Google Sheets was completely empty)
+    if not tasks_map:
+        for t in (cache.get("tasks") or []):
+            if isinstance(t, dict):
+                tid = str(t.get("task_id") or t.get("id") or "").strip()
+                if tid and tid not in deleted_ids and tid not in tasks_map:
+                    tasks_map[tid] = _sanitize_task_record(t)
+
+    # 3. Supabase fallback (secondary backup)
+    if not tasks_map and _is_supa_available():
+        try:
             rows = supa_select("mam_tasks", "select=*")
             for r in (rows or []):
                 d = r.get("data")
                 if isinstance(d, dict):
-                    d = _sanitize_task_record(d)
-                    tid = str(r.get("task_id") or d.get("task_id") or "")
-                    if tid:
+                    tid = str(r.get("task_id") or d.get("task_id") or "").strip()
+                    if tid and tid not in deleted_ids:
+                        d = _sanitize_task_record(d)
                         d.setdefault("client_id", r.get("client_id"))
                         tasks_map[tid] = d
-    except Exception as e:
-        print(f"[all tasks db supa] {e}")
+        except Exception as e:
+            print(f"[all tasks db supa] {e}")
 
-    # 2. In-memory cache fallback (only if Supabase had no tasks)
-    if not tasks_map:
-        for t in (cache.get("tasks") or []):
-            if isinstance(t, dict):
-                tid = str(t.get("task_id") or t.get("id") or "")
-                if tid and tid not in tasks_map:
-                    tasks_map[tid] = _sanitize_task_record(t)
-
-    # 3. Read from Google Sheets Tasks tab if tasks_map is empty
-    if not tasks_map:
-        try:
-            sheet_tasks = _gsheet_tasks_read()
-            for t in sheet_tasks:
-                tid = str(t.get("task_id") or t.get("id") or "")
-                if tid:
-                    tasks_map[tid] = t
-        except Exception as err:
-            print(f"[_all_tasks_db sheet read error] {err}")
-
-    # 4. Emergency Backup Fallback: if tasks_map is still empty, recover from Emergency_Backup tab!
+    # 4. Emergency Backup Fallback
     if not tasks_map:
         try:
             em_tasks = _gsheet_emergency_backup_read()
             for t in em_tasks:
-                tid = str(t.get("task_id") or t.get("id") or "")
-                if tid:
+                tid = str(t.get("task_id") or t.get("id") or "").strip()
+                if tid and tid not in deleted_ids:
                     tasks_map[tid] = t
             if tasks_map:
                 print(f"[EMERGENCY RECOVERY] Auto-restored {len(tasks_map)} tasks from Emergency_Backup tab!")
@@ -9651,14 +9803,8 @@ def api_tasks():
                 t_amname = str(t.get("am_name") or "").strip()
                 t_amname_norm = _norm_ar_str(t_amname)
 
-                # 1. Any task belonging to an assigned client of this AM is ALWAYS included
+                # Strict CRM Client Isolation: Manager/AM sees tasks strictly for their assigned CRM clients
                 if t_cid and t_cid in my_cids:
-                    raw_tasks.append(t)
-                    continue
-
-                # 2. Or if explicitly tagged with this AM AND does not violate isolation
-                if (my_eid and t_amid == my_eid) or \
-                   (my_name_norm and t_amname_norm and (t_amname_norm == my_name_norm or my_name_norm in t_amname_norm)):
                     raw_tasks.append(t)
                     continue
     elif is_content_creator():
@@ -13590,6 +13736,9 @@ def api_tasks_delete(task_id):
     except Exception as _kpie:
         print(f"[api_tasks_delete record kpi error] {_kpie}")
 
+    # 1. Permanently record tombstone in Google Sheets Deleted_Tasks tab
+    _record_deleted_task_ids([str(task_id)], current_username())
+
     remaining = [x for x in all_tasks if str(x.get("task_id") or x.get("id")) != str(task_id)]
     cache["tasks"] = remaining
     invalidate_tasks_cache()
@@ -13660,6 +13809,10 @@ def api_plans_delete():
             _record_deleted_tasks_for_kpi(deleted_tasks)
         except Exception as _kpie:
             print(f"[api_plans_delete record kpi error] {_kpie}")
+
+        # Permanently record all plan task IDs as tombstones in Google Sheets
+        del_tids = [str(t.get("task_id") or t.get("id")) for t in deleted_tasks if (t.get("task_id") or t.get("id"))]
+        _record_deleted_task_ids(del_tids, current_username())
 
     # Update in-memory cache
     cache["tasks"] = remaining
@@ -14025,12 +14178,19 @@ def api_tasks_clear():
             _record_deleted_tasks_for_kpi(client_tasks)
         except Exception as _kpie:
             print(f"[api_tasks_clear record kpi error] {_kpie}")
+        # Permanently record all wiped task IDs as tombstones in Google Sheets
+        del_tids = [str(t.get("task_id") or t.get("id")) for t in client_tasks if (t.get("task_id") or t.get("id"))]
+        _record_deleted_task_ids(del_tids, current_username())
     if SUPABASE_URL and SUPABASE_KEY:
         supa_delete("mam_tasks", f"client_id=eq.{urllib.parse.quote(str(_cid))}")
     all_tasks = cache.get("tasks") or []
     cache["tasks"] = [t for t in all_tasks if (t.get("client_id") or _cid) != _cid]
     push_setting("meta_ai_tasks", cache["tasks"])
     invalidate_tasks_cache()
+    try:
+        _gsheet_tasks_save_all(cache["tasks"])
+    except Exception as _ge:
+        print(f"[api_tasks_clear gsheet save error] {_ge}")
     return jsonify({"success": True, "removed": removed})
 
 

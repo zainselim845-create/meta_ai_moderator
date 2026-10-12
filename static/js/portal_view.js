@@ -534,7 +534,7 @@ function renderMyPortalTasks() {
     const cDisplay = (rawCid && rawCName && rawCid !== rawCName) ? (`[${esc(rawCid)}] ${esc(rawCName)}`) : esc(rawCName);
     const pName = esc(t.plan_name || t.file_name || ('خطة ' + rawCName));
     const rawAmId = (t.am_id || '').trim();
-    const rawAmName = (t.am_name || 'حبيبه أحمد محمد').trim();
+    const rawAmName = (t.am_name || 'بانتظار تحديد المشرف').trim();
     const amDisplay = rawAmId ? (`[${esc(rawAmId)}] ${esc(rawAmName)}`) : esc(rawAmName);
     const rawCap = (t.caption || (t.content_data && t.content_data.caption) || t.description || '').trim();
     const cleanCap = rawCap.replace(/^(كابشن|الكابشن|نص المنشور|نص البوست|الكابشن النهائي|Caption)\s*[:：\-–—]\s*/i, '').trim();

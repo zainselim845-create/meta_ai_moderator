@@ -1156,7 +1156,8 @@ function renderTaskCard(t, indexInPlan) {
     } else {
         cleanAM = _cleanEmployeeArabicName(cleanAM, t.am_id) || '';
     }
-    var amDisplay = tAmid ? ('<span class="font-mono text-[10px]">[' + esc(tAmid) + ']</span> ' + esc(cleanAM)) : esc(cleanAM);
+    var effectiveAMText = cleanAM || 'بانتظار تحديد المشرف';
+    var amDisplay = tAmid ? ('<span class="font-mono text-[10px]">[' + esc(tAmid) + ']</span> ' + esc(effectiveAMText)) : esc(effectiveAMText);
     var amTag = '<div class="flex items-center gap-1.5 text-[11px] text-indigo-900 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-xl font-bold">' +
         '<span>👤 AM:</span> <span>' + amDisplay + '</span>' +
     '</div>';
@@ -2496,14 +2497,48 @@ async function clearAllTasks() {
 
 async function deleteTaskAction(taskId) {
     if (!confirm('حذف المهمة ' + taskId + ' نهائياً؟')) return;
+    var tidStr = String(taskId);
+
+    // 1. Instant optimistic DOM removal
+    try {
+        var cardEl = document.getElementById('task-card-' + tidStr);
+        if (cardEl) { cardEl.style.display = 'none'; cardEl.remove(); }
+        document.querySelectorAll('[data-task-id="' + tidStr + '"]').forEach(function(el) {
+            el.style.display = 'none';
+            el.remove();
+        });
+    } catch(e){}
+
+    // 2. Optimistic cache filtering
+    if (typeof tasksList !== 'undefined' && Array.isArray(tasksList)) {
+        tasksList = tasksList.filter(function(t) { return String(t.task_id || t.id) !== tidStr; });
+    }
+    if (window._cachedTasks && Array.isArray(window._cachedTasks)) {
+        window._cachedTasks = window._cachedTasks.filter(function(t) { return String(t.task_id || t.id) !== tidStr; });
+    }
+    try {
+        localStorage.removeItem('swr_cache_tasks_board_act');
+        localStorage.removeItem('swr_cache_tasks_board_arch');
+        if (typeof _swrMemoryCache !== 'undefined') {
+            _swrMemoryCache.delete('swr_cache_tasks_board_act');
+            _swrMemoryCache.delete('swr_cache_tasks_board_arch');
+        }
+    } catch(e){}
+
     try {
         var res = await fetch('/api/tasks/' + encodeURIComponent(taskId), { method: 'DELETE' });
         var data = await res.json();
         if (res.ok && (data.success !== false)) {
-            showToast('تم حذف المهمة ️');
-            loadTasksEngine();
-        } else { showToast(data.error || 'تعذّر الحذف', 'error'); }
-    } catch(e) { showToast('خطأ في الاتصال', 'error'); }
+            showToast('تم حذف المهمة 🗑️');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
+        } else {
+            showToast(data.error || 'تعذّر الحذف', 'error');
+            if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
+        }
+    } catch(e) {
+        showToast('خطأ في الاتصال', 'error');
+        if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
+    }
 }
 
 async function deleteWholePlanAction(planName) {
@@ -2511,6 +2546,14 @@ async function deleteWholePlanAction(planName) {
     if (!confirm('هل أنت متأكد من حذف الخطة «' + planName + '» وجميع مهامها بالكامل؟')) return;
     if (!confirm('تأكيد نهائي: سيتم مسح مهام هذه الخطة بالكامل ولن تتمكن من التراجع!')) return;
     try {
+        try {
+            localStorage.removeItem('swr_cache_tasks_board_act');
+            localStorage.removeItem('swr_cache_tasks_board_arch');
+            if (typeof _swrMemoryCache !== 'undefined') {
+                _swrMemoryCache.delete('swr_cache_tasks_board_act');
+                _swrMemoryCache.delete('swr_cache_tasks_board_arch');
+            }
+        } catch(e){}
         var res = await fetch('/api/plans/delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2520,7 +2563,7 @@ async function deleteWholePlanAction(planName) {
         if (res.ok && (data.success || data.ok)) {
             showToast(data.message || 'تم حذف الخطة بنجاح 🗑️', 'success');
             selectedPlanFilter = null;
-            loadTasksEngine();
+            if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
         } else {
             showToast(data.error || 'تعذّر حذف الخطة', 'error');
         }
