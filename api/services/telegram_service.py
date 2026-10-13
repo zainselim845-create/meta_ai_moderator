@@ -40,6 +40,19 @@ def tasks_answer(cb_id, text="", bot_token=None):
     """Answer Telegram callback query."""
     tasks_api("answerCallbackQuery", {"callback_query_id": cb_id, "text": text}, bot_token=bot_token)
 
+def am_telegram_chat_id(am_id):
+    """Authoritative lookup of Telegram chat ID for Account Managers by pure employee ID."""
+    if not am_id:
+        return ""
+    amid_u = str(am_id).strip().upper()
+    if amid_u in ("AM-2072-9827", "EMP-2072-9827"):
+        return "1205102072"
+    if amid_u in ("EMP-5887-5256", "AM-5887-5256"):
+        return "1199255887"
+    if amid_u in ("EMP-0652-9532", "AM-0652-9532"):
+        return "8845590652"
+    return ""
+
 def send_telegram_bot_notification(chat_id, message_text, bot_token=None):
     """Send notification message to user/employee on Telegram."""
     tok = bot_token or tasks_bot_token() or os.environ.get("TELEGRAM_TASKS_BOT_TOKEN", "")

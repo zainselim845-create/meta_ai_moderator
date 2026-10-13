@@ -4904,7 +4904,7 @@ function onPlanBuilderTabClientChange(val) {
 
     if (matched) {
         var amSel = document.getElementById('pb-am');
-        if (amSel && (matched.am_employee_id || matched.am_name)) {
+        if (amSel && !window._userManuallySelectedPBTabAM && (matched.am_employee_id || matched.am_name)) {
             var targetAMId = (matched.am_employee_id || '').trim().toUpperCase();
             var targetAMName = (matched.am_name || '').trim();
             var matchedIdx = -1;
@@ -4943,6 +4943,13 @@ async function loadPlanBuilder() {
 
     populatePlanMonthDropdown();
     updatePBTabPlanNameFromMonth();
+
+    if (mSel && !mSel._changeBound) {
+        mSel._changeBound = true;
+        mSel.addEventListener('change', function() {
+            window._userManuallySelectedPBTabAM = true;
+        });
+    }
 
     // init the open-source rich-text (Word-like) editor once
     if (window.Quill && !_planQuill && document.getElementById('pb-editor')) {
@@ -5552,7 +5559,7 @@ function onTasksIngestClientSelectChange(val) {
 
     if (matched) {
         var amSel = document.getElementById('tasks-ingest-am');
-        if (amSel && (matched.am_employee_id || matched.am_name)) {
+        if (amSel && !window._userManuallySelectedIngestAM && (matched.am_employee_id || matched.am_name)) {
             var targetAMId = (matched.am_employee_id || '').trim().toUpperCase();
             var targetAMName = (matched.am_name || '').trim();
             var matchedIdx = -1;
@@ -5780,6 +5787,13 @@ async function loadTasksIngestFields() {
         }
     } catch(e){}
 
+    if (amSel && !amSel._changeBound) {
+        amSel._changeBound = true;
+        amSel.addEventListener('change', function() {
+            window._userManuallySelectedIngestAM = true;
+        });
+    }
+
     // 3. Content Creators
     var creatorSel = document.getElementById('tasks-ingest-creator');
     if (creatorSel) {
@@ -5847,6 +5861,7 @@ function setTasksIngestSelfAM() {
     if (!found && amSel.options.length > 1) {
         amSel.selectedIndex = 1;
     }
+    window._userManuallySelectedIngestAM = true;
     showToast('تم تحديد حسابك كـ Account Manager ');
 }
 
@@ -8126,7 +8141,7 @@ function onPlanBuilderModalClientChange(val) {
 
     if (matched) {
         var amSelect = document.getElementById('pb-am-select');
-        if (amSelect && (matched.am_employee_id || matched.am_name)) {
+        if (amSelect && !window._userManuallySelectedPBAM && (matched.am_employee_id || matched.am_name)) {
             var targetAMId = (matched.am_employee_id || '').trim().toUpperCase();
             var targetAMName = (matched.am_name || '').trim();
             var matchedIdx = -1;
@@ -8303,9 +8318,15 @@ async function openPlanBuilderModal() {
             opt.value = a.employee_id || a.id;
             var isMe = myEmpId && String(opt.value) === String(myEmpId);
             opt.textContent = '👤 [' + (a.employee_id || a.id) + '] ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '');
-            if (isMe || opt.value === 'EMP-0652-9532') opt.selected = true;
+            if (isMe) opt.selected = true;
             amSelect.appendChild(opt);
         });
+        if (amSelect && !amSelect._changeBound) {
+            amSelect._changeBound = true;
+            amSelect.addEventListener('change', function() {
+                window._userManuallySelectedPBAM = true;
+            });
+        }
     }
 
     fillAMSelect(realAMs);

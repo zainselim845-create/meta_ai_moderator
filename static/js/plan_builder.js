@@ -20,7 +20,7 @@ function onPlanBuilderModalClientChange(val) {
 
     if (matched) {
         var amSelect = document.getElementById('pb-am-select');
-        if (amSelect && (matched.am_employee_id || matched.am_name)) {
+        if (amSelect && !window._userManuallySelectedPBAM && (matched.am_employee_id || matched.am_name)) {
             var targetAMId = (matched.am_employee_id || '').trim().toUpperCase();
             var targetAMName = (matched.am_name || '').trim();
             var matchedIdx = -1;
@@ -197,9 +197,15 @@ async function openPlanBuilderModal() {
             opt.value = a.employee_id || a.id;
             var isMe = myEmpId && String(opt.value) === String(myEmpId);
             opt.textContent = '👤 [' + (a.employee_id || a.id) + '] ' + (a.name || a.employee_id) + ' — ' + (a.role || 'Account Manager') + (isMe ? ' (أنا 🙋‍♂️)' : '');
-            if (isMe || opt.value === 'EMP-0652-9532') opt.selected = true;
+            if (isMe) opt.selected = true;
             amSelect.appendChild(opt);
         });
+        if (amSelect && !amSelect._changeBound) {
+            amSelect._changeBound = true;
+            amSelect.addEventListener('change', function() {
+                window._userManuallySelectedPBAM = true;
+            });
+        }
     }
 
     fillAMSelect(realAMs);
