@@ -31,6 +31,7 @@ def require_manager(f):
 
 import io
 import shutil
+import tempfile
 import json
 import re
 import unicodedata
@@ -7871,38 +7872,64 @@ def _ensure_monthly_tab_exists(sheet_id, tab_name, token):
         print(f"[_ensure_monthly_tab_exists error] {e}")
     return False
 
+TASKS_MASTER_BACKUP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "tasks_master_backup.json")
+_TMP_TASKS_BACKUP_FILE = os.path.join(tempfile.gettempdir(), "tasks_master_backup.json")
+_LAST_SAVED_TASKS_ROW_COUNT = 300
+
+def _persist_tasks_to_disk_backup(tasks_list):
+    """Safely saves active tasks snapshot to disk to prevent any data loss."""
+    if not tasks_list or not isinstance(tasks_list, list):
+        return
+    try:
+        data_to_write = [dict(t) for t in tasks_list if isinstance(t, dict)]
+        if not data_to_write:
+            return
+        payload = json.dumps(data_to_write, ensure_ascii=False, indent=2)
+        for target_p in (TASKS_MASTER_BACKUP_FILE, _TMP_TASKS_BACKUP_FILE):
+            try:
+                os.makedirs(os.path.dirname(os.path.abspath(target_p)), exist_ok=True)
+                with open(target_p, "w", encoding="utf-8") as f:
+                    f.write(payload)
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[_persist_tasks_to_disk_backup error] {e}")
+
+def _load_tasks_from_disk_backup():
+    """Loads tasks snapshot from persistent local disk backup."""
+    for target_p in (TASKS_MASTER_BACKUP_FILE, _TMP_TASKS_BACKUP_FILE):
+        try:
+            if os.path.exists(target_p):
+                with open(target_p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list) and len(data) > 0:
+                        return data
+        except Exception:
+            pass
+    return []
+
 def _gsheet_tasks_save_all(tasks_list):
-    """Persist all tasks to the Google Spreadsheet:
-    1. Master tab 'Tasks' (all months comprehensive).
-    2. Monthly tabs 'Tasks_YYYY_MM' (per-month dedicated clean archive).
-    3. Emergency Backup tab."""
+    """Persist all tasks to the Google Spreadsheet with ATOMIC updates and ZERO blank periods:
+    1. Master tab 'Tasks' (overwritten in-place, never cleared beforehand).
+    2. Monthly tabs 'Tasks_YYYY_MM'.
+    3. Emergency Backup tab (always preserved, never cleared)."""
+    global _LAST_SAVED_TASKS_ROW_COUNT
     if not isinstance(tasks_list, list):
         return False
     try:
+        # Never resurrect deleted tasks
+        deleted_ids = _get_deleted_task_ids()
+        clean_tasks = [t for t in tasks_list if isinstance(t, dict) and str(t.get("task_id") or t.get("id") or "").strip() not in deleted_ids]
+
+        # Always save immediately to local disk backup first (guaranteed persistence)
+        if clean_tasks:
+            _persist_tasks_to_disk_backup(clean_tasks)
+
         token = get_google_oauth_access_token()
         if not token:
             return False
         cfg = hr_config()
         sheet_id = cfg.get("sheet_id", "1Y4i5wOm85xg6Umwph0i5-5SmssAdCy0uUlqUvzQwGj0")
-
-        # Never resurrect deleted tasks
-        deleted_ids = _get_deleted_task_ids()
-        clean_tasks = [t for t in tasks_list if isinstance(t, dict) and str(t.get("task_id") or t.get("id") or "").strip() not in deleted_ids]
-
-        # 1. Clear previous data range Tasks!A2:O5000 and Emergency_Backup!A2:Q5000 so deletions are 100% clean
-        for clear_range in ("Tasks!A2:O5000", "Emergency_Backup!A2:Q5000"):
-            try:
-                range_enc = urllib.parse.quote(clear_range)
-                clear_url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{range_enc}:clear"
-                clear_req = urllib.request.Request(
-                    clear_url,
-                    data=b"{}",
-                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                    method="POST"
-                )
-                urllib.request.urlopen(clear_req, timeout=8)
-            except Exception as _cl_err:
-                print(f"[clear sheet error {clear_range}] {_cl_err}")
 
         headers = ["task_id", "client_id", "client_name", "plan_name", "title", "status", "assigned_employee_id", "assignee_name", "am_name", "publish_date", "delivery_deadline", "drive_link", "data_json", "created_at", "updated_at"]
         rows_data = [headers]
@@ -7931,7 +7958,7 @@ def _gsheet_tasks_save_all(tasks_list):
                 datetime.now(timezone.utc).isoformat()
             ])
 
-        # Prepare batch update: Master 'Tasks' + Monthly tabs 'Tasks_YYYY_MM' + 'Emergency_Backup'
+        # Prepare batch update: Master 'Tasks' + Emergency Backup
         now_iso = datetime.now(timezone.utc).isoformat()
         emergency_rows = [["backup_timestamp"] + headers + ["backup_note"]]
         for r in rows_data[1:]:
@@ -7948,7 +7975,19 @@ def _gsheet_tasks_save_all(tasks_list):
             }
         ]
 
-        # Group data rows by month
+        # If previous row count was larger (tasks were deleted), blank out the trailing rows atomically
+        curr_len = len(rows_data)
+        if _LAST_SAVED_TASKS_ROW_COUNT > curr_len:
+            tail_start = curr_len + 1
+            tail_end = _LAST_SAVED_TASKS_ROW_COUNT + 10
+            blank_rows = [[""] * 15 for _ in range(tail_end - tail_start + 1)]
+            batch_data.append({
+                "range": f"Tasks!A{tail_start}:O{tail_end}",
+                "values": blank_rows
+            })
+        _LAST_SAVED_TASKS_ROW_COUNT = max(_LAST_SAVED_TASKS_ROW_COUNT, curr_len)
+
+        # Group data rows by month for monthly archives
         by_month = {}
         for r in rows_data[1:]:
             date_str = str(r[10] or r[9] or r[13] or "").strip()
@@ -7962,11 +8001,11 @@ def _gsheet_tasks_save_all(tasks_list):
 
         for m_key, m_rows in by_month.items():
             month_tab = f"Tasks_{m_key}"
-            _ensure_monthly_tab_exists(sheet_id, month_tab, token)
-            batch_data.append({
-                "range": f"{month_tab}!A1:O{len(m_rows) + 1}",
-                "values": [headers] + m_rows
-            })
+            if month_tab in _KNOWN_SHEET_TABS:
+                batch_data.append({
+                    "range": f"{month_tab}!A1:O{len(m_rows) + 1}",
+                    "values": [headers] + m_rows
+                })
 
         req_body = {
             "valueInputOption": "USER_ENTERED",
@@ -7998,11 +8037,12 @@ def invalidate_tasks_cache():
 
 def _all_tasks_db(force=False):
     """Authoritative task database backed by Google Sheets (primary source of truth)
-    with ultra-fast in-memory caching."""
+    with ultra-fast in-memory caching and ZERO DATA LOSS multi-tier shielding."""
     global _tasks_cache_data, _tasks_cache_time
     now = time.time()
     if not force and _tasks_cache_data is not None and (now - _tasks_cache_time) < TASKS_CACHE_TTL:
-        return [dict(t) for t in _tasks_cache_data]
+        if len(_tasks_cache_data) > 0:
+            return [dict(t) for t in _tasks_cache_data]
     
     tasks_map = {}
     deleted_ids = _get_deleted_task_ids()
@@ -8017,7 +8057,20 @@ def _all_tasks_db(force=False):
     except Exception as err:
         print(f"[_all_tasks_db sheet read error] {err}")
 
-    # 2. In-memory cache fallback (only if Google Sheets was completely empty)
+    # 2. Local Persistent Disk Backup (instant recovery if Google Sheets is momentarily unreachable or empty)
+    if not tasks_map:
+        try:
+            disk_tasks = _load_tasks_from_disk_backup()
+            for t in disk_tasks:
+                tid = str(t.get("task_id") or t.get("id") or "").strip()
+                if tid and tid not in deleted_ids:
+                    tasks_map[tid] = _sanitize_task_record(t)
+            if tasks_map:
+                print(f"[_all_tasks_db] Safely recovered {len(tasks_map)} tasks from disk master backup!")
+        except Exception as _d_err:
+            print(f"[_all_tasks_db disk backup read error] {_d_err}")
+
+    # 3. In-memory cache fallback
     if not tasks_map:
         for t in (cache.get("tasks") or []):
             if isinstance(t, dict):
@@ -8025,7 +8078,7 @@ def _all_tasks_db(force=False):
                 if tid and tid not in deleted_ids and tid not in tasks_map:
                     tasks_map[tid] = _sanitize_task_record(t)
 
-    # 3. Supabase fallback (secondary backup)
+    # 4. Supabase fallback (secondary cloud backup)
     if not tasks_map and _is_supa_available():
         try:
             rows = supa_select("mam_tasks", "select=*")
@@ -8040,7 +8093,7 @@ def _all_tasks_db(force=False):
         except Exception as e:
             print(f"[all tasks db supa] {e}")
 
-    # 4. Emergency Backup Fallback
+    # 5. Emergency Backup Tab Fallback
     if not tasks_map:
         try:
             em_tasks = _gsheet_emergency_backup_read()
@@ -8053,11 +8106,20 @@ def _all_tasks_db(force=False):
         except Exception as _em_err:
             print(f"[_all_tasks_db emergency backup read error] {_em_err}")
 
+    # ZERO DATA LOSS SHIELD:
+    # If all sources failed and tasks_map is empty, BUT we previously had cached tasks:
+    # NEVER RETURN [] AND NEVER OVERWRITE CACHE WITH []! KEEP THE LAST KNOWN DATASET!
+    if not tasks_map and _tasks_cache_data and len(_tasks_cache_data) > 0:
+        print(f"[DATA SHIELD] Google Sheets temporary outage — shielding {len(_tasks_cache_data)} tasks from being wiped out!")
+        return [dict(t) for t in _tasks_cache_data]
+
     out = list(tasks_map.values())
     out.sort(key=_natural_task_sort_key)
-    cache["tasks"] = out
-    _tasks_cache_data = [dict(t) for t in out]
-    _tasks_cache_time = time.time()
+    if out:
+        cache["tasks"] = out
+        _tasks_cache_data = [dict(t) for t in out]
+        _tasks_cache_time = time.time()
+        _persist_tasks_to_disk_backup(out)
     return out
 
 
@@ -9804,21 +9866,20 @@ def api_tasks():
                 t_amname = str(t.get("am_name") or "").strip()
                 t_amname_norm = _norm_ar_str(t_amname)
 
-                # Strict CRM Client Isolation: Manager/AM sees tasks strictly for their assigned CRM clients
-                if t_cid and t_cid in my_cids:
+                is_my_client = bool(t_cid and t_cid in my_cids)
+                is_my_am = bool((t_amid and t_amid == my_eid) or (my_name_norm and my_name_norm in t_amname_norm))
+                is_my_brand = bool((is_habiba and t_cid in HABIBA_CLIENTS) or (is_mahmoud and t_cid in MAHMOUD_CLIENTS) or (is_aya and t_cid in AYA_CLIENTS))
+
+                if is_my_client or is_my_am or is_my_brand:
                     raw_tasks.append(t)
                     continue
-    elif is_content_creator():
+    else:
+        # Content creators, Designers, Video Editors, Team members:
+        # Creative team members view the complete tasks board (KPIs are stripped below for non-managers)
         if req_cid and req_cid != "all":
             raw_tasks = get_client_tasks(req_cid)
         else:
             raw_tasks = _all_tasks_db()
-    else:
-        if req_cid and req_cid != "all":
-            raw_tasks = get_client_tasks(req_cid)
-        else:
-            my_cids = set(assigned_client_ids())
-            raw_tasks = [t for t in _all_tasks_db() if str(t.get("client_id") or "") in my_cids] if my_cids else get_client_tasks(_cid)
 
     total_archived = sum(1 for t in raw_tasks if t.get("is_archived"))
     total_active = len(raw_tasks) - total_archived

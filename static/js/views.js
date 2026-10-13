@@ -1584,13 +1584,19 @@ async function archivePlanAction(planName) {
         });
         if (res && (res.success || res.ok)) {
             if (typeof showToast === 'function') showToast(res.message || "تمت أرشفة الخطة بنجاح ", "success");
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_tasks_board_arch');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
         } else {
             if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر تأكيد الأرشفة", "error");
         }
-        await loadTasksEngine();
+        await loadTasksEngine(true);
     } catch(err) {
         console.error("Archive plan error:", err);
-        await loadTasksEngine();
+        await loadTasksEngine(true);
     }
 }
 
@@ -1611,13 +1617,19 @@ async function unarchivePlanAction(planName) {
         });
         if (res && (res.success || res.ok)) {
             if (typeof showToast === 'function') showToast(res.message || "تمت استعادة الخطة بنجاح ️", "success");
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_tasks_board_arch');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
         } else {
             if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر استعادة الخطة", "error");
         }
-        await loadTasksEngine();
+        await loadTasksEngine(true);
     } catch(err) {
         console.error("Unarchive plan error:", err);
-        await loadTasksEngine();
+        await loadTasksEngine(true);
     }
 }
 
@@ -1643,14 +1655,20 @@ async function deletePlanAction(planName) {
         });
         if (res && (res.success || res.ok)) {
             if (typeof showToast === 'function') showToast(res.message || "تم حذف الخطة نهائياً من السيرفر بنجاح ️", "success");
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_tasks_board_arch');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
         } else {
             if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر تأكيد الحذف من السيرفر", "error");
         }
-        await loadTasksEngine();
+        await loadTasksEngine(true);
     } catch(err) {
         console.error("Delete plan error:", err);
         if (typeof showToast === 'function') showToast("حدث خطأ أثناء الاتصال بالسيرفر", "error");
-        await loadTasksEngine();
+        await loadTasksEngine(true);
     }
 }
 
@@ -1669,13 +1687,19 @@ async function recallPlanAction(planName) {
         });
         if (res && (res.success || res.ok)) {
             if (typeof showToast === 'function') showToast(res.message || "تم سحب الخطة بنجاح ↩️", "success");
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_tasks_board_arch');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
         } else {
             if (typeof showToast === 'function') showToast((res && res.error) || "تعذّر سحب الخطة", "error");
         }
-        await loadTasksEngine();
+        await loadTasksEngine(true);
     } catch(err) {
         console.error("Recall plan error:", err);
-        await loadTasksEngine();
+        await loadTasksEngine(true);
     }
 }
 window.recallPlanAction = recallPlanAction;
@@ -1708,6 +1732,10 @@ async function loadTasksEngine(forceRefresh) {
     var applyTasksData = function(dataTasks, isCached) {
         if (!dataTasks) return;
         tasksList = (dataTasks && dataTasks.tasks) ? dataTasks.tasks : (Array.isArray(dataTasks) ? dataTasks : []);
+        window.tasksList = tasksList;
+        if (!isCached && typeof computeTasksSyncSig === 'function') {
+            window._lastTasksSig = computeTasksSyncSig(tasksList);
+        }
         tasksArchivedCount = (dataTasks && typeof dataTasks.archived_count !== 'undefined') ? dataTasks.archived_count : (tasksArchivedCount || 0);
         tasksActiveCount = (dataTasks && typeof dataTasks.active_count !== 'undefined') ? dataTasks.active_count : (tasksActiveCount || 0);
 
@@ -2039,6 +2067,7 @@ async function saveTaskDates(taskId) {
         var data = await res.json();
         if (res.ok && (data.ok || data.success)) {
             showToast('تم حفظ موعد التسليم بنجاح ✓');
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
             await loadTasksEngine(true);
         } else {
             showToast(data.error || 'تعذّر الحفظ', 'error');
@@ -7745,6 +7774,11 @@ async function submitDriveLinkDeliverable() {
         if (res.ok && d.ok) {
             closeDeliverableModal();
             showToast(' تم حفظ وربط رابط Google Drive بالتاسك بنجاح! ', 'success');
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
             if (typeof loadTasksEngine === 'function') loadTasksEngine();
             if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
@@ -7765,6 +7799,11 @@ async function handleModalFileUpload(input) {
         try {
             await driveUploadFile(taskId, files[0]);
             showToast(' تم رفع الملف بنجاح وربطه بالمهمة على Google Drive! ', 'success');
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
             if (typeof loadTasksEngine === 'function') loadTasksEngine();
             if (typeof loadMyPortal === 'function') loadMyPortal();
         } catch(e) {
@@ -7783,6 +7822,11 @@ async function handleModalFileUpload(input) {
         }
         if (successCount > 0) {
             showToast(' تم رفع ' + successCount + ' من ' + files.length + ' ملف/سلايد كاروسيل بنجاح! ', 'success');
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
             if (typeof loadTasksEngine === 'function') loadTasksEngine();
             if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
@@ -8888,7 +8932,12 @@ async function submitAMRevisionAction(e) {
         if (res.ok && data.success !== false && (data.ok || data.task)) {
             closeAMRevisionModal();
             showToast('تم إرسال طلب التعديل للموظف بنجاح والمهمة الآن قيد التنفيذ للتعديل ↩️', 'success');
-            if (typeof loadTasksEngine === 'function') loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
             if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast(data.error || 'تعذّر إرسال طلب التعديل', 'error');
@@ -8987,6 +9036,11 @@ async function saveTaskContentEditorAction(e) {
                 }
             }
             renderTasksBoard();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
             if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast((res && res.error) || 'تعذّر حفظ محتوى البوست', 'error');
@@ -9212,45 +9266,160 @@ window.refreshPlanBuilderClients = refreshPlanBuilderClients;
 window.triggerGlobalLiveRefresh = triggerGlobalLiveRefresh;
 window.loadAccountsList = typeof loadAccounts === 'function' ? loadAccounts : function(){ if(typeof loadAccounts === 'function') loadAccounts(true); };
 
-// Background Auto-Poll for real-time live updates
-(function initLiveAutoSync() {
-    if (window._liveSyncTimer) return;
-    window._liveSyncTimer = setInterval(function() {
-        if (document.hidden) return; // Skip if tab is in background
+// ============================================================
+// High-Frequency Real-Time Auto-Sync Engine (Production Grade)
+// Keeps all employees, AMs, and Admin 100% in sync with zero page reloads
+// ============================================================
+
+function computeTasksSyncSig(list) {
+    if (!list || !Array.isArray(list)) return '';
+    return list.length + '@' + list.map(function(t) {
+        if (!t) return '';
+        return (t.task_id || '') + ':' + 
+               (t.status || '') + ':' + 
+               (t.assigned_employee_id || '') + ':' + 
+               (t.secondary_employee_id || '') + ':' + 
+               (t.delivery_deadline || '') + ':' + 
+               (t.am_id || '') + ':' + 
+               (t.client_id || '') + ':' + 
+               (t.review_note || '') + ':' + 
+               (t.drive_link ? '1' : '0') + ':' + 
+               (t.deliverables ? t.deliverables.length : 0);
+    }).join('|');
+}
+window.computeTasksSyncSig = computeTasksSyncSig;
+
+function computePortalSyncSig(list) {
+    if (!list || !Array.isArray(list)) return '';
+    return list.length + '@' + list.map(function(t) {
+        if (!t) return '';
+        return (t.task_id || '') + ':' + 
+               (t.status || '') + ':' + 
+               (t.assigned_employee_id || '') + ':' + 
+               (t.delivery_deadline || '') + ':' + 
+               (t.review_note || '') + ':' + 
+               (t.am_comment || '') + ':' + 
+               (t.drive_link ? '1' : '0') + ':' + 
+               (t.deliverables ? t.deliverables.length : 0);
+    }).join('|');
+}
+window.computePortalSyncSig = computePortalSyncSig;
+
+// Cross-tab synchronization via BroadcastChannel
+var _liveBroadcastChannel = null;
+try {
+    if (typeof BroadcastChannel !== 'undefined') {
+        _liveBroadcastChannel = new BroadcastChannel('mam_live_sync_pulse');
+        _liveBroadcastChannel.onmessage = function(ev) {
+            if (ev && ev.data && ev.data.type === 'MUTATION') {
+                triggerInstantLiveSync();
+            }
+        };
+    }
+} catch(e){}
+
+function triggerInstantLiveSync() {
+    try {
+        localStorage.removeItem('swr_cache_tasks_board_act');
+        localStorage.removeItem('swr_cache_tasks_board_arch');
+        localStorage.removeItem('swr_cache_myportal_tasks_me');
+        if (typeof _swrMemoryCache !== 'undefined') _swrMemoryCache.clear();
+        if (typeof _fastRamCache !== 'undefined') _fastRamCache.clear();
+    } catch(e){}
+
+    var vTasks = document.getElementById('v-tasks');
+    var vPortal = document.getElementById('v-myportal');
+    var isTasksActive = vTasks && !vTasks.classList.contains('hidden');
+    var isPortalActive = vPortal && !vPortal.classList.contains('hidden');
+
+    if (isTasksActive && typeof loadTasksEngine === 'function') {
+        loadTasksEngine(true);
+    }
+    if (isPortalActive && typeof loadMyPortal === 'function') {
+        loadMyPortal();
+    }
+}
+window.triggerInstantLiveSync = triggerInstantLiveSync;
+
+function broadcastTaskMutation() {
+    try {
+        if (_liveBroadcastChannel) {
+            _liveBroadcastChannel.postMessage({ type: 'MUTATION', timestamp: Date.now() });
+        }
+        try { localStorage.setItem('mam_last_mutation_ts', Date.now().toString()); } catch(e){}
+    } catch(e){}
+}
+window.broadcastTaskMutation = broadcastTaskMutation;
+
+// Listen for cross-tab localStorage pulse as fallback
+window.addEventListener('storage', function(e) {
+    if (e.key === 'mam_last_mutation_ts') {
+        triggerInstantLiveSync();
+    }
+});
+
+// Immediate sync on window focus or visibility change
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+        runAutoSyncCycle();
+    }
+});
+window.addEventListener('focus', function() {
+    runAutoSyncCycle();
+});
+
+var _isSyncCycleRunning = false;
+async function runAutoSyncCycle() {
+    if (_isSyncCycleRunning) return;
+    _isSyncCycleRunning = true;
+    try {
         var vTasks = document.getElementById('v-tasks');
         var vPortal = document.getElementById('v-myportal');
         var isTasksActive = vTasks && !vTasks.classList.contains('hidden');
         var isPortalActive = vPortal && !vPortal.classList.contains('hidden');
 
         if (isTasksActive) {
-            var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false') + '&t=' + Date.now();
-            fetch(tasksUrl)
-                .then(function(r){ return r.json(); })
-                .then(function(d){
-                    if (d && d.tasks && Array.isArray(d.tasks)) {
-                        var newSig = d.tasks.map(function(t){ return t.task_id + ':' + t.status + ':' + (t.deliverables ? t.deliverables.length : 0); }).join('|');
-                        if (window._lastTasksSig && window._lastTasksSig !== newSig) {
-                            tasksList = d.tasks;
-                            renderTasksBoard();
-                            renderEmployeesStatus();
-                        }
-                        window._lastTasksSig = newSig;
-                    }
-                }).catch(function(){});
+            var tasksUrl = '/api/tasks?archived=' + (tasksArchiveMode ? 'true' : 'false') + '&_sync=' + Date.now();
+            var r = await fetch(tasksUrl, { headers: { 'Cache-Control': 'no-cache' } });
+            var d = await r.json();
+            if (d && d.tasks && Array.isArray(d.tasks)) {
+                var newSig = computeTasksSyncSig(d.tasks);
+                if (window._lastTasksSig && window._lastTasksSig !== newSig) {
+                    tasksList = d.tasks;
+                    renderTasksBoard();
+                    renderEmployeesStatus();
+                }
+                window._lastTasksSig = newSig;
+            }
         } else if (isPortalActive && typeof loadMyPortal === 'function') {
-            fetch('/api/me/tasks?t=' + Date.now())
-                .then(function(r){ return r.json(); })
-                .then(function(d){
-                    if (d && d.tasks) {
-                        var newSig = d.tasks.map(function(t){ return t.task_id + ':' + t.status; }).join('|');
-                        if (window._lastPortalSig && window._lastPortalSig !== newSig) {
-                            loadMyPortal();
-                        }
-                        window._lastPortalSig = newSig;
+            var portalUrl = '/api/me/tasks?_sync=' + Date.now();
+            var pr = await fetch(portalUrl, { headers: { 'Cache-Control': 'no-cache' } });
+            var pd = await pr.json();
+            if (pd && pd.tasks && Array.isArray(pd.tasks)) {
+                var newPortalSig = computePortalSyncSig(pd.tasks);
+                if (window._lastPortalSig && window._lastPortalSig !== newPortalSig) {
+                    if (typeof applyPortalTasks === 'function') {
+                        applyPortalTasks(pd);
+                    } else {
+                        loadMyPortal();
                     }
-                }).catch(function(){});
+                }
+                window._lastPortalSig = newPortalSig;
+            }
         }
-    }, 30000);
+    } catch(err) {
+        // Silent error handling for background polling
+    } finally {
+        _isSyncCycleRunning = false;
+    }
+}
+
+(function initLiveAutoSync() {
+    if (window._liveSyncTimer) clearInterval(window._liveSyncTimer);
+    window._liveSyncTimer = setInterval(function() {
+        if (document.hidden) return; // Skip frequent poll if tab is in background
+        runAutoSyncCycle();
+    }, 3500); // Fast 3.5s real-time poll for active team collaboration
 })();
 
 

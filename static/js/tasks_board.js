@@ -2572,7 +2572,14 @@ async function deleteWholePlanAction(planName) {
         if (res.ok && (data.success || data.ok)) {
             showToast(data.message || 'تم حذف الخطة بنجاح 🗑️', 'success');
             selectedPlanFilter = null;
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_tasks_board_arch');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
             if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast(data.error || 'تعذّر حذف الخطة', 'error');
         }
@@ -2617,7 +2624,13 @@ async function reviewTaskDecision(taskId, action) {
         var data = await res.json();
         if (res.ok && data.success !== false) {
             showToast(action === 'finalize' ? 'تم اعتماد واكتمال المهمة بنجاح ✅' : action === 'forward' ? 'تم تمرير المهمة للموظف التالي ➡️' : 'تم إرجاع المهمة للموظف ↩️');
-            loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else { showToast(data.error || 'تعذّر تنفيذ المراجعة', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -2695,7 +2708,13 @@ async function bulkApproveFilteredTasks() {
         var data = await res.json();
         if (res.ok && data.ok) {
             showToast('تم اعتماد واكتمال ' + (data.approved_count || count) + ' مهمة بنجاح ✅', 'success');
-            await loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            await loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             var okCount = 0;
             for (var i = 0; i < reviewTasks.length; i++) {
@@ -2710,7 +2729,13 @@ async function bulkApproveFilteredTasks() {
             }
             if (okCount > 0) {
                 showToast('تم اعتماد ' + okCount + ' من إجمالي ' + count + ' مهمة بنجاح ✅', 'success');
-                await loadTasksEngine();
+                try {
+                    localStorage.removeItem('swr_cache_tasks_board_act');
+                    localStorage.removeItem('swr_cache_myportal_tasks_me');
+                } catch(e){}
+                if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+                await loadTasksEngine(true);
+                if (typeof loadMyPortal === 'function') loadMyPortal();
             } else {
                 showToast(data.error || 'تعذّر إتمام الاعتماد الجماعي', 'error');
             }
@@ -2736,7 +2761,13 @@ async function assignCreatorFromBoard(taskId) {
         var data = await res.json();
         if (res.ok && data.ok) {
             showToast(data.creator_name ? ('تم تعيين كاتب المحتوى: ' + data.creator_name + ' ✍️') : 'تم إلغاء تعيين كاتب المحتوى ↩️');
-            loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast(data.error || 'تعذّر تعيين كاتب المحتوى', 'error');
         }
@@ -2758,7 +2789,13 @@ async function coAssignTaskFromBoard(taskId) {
         var data = await res.json();
         if (res.ok && data.ok) {
             showToast(secId ? (data.telegram_sent ? 'تم إسناد شريك العمل وإشعاره على تليجرام 👥✈️' : 'تم تعيين شريك العمل للمهمة بنجاح 👥') : 'تم إزالة شريك العمل بنجاح');
-            loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast(data.error || 'تعذّر تعيين شريك العمل', 'error');
         }
@@ -2783,7 +2820,13 @@ async function assignTaskFromBoard(taskId) {
         var data = await res.json();
         if (res.ok && data.ok) {
             showToast(data.telegram_sent ? 'اتسند واتبعت للموظف على التليجرام ' : 'اتسند (الموظف مالوش تليجرام أو معملش Start للبوت)');
-            loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else { showToast(data.error || 'تعذّر الإسناد', 'error'); }
     } catch(e) { showToast('خطأ في الاتصال', 'error'); }
 }
@@ -2800,7 +2843,13 @@ async function recallTaskAction(taskId) {
         var data = await res.json();
         if (res.ok && data.ok) {
             showToast('تم سحب المهمة بنجاح وإلغاء إسنادها ↩️');
-            loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast(data.error || 'تعذّر سحب المهمة', 'error');
         }
@@ -2822,7 +2871,13 @@ async function reassignTaskFromBoard(taskId) {
         var data = await res.json();
         if (res.ok && data.ok) {
             showToast(data.telegram_sent ? 'تم تحويل المهمة وإشعار الموظف على تليجرام ' : 'تم تحويل المهمة بنجاح ');
-            loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast(data.error || 'تعذّر تحويل المهمة', 'error');
         }
@@ -2838,7 +2893,13 @@ async function uploadTaskAsset(taskId, input) {
     try {
         await driveUploadFile(taskId, file); // shared: direct for large, server for small
         showToast('اترفع على Drive واتربط بالتاسك ');
-        loadTasksEngine();
+        try {
+            localStorage.removeItem('swr_cache_tasks_board_act');
+            localStorage.removeItem('swr_cache_myportal_tasks_me');
+        } catch(e){}
+        if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+        loadTasksEngine(true);
+        if (typeof loadMyPortal === 'function') loadMyPortal();
     } catch(e) { showToast('تعذّر الرفع: ' + (e.message || ''), 'error'); }
     if (input) input.value = '';
 }
@@ -2857,7 +2918,13 @@ async function uploadTaskReferenceFile(taskId, input) {
         var data = await res.json();
         if (res.ok && data.ok) {
             showToast('تمت إضافة الريفرانس من الجهاز بنجاح ');
-            loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast(data.error || 'تعذّرت إضافة الريفرانس', 'error');
         }
@@ -2879,7 +2946,13 @@ async function promptAddLinkReference(taskId) {
         var data = await res.json();
         if (res.ok && data.ok) {
             showToast('تمت إضافة الرابط بنجاح ');
-            loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast(data.error || 'تعذّرت إضافة الرابط', 'error');
         }
@@ -2918,7 +2991,13 @@ async function updateTaskStatusAction(taskId, newStatus, empId, notes) {
         var data = await res.json();
         if (data.success) {
             showToast('تم تحديث حالة المهمة بنجاح ');
-            loadTasksEngine();
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+            loadTasksEngine(true);
+            if (typeof loadMyPortal === 'function') loadMyPortal();
         } else {
             showToast(data.error || 'حدث خطأ في التحديث', 'error');
         }

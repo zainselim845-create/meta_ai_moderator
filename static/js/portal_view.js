@@ -979,7 +979,11 @@ async function loadMyPortal() {
       }
 
       renderMyPortalTasks();
+      if (typeof computePortalSyncSig === 'function') {
+        window._lastPortalSig = computePortalSyncSig(tasks);
+      }
     };
+    window.applyPortalTasks = applyPortalTasks;
 
     const d = await swrFetchJson(url, null, 'myportal_tasks_' + (myPortalTargetEid || 'me'), (cached) => {
       applyPortalTasks(cached);
@@ -1060,7 +1064,14 @@ async function startMyTask(id) {
   try {
     const r = await fetch(`/api/me/tasks/${encodeURIComponent(id)}/start`, {method:'POST'});
     if (!r.ok) { showToast('تعذّر البدء', 'error'); return; }
-    showToast('بالتوفيق! ابدأ شغلك '); loadMyPortal();
+    showToast('بالتوفيق! ابدأ شغلك ⏱️');
+    try {
+      localStorage.removeItem('swr_cache_tasks_board_act');
+      localStorage.removeItem('swr_cache_myportal_tasks_me');
+    } catch(e){}
+    if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
+    loadMyPortal();
+    if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
   } catch(e) { showToast('خطأ', 'error'); }
 }
 async function submitMyTask(id) {
@@ -1075,8 +1086,13 @@ async function submitMyTask(id) {
     const d = await r.json();
     if (!r.ok) { showToast(d.error||'تعذّر التسليم', 'error'); return; }
     showToast('🎉 عاش! تم تسليم المهمة لمدير الحساب بنجاح ✅', 'success');
+    try {
+      localStorage.removeItem('swr_cache_tasks_board_act');
+      localStorage.removeItem('swr_cache_myportal_tasks_me');
+    } catch(e){}
+    if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
     if (typeof loadMyPortal === 'function') loadMyPortal();
-    if (typeof loadTasksEngine === 'function') loadTasksEngine();
+    if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
   } catch(e) { showToast('خطأ في الاتصال بالسيرفر', 'error'); }
 }
 window.submitMyTask = submitMyTask;
@@ -1096,8 +1112,13 @@ async function requestReturnMyTask(id) {
       return;
     }
     showToast(d.message || 'تم استرجاع المهمة لك بنجاح للبدء في التعديل ↩️');
+    try {
+      localStorage.removeItem('swr_cache_tasks_board_act');
+      localStorage.removeItem('swr_cache_myportal_tasks_me');
+    } catch(e){}
+    if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
     if (typeof loadMyPortal === 'function') loadMyPortal();
-    if (typeof loadTasksEngine === 'function') loadTasksEngine();
+    if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
   } catch(e) {
     showToast('خطأ في الاتصال بالسيرفر', 'error');
   }

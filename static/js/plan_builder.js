@@ -678,6 +678,12 @@ async function submitPlanBuilder() {
             window.planBuilderRowCount = 0;
             updatePlanBuilderQuickNav();
             showToast('🎉 تم إنشاء الخطة وتفريغ ' + (res.ingested_count || rows.length) + ' مهمة وتوزيعها على Drive بنجاح! 🚀', 'success');
+            try {
+                localStorage.removeItem('swr_cache_tasks_board_act');
+                localStorage.removeItem('swr_cache_tasks_board_arch');
+                localStorage.removeItem('swr_cache_myportal_tasks_me');
+            } catch(e){}
+            if (typeof broadcastTaskMutation === 'function') broadcastTaskMutation();
             
             if (res.plan_name) {
                 selectedPlanFilter = res.plan_name;
