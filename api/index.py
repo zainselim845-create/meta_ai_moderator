@@ -7410,6 +7410,9 @@ def _sanitize_task_record(d):
         else:
             d["am_name"] = am_name
             d["am_id"] = am_id or am_name
+    elif am_id in ("EMP-001", "EMP-001-AM", "AM-001") or am_name in ("EMP-001", "EMP-001-AM", "AM-001"):
+        d["am_id"] = "AM-2072-9827"
+        d["am_name"] = "محمود خالد"
     elif c_amid or c_amname:
         d["am_id"] = c_amid or c_amname
         d["am_name"] = c_amname or c_amid
