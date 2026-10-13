@@ -1319,11 +1319,16 @@ function renderMyPortalTasks() {
   const actionBtns = (t) => {
     const s = t.status || '';
     const hasActiveRev = (t.subtasks && t.subtasks.some(st => st && (st.type === 'revision' || st.is_subtask) && !st.submitted_at)) || Boolean(t.modification_requested_at && !t.submitted_at);
-    if (/In Progress|Revision|Changes/i.test(s) || hasActiveRev) return `<button onclick="submitMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>✅ سلّمت وخلصت</span></button>`;
-    if (/Assigned/i.test(s)) return `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>⏱️ بدأت العمل</span></button>`;
-    if (/Awaiting|Submitted|Review/i.test(s)) return `<button onclick="requestReturnMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition shadow-xs cursor-pointer flex items-center gap-1" title="استرجاع المهمة للتعديل"><span>↩️ استرجاع للتعديل</span></button>`;
-    if (/Completed|مكتمل/i.test(s)) return `<button onclick="requestReturnMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition shadow-2xs cursor-pointer flex items-center gap-1" title="طلب إعادة فتح واسترجاع المهمة للتعديل"><span>↩️ طلب تعديل</span></button>`;
-    return '';
+    let btns = '';
+    if (/In Progress|Revision|Changes/i.test(s) || hasActiveRev) btns += `<button onclick="submitMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>✅ سلّمت وخلصت</span></button>`;
+    else if (/Assigned/i.test(s)) btns += `<button onclick="startMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs cursor-pointer flex items-center gap-1"><span>⏱️ بدأت العمل</span></button>`;
+    else if (/Awaiting|Submitted|Review/i.test(s)) btns += `<button onclick="requestReturnMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition shadow-xs cursor-pointer flex items-center gap-1" title="استرجاع المهمة للتعديل"><span>↩️ استرجاع للتعديل</span></button>`;
+    else if (/Completed|مكتمل/i.test(s)) btns += `<button onclick="requestReturnMyTask('${esc(t.task_id)}')" class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition shadow-2xs cursor-pointer flex items-center gap-1" title="طلب إعادة فتح واسترجاع المهمة للتعديل"><span>↩️ طلب تعديل</span></button>`;
+
+    if (!/Completed|مكتمل|Approved/i.test(s)) {
+      btns += `<button type="button" onclick="openPortalReassignModal('${esc(t.task_id)}')" class="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 transition shadow-2xs cursor-pointer flex items-center gap-1" title="تحويل المهمة لزميل آخر"><span>🔄 تحويل</span></button>`;
+    }
+    return btns;
   };
   const driveThumb = (u) => {
     u = (u || '').toString();
@@ -3365,3 +3370,216 @@ async function saveHrGeofenceSettings() {
     showToast('خطأ في الاتصال بالسيرفر لحفظ الإعدادات', 'error');
   }
 }
+
+// ==========================================
+// Employee Portal Task Handoff / Reassign
+// ==========================================
+function _myPortalUserEid() {
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || '{}');
+    return u.employee_id || u.username || '';
+  } catch(e) { return ''; }
+}
+
+async function openPortalReassignModal(taskId) {
+  let modal = document.getElementById('portal-reassign-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'portal-reassign-modal';
+    modal.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4';
+    modal.innerHTML = `
+      <div class="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 text-right" dir="rtl">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
+            <span>🔄</span> <span>تحويل المهمة إلى زميل</span>
+          </h3>
+          <button onclick="document.getElementById('portal-reassign-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-700 text-lg font-bold">✕</button>
+        </div>
+        <p class="text-xs text-slate-600 leading-relaxed">
+          اختر الزميل الذي ترغب في تحويل هذه المهمة إليه. سيتم نقل المهمة فوراً إلى حسابه وإرسال إشعار له عبر تليجرام.
+        </p>
+        <input type="hidden" id="portal-reassign-task-id" value="">
+        <div class="space-y-1.5">
+          <label class="text-xs font-bold text-slate-700">اختر الزميل المستهدف:</label>
+          <select id="portal-reassign-emp-select" class="w-full text-xs p-2.5 border border-slate-300 rounded-xl bg-white text-slate-900 font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="">جاري تحميل قائمة الموظفين...</option>
+          </select>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" onclick="document.getElementById('portal-reassign-modal').classList.add('hidden')" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer">إلغاء</button>
+          <button type="button" onclick="confirmPortalReassign()" id="btn-portal-reassign-confirm" class="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs transition cursor-pointer">تأكيد التحويل الآن 🚀</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  document.getElementById('portal-reassign-task-id').value = taskId;
+  const sel = document.getElementById('portal-reassign-emp-select');
+  sel.innerHTML = '<option value="">اختر الزميل...</option>';
+
+  try {
+    let list = window.allTeamEmployees || [];
+    if (!list.length) {
+      const res = await fetch('/api/tasks/employees');
+      const d = await res.json();
+      list = d.employees || [];
+      window.allTeamEmployees = list;
+    }
+    const currentEid = (_myPortalUserEid() || '').toLowerCase();
+    list.forEach(emp => {
+      const eid = emp.employee_id || emp.id;
+      if (!eid) return;
+      if (currentEid && eid.toLowerCase() === currentEid) return;
+      const name = emp.name || eid;
+      const job = emp.job ? ` (${emp.job})` : '';
+      sel.innerHTML += `<option value="${esc(eid)}">${esc(name)}${esc(job)} [${esc(eid)}]</option>`;
+    });
+  } catch(e) {
+    console.error('[loadEmployeesForReassign]', e);
+  }
+
+  modal.classList.remove('hidden');
+}
+
+async function confirmPortalReassign() {
+  const taskId = (document.getElementById('portal-reassign-task-id') || {}).value;
+  const sel = document.getElementById('portal-reassign-emp-select');
+  const targetEid = sel ? sel.value : '';
+  if (!taskId || !targetEid) {
+    showToast('يرجى اختيار الزميل لتحويل المهمة', 'error');
+    return;
+  }
+  const btn = document.getElementById('btn-portal-reassign-confirm');
+  if (btn) { btn.disabled = true; btn.textContent = 'جاري التحويل...'; }
+
+  try {
+    const res = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employee_id: targetEid })
+    });
+    const d = await res.json();
+    if (!res.ok || !d.ok) {
+      showToast((d && d.error) || 'تعذر تحويل المهمة', 'error');
+      return;
+    }
+    showToast(d.telegram_sent ? 'تم تحويل المهمة بنجاح وإشعار الزميل على تليجرام ✨' : 'تم تحويل المهمة بنجاح ✨', 'success');
+    const modal = document.getElementById('portal-reassign-modal');
+    if (modal) modal.classList.add('hidden');
+
+    try {
+      localStorage.removeItem('swr_cache_myportal_tasks_me');
+      localStorage.removeItem('swr_cache_tasks_board_act');
+    } catch(e){}
+    if (typeof loadMyPortal === 'function') loadMyPortal();
+    if (typeof loadTasksEngine === 'function') loadTasksEngine(true);
+  } catch(e) {
+    showToast('خطأ في الاتصال بالسيرفر أثناء التحويل', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'تأكيد التحويل الآن 🚀'; }
+  }
+}
+
+window.openPortalReassignModal = openPortalReassignModal;
+window.confirmPortalReassign = confirmPortalReassign;
+
+// ==========================================
+// Quick Header User Profile Switcher
+// ==========================================
+async function toggleHeaderUserSwitcher(e) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  const dd = document.getElementById('header-user-switcher-dropdown');
+  if (!dd) return;
+  const isHidden = dd.classList.contains('hidden');
+  if (isHidden) {
+    dd.classList.remove('hidden');
+    loadHeaderUserSwitcherAccounts();
+  } else {
+    dd.classList.add('hidden');
+  }
+}
+
+async function loadHeaderUserSwitcherAccounts() {
+  const container = document.getElementById('header-user-switcher-list');
+  if (!container) return;
+  container.innerHTML = '<div class="p-2 text-center text-xs text-slate-500">جاري تحميل الحسابات...</div>';
+  try {
+    const res = await fetch('/api/team-switch-list');
+    const data = await res.json();
+    const accounts = data.accounts || [];
+    if (!accounts.length) {
+      container.innerHTML = '<div class="p-2 text-center text-xs text-slate-500">لا توجد حسابات متاحة</div>';
+      return;
+    }
+
+    const currentU = (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).username : '') || '';
+
+    const cats = {};
+    accounts.forEach(a => {
+      const c = a.category || 'أخرى';
+      if (!cats[c]) cats[c] = [];
+      cats[c].push(a);
+    });
+
+    let html = '';
+    for (const [catName, list] of Object.entries(cats)) {
+      html += `<div class="text-[10px] font-black text-indigo-900/60 uppercase tracking-wider px-2 pt-2 pb-0.5">${esc(catName)}</div>`;
+      list.forEach(a => {
+        const isCurrent = (String(a.username).toLowerCase() === currentU.toLowerCase() || String(a.id).toLowerCase() === currentU.toLowerCase());
+        html += `
+          <button type="button" onclick="switchUserProfile('${esc(a.id)}')" class="w-full text-right px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between gap-2 transition cursor-pointer ${isCurrent ? 'bg-indigo-50 text-indigo-950 font-black border border-indigo-200' : 'text-slate-700 hover:bg-slate-100 font-bold'}">
+            <span class="truncate">${esc(a.name)}</span>
+            <span class="text-[10px] font-mono text-slate-400 shrink-0">[${esc(a.id)}]</span>
+          </button>
+        `;
+      });
+    }
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<div class="p-2 text-center text-xs text-rose-500">تعذر تحميل الحسابات</div>';
+  }
+}
+
+async function switchUserProfile(targetIdent) {
+  const dd = document.getElementById('header-user-switcher-dropdown');
+  if (dd) dd.classList.add('hidden');
+  showToast('جاري التبديل إلى الحساب المطلوب...');
+  try {
+    const res = await fetch('/api/switch-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: targetIdent })
+    });
+    const d = await res.json();
+    if (res.ok && d.ok) {
+      showToast(`تم التبديل بنجاح إلى: ${d.name || d.username} ✨`, 'success');
+      localStorage.setItem('user', JSON.stringify(d));
+      try {
+        localStorage.removeItem('swr_cache_myportal_tasks_me');
+        localStorage.removeItem('swr_cache_tasks_board_act');
+      } catch(e){}
+      setTimeout(() => {
+        window.location.reload();
+      }, 350);
+    } else {
+      showToast((d && d.error) || 'تعذر التبديل للحساب المطلوب', 'error');
+    }
+  } catch(e) {
+    showToast('خطأ في الاتصال أثناء تبديل الحساب', 'error');
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('header-user-switcher-dropdown');
+  const btn = document.getElementById('btn-header-switch-user');
+  if (dd && !dd.classList.contains('hidden')) {
+    if (btn && !btn.contains(e.target) && !dd.contains(e.target)) {
+      dd.classList.add('hidden');
+    }
+  }
+});
+
+window.toggleHeaderUserSwitcher = toggleHeaderUserSwitcher;
+window.switchUserProfile = switchUserProfile;
+
