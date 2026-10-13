@@ -2589,30 +2589,59 @@ function renderTaskCard(t, indexInPlan) {
     var cAmid = matchedClient ? String(matchedClient.am_id || matchedClient.account_manager_id || matchedClient.am_employee_id || '').trim().toUpperCase() : '';
     var cAmName = matchedClient ? String(matchedClient.am_name || '').trim() : '';
 
-    if (cAmid === 'EMP-0652-9532' || cAmid === 'AM-0652-9532' || cAmName.indexOf('حبيبه') !== -1 || cAmName.indexOf('حبيبة') !== -1) {
-        cleanAM = 'حبيبه أحمد محمد';
-        tAmid = 'EMP-0652-9532';
-    } else if (cAmid === 'EMP-5887-5256' || cAmid === 'AM-5887-5256' || cAmName.indexOf('آيه') !== -1 || cAmName.indexOf('ايه') !== -1) {
-        cleanAM = 'آيه أحمد مجاهد';
-        tAmid = 'EMP-5887-5256';
-    } else if (cAmid === 'AM-2072-9827' || cAmid === 'EMP-2072-9827' || cAmName.indexOf('محمود') !== -1) {
-        cleanAM = 'محمود خالد';
-        tAmid = 'AM-2072-9827';
+    // Authoritative: Task's explicit AM comes FIRST!
+    if (tAmid && tAmid !== 'EMP-001' && tAmid !== 'EMP-001-AM' && tAmid !== 'AM-001' && tAmid !== 'SYSTEM' && tAmid !== 'UNASSIGNED') {
+        if (tAmid === 'AM-2072-9827' || tAmid === 'EMP-2072-9827') {
+            cleanAM = 'محمود خالد';
+            tAmid = 'AM-2072-9827';
+        } else if (tAmid === 'EMP-5887-5256' || tAmid === 'AM-5887-5256') {
+            cleanAM = 'آيه أحمد مجاهد';
+            tAmid = 'EMP-5887-5256';
+        } else if (tAmid === 'EMP-0652-9532' || tAmid === 'AM-0652-9532') {
+            cleanAM = 'حبيبه أحمد محمد';
+            tAmid = 'EMP-0652-9532';
+        } else {
+            var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === tAmid; });
+            cleanAM = foundAm ? (foundAm.name || cleanAM) : _cleanEmployeeArabicName(cleanAM, t.am_id);
+        }
     } else if (cAmid) {
-        tAmid = cAmid;
-        cleanAM = cAmName || cleanAM;
-    } else if (tAmid === 'EMP-0652-9532' || tAmid === 'AM-0652-9532' || cleanAM.indexOf('حبيبه') !== -1 || cleanAM.indexOf('حبيبة') !== -1) {
-        cleanAM = 'حبيبه أحمد محمد';
-        tAmid = 'EMP-0652-9532';
-    } else if (tAmid === 'EMP-5887-5256' || tAmid === 'AM-5887-5256' || cleanAM.indexOf('آيه') !== -1 || cleanAM.indexOf('ايه') !== -1 || tCid.indexOf('domya') !== -1) {
-        cleanAM = 'آيه أحمد مجاهد';
-        tAmid = 'EMP-5887-5256';
-    } else if (tAmid === 'AM-2072-9827' || tAmid === 'EMP-2072-9827' || cleanAM.indexOf('محمود') !== -1) {
-        cleanAM = 'محمود خالد';
-        tAmid = 'AM-2072-9827';
-    } else if (tAmid && tAmid !== 'EMP-001' && tAmid !== 'EMP-001-AM' && tAmid !== 'AM-001' && tAmid !== 'SYSTEM' && tAmid !== 'UNASSIGNED') {
-        var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === tAmid; });
-        cleanAM = foundAm ? (foundAm.name || cleanAM) : _cleanEmployeeArabicName(cleanAM, t.am_id);
+        if (cAmid === 'AM-2072-9827' || cAmid === 'EMP-2072-9827') {
+            cleanAM = 'محمود خالد';
+            tAmid = 'AM-2072-9827';
+        } else if (cAmid === 'EMP-5887-5256' || cAmid === 'AM-5887-5256') {
+            cleanAM = 'آيه أحمد مجاهد';
+            tAmid = 'EMP-5887-5256';
+        } else if (cAmid === 'EMP-0652-9532' || cAmid === 'AM-0652-9532') {
+            cleanAM = 'حبيبه أحمد محمد';
+            tAmid = 'EMP-0652-9532';
+        } else {
+            tAmid = cAmid;
+            cleanAM = cAmName || cleanAM;
+        }
+    } else if (cAmName) {
+        if (cAmName.indexOf('محمود') !== -1) {
+            cleanAM = 'محمود خالد';
+            tAmid = 'AM-2072-9827';
+        } else if (cAmName.indexOf('آيه') !== -1 || cAmName.indexOf('ايه') !== -1) {
+            cleanAM = 'آيه أحمد مجاهد';
+            tAmid = 'EMP-5887-5256';
+        } else if (cAmName.indexOf('حبيبه') !== -1 || cAmName.indexOf('حبيبة') !== -1) {
+            cleanAM = 'حبيبه أحمد محمد';
+            tAmid = 'EMP-0652-9532';
+        }
+    } else if (cleanAM) {
+        if (cleanAM.indexOf('محمود') !== -1) {
+            cleanAM = 'محمود خالد';
+            tAmid = 'AM-2072-9827';
+        } else if (cleanAM.indexOf('آيه') !== -1 || cleanAM.indexOf('ايه') !== -1) {
+            cleanAM = 'آيه أحمد مجاهد';
+            tAmid = 'EMP-5887-5256';
+        } else if (cleanAM.indexOf('حبيبه') !== -1 || cleanAM.indexOf('حبيبة') !== -1) {
+            cleanAM = 'حبيبه أحمد محمد';
+            tAmid = 'EMP-0652-9532';
+        } else {
+            cleanAM = _cleanEmployeeArabicName(cleanAM, t.am_id) || '';
+        }
     } else {
         cleanAM = _cleanEmployeeArabicName(cleanAM, t.am_id) || '';
     }
@@ -3718,40 +3747,69 @@ function renderTasksBoard() {
         allTasks.forEach(function(t) {
             var amId = (t.am_id || '').trim();
             var amName = (t.am_name || '').trim();
+            var amIdUpper = amId.toUpperCase();
             var cid = String(t.client_id || '').toLowerCase();
-            var cname = String(t.client_name || '').toLowerCase();
 
+            // Authoritative: Task's explicit AM comes FIRST!
+            if (amIdUpper && amIdUpper !== 'EMP-001' && amIdUpper !== 'EMP-001-AM' && amIdUpper !== 'AM-001' && amIdUpper !== 'SYSTEM' && amIdUpper !== 'UNASSIGNED') {
+                if (amIdUpper === 'AM-2072-9827' || amIdUpper === 'EMP-2072-9827') {
+                    t.am_id = 'AM-2072-9827';
+                    t.am_name = 'محمود خالد';
+                } else if (amIdUpper === 'EMP-5887-5256' || amIdUpper === 'AM-5887-5256') {
+                    t.am_id = 'EMP-5887-5256';
+                    t.am_name = 'آيه أحمد مجاهد';
+                } else if (amIdUpper === 'EMP-0652-9532' || amIdUpper === 'AM-0652-9532') {
+                    t.am_id = 'EMP-0652-9532';
+                    t.am_name = 'حبيبه أحمد محمد';
+                } else {
+                    var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === amIdUpper; });
+                    if (foundAm) {
+                        t.am_name = foundAm.name || amName;
+                    }
+                }
+                return;
+            }
+
+            // Fallback: Client AM only when task has no explicit AM
             var matchedClient = (window.agencyClients || window.allClients || []).find(function(c) {
                 return String(c.id || c.client_id || '').toLowerCase() === cid;
             });
             var cAmid = matchedClient ? String(matchedClient.am_id || matchedClient.account_manager_id || matchedClient.am_employee_id || '').trim().toUpperCase() : '';
             var cAmName = matchedClient ? String(matchedClient.am_name || '').trim() : '';
 
-            if (cAmid === 'EMP-0652-9532' || cAmid === 'AM-0652-9532' || cAmName.includes('حبيبه') || cAmName.includes('حبيبة')) {
-                t.am_id = 'EMP-0652-9532';
-                t.am_name = 'حبيبه أحمد محمد';
-            } else if (cAmid === 'EMP-5887-5256' || cAmid === 'AM-5887-5256' || cAmName.includes('آيه') || cAmName.includes('ايه')) {
-                t.am_id = 'EMP-5887-5256';
-                t.am_name = 'آيه أحمد مجاهد';
-            } else if (cAmid === 'AM-2072-9827' || cAmid === 'EMP-2072-9827' || cAmName.includes('محمود')) {
+            if (cAmid === 'AM-2072-9827' || cAmid === 'EMP-2072-9827') {
                 t.am_id = 'AM-2072-9827';
                 t.am_name = 'محمود خالد';
+            } else if (cAmid === 'EMP-5887-5256' || cAmid === 'AM-5887-5256') {
+                t.am_id = 'EMP-5887-5256';
+                t.am_name = 'آيه أحمد مجاهد';
+            } else if (cAmid === 'EMP-0652-9532' || cAmid === 'AM-0652-9532') {
+                t.am_id = 'EMP-0652-9532';
+                t.am_name = 'حبيبه أحمد محمد';
             } else if (cAmid) {
                 t.am_id = cAmid;
-                t.am_name = cAmName || t.am_name;
-            } else if (amId === 'EMP-0652-9532' || amId === 'AM-0652-9532' || amName.includes('حبيبه') || amName.includes('حبيبة')) {
-                t.am_id = 'EMP-0652-9532';
-                t.am_name = 'حبيبه أحمد محمد';
-            } else if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه') || cid.includes('domya')) {
-                t.am_id = 'EMP-5887-5256';
-                t.am_name = 'آيه أحمد مجاهد';
-            } else if (amId === 'AM-2072-9827' || amId === 'EMP-2072-9827' || amName.includes('محمود')) {
-                t.am_id = 'AM-2072-9827';
-                t.am_name = 'محمود خالد';
-            } else if (amId && amId !== 'EMP-001' && amId !== 'EMP-001-AM' && amId !== 'AM-001' && amId !== 'system' && amId !== 'unassigned') {
-                var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === String(amId).toUpperCase(); });
-                if (foundAm) {
-                    t.am_name = foundAm.name || amName;
+                t.am_name = cAmName || amName;
+            } else if (cAmName) {
+                if (cAmName.includes('محمود')) {
+                    t.am_id = 'AM-2072-9827';
+                    t.am_name = 'محمود خالد';
+                } else if (cAmName.includes('آيه') || cAmName.includes('ايه')) {
+                    t.am_id = 'EMP-5887-5256';
+                    t.am_name = 'آيه أحمد مجاهد';
+                } else if (cAmName.includes('حبيبه') || cAmName.includes('حبيبة')) {
+                    t.am_id = 'EMP-0652-9532';
+                    t.am_name = 'حبيبه أحمد محمد';
+                }
+            } else if (amName) {
+                if (amName.includes('محمود')) {
+                    t.am_id = 'AM-2072-9827';
+                    t.am_name = 'محمود خالد';
+                } else if (amName.includes('آيه') || amName.includes('ايه')) {
+                    t.am_id = 'EMP-5887-5256';
+                    t.am_name = 'آيه أحمد مجاهد';
+                } else if (amName.includes('حبيبه') || amName.includes('حبيبة')) {
+                    t.am_id = 'EMP-0652-9532';
+                    t.am_name = 'حبيبه أحمد محمد';
                 }
             }
         });
@@ -3884,40 +3942,66 @@ function renderTasksBoard() {
         allTasks.forEach(function(t) {
             var amId = (t.am_id || '').trim();
             var amName = (t.am_name || '').trim();
+            var amIdUpper = amId.toUpperCase();
             var cid = String(t.client_id || '').toLowerCase();
-            var cname = String(t.client_name || '').toLowerCase();
 
-            var matchedClient = (window.agencyClients || window.allClients || []).find(function(c) {
-                return String(c.id || c.client_id || '').toLowerCase() === cid;
-            });
-            var cAmid = matchedClient ? String(matchedClient.am_id || matchedClient.account_manager_id || matchedClient.am_employee_id || '').trim().toUpperCase() : '';
-            var cAmName = matchedClient ? String(matchedClient.am_name || '').trim() : '';
+            if (amIdUpper && amIdUpper !== 'EMP-001' && amIdUpper !== 'EMP-001-AM' && amIdUpper !== 'AM-001' && amIdUpper !== 'SYSTEM' && amIdUpper !== 'UNASSIGNED') {
+                if (amIdUpper === 'AM-2072-9827' || amIdUpper === 'EMP-2072-9827') {
+                    amId = 'AM-2072-9827';
+                    amName = 'محمود خالد';
+                } else if (amIdUpper === 'EMP-5887-5256' || amIdUpper === 'AM-5887-5256') {
+                    amId = 'EMP-5887-5256';
+                    amName = 'آيه أحمد مجاهد';
+                } else if (amIdUpper === 'EMP-0652-9532' || amIdUpper === 'AM-0652-9532') {
+                    amId = 'EMP-0652-9532';
+                    amName = 'حبيبه أحمد محمد';
+                } else {
+                    var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === amIdUpper; });
+                    if (foundAm) {
+                        amName = foundAm.name || amName;
+                    }
+                }
+            } else {
+                var matchedClient = (window.agencyClients || window.allClients || []).find(function(c) {
+                    return String(c.id || c.client_id || '').toLowerCase() === cid;
+                });
+                var cAmid = matchedClient ? String(matchedClient.am_id || matchedClient.account_manager_id || matchedClient.am_employee_id || '').trim().toUpperCase() : '';
+                var cAmName = matchedClient ? String(matchedClient.am_name || '').trim() : '';
 
-            if (cAmid === 'EMP-0652-9532' || cAmid === 'AM-0652-9532' || cAmName.includes('حبيبه') || cAmName.includes('حبيبة')) {
-                amId = 'EMP-0652-9532';
-                amName = 'حبيبه أحمد محمد';
-            } else if (cAmid === 'EMP-5887-5256' || cAmid === 'AM-5887-5256' || cAmName.includes('آيه') || cAmName.includes('ايه')) {
-                amId = 'EMP-5887-5256';
-                amName = 'آيه أحمد مجاهد';
-            } else if (cAmid === 'AM-2072-9827' || cAmid === 'EMP-2072-9827' || cAmName.includes('محمود')) {
-                amId = 'AM-2072-9827';
-                amName = 'محمود خالد';
-            } else if (cAmid) {
-                amId = cAmid;
-                amName = cAmName || amName;
-            } else if (amId === 'EMP-0652-9532' || amId === 'AM-0652-9532' || amName.includes('حبيبه') || amName.includes('حبيبة')) {
-                amId = 'EMP-0652-9532';
-                amName = 'حبيبه أحمد محمد';
-            } else if (amId === 'EMP-5887-5256' || amId === 'AM-5887-5256' || amName.includes('آيه') || amName.includes('ايه') || cid.includes('domya')) {
-                amId = 'EMP-5887-5256';
-                amName = 'آيه أحمد مجاهد';
-            } else if (amId === 'AM-2072-9827' || amId === 'EMP-2072-9827' || amName.includes('محمود')) {
-                amId = 'AM-2072-9827';
-                amName = 'محمود خالد';
-            } else if (amId && amId !== 'EMP-001' && amId !== 'EMP-001-AM' && amId !== 'AM-001' && amId !== 'system' && amId !== 'unassigned') {
-                var foundAm = (window.allAccountManagers || []).find(function(a){ return String(a.id || a.employee_id).toUpperCase() === String(amId).toUpperCase(); });
-                if (foundAm) {
-                    amName = foundAm.name || amName;
+                if (cAmid === 'AM-2072-9827' || cAmid === 'EMP-2072-9827') {
+                    amId = 'AM-2072-9827';
+                    amName = 'محمود خالد';
+                } else if (cAmid === 'EMP-5887-5256' || cAmid === 'AM-5887-5256') {
+                    amId = 'EMP-5887-5256';
+                    amName = 'آيه أحمد مجاهد';
+                } else if (cAmid === 'EMP-0652-9532' || cAmid === 'AM-0652-9532') {
+                    amId = 'EMP-0652-9532';
+                    amName = 'حبيبه أحمد محمد';
+                } else if (cAmid) {
+                    amId = cAmid;
+                    amName = cAmName || amName;
+                } else if (cAmName) {
+                    if (cAmName.includes('محمود')) {
+                        amId = 'AM-2072-9827';
+                        amName = 'محمود خالد';
+                    } else if (cAmName.includes('آيه') || cAmName.includes('ايه')) {
+                        amId = 'EMP-5887-5256';
+                        amName = 'آيه أحمد مجاهد';
+                    } else if (cAmName.includes('حبيبه') || cAmName.includes('حبيبة')) {
+                        amId = 'EMP-0652-9532';
+                        amName = 'حبيبه أحمد محمد';
+                    }
+                } else if (amName) {
+                    if (amName.includes('محمود')) {
+                        amId = 'AM-2072-9827';
+                        amName = 'محمود خالد';
+                    } else if (amName.includes('آيه') || amName.includes('ايه')) {
+                        amId = 'EMP-5887-5256';
+                        amName = 'آيه أحمد مجاهد';
+                    } else if (amName.includes('حبيبه') || amName.includes('حبيبة')) {
+                        amId = 'EMP-0652-9532';
+                        amName = 'حبيبه أحمد محمد';
+                    }
                 }
             }
             t.am_id = amId;
@@ -4821,14 +4905,29 @@ function onPlanBuilderTabClientChange(val) {
     if (matched) {
         var amSel = document.getElementById('pb-am');
         if (amSel && (matched.am_employee_id || matched.am_name)) {
-            var targetAMId = matched.am_employee_id;
-            var targetAMName = matched.am_name;
-            for (var i = 0; i < amSel.options.length; i++) {
-                var opt = amSel.options[i];
-                if ((targetAMId && opt.value === targetAMId) || (targetAMName && opt.text.includes(targetAMName))) {
-                    amSel.selectedIndex = i;
-                    break;
+            var targetAMId = (matched.am_employee_id || '').trim().toUpperCase();
+            var targetAMName = (matched.am_name || '').trim();
+            var matchedIdx = -1;
+            if (targetAMId) {
+                var numPart = targetAMId.replace(/^(AM|EMP)-?/i, '');
+                for (var i = 0; i < amSel.options.length; i++) {
+                    var val = (amSel.options[i].value || '').trim().toUpperCase();
+                    if (val === targetAMId || (numPart && val.endsWith(numPart))) {
+                        matchedIdx = i;
+                        break;
+                    }
                 }
+            }
+            if (matchedIdx === -1 && targetAMName) {
+                for (var i = 0; i < amSel.options.length; i++) {
+                    if (amSel.options[i].text.includes(targetAMName)) {
+                        matchedIdx = i;
+                        break;
+                    }
+                }
+            }
+            if (matchedIdx !== -1) {
+                amSel.selectedIndex = matchedIdx;
             }
         }
     }
@@ -5454,14 +5553,29 @@ function onTasksIngestClientSelectChange(val) {
     if (matched) {
         var amSel = document.getElementById('tasks-ingest-am');
         if (amSel && (matched.am_employee_id || matched.am_name)) {
-            var targetAMId = matched.am_employee_id;
-            var targetAMName = matched.am_name;
-            for (var i = 0; i < amSel.options.length; i++) {
-                var opt = amSel.options[i];
-                if ((targetAMId && opt.value === targetAMId) || (targetAMName && opt.text.includes(targetAMName))) {
-                    amSel.selectedIndex = i;
-                    break;
+            var targetAMId = (matched.am_employee_id || '').trim().toUpperCase();
+            var targetAMName = (matched.am_name || '').trim();
+            var matchedIdx = -1;
+            if (targetAMId) {
+                var numPart = targetAMId.replace(/^(AM|EMP)-?/i, '');
+                for (var i = 0; i < amSel.options.length; i++) {
+                    var val = (amSel.options[i].value || '').trim().toUpperCase();
+                    if (val === targetAMId || (numPart && val.endsWith(numPart))) {
+                        matchedIdx = i;
+                        break;
+                    }
                 }
+            }
+            if (matchedIdx === -1 && targetAMName) {
+                for (var i = 0; i < amSel.options.length; i++) {
+                    if (amSel.options[i].text.includes(targetAMName)) {
+                        matchedIdx = i;
+                        break;
+                    }
+                }
+            }
+            if (matchedIdx !== -1) {
+                amSel.selectedIndex = matchedIdx;
             }
         }
         var pMonth = document.getElementById('tasks-ingest-plan-month');
@@ -8013,14 +8127,29 @@ function onPlanBuilderModalClientChange(val) {
     if (matched) {
         var amSelect = document.getElementById('pb-am-select');
         if (amSelect && (matched.am_employee_id || matched.am_name)) {
-            var targetAMId = matched.am_employee_id;
-            var targetAMName = matched.am_name;
-            for (var i = 0; i < amSelect.options.length; i++) {
-                var opt = amSelect.options[i];
-                if ((targetAMId && opt.value === targetAMId) || (targetAMName && opt.text.includes(targetAMName))) {
-                    amSelect.selectedIndex = i;
-                    break;
+            var targetAMId = (matched.am_employee_id || '').trim().toUpperCase();
+            var targetAMName = (matched.am_name || '').trim();
+            var matchedIdx = -1;
+            if (targetAMId) {
+                var numPart = targetAMId.replace(/^(AM|EMP)-?/i, '');
+                for (var i = 0; i < amSelect.options.length; i++) {
+                    var val = (amSelect.options[i].value || '').trim().toUpperCase();
+                    if (val === targetAMId || (numPart && val.endsWith(numPart))) {
+                        matchedIdx = i;
+                        break;
+                    }
                 }
+            }
+            if (matchedIdx === -1 && targetAMName) {
+                for (var i = 0; i < amSelect.options.length; i++) {
+                    if (amSelect.options[i].text.includes(targetAMName)) {
+                        matchedIdx = i;
+                        break;
+                    }
+                }
+            }
+            if (matchedIdx !== -1) {
+                amSelect.selectedIndex = matchedIdx;
             }
         }
     }

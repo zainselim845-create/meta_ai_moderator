@@ -21,14 +21,29 @@ function onPlanBuilderModalClientChange(val) {
     if (matched) {
         var amSelect = document.getElementById('pb-am-select');
         if (amSelect && (matched.am_employee_id || matched.am_name)) {
-            var targetAMId = matched.am_employee_id;
-            var targetAMName = matched.am_name;
-            for (var i = 0; i < amSelect.options.length; i++) {
-                var opt = amSelect.options[i];
-                if ((targetAMId && opt.value === targetAMId) || (targetAMName && opt.text.includes(targetAMName))) {
-                    amSelect.selectedIndex = i;
-                    break;
+            var targetAMId = (matched.am_employee_id || '').trim().toUpperCase();
+            var targetAMName = (matched.am_name || '').trim();
+            var matchedIdx = -1;
+            if (targetAMId) {
+                var numPart = targetAMId.replace(/^(AM|EMP)-?/i, '');
+                for (var i = 0; i < amSelect.options.length; i++) {
+                    var val = (amSelect.options[i].value || '').trim().toUpperCase();
+                    if (val === targetAMId || (numPart && val.endsWith(numPart))) {
+                        matchedIdx = i;
+                        break;
+                    }
                 }
+            }
+            if (matchedIdx === -1 && targetAMName) {
+                for (var i = 0; i < amSelect.options.length; i++) {
+                    if (amSelect.options[i].text.includes(targetAMName)) {
+                        matchedIdx = i;
+                        break;
+                    }
+                }
+            }
+            if (matchedIdx !== -1) {
+                amSelect.selectedIndex = matchedIdx;
             }
         }
     }
