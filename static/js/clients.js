@@ -8,7 +8,7 @@ async function loadClients() {
         const [amRes, teamRes, clientsRes] = await Promise.allSettled([
             safeFetchJson('/api/account-managers'),
             safeFetchJson('/api/tasks/employees'),
-            fetch('/api/clients').then(r => r.json())
+            safeFetchJson('/api/clients?all=true')
         ]);
         if (amRes.status === 'fulfilled' && amRes.value && (amRes.value.account_managers || amRes.value.ams || amRes.value.managers)) {
             window.allAccountManagers = amRes.value.account_managers || amRes.value.ams || amRes.value.managers;

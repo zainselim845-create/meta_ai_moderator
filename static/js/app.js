@@ -3484,66 +3484,7 @@ async function confirmPortalReassign() {
 window.openPortalReassignModal = openPortalReassignModal;
 window.confirmPortalReassign = confirmPortalReassign;
 
-// ==========================================
-// Quick Header User Profile Switcher
-// ==========================================
-async function toggleHeaderUserSwitcher(e) {
-  if (e && e.stopPropagation) e.stopPropagation();
-  const dd = document.getElementById('header-user-switcher-dropdown');
-  if (!dd) return;
-  const isHidden = dd.classList.contains('hidden');
-  if (isHidden) {
-    dd.classList.remove('hidden');
-    loadHeaderUserSwitcherAccounts();
-  } else {
-    dd.classList.add('hidden');
-  }
-}
-
-async function loadHeaderUserSwitcherAccounts() {
-  const container = document.getElementById('header-user-switcher-list');
-  if (!container) return;
-  container.innerHTML = '<div class="p-2 text-center text-xs text-slate-500">جاري تحميل الحسابات...</div>';
-  try {
-    const res = await fetch('/api/team-switch-list');
-    const data = await res.json();
-    const accounts = data.accounts || [];
-    if (!accounts.length) {
-      container.innerHTML = '<div class="p-2 text-center text-xs text-slate-500">لا توجد حسابات متاحة</div>';
-      return;
-    }
-
-    const currentU = (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).username : '') || '';
-
-    const cats = {};
-    accounts.forEach(a => {
-      const c = a.category || 'أخرى';
-      if (!cats[c]) cats[c] = [];
-      cats[c].push(a);
-    });
-
-    let html = '';
-    for (const [catName, list] of Object.entries(cats)) {
-      html += `<div class="text-[10px] font-black text-indigo-900/60 uppercase tracking-wider px-2 pt-2 pb-0.5">${esc(catName)}</div>`;
-      list.forEach(a => {
-        const isCurrent = (String(a.username).toLowerCase() === currentU.toLowerCase() || String(a.id).toLowerCase() === currentU.toLowerCase());
-        html += `
-          <button type="button" onclick="switchUserProfile('${esc(a.id)}')" class="w-full text-right px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between gap-2 transition cursor-pointer ${isCurrent ? 'bg-indigo-50 text-indigo-950 font-black border border-indigo-200' : 'text-slate-700 hover:bg-slate-100 font-bold'}">
-            <span class="truncate">${esc(a.name)}</span>
-            <span class="text-[10px] font-mono text-slate-400 shrink-0">[${esc(a.id)}]</span>
-          </button>
-        `;
-      });
-    }
-    container.innerHTML = html;
-  } catch(e) {
-    container.innerHTML = '<div class="p-2 text-center text-xs text-rose-500">تعذر تحميل الحسابات</div>';
-  }
-}
-
 async function switchUserProfile(targetIdent) {
-  const dd = document.getElementById('header-user-switcher-dropdown');
-  if (dd) dd.classList.add('hidden');
   showToast('جاري التبديل إلى الحساب المطلوب...');
   try {
     const res = await fetch('/api/switch-user', {
@@ -3570,16 +3511,5 @@ async function switchUserProfile(targetIdent) {
   }
 }
 
-document.addEventListener('click', (e) => {
-  const dd = document.getElementById('header-user-switcher-dropdown');
-  const btn = document.getElementById('btn-header-switch-user');
-  if (dd && !dd.classList.contains('hidden')) {
-    if (btn && !btn.contains(e.target) && !dd.contains(e.target)) {
-      dd.classList.add('hidden');
-    }
-  }
-});
-
-window.toggleHeaderUserSwitcher = toggleHeaderUserSwitcher;
 window.switchUserProfile = switchUserProfile;
 

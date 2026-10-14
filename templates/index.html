@@ -221,20 +221,7 @@
       </div>
      </div>
      <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-      <!-- Quick User Profile Switcher -->
-      <div id="header-user-switcher-box" class="relative">
-       <button id="btn-header-switch-user" type="button" onclick="toggleHeaderUserSwitcher(event)" class="btn-ghost text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 text-indigo-900 flex items-center gap-1.5 font-bold transition whitespace-nowrap shadow-2xs cursor-pointer" title="تبديل سريع بين المستخدمين وأعضاء الفريق">
-        <i class="w-3.5 h-3.5 text-indigo-600" data-lucide="users"></i>
-        <span class="hidden sm:inline" id="header-switch-user-label">🔄 تبديل المستخدم</span>
-        <span class="sm:hidden">🔄</span>
-       </button>
-       <div id="header-user-switcher-dropdown" class="hidden absolute left-0 sm:right-auto sm:left-0 top-full mt-1.5 w-64 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2 space-y-1">
-        <div class="px-2 py-1 text-[11px] font-bold text-slate-400 border-b border-slate-100">اختر الحساب للتبديل الفوري:</div>
-        <div id="header-user-switcher-list" class="space-y-0.5">
-         <!-- Populated dynamically via /api/team-switch-list -->
-        </div>
-       </div>
-      </div>
+      
 
       <button id="btn-header-instant-refresh" onclick="triggerGlobalLiveRefresh(this)" class="btn-ghost text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100 text-blue-800 flex items-center gap-1.5 font-bold transition whitespace-nowrap shadow-2xs cursor-pointer" title="تحديث لحظي فوري لجميع البيانات والصفحات">
        <i class="w-3.5 h-3.5 text-blue-600 transition-transform duration-500" data-lucide="refresh-cw" id="header-refresh-icon"></i>
@@ -2172,7 +2159,7 @@
 
   <div id="toast">
   </div>
-  <script defer src="/static/js/app.js?v=1791813000">
+  <script defer src="/static/js/app.js?v=1791815000">
   </script>
   <script defer src="/static/js/portal_view.js?v=1791813000">
   </script>
@@ -2190,7 +2177,7 @@
   </script>
   <script defer src="/static/js/plan_builder.js?v=1791813000">
   </script>
-  <script defer src="/static/js/clients.js?v=1791813000">
+  <script defer src="/static/js/clients.js?v=1791815000">
   </script>
  
   <!-- Modal: Add New Connected Account -->
