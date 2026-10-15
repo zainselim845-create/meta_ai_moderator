@@ -578,6 +578,9 @@ INITIAL_DEFAULT_AYA_CLIENTS = {
 HABIBA_CLIENTS = set(INITIAL_DEFAULT_HABIBA_CLIENTS)
 AYA_CLIENTS = set(INITIAL_DEFAULT_AYA_CLIENTS)
 MAHMOUD_CLIENTS = set(INITIAL_DEFAULT_MAHMOUD_CLIENTS)
+# Generic map: am_employee_id (upper) -> set of client ids. Covers ALL account managers,
+# not just the 3 hardcoded ones, so transferred clients are never lost for arbitrary AMs.
+AM_CLIENTS_BY_ID = {}
 
 AGENCY_CLIENTS_STORE = [dict(c) for c in CANONICAL_DEFAULT_CLIENTS]
 ACCOUNTS_STORE = []
@@ -589,10 +592,11 @@ def sync_am_client_sets():
     This guarantees that whenever a client is transferred/reassigned between Account Managers,
     the client immediately disappears from the old AM's view and appears in the new AM's view.
     """
-    global AYA_CLIENTS, HABIBA_CLIENTS, MAHMOUD_CLIENTS
+    global AYA_CLIENTS, HABIBA_CLIENTS, MAHMOUD_CLIENTS, AM_CLIENTS_BY_ID
     aya_set = set()
     habiba_set = set()
     mahmoud_set = set()
+    am_map = {}
 
     for c in AGENCY_CLIENTS_STORE:
         if not isinstance(c, dict):
@@ -600,10 +604,11 @@ def sync_am_client_sets():
         cid = str(c.get("id") or c.get("client_id") or "").strip()
         if not cid:
             continue
-        c_amid = str(c.get("am_employee_id") or c.get("am_id") or "").strip().upper()
+        c_amid = str(c.get("am_employee_id") or c.get("am_id") or c.get("account_manager_id") or "").strip().upper()
         c_amname = str(c.get("am_name") or c.get("account_manager") or "").strip()
 
         if c_amid:
+            am_map.setdefault(c_amid, set()).add(cid)
             if c_amid in ("AM-2072-9827", "EMP-2072-9827"):
                 mahmoud_set.add(cid)
             elif c_amid in ("EMP-5887-5256", "AM-5887-5256"):
@@ -611,6 +616,7 @@ def sync_am_client_sets():
             elif c_amid in ("EMP-0652-9532", "AM-0652-9532"):
                 habiba_set.add(cid)
         elif c_amname:
+            am_map.setdefault(c_amname, set()).add(cid)
             if "محمود" in c_amname:
                 mahmoud_set.add(cid)
             elif "آيه" in c_amname or "ايه" in c_amname:
@@ -630,6 +636,8 @@ def sync_am_client_sets():
     HABIBA_CLIENTS.update(habiba_set)
     MAHMOUD_CLIENTS.clear()
     MAHMOUD_CLIENTS.update(mahmoud_set)
+    AM_CLIENTS_BY_ID.clear()
+    AM_CLIENTS_BY_ID.update(am_map)
 
 
 def ensure_default_clients_grouped():
@@ -1385,11 +1393,12 @@ def push_setting(key, value):
 
     # SAFETY: never overwrite the accounts/clients lists with an empty value or truncated test list
     if key == "meta_ai_clients":
-        if not value or not isinstance(value, list) or len(value) < 3:
-            print(f"[Supabase Push BLOCKED] refusing to overwrite meta_ai_clients with truncated list ({len(value) if isinstance(value, list) else 0} items)")
+        if not value or not isinstance(value, list) or len(value) < 1:
+            print(f"[Supabase Push BLOCKED] refusing to overwrite meta_ai_clients with empty value ({len(value) if isinstance(value, list) else 0} items)")
             return
-        # Ensure bogus / phantom / test clients never get pushed
-        BOGUS_CLIENT_KEYWORDS = ("إبداع", "عميل عام", "نور", "النور", "creator_test", "تجرب", "test")
+        # Ensure bogus / phantom / test clients never get pushed.
+        # NOTE: do NOT block common Arabic names like "نور"/"النور" — only clearly test/phantom labels.
+        BOGUS_CLIENT_KEYWORDS = ("إبداع", "عميل عام", "creator_test", "تجرب", "test_client", "phantom")
         value = [
             c for c in value
             if isinstance(c, dict)
