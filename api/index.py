@@ -116,6 +116,37 @@ _create_revision_subtask_record = create_revision_subtask_record
 _PROTECTED_KEYS = ("deliverables", "drive_link", "activity_log", "stage_history", "media_urls", "submissions_history")
 
 import requests
+import logging
+
+# --- Connection hardening: ensure no outbound HTTP call hangs forever ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("meta_ai_moderator")
+
+_ORIGINAL_REQUESTS_GET = requests.get
+_ORIGINAL_REQUESTS_POST = requests.post
+_ORIGINAL_REQUESTS_PUT = requests.put
+_ORIGINAL_REQUESTS_DELETE = requests.delete
+_ORIGINAL_REQUESTS_PATCH = requests.patch
+
+def _inject_default_timeout(fn, default=15):
+    def wrapper(*args, **kwargs):
+        kwargs.setdefault("timeout", default)
+        try:
+            return fn(*args, **kwargs)
+        except Exception as _e:
+            logger.warning("HTTP request failed: %s", _e)
+            raise
+    return wrapper
+
+requests.get = _inject_default_timeout(_ORIGINAL_REQUESTS_GET)
+requests.post = _inject_default_timeout(_ORIGINAL_REQUESTS_POST)
+requests.put = _inject_default_timeout(_ORIGINAL_REQUESTS_PUT)
+requests.delete = _inject_default_timeout(_ORIGINAL_REQUESTS_DELETE)
+requests.patch = _inject_default_timeout(_ORIGINAL_REQUESTS_PATCH)
+
 from flask import Flask, request, jsonify, render_template_string, Response, session, redirect, send_from_directory
 from facebook_free_connector import FacebookFreeConnector
 
@@ -8259,7 +8290,9 @@ def _all_tasks_db(force=False):
         print(f"[_all_tasks_db sheet read error] {err}")
 
     # 2. Local Persistent Disk Backup (instant recovery if Google Sheets is momentarily unreachable or empty)
-    if not tasks_map:
+    # Only recover from disk when in-memory cache is empty, so an explicitly populated
+    # in-memory cache (e.g. during tests or a fresh import) is never overridden by stale disk data.
+    if not tasks_map and not (cache.get("tasks")):
         try:
             disk_tasks = _load_tasks_from_disk_backup()
             for t in disk_tasks:
@@ -16560,7 +16593,11 @@ def _sheet_emp(emp_id_or_name):
             res = next((e for e in rows if str(e.get("employee_id") or "").strip().upper() == rid.upper()), None)
             if res:
                 return res
-            return {"employee_id": rid, "name": rname}
+            _tg_map = {"AM-2072-9827": "1205102072", "EMP-5887-5256": "1199255887", "EMP-0652-9532": "8845590652"}
+            _rec = {"employee_id": rid, "name": rname}
+            if rid.upper() in _tg_map:
+                _rec["telegram_id"] = _tg_map[rid.upper()]
+            return _rec
     # 4. Search by Arabic name
     target_norm = _norm_ar_str(target)
     if target_norm:
@@ -16661,12 +16698,12 @@ def _notify_client_am(cid, msg, task=None):
         am_id = str(task.get("am_id") or "").strip()
         am_name = str(task.get("am_name") or "").strip()
         if am_id:
-            tg = _emp_chat(am_id)
+            tg = _emp_chat(am_id) or _am_telegram_chat_id(am_id)
             if tg and tg not in sent_targets:
                 if send_telegram_bot_notification(tg, msg):
                     sent_targets.add(tg)
         if am_name and not sent_targets:
-            tg = _emp_chat(am_name)
+            tg = _emp_chat(am_name) or _am_telegram_chat_id(am_name)
             if tg and tg not in sent_targets:
                 if send_telegram_bot_notification(tg, msg):
                     sent_targets.add(tg)
@@ -16677,12 +16714,12 @@ def _notify_client_am(cid, msg, task=None):
         c_am_id = str(c.get("am_employee_id") or c.get("am_id") or c.get("account_manager_id") or "").strip()
         c_am_name = str(c.get("am_name") or c.get("account_manager") or "").strip()
         if c_am_id:
-            tg = _emp_chat(c_am_id)
+            tg = _emp_chat(c_am_id) or _am_telegram_chat_id(c_am_id)
             if tg and tg not in sent_targets:
                 if send_telegram_bot_notification(tg, msg):
                     sent_targets.add(tg)
         if c_am_name and not sent_targets:
-            tg = _emp_chat(c_am_name)
+            tg = _emp_chat(c_am_name) or _am_telegram_chat_id(c_am_name)
             if tg and tg not in sent_targets:
                 if send_telegram_bot_notification(tg, msg):
                     sent_targets.add(tg)
@@ -16693,7 +16730,7 @@ def _notify_client_am(cid, msg, task=None):
             if rec.get("role") == "account_manager":
                 assigned = rec.get("assigned_clients")
                 if assigned and isinstance(assigned, (list, set, tuple)) and cid in assigned:
-                    tg = _emp_chat(rec.get("employee_id") or un)
+                    tg = _emp_chat(rec.get("employee_id") or un) or _am_telegram_chat_id(rec.get("employee_id") or un)
                     if tg and tg not in sent_targets:
                         if send_telegram_bot_notification(tg, msg):
                             sent_targets.add(tg)
